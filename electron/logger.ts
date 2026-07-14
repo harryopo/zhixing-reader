@@ -1,0 +1,92 @@
+import { app } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
+
+export enum LogLevel {
+  DEBUG = 0,
+  INFO = 1,
+  WARN = 2,
+  ERROR = 3,
+}
+
+interface LogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+  data?: unknown;
+}
+
+class Logger {
+  private logPath: string;
+  private logLevel: LogLevel = LogLevel.INFO;
+  private stream: fs.WriteStream | null = null;
+
+  constructor() {
+    const logDir = path.join(app.getPath('userData'), 'logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const date = new Date().toISOString().split('T')[0];
+    this.logPath = path.join(logDir, `${date}.log`);
+    this.initStream();
+  }
+
+  private initStream(): void {
+    this.stream = fs.createWriteStream(this.logPath, { flags: 'a' });
+  }
+
+  setLevel(level: LogLevel): void {
+    this.logLevel = level;
+  }
+
+  private formatEntry(level: string, message: string, data?: unknown): LogEntry {
+    return {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      data,
+    };
+  }
+
+  private write(level: LogLevel, levelName: string, message: string, data?: unknown): void {
+    if (level < this.logLevel) return;
+
+    const entry = this.formatEntry(levelName, message, data);
+    const line = data
+      ? `[${entry.timestamp}] [${entry.level}] ${entry.message} ${JSON.stringify(data)}\n`
+      : `[${entry.timestamp}] [${entry.level}] ${entry.message}\n`;
+
+    if (this.stream && !this.stream.destroyed) {
+      this.stream.write(line);
+    }
+
+    const consoleMethod = level === LogLevel.ERROR ? 'error' : level === LogLevel.WARN ? 'warn' : 'log';
+    console[consoleMethod](line.trim());
+  }
+
+  debug(message: string, data?: unknown): void {
+    this.write(LogLevel.DEBUG, 'DEBUG', message, data);
+  }
+
+  info(message: string, data?: unknown): void {
+    this.write(LogLevel.INFO, 'INFO', message, data);
+  }
+
+  warn(message: string, data?: unknown): void {
+    this.write(LogLevel.WARN, 'WARN', message, data);
+  }
+
+  error(message: string, data?: unknown): void {
+    this.write(LogLevel.ERROR, 'ERROR', message, data);
+  }
+
+  close(): void {
+    if (this.stream) {
+      this.stream.end();
+      this.stream = null;
+    }
+  }
+}
+
+export const logger = new Logger();
+export default logger;

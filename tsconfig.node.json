@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "target": "ESNext",
+    "outDir": "dist/main"
+  },
+  "include": ["electron/**/*.ts", "src/shared/**/*.ts"]
+}

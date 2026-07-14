@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+out/
+*.log
+.env
+.env.local
+resources/ecdict.db
+.trae-cn/
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
