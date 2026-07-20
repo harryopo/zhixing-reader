@@ -1,0 +1,58 @@
+# 知行读书 — GitHub Actions CI
+
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+# 取消进行中的同 workflow（避免资源浪费）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: Lint + Typecheck + Test + Build
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+        timeout-minutes: 8
+
+      - name: ESLint (R10 硬约束)
+        run: npm run lint
+        timeout-minutes: 3
+
+      - name: TypeScript (strict mode)
+        run: npm run typecheck
+        timeout-minutes: 5
+
+      - name: Vitest + Coverage (R6 硬约束)
+        run: npm run test
+        timeout-minutes: 5
+
+      - name: Build (主 + 预加载 + 渲染)
+        run: npm run build
+        timeout-minutes: 8
+
+      - name: Upload coverage report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
