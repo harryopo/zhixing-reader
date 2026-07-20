@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { LearningStats, Achievement, DailyReadingData, LearningMilestone, Book, DailyStats } from '../../../shared/types'
+import { LearningStats, Achievement, DailyReadingData, LearningMilestone, Book, DailyStats as _DailyStats } from '../../../shared/types'
 
 interface ProfileState {
   stats: LearningStats

@@ -12,7 +12,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
-import { ProviderStats, FeatureStats, DailyTokenStats } from '../../../../types/renderer'
+import { ProviderStats, FeatureStats, DailyTokenStats as _DailyTokenStats } from '../../../../types/renderer'
 
 interface DashboardData {
   stats: {

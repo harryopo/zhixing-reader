@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback as _useCallback } from 'react'
 import { useProfileStore } from '../stores/profileStore'
-import { toast } from '../stores/toastStore'
+import { toast as _toast } from '../stores/toastStore'
 
 export default function Profile() {
   const { stats, achievements, loading, error, fetchStats } = useProfileStore()
@@ -30,13 +30,13 @@ export default function Profile() {
     return { labels, values }
   }
 
-  const getAchievementProgress = (achievement: { condition: (stats: { finishedBooks: number; totalHighlights: number; masteredCards: number; totalReviews: number; currentStreak: number }) => boolean }) => {
+  const _getAchievementProgress = (achievement: { condition: (stats: { finishedBooks: number; totalHighlights: number; masteredCards: number; totalReviews: number; currentStreak: number }) => boolean }) => {
     if (achievement.condition(stats)) return 100
     return 0
   }
 
   const unlockedAchievements = achievements.filter(a => a.unlockedAt)
-  const lockedAchievements = achievements.filter(a => !a.unlockedAt)
+  const _lockedAchievements = achievements.filter(a => !a.unlockedAt)
 
   if (loading) {
     return (

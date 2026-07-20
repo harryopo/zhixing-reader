@@ -3,7 +3,7 @@
  * 管理 Repository 实例的创建和依赖注入
  */
 
-import { Database } from 'sql.js'
+import { Database as _Database } from 'sql.js'
 import { IRepositoryContainer } from '../types/repositories'
 import { SqlBookRepository } from './book-repository'
 import { SqlHighlightRepository } from './highlight-repository'

@@ -1,8 +1,8 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, dailyStatsDb, tokenUsageDb, conversationDb, methodologiesDb, knowledgeCardsDb, bookArchitectureDb, articlesDb, vocabularyDb, forceSaveDatabase, getDatabase } from './database';
 import { setApiKey, getBookshelf, fetchBookmarks, fetchNotes, fetchAllContent, fetchAllContentBatch, testConnection as testWereadConnection, clearCache as clearWeReadApiCache, fetchReadingData, ReadingMode } from './weread-api';
-import { setAIConfig, generateCards, generateSummary, chatWithContext, explainHighlight, testConnection as testAIConnection, extractMethodologies, analyzeBookArchitecture, distillKnowledgeCards, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch, streamChat, translateArticle } from './ai-service';
-import { Rating, setCustomParameters, resetParameters, getParameters, calculateStats, getForecast, getOptimalReviewOrder } from './fsrs-engine';
+import { setAIConfig, generateCards, generateSummary, chatWithContext, explainHighlight, testConnection as testAIConnection, extractMethodologies, analyzeBookArchitecture, distillKnowledgeCards as _distillKnowledgeCards, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch, streamChat, translateArticle } from './ai-service';
+import { Rating, setCustomParameters, resetParameters, getParameters, calculateStats as _calculateStats, getForecast, getOptimalReviewOrder } from './fsrs-engine';
 import { logger } from './logger';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 import { settingsService } from './services/settings-service';
@@ -477,7 +477,7 @@ export function registerIpcHandlers(): void {
           notes: Array<{ reviewId: string; chapterTitle: string; abstract: string; content: string; chapterUid: number; createTime: number }>;
         };
 
-        let importedCount = 0;
+        let _importedCount = 0;
         if (content.bookmarks && content.bookmarks.length > 0) {
           for (const bm of content.bookmarks) {
             try {
@@ -490,7 +490,7 @@ export function registerIpcHandlers(): void {
                 source: 'weread',
                 created_at: new Date(bm.createTime * 1000).toISOString(),
               });
-              importedCount++;
+              _importedCount++;
             } catch (e) { logger.error('导入划线失败:', e); }
           }
         }
@@ -507,7 +507,7 @@ export function registerIpcHandlers(): void {
                 source: 'weread',
                 created_at: new Date(note.createTime * 1000).toISOString(),
               });
-              importedCount++;
+              _importedCount++;
             } catch (e) { logger.error('导入笔记失败:', e); }
           }
         }
@@ -615,7 +615,7 @@ export function registerIpcHandlers(): void {
     return { id, ...architecture };
   });
 
-  handle(IPC_CHANNELS.SKILL.GENERATE, async (methodologyId: string, bookTitle: string, author?: string) => {
+  handle(IPC_CHANNELS.SKILL.GENERATE, async (methodologyId: string, bookTitle: string, _author?: string) => {
     const methodology = methodologiesDb.getById(methodologyId);
     if (!methodology) {
       throw new Error('方法论不存在');
@@ -633,7 +633,7 @@ export function registerIpcHandlers(): void {
     return { content: skillContent };
   });
 
-  handle(IPC_CHANNELS.SKILL.EXPORT_BATCH, async (methodologyIds: string[], bookTitle: string, author?: string) => {
+  handle(IPC_CHANNELS.SKILL.EXPORT_BATCH, async (methodologyIds: string[], bookTitle: string, _author?: string) => {
     const methodologies = [];
     for (const id of methodologyIds) {
       const m = methodologiesDb.getById(id);

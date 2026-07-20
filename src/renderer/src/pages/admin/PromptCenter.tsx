@@ -18,7 +18,7 @@ const ROLE_LABELS: Record<string, string> = {
   user: '用户消息',
 }
 
-function renderPreview(template: string, vars: Record<string, string>): string {
+function _renderPreview(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
     const v = vars[key]
     return v && v.trim() ? v : `{{${key}}}`

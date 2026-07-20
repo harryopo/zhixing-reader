@@ -731,7 +731,7 @@ export default function KnowledgeCards() {
                                       })
                                       await loadData()
                                       toast.success(`掌握度已更新为 ${level * 20}%`)
-                                    } catch (error) {
+                                    } catch (_error) {
                                       toast.error('更新失败')
                                     }
                                   }}

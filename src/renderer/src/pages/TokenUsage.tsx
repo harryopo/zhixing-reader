@@ -151,7 +151,7 @@ function UsageHero({ summary, loading }: { summary: TokenSummary | null; loading
   )
 }
 
-function TrendSummaryCards({ dailyStats, sorted }: { dailyStats: DailyTokenStats[]; sorted: DailyTokenStats[] }) {
+function TrendSummaryCards({ dailyStats: _dailyStats, sorted }: { dailyStats: DailyTokenStats[]; sorted: DailyTokenStats[] }) {
   const nonZero = sorted.filter(d => d.total_tokens > 0)
   const peak = nonZero.length > 0 ? nonZero.reduce((a, b) => a.total_tokens > b.total_tokens ? a : b) : null
   const avgTokens = nonZero.length > 0 ? Math.round(nonZero.reduce((s, d) => s + d.total_tokens, 0) / nonZero.length) : 0

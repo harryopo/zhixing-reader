@@ -37,7 +37,7 @@ export function getIntentKeywords(): Record<UserIntent, string[]> {
         return parsed as Record<UserIntent, string[]>
       }
     }
-  } catch (err) {
+  } catch (_err) {
     logger.debug('Failed to parse intent keywords from registry, using default')
   }
   return DEFAULT_INTENT_KEYWORDS

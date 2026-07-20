@@ -55,7 +55,7 @@ function cleanupOldSessions(): void {
   }
 }
 
-const cleanupTimer = setInterval(cleanupOldSessions, CLEANUP_INTERVAL_MS)
+const _cleanupTimer = setInterval(cleanupOldSessions, CLEANUP_INTERVAL_MS)
 
 export function getOrCreateState(sessionId: string): ConversationState {
   let state = sessionStates.get(sessionId)

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { mapCards, mapHighlights, safeStr, safeNum } from '../utils/db-mapper'
+import { mapCards, mapHighlights, safeStr, safeNum as _safeNum } from '../utils/db-mapper'
 import { toast } from '../stores/toastStore'
 
 interface ReviewStatsLocal {

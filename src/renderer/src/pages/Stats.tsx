@@ -126,7 +126,7 @@ export default function Stats() {
   const handleRefreshReadingData = async () => {
     try {
       await fetchReadingData(readingMode)
-    } catch (error) {
+    } catch (_error) {
       toast.error('获取阅读数据失败，请检查微信读书配置')
     }
   }
@@ -667,7 +667,7 @@ const CATEGORY_COLORS = [
   '#ec4899', '#ef4444', '#06b6d4',
 ]
 
-function UserProfileCard({ categories, categoryWord }: { categories: PreferCategory[]; categoryWord?: string }) {
+function UserProfileCard({ categories, categoryWord: _categoryWord }: { categories: PreferCategory[]; categoryWord?: string }) {
   const profile = useMemo(() => deriveProfile(categories), [categories])
 
   const identityEmoji =

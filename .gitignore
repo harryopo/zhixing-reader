@@ -10,3 +10,26 @@ resources/ecdict.db
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# CodeGraph (本地代码知识图谱索引)
+.codegraph/
+
+# Temp
+tmp/
+temp/

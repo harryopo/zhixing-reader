@@ -6,7 +6,7 @@
 import { BaseRepository, DatabaseAccessor } from './base-repository'
 import { Card } from '../types/entities'
 import { ICardRepository } from '../types/repositories'
-import { createCard, cardFromDb, cardToRow, CardState } from '../fsrs-engine'
+import { createCard, cardFromDb as _cardFromDb, cardToRow, CardState } from '../fsrs-engine'
 
 export class SqlCardRepository extends BaseRepository<Card> implements ICardRepository {
   constructor(getDb: DatabaseAccessor) {

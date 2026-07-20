@@ -6,7 +6,7 @@ export default function Home() {
   const navigate = useNavigate()
   const [books, setBooks] = useState<Record<string, unknown>[]>([])
   const [cards, setCards] = useState<Record<string, unknown>[]>([])
-  const [highlights, setHighlights] = useState<Record<string, unknown>[]>([])
+  const [, setHighlights] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

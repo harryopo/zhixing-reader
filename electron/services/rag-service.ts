@@ -190,7 +190,7 @@ export async function getRAGStats(): Promise<{
       vectorCount: stats.pointsCount,
       isAvailable: true,
     }
-  } catch (error) {
+  } catch (_error) {
     return {
       vectorCount: 0,
       isAvailable: false,

@@ -110,7 +110,7 @@ function constrainDifficulty(d: number): number {
   return Math.min(Math.max(d, 0.1), 10);
 }
 
-function meanReversion(init: number, current: number, parameter: number): number {
+function _meanReversion(init: number, current: number, parameter: number): number {
   return parameter * init + (1 - parameter) * current;
 }
 
@@ -138,7 +138,7 @@ function nextDifficulty(d: number, r: Rating): number {
 function nextStability(d: number, s: number, r: Rating, parameters: FSRSParameters): number {
   const w = parameters.w;
   const decay = parameters.decay;
-  const factor = parameters.factor;
+  const _factor = parameters.factor;
 
   if (s === 0) {
     return w[r - 1];
@@ -441,7 +441,7 @@ export function reviewVocabulary(
 
   // Build a virtual Card state
   let state: CardState
-  const step = 0
+  const _step = 0
   let stability = 0
 
   if (learningStage === 0) {
@@ -535,7 +535,7 @@ export function reviewVocabulary(
 
   // Review stage - full FSRS
   stability = nextStability(initialDifficulty, efFactor, r, fsrsParams)
-  const newDifficulty = nextDifficulty(initialDifficulty, r)
+  const _newDifficulty = nextDifficulty(initialDifficulty, r)
   const interval = nextInterval(stability, fsrsParams)
 
   // Update EF (SM-2 style for backward compat)

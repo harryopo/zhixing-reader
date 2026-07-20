@@ -46,7 +46,7 @@ interface AIResponse {
   finishReason?: string;
 }
 
-interface StreamCallbacks {
+interface _StreamCallbacks {
   onToken?: (token: string) => void;
   onComplete?: (response: AIResponse) => void;
   onError?: (error: Error) => void;
@@ -1108,7 +1108,7 @@ async function streamOpenAI(
     }
 
     const decoder = new TextDecoder();
-    let totalContent = '';
+    let _totalContent = '';
     let usageData: { promptTokens: number; completionTokens: number } | undefined;
 
     while (true) {
@@ -1127,7 +1127,7 @@ async function streamOpenAI(
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta;
             if (delta?.content) {
-              totalContent += delta.content;
+              _totalContent += delta.content;
               onChunk(delta.content);
             }
             if (parsed.usage) {

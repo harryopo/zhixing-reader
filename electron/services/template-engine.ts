@@ -18,7 +18,7 @@ export function extractVariables(template: string): string[] {
 }
 
 export function validateTemplate(template: string): { valid: boolean; missing: string[]; unused: string[] } {
-  const declared = extractVariables(template)
+  const _declared = extractVariables(template)
   return {
     valid: true,
     missing: [],

@@ -116,7 +116,7 @@ const BUILT_IN_DICTIONARY: Record<string, DictEntry> = {
 
 // 词形变化解析：exchange 格式为 "d:did/p:done/3:does/i:doing/s:does/0:do"
 // d:过去式, p:过去分词, 3:三单, i:现在分词, s:复数, 0:原形, r:比较级, t:最高级
-interface ExchangeForms {
+interface _ExchangeForms {
   [form: string]: string;  // 变形 -> 原形
 }
 
@@ -173,7 +173,7 @@ class DictionaryService {
       const startTime = Date.now();
       const raw = fs.readFileSync(this.jsonPath, 'utf-8');
       const data = JSON.parse(raw) as Record<string, Record<string, unknown>>;
-      const entries = Object.keys(data);
+      const _entries = Object.keys(data);
       let loaded = 0;
 
       for (const [word, rawEntry] of Object.entries(data)) {

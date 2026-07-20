@@ -14,7 +14,7 @@ export function getSystemPrompt(): string {
     if (template && template.trim()) {
       return template
     }
-  } catch (err) {
+  } catch (_err) {
     logger.debug('Failed to read system prompt from registry, using default')
   }
   return DEFAULT_SYSTEM_PROMPT
