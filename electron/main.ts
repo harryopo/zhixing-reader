@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, nativeImage, shell, NativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { initDatabase, closeDatabase } from './database';
+import { initDatabase, closeDatabase, forceSaveDatabase } from './database';
 import { registerIpcHandlers } from './ipc';
 import { initFromSettings as initWereadSettings } from './weread-api';
 import { initFromSettings as initAISettings } from './ai-service';
@@ -77,6 +77,17 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // 数据保护：用户直接点窗口 X 关闭时立即保存数据库，
+  // 双保险 - 即使 before-quit 没来得及触发也不丢数据
+  mainWindow.on('close', () => {
+    try {
+      logger.info('Window close event - saving database');
+      forceSaveDatabase();
+    } catch (e) {
+      logger.error('Failed to save DB on window close', e);
+    }
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
