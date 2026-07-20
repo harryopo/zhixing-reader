@@ -26,7 +26,7 @@
 
 | 功能 | 进度 | 备注 |
 |------|------|------|
-| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 126 warns / 18 tests pass |
+| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 127 warns / 40 tests pass（38 FSRS + 2 IPC）|
 | CodeGraph 知识图谱 | 已建图 | 100 文件 / 1,451 节点 / 4,645 边，1.3s 增量同步 |
 | 比赛展示打磨 | 0% | 7/20-7/31 比赛期间，本周不开发新功能，只修 bug + 优化体验 |
 
@@ -126,7 +126,7 @@
 | ipc.ts 单文件 657 行 | 中 | grandfather（关闭 complexity 校验） | Phase 2 拆分 |
 | weread-api.ts / rag-service.ts | 低 | grandfather | Phase 2 拆分 |
 | React Router 7 → 8 升级 | 低 | 不升级（破坏性变更风险） | 比赛后评估 |
-| ECharts 切换 | 低 | 不切换（Recharts 862KB 可用） | 永不切 |
+| ECharts 切换 | ~~低~~ | ✅ **已切**（AdminDashboard 局部，4 commits：`ad56699`+`67df415`+`e0ec3a2`+`5f7ad84`）| 比赛期调研 P1 提前完成（实际 ~1 天）|
 | 错误边界 | 中 | 部分覆盖 | Phase 2 补齐 |
 | 日志系统 | 低 | 当前简单 | Phase 3 升级 |
 

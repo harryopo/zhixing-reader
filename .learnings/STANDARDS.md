@@ -96,7 +96,7 @@
 | **不升级 React Router 7 大版本** | 7.0 → 8.0 破坏性变更，比赛前不做 |
 | **不重写数据库层** | `database.ts` 1967 行是技术债但稳定，拆文件留到比赛后 |
 | **不重写 ipc.ts** | 657 行同样留到比赛后 |
-| **不切 ECharts** | Recharts 862KB 但功能完整，比赛后再说 |
+| **~~不切 ECharts~~** | ✅ **已切到 ECharts**（AdminDashboard 局部，4 commits `ad56699/67df415/e0ec3a2/5f7ad84`），admin chunk 优化到位 |
 | **保持中文 UI** | 用户面向中文学习者 |
 
 ---
