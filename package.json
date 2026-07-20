@@ -22,6 +22,8 @@
     "@qdrant/js-client-rest": "^1.18.0",
     "@tailwindcss/postcss": "^4.3.0",
     "axios": "^1.7.0",
+    "echarts": "^5.5.1",
+    "echarts-for-react": "^3.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
