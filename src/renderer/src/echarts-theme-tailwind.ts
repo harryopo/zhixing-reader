@@ -8,45 +8,41 @@
  * - 与 Stats 页 Recharts 风格保持视觉一致
  *
  * 加载位置：AdminDashboard.tsx 顶部（一次性注册）
+ *
+ * 2026-07-20 P1-2 重构：色值统一从 `design/colors.ts` 引用，避免硬编码分散。
  */
 
 import * as echarts from 'echarts/core'
+import {
+  COLORS,
+  ECHARTS_PALETTE,
+  GAUGE_AXIS_COLOR,
+  TEXT_ON_DARK,
+  TEXT_ON_LIGHT,
+} from './design/colors'
 
 /** Tailwind 绿色主题（emerald + lime 辅色） */
 export const tailwindTheme = {
-  color: [
-    '#10b981', // emerald-500（主色）
-    '#34d399', // emerald-400
-    '#6ee7b7', // emerald-300
-    '#a7f3d0', // emerald-200
-    '#059669', // emerald-600
-    '#047857', // emerald-700
-    '#84cc16', // lime-500
-    '#22c55e', // green-500
-    '#f59e0b', // amber-500（强调）
-    '#f43f5e', // rose-500（警告）
-    '#3b82f6', // blue-500（信息）
-    '#a78bfa', // violet-400
-  ],
+  color: ECHARTS_PALETTE,
   backgroundColor: 'transparent',
   textStyle: {
     fontFamily: 'inherit',
-    color: '#1f2937', // gray-800
+    color: TEXT_ON_LIGHT,
   },
   title: {
     textStyle: {
-      color: '#1f2937',
+      color: TEXT_ON_LIGHT,
       fontSize: 14,
       fontWeight: 600,
     },
     subtextStyle: {
-      color: '#9ca3af',
+      color: COLORS.gray[400],
       fontSize: 11,
     },
   },
   legend: {
     textStyle: {
-      color: '#4b5563',
+      color: COLORS.gray[600],
       fontSize: 11,
     },
     itemWidth: 10,
@@ -57,27 +53,27 @@ export const tailwindTheme = {
     borderWidth: 0,
     borderRadius: 8,
     textStyle: {
-      color: '#fff',
+      color: TEXT_ON_DARK,
       fontSize: 12,
     },
     extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.15);',
   },
   grid: {
     containLabel: true,
-    borderColor: '#f3f4f6',
+    borderColor: COLORS.gray[100],
   },
   categoryAxis: {
-    axisLine: { lineStyle: { color: '#e5e7eb' } },
-    axisTick: { lineStyle: { color: '#e5e7eb' } },
-    axisLabel: { color: '#9ca3af', fontSize: 10 },
-    splitLine: { show: false, lineStyle: { color: '#f3f4f6' } },
+    axisLine: { lineStyle: { color: COLORS.gray[200] } },
+    axisTick: { lineStyle: { color: COLORS.gray[200] } },
+    axisLabel: { color: COLORS.gray[400], fontSize: 10 },
+    splitLine: { show: false, lineStyle: { color: COLORS.gray[100] } },
     splitArea: { show: false },
   },
   valueAxis: {
-    axisLine: { show: false, lineStyle: { color: '#e5e7eb' } },
+    axisLine: { show: false, lineStyle: { color: COLORS.gray[200] } },
     axisTick: { show: false },
-    axisLabel: { color: '#9ca3af', fontSize: 10 },
-    splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } },
+    axisLabel: { color: COLORS.gray[400], fontSize: 10 },
+    splitLine: { lineStyle: { color: COLORS.gray[100], type: 'dashed' } },
     splitArea: { show: false },
   },
   line: {
@@ -95,7 +91,7 @@ export const tailwindTheme = {
   pie: {
     itemStyle: {
       borderRadius: 4,
-      borderColor: '#fff',
+      borderColor: COLORS.white,
       borderWidth: 2,
     },
   },
@@ -103,11 +99,7 @@ export const tailwindTheme = {
     axisLine: {
       lineStyle: {
         width: 12,
-        color: [
-          [0.6, '#a7f3d0'],
-          [0.85, '#34d399'],
-          [1, '#10b981'],
-        ],
+        color: GAUGE_AXIS_COLOR as unknown as Array<[number, string]>,
       },
     },
     progress: {
@@ -115,14 +107,14 @@ export const tailwindTheme = {
       width: 12,
     },
     axisTick: { show: false },
-    splitLine: { length: 8, lineStyle: { width: 2, color: '#d1d5db' } },
-    axisLabel: { color: '#9ca3af', fontSize: 10, distance: -30 },
+    splitLine: { length: 8, lineStyle: { width: 2, color: COLORS.gray[300] } },
+    axisLabel: { color: COLORS.gray[400], fontSize: 10, distance: -30 },
     pointer: { show: false },
     anchor: { show: false },
     title: { show: false },
     detail: {
       valueAnimation: true,
-      color: '#1f2937',
+      color: TEXT_ON_LIGHT,
       fontSize: 22,
       fontWeight: 700,
     },
