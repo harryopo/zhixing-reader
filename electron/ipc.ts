@@ -11,6 +11,7 @@ import { fetchAllRssSources, generateArticleId } from './rss-fetcher';
 import { dictionaryService } from './dictionary-service';
 import * as admin from './admin';
 import { processMessageStream } from './agent/orchestrator';
+import { indexHighlight as indexHighlightRAG } from './services/rag-service';
 
 function handle(channel: string, handler: (...args: any[]) => Promise<unknown> | unknown): void {
   ipcMain.handle(channel, async (_event: IpcMainInvokeEvent, ...args: unknown[]) => {
@@ -53,17 +54,15 @@ export function registerIpcHandlers(): void {
 
     // Auto-index to vector DB in background (fire-and-forget)
     if (created) {
-      import('./services/rag-service').then(({ indexHighlight }) => {
-        const books = booksDb.getAll();
-        const book = books.find(b => b.id === bookId);
-        indexHighlight({
-          id,
-          bookId: bookId as string,
-          bookTitle: (book?.title as string) || 'Unknown',
-          content: highlight.content as string,
-          chapterTitle: highlight.chapter_title as string | undefined,
-          createdAt: new Date().toISOString(),
-        }).catch(() => {})
+      const books = booksDb.getAll();
+      const book = books.find(b => b.id === bookId);
+      indexHighlightRAG({
+        id,
+        bookId: bookId as string,
+        bookTitle: (book?.title as string) || 'Unknown',
+        content: highlight.content as string,
+        chapterTitle: highlight.chapter_title as string | undefined,
+        createdAt: new Date().toISOString(),
       }).catch(() => {})
     }
 
