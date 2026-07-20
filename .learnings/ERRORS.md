@@ -2,6 +2,10 @@
 
 知行读书项目开发过程中的错误记录。
 
+> **最近更新**：2026-07-20 — 追加 7 条 ai-dev-workflow 落地相关错误（ERR-20260720-001 ~ 007）
+> **历史归档**：2026-05-29 ~ 2026-06-14 共 8 条原始错误（ERR-20260529-001 ~ ERR-20260614-003）
+> **复盘原则**：所有错误必须记录，复盘后升级到 `.learnings/STANDARDS.md` 防止重复
+
 ---
 
 ## [ERR-20260529-001] ipc-format
@@ -245,5 +249,261 @@ import { getDatabase, forceSaveDatabase } from './database';
 - Reproducible: yes
 - Related Files: electron/ipc.ts, electron/database.ts
 - Resolution: 已修复，添加了必要的导入
+
+---
+
+## [ERR-20260720-001] eslint-legacy-70-errors
+
+**Logged**: 2026-07-20T17:30:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+启用 ESLint 严格规则后，legacy 文件触发 70+ errors 阻塞门禁
+
+### Error
+```
+70+ errors found:
+- complexity > 15: 12 处（database.ts 9 / ipc.ts 3）
+- no-unused-vars: 34 处
+- max-lines: 6 处（database.ts 1967 / ipc.ts 657 / ...）
+```
+
+### Context
+- 操作：执行 `chore(lint): 收紧 ESLint 严格模式` (commit 888df01)
+- 原因：直接应用 R6-R10 全部规则未做 grandfather
+- 根本原因：legacy 文件（数据库/IPC 层）历史上没遵守新规则，一刀切导致大量 errors
+
+### Suggested Fix
+1. 在 `eslint.config.js` 为 legacy 文件添加豁免：
+   ```javascript
+   {
+     files: ['electron/database.ts', 'electron/ipc.ts', 'electron/weread-api.ts', 'electron/services/rag-service.ts'],
+     rules: { complexity: 'off' }
+   }
+   ```
+2. 其他规则继续生效（仅关 complexity 避免一刀切）
+3. 用 `fix-unused-vars.mjs` 批量处理 27/33 个 unused vars
+4. 手动处理 6 个解构类型
+
+最终结果：errors 70+ → 0，warnings 126（max-lines-per-function + any + non-null）
+
+### Metadata
+- Reproducible: yes
+- Related Files: eslint.config.js, electron/database.ts, electron/ipc.ts
+- Resolution: 已修复，commit 888df01 + .learnings/STANDARDS.md 已记录规则分级策略
+
+---
+
+## [ERR-20260720-002] fix-unused-vars-syntax-break
+
+**Logged**: 2026-07-20T17:35:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+fix-unused-vars.mjs 错误处理解构类型，生成 `function Foo({ x as _x, y }: ...)` 破坏语法
+
+### Error
+```
+SyntaxError: Unexpected token, expected ","
+  at KnowledgeCards.tsx, TokenUsage.tsx, VocabularyPage.tsx
+```
+
+### Context
+- 操作：运行 `node scripts/fix-unused-vars.mjs` 自动修复 unused vars
+- 原因：脚本对 `function Foo({ x, y }: { x: string; y: string })` 类型解构生成 `function Foo({ x as _x, y }: { x: string; y: string })`（语法错误）
+- 根本原因：脚本无法区分"变量名"和"类型字段名"
+
+### Suggested Fix
+1. `git checkout -- KnowledgeCards.tsx TokenUsage.tsx VocabularyPage.tsx` 回滚
+2. 手动用 `x: _x` 重命名（保留类型字段名）
+3. 修复脚本增加解构类型检测，遇到时跳过
+4. 剩余 6/33 个手动处理
+
+### Metadata
+- Reproducible: yes
+- Related Files: scripts/fix-unused-vars.mjs, src/renderer/src/components/KnowledgeCards.tsx
+- Resolution: 已修复，27/33 自动 + 6/33 手动；脚本限制已记入 LEARNINGS-20260720-003
+
+---
+
+## [ERR-20260720-003] powershell-pipe-exit-code
+
+**Logged**: 2026-07-20T17:40:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+PowerShell 中 `|| true` 不是合法操作符
+
+### Error
+```
+The token '||' is not a valid statement separator in this version.
+'true' is not recognized as a cmdlet, function, script file, or executable program.
+```
+
+### Context
+- 操作：在 fix-unused-vars.mjs 脚本中用 `npx eslint ... || true` 防止 ESLint 退出码非 0 中断
+- 原因：`||` 是 bash 操作符，PowerShell 不支持
+- 根本原因：跨平台 shell 兼容性未考虑
+
+### Suggested Fix
+1. 脚本改用 `execSync` 的 `stdio` 配置（不让 stderr 干扰）
+2. PowerShell 中显式查看退出码：`npx eslint ...; "EXIT:$LASTEXITCODE"`
+3. 或在 `package.json` 的 scripts 中用 `cross-env` 兼容
+
+### Metadata
+- Reproducible: yes
+- Related Files: scripts/fix-unused-vars.mjs
+- Resolution: 已修复，脚本改用 `cmd.exe` shell + `stdio: ['ignore', 'pipe', 'pipe']` 避免问题
+
+---
+
+## [ERR-20260720-004] edit-tool-duplicate-char
+
+**Logged**: 2026-07-20T17:45:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+Edit 工具因字符串边界字符相同产生重复字符
+
+### Error
+```typescript
+// 期望
+function foo() {}
+
+// 实际
+function foo() {{}  // 多了一个 {
+```
+
+### Context
+- 操作：用 Edit 工具修改 `function foo() {` 为 `function foo() { console.log() }`
+- 原因：old_string 末尾是 `{`，new_string 末尾也是 `{`（函数体开括号），工具字符串匹配出错
+- 根本原因：Edit 工具的实现 bug（Claude/IDE 通病）
+
+### Suggested Fix
+1. 立即 Read 文件验证修改
+2. 扩大 old_string 范围到 1-2 行上下文
+3. 不要相信"替换成功"提示
+4. 重要修改后跑 `npm run verify` 兜底
+
+### Metadata
+- Reproducible: yes
+- Related Files: N/A（任意文件）
+- Resolution: 已记录到 LEARNINGS-20260720-005；后续所有 Edit 后必 Read 验证
+
+---
+
+## [ERR-20260720-005] eslint-type-aware-required
+
+**Logged**: 2026-07-20T17:50:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+启用 @typescript-eslint/no-unnecessary-condition 规则时报错"requires type information"
+
+### Error
+```
+The rule "@typescript-eslint/no-unnecessary-condition" requires type information.
+```
+
+### Context
+- 操作：想启用更严格的 TS 规则提升代码质量
+- 原因：规则需要 TypeScript 类型推断
+- 根本原因：ESLint 配置未启用 type-aware linting
+
+### Suggested Fix
+1. 暂时不启用该规则（保持 lint 速度）
+2. 如需启用，在 `eslint.config.js` 添加：
+   ```javascript
+   parserOptions: {
+     project: './tsconfig.json',
+     tsconfigRootDir: import.meta.dirname,
+   }
+   ```
+3. 注意：启用后 lint 速度慢 5-10 倍
+
+### Metadata
+- Reproducible: yes
+- Related Files: eslint.config.js
+- Resolution: 已决定不启用，权衡后保留快速 lint 体验；记录在 LEARNINGS-20260720-006
+
+---
+
+## [ERR-20260720-006] vitest-import-path
+
+**Logged**: 2026-07-20T17:55:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+Vitest 测试文件用 `../../electron/xxx` 路径解析失败
+
+### Error
+```
+Error: Failed to resolve import "../../electron/fsrs-engine" from "tests/fsrs-engine.test.ts"
+```
+
+### Context
+- 操作：编写 `tests/fsrs-engine.test.ts` 引用 `electron/fsrs-engine.ts`
+- 原因：用错相对路径层级（`../../` 多了一层）
+- 根本原因：测试在 `tests/`（不是 `tests/integration/`），只需向上一级
+
+### Suggested Fix
+1. 改用 `'../electron/fsrs-engine'`（一层 ../）
+2. 规范：`tests/*.test.ts` → `electron/*.ts` 用 `'../electron/xxx'`
+3. `tests/integration/*.test.ts` → `electron/*.ts` 用 `'../../electron/xxx'`
+
+### Metadata
+- Reproducible: yes
+- Related Files: tests/fsrs-engine.test.ts
+- Resolution: 已修复，规范记录在 LEARNINGS-20260720-004
+
+---
+
+## [ERR-20260720-007] gitignore-codegraph
+
+**Logged**: 2026-07-20T18:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+CodeGraph 索引目录 `.codegraph/` 被错误提交到 git
+
+### Error
+```
+git status
+On branch master
+Untracked files:
+  .codegraph/
+```
+
+### Context
+- 操作：建 CodeGraph 知识图谱后未更新 `.gitignore`
+- 原因：CodeGraph 生成的索引是本地缓存，不应提交
+- 根本原因：忽略规则缺失
+
+### Suggested Fix
+1. 在 `.gitignore` 添加：
+   ```
+   # CodeGraph (本地代码知识图谱索引)
+   .codegraph/
+   ```
+2. 验证：`git status` 不再列出 `.codegraph/`
+
+### Metadata
+- Reproducible: yes
+- Related Files: .gitignore
+- Resolution: 已修复，`.codegraph/` 已忽略
 
 ---
