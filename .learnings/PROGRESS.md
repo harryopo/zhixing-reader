@@ -26,9 +26,9 @@
 
 | 功能 | 进度 | 备注 |
 |------|------|------|
-| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 124 warns / 117 tests pass（FSRS 38 + http-client 11 + prompt-registry 42 + template-engine 18 + admin-charts 6 + ipc 2）|
+| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 124 warns / 171 tests pass（FSRS 38 + http-client 11 + prompt-registry 42 + template-engine 18 + admin-charts 6 + ipc 2 + intent-classifier 19 + strategy-selector 13 + dictionary-service 16 + ai-service-config 6）|
 | CodeGraph 知识图谱 | 已建图 | 100 文件 / 1,451 节点 / 4,645 边，1.3s 增量同步 |
-| 比赛展示打磨 | 15% | 7/20-7/31：smoke test 第 1 批完成（template-engine / prompt-registry / http-client / electron-mock-setup），+71 tests。第 2/3 批待办 |
+| 比赛展示打磨 | 35% | 7/20-7/31：smoke test 第 1+2 批完成（template-engine / prompt-registry / http-client / electron-mock-setup / intent-classifier / strategy-selector / dictionary-service / ai-service-config），+125 tests。第 3 批（renderer stores）+ 演示数据待办 |
 
 ### ⏳ 待开发（比赛后）
 
