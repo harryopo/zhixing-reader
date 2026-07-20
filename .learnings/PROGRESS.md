@@ -26,9 +26,9 @@
 
 | 功能 | 进度 | 备注 |
 |------|------|------|
-| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 123 warns / 40 tests pass（38 FSRS + 2 IPC）|
+| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 124 warns / 117 tests pass（FSRS 38 + http-client 11 + prompt-registry 42 + template-engine 18 + admin-charts 6 + ipc 2）|
 | CodeGraph 知识图谱 | 已建图 | 100 文件 / 1,451 节点 / 4,645 边，1.3s 增量同步 |
-| 比赛展示打磨 | 0% | 7/20-7/31 比赛期间，本周不开发新功能，只修 bug + 优化体验 |
+| 比赛展示打磨 | 15% | 7/20-7/31：smoke test 第 1 批完成（template-engine / prompt-registry / http-client / electron-mock-setup），+71 tests。第 2/3 批待办 |
 
 ### ⏳ 待开发（比赛后）
 
@@ -121,7 +121,7 @@
 
 | 项目 | 优先级 | 当前状态 | 计划 |
 |------|--------|---------|------|
-| 单元测试覆盖 | 高 | 5%（仅 FSRS 18 个测试） | Phase 2 提升到 ≥60% |
+| 单元测试覆盖 | 高 | 15%（117 tests：FSRS 38 + prompt-registry 42 + template-engine 18 + http-client 11 + admin-charts 6 + ipc 2） | Phase 2 提升到 ≥60% |
 | database.ts 单文件 1967 行 | 中 | grandfather（关闭 complexity 校验） | Phase 2 拆分 |
 | ipc.ts 单文件 657 行 | 中 | grandfather（关闭 complexity 校验） | Phase 2 拆分 |
 | weread-api.ts / rag-service.ts | 低 | grandfather | Phase 2 拆分 |
