@@ -34,6 +34,6 @@ export default defineConfig({
         statements: 85,
       },
     },
-    setupFiles: ['./tests/setup.ts'],
+    setupFiles: ['./tests/setup.ts', './tests/electron-mock-setup.ts'],
   },
 })
