@@ -36,6 +36,8 @@
 | 状态 | Zustand 5 | 轻量、hooks-first |
 | 数据库 | sql.js 1.14 | WASM，无原生依赖 |
 | 间隔重复 | **ts-fsrs 5.4.1** | FSRS v5 DSR 模型 |
+| 图表（AdminDashboard） | **Apache ECharts 5.5.1** + echarts-for-react 3.0.2 | 按需引入、Canvas 渲染、20+ 图表类型 |
+| 图表（Stats 页） | Recharts 3.8.1 | 简单场景够用 |
 | AI 智能体 | 自研 5 维 ContextBuilder | 意图分类 + 编排 + 策略 |
 | 向量库（可选） | Qdrant | RAG 增强 |
 | 测试 | Vitest 2 + @vitest/coverage-v8 | ≥ 85% 覆盖率门禁 |
@@ -285,6 +287,91 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 |------|------|------|------|
 | 2026-07-20 | v1.0.0 | 知行读书 v1.0.0 首发 | AI Agent |
 | 2026-07-20 | v1.1.0 | **FSRS 引擎升级到 ts-fsrs 5.4.1 (FSRS v5 DSR)** | AI Agent |
+| 2026-07-20 | v1.2.0 | **AdminDashboard 切到 Apache ECharts 5.5.1（按需引入）** | AI Agent |
+
+---
+
+## 九、图表库架构
+
+项目按场景使用两套图表库，各取所长：
+
+### 9.1 双库选型
+
+| 场景 | 库 | 包体积 | 渲染 | 理由 |
+|------|----|--------|------|------|
+| **AdminDashboard** | Apache ECharts 5.5.1 + echarts-for-react 3.0.2 | 业务 chunk ~ **20KB** + vendor ~ 2.5MB（仅在打开 /admin 时加载）| Canvas | 6 个图表、类型多样、Canvas 性能高 |
+| **Stats 页** | Recharts 3.8.1 | ~ 200KB | SVG | 简单柱/线/饼图够用，组件少不值得切 |
+
+> **关键策略**：AdminDashboard 是 `lazy()` 路由，访问前不下载。ECharts vendor chunk 仅在用户进入 `/admin` 时才请求，主入口体积不受影响。
+
+### 9.2 ECharts 按需引入
+
+```ts
+// src/renderer/src/admin-charts.tsx
+import * as echarts from 'echarts/core'
+import { BarChart, GaugeChart, PieChart } from 'echarts/charts'      // 只引 3 个
+import { DatasetComponent, GridComponent, LegendComponent, /* ... */ } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([BarChart, GaugeChart, PieChart, /* ... components */, CanvasRenderer])
+```
+
+**只引入 3 个图表类型 + 7 个组件**，不引 `line / scatter / heatmap / radar` 等无关图表，vendor chunk 比全量小 ~40%。
+
+### 9.3 Tailwind 主题映射
+
+`src/renderer/src/echarts-theme-tailwind.ts` 将 ECharts 主题与 Tailwind 设计系统对齐：
+
+- 主色：`#10b981`（emerald-500）
+- 辅助：`#34d399` / `#6ee7b7` / `#a7f3d0`（emerald-400/300/200）
+- 文本：`#1f2937`（gray-800）/ `#6b7280`（gray-500）/ `#9ca3af`（gray-400）
+- 网格：虚线 `#f3f4f6`（gray-100）
+- Tooltip：深色卡片 `rgba(31,41,55,0.95)`
+
+注册一次（`registerTailwindTheme()`），6 个图表共享同一套色系与排版。
+
+### 9.4 6 个图表组件
+
+| # | 组件 | 类型 | 数据 |
+|---|------|------|------|
+| 1 | `ProviderPieChart` | 环形图 | `providers[].total_tokens` |
+| 2 | `ModelBarChart` | 水平柱图 | `providers[].total_tokens`（Top 10）|
+| 3 | `FeatureBarChart` | 垂直柱图（双 Y 轴）| `features[].total_tokens + request_count` |
+| 4 | `RequestPieChart` | 环形图 | `features[].request_count` |
+| 5 | `TokensGauge` | 仪表盘 | `stats.totalTokens` / 5M 容量 |
+| 6 | `ProviderTokenBarChart` | 分组堆叠柱图 | `providers[].total_input_tokens + total_output_tokens` |
+
+### 9.5 分包策略（Vite manualChunks）
+
+`electron.vite.config.ts` 显式切分大依赖：
+
+```ts
+output: {
+  manualChunks(id) {
+    if (id.includes('echarts') || id.includes('zrender')) return 'echarts-vendor'
+    if (id.includes('recharts') || id.includes('d3-')) return 'recharts-vendor'
+    if (id.includes('sql.js')) return 'sqljs-vendor'
+  }
+}
+```
+
+效果：
+
+| Chunk | 旧（Recharts） | 新（ECharts） |
+|-------|---------------|--------------|
+| AdminDashboard（业务）| ~ **862KB** | **~ 20KB**（-97.7%）|
+| 主入口（index）| 不变 | 不变 |
+| echarts-vendor | — | 2.5MB（仅在打开 /admin 时按需加载）|
+
+### 9.6 文件结构
+
+```
+src/renderer/src/
+├── echarts-theme-tailwind.ts   # Tailwind 主题（色系、排版、组件默认值）
+├── admin-charts.tsx             # 6 个图表组件 + ECharts 模块注册
+└── pages/admin/
+    └── AdminDashboard.tsx       # 数据加载 + 6 个图表组合（业务逻辑）
+```
 
 ---
 
