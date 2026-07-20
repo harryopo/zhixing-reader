@@ -85,6 +85,30 @@ describe('admin-charts — smoke tests', () => {
       const option = JSON.parse(mockEl?.getAttribute('data-option') ?? '{}')
       expect(option.series[0].data[0].name).toBe('openai')
     })
+
+    // ✅ P1-4 修复回归测试：图表必须带 role="img" + aria-label 描述标题+数据量
+    it('wraps chart in role="img" container with aria-label', () => {
+      const { container } = render(
+        <ProviderPieChart
+          providers={[
+            {
+              provider: 'openai',
+              model: 'gpt-4o',
+              request_count: 1,
+              total_input_tokens: 0,
+              total_output_tokens: 0,
+              total_tokens: 50,
+              total_duration_ms: 0,
+            },
+          ]}
+        />,
+      )
+      const figure = container.querySelector('[role="img"]')
+      expect(figure).toBeTruthy()
+      const ariaLabel = figure?.getAttribute('aria-label') ?? ''
+      expect(ariaLabel).toContain('Provider 占比')
+      expect(ariaLabel).toContain('共 1 项数据')
+    })
   })
 
   describe('registerTailwindTheme', () => {

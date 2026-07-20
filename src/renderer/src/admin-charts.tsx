@@ -106,7 +106,11 @@ export function ProviderPieChart({ providers }: { providers: ProviderStats[] }) 
       },
     ],
   }
-  return <ReactECharts option={option} style={{ height: HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+  return (
+    <ChartFigure title="Provider 占比" subtitle="按 Token 用量" dataCount={data.length}>
+      <ReactECharts option={option} style={{ height: HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+    </ChartFigure>
+  )
 }
 
 // === 2. Model 用量 Top 10（水平柱图） ===
@@ -144,7 +148,11 @@ export function ModelBarChart({ providers }: { providers: ProviderStats[] }) {
       },
     ],
   }
-  return <ReactECharts option={option} style={{ height: TALL_HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+  return (
+    <ChartFigure title="Model 用量 Top 10" subtitle="按 Token 用量" dataCount={data.length}>
+      <ReactECharts option={option} style={{ height: TALL_HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+    </ChartFigure>
+  )
 }
 
 // === 3. Feature Token + 请求数（垂直柱图，双 Y 轴） ===
@@ -201,7 +209,11 @@ export function FeatureBarChart({ features }: { features: FeatureStats[] }) {
       },
     ],
   }
-  return <ReactECharts option={option} style={{ height: TALL_HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+  return (
+    <ChartFigure title="Feature 拆分" subtitle="各功能调用情况" dataCount={data.length}>
+      <ReactECharts option={option} style={{ height: TALL_HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+    </ChartFigure>
+  )
 }
 
 // === 4. Feature 请求数占比（环形图） ===
@@ -242,7 +254,11 @@ export function RequestPieChart({ features }: { features: FeatureStats[] }) {
       },
     ],
   }
-  return <ReactECharts option={option} style={{ height: HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+  return (
+    <ChartFigure title="Feature 请求数占比" subtitle="按请求数" dataCount={data.length}>
+      <ReactECharts option={option} style={{ height: HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+    </ChartFigure>
+  )
 }
 
 // === 5. Token 用量综合（仪表盘） ===
@@ -282,10 +298,12 @@ export function TokensGauge({ totalTokens }: { totalTokens: number }) {
     ],
   }
   return (
-    <div>
-      <ReactECharts option={option} style={{ height: HEIGHT - 40 }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
-      <div className="text-center -mt-2 text-[11px] text-gray-400">相对参考容量 5M Token</div>
-    </div>
+    <ChartFigure title="Token 用量综合" subtitle="相对参考容量 5M" dataCount={1}>
+      <div>
+        <ReactECharts option={option} style={{ height: HEIGHT - 40 }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+        <div className="text-center -mt-2 text-[11px] text-gray-400">相对参考容量 5M Token</div>
+      </div>
+    </ChartFigure>
   )
 }
 
@@ -340,7 +358,11 @@ export function ProviderTokenBarChart({ providers }: { providers: ProviderStats[
       },
     ],
   }
-  return <ReactECharts option={option} style={{ height: TALL_HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+  return (
+    <ChartFigure title="Provider 输入/输出 Token" subtitle="按 Provider 分组堆叠" dataCount={data.length}>
+      <ReactECharts option={option} style={{ height: TALL_HEIGHT }} theme="tailwind" opts={{ renderer: 'canvas' }} notMerge />
+    </ChartFigure>
+  )
 }
 
 // === 空数据态 ===
@@ -351,6 +373,28 @@ function EmptyState({ height }: { height: number }) {
       style={{ height }}
     >
       暂无数据
+    </div>
+  )
+}
+
+// === 图表无障碍包装（2026-07-20 P1-4 修复） ===
+// EChartsReact 不会把 aria-* props 透传到内部 div，因此外层显式包裹带 role="img" 的容器。
+// 屏幕阅读器读到 aria-label 时，能复述图表标题 + 数据规模。
+function ChartFigure({
+  title,
+  subtitle,
+  dataCount,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  dataCount: number
+  children: React.ReactNode
+}) {
+  const label = subtitle ? `${title}：${subtitle}。共 ${dataCount} 项数据` : `${title}。共 ${dataCount} 项数据`
+  return (
+    <div role="img" aria-label={label}>
+      {children}
     </div>
   )
 }
