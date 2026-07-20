@@ -132,12 +132,12 @@ export function ModelBarChart({ providers }: { providers: ProviderStats[] }) {
     },
     xAxis: {
       type: 'value' as const,
-      axisLabel: { color: '#9ca3af', fontSize: 10, formatter: formatTokens },
+      axisLabel: { color: '#6b7280', fontSize: 10, formatter: formatTokens },
     },
     yAxis: {
       type: 'category' as const,
       data: data.map(d => d.name).reverse(),
-      axisLabel: { color: '#9ca3af', fontSize: 10 },
+      axisLabel: { color: '#6b7280', fontSize: 10 },
     },
     series: [
       {
@@ -176,17 +176,17 @@ export function FeatureBarChart({ features }: { features: FeatureStats[] }) {
     xAxis: {
       type: 'category' as const,
       data: data.map(d => d.name),
-      axisLabel: { color: '#9ca3af', fontSize: 10, rotate: 15 },
+      axisLabel: { color: '#6b7280', fontSize: 10, rotate: 15 },
     },
     yAxis: [
       {
         type: 'value' as const,
-        axisLabel: { color: '#9ca3af', fontSize: 10, formatter: formatTokens },
+        axisLabel: { color: '#6b7280', fontSize: 10, formatter: formatTokens },
         splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' as const } },
       },
       {
         type: 'value' as const,
-        axisLabel: { color: '#9ca3af', fontSize: 10 },
+        axisLabel: { color: '#6b7280', fontSize: 10 },
         splitLine: { show: false },
       },
     ],
@@ -332,11 +332,11 @@ export function ProviderTokenBarChart({ providers }: { providers: ProviderStats[
     xAxis: {
       type: 'category' as const,
       data: data.map(d => d.name),
-      axisLabel: { color: '#9ca3af', fontSize: 10 },
+      axisLabel: { color: '#6b7280', fontSize: 10 },
     },
     yAxis: {
       type: 'value' as const,
-      axisLabel: { color: '#9ca3af', fontSize: 10, formatter: formatTokens },
+      axisLabel: { color: '#6b7280', fontSize: 10, formatter: formatTokens },
       splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' as const } },
     },
     series: [
