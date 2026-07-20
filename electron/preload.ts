@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 interface IPCResponse<T> {
@@ -14,6 +14,26 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
   }
   return response.data as T;
 }
+
+// ===== 流式监听器单例管理 =====
+// 避免每次 onStreamChunk/Complete/Error 被调用时累积新监听器
+interface StreamChunkPayload { chunk: string }
+interface StreamCompletePayload { usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } }
+interface StreamErrorPayload { error: string }
+interface DistillProgressPayload {
+  bookId: string
+  bookTitle: string
+  stage: 'fetch' | 'batch' | 'parse' | 'save' | 'done' | 'error'
+  current: number
+  total: number
+  message?: string
+  error?: string
+}
+
+let streamChunkHandler: ((event: IpcRendererEvent, data: StreamChunkPayload) => void) | null = null;
+let streamCompleteHandler: ((event: IpcRendererEvent, data: StreamCompletePayload) => void) | null = null;
+let streamErrorHandler: ((event: IpcRendererEvent, data: StreamErrorPayload) => void) | null = null;
+let distillProgressHandler: ((event: IpcRendererEvent, data: DistillProgressPayload) => void) | null = null;
 
 const electronAPI = {
   book: {
@@ -146,19 +166,43 @@ const electronAPI = {
       return invoke(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, params)
     },
     onStreamChunk: (callback: (chunk: string) => void) => {
-      const handler = (_event: any, data: any) => callback(data.chunk);
-      ipcRenderer.on('ai:streamChunk', handler);
-      return () => { ipcRenderer.removeListener('ai:streamChunk', handler); };
+      if (streamChunkHandler) {
+        ipcRenderer.removeListener('ai:streamChunk', streamChunkHandler);
+      }
+      streamChunkHandler = (_event, data) => callback(data.chunk);
+      ipcRenderer.on('ai:streamChunk', streamChunkHandler);
+      return () => {
+        if (streamChunkHandler) {
+          ipcRenderer.removeListener('ai:streamChunk', streamChunkHandler);
+          streamChunkHandler = null;
+        }
+      };
     },
-    onStreamComplete: (callback: (usage?: any) => void) => {
-      const handler = (_event: any, data: any) => callback(data.usage);
-      ipcRenderer.on('ai:streamComplete', handler);
-      return () => { ipcRenderer.removeListener('ai:streamComplete', handler); };
+    onStreamComplete: (callback: (usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void) => {
+      if (streamCompleteHandler) {
+        ipcRenderer.removeListener('ai:streamComplete', streamCompleteHandler);
+      }
+      streamCompleteHandler = (_event, data) => callback(data.usage);
+      ipcRenderer.on('ai:streamComplete', streamCompleteHandler);
+      return () => {
+        if (streamCompleteHandler) {
+          ipcRenderer.removeListener('ai:streamComplete', streamCompleteHandler);
+          streamCompleteHandler = null;
+        }
+      };
     },
     onStreamError: (callback: (error: string) => void) => {
-      const handler = (_event: any, data: any) => callback(data.error);
-      ipcRenderer.on('ai:streamError', handler);
-      return () => { ipcRenderer.removeListener('ai:streamError', handler); };
+      if (streamErrorHandler) {
+        ipcRenderer.removeListener('ai:streamError', streamErrorHandler);
+      }
+      streamErrorHandler = (_event, data) => callback(data.error);
+      ipcRenderer.on('ai:streamError', streamErrorHandler);
+      return () => {
+        if (streamErrorHandler) {
+          ipcRenderer.removeListener('ai:streamError', streamErrorHandler);
+          streamErrorHandler = null;
+        }
+      };
     },
   },
 
@@ -225,9 +269,17 @@ const electronAPI = {
       message?: string
       error?: string
     }) => void) => {
-      const handler = (_event: any, data: any) => callback(data)
-      ipcRenderer.on('knowledgeCard:distillProgress', handler)
-      return () => { ipcRenderer.removeListener('knowledgeCard:distillProgress', handler) }
+      if (distillProgressHandler) {
+        ipcRenderer.removeListener('knowledgeCard:distillProgress', distillProgressHandler);
+      }
+      distillProgressHandler = (_event, data) => callback(data);
+      ipcRenderer.on('knowledgeCard:distillProgress', distillProgressHandler);
+      return () => {
+        if (distillProgressHandler) {
+          ipcRenderer.removeListener('knowledgeCard:distillProgress', distillProgressHandler);
+          distillProgressHandler = null;
+        }
+      };
     },
   },
 
