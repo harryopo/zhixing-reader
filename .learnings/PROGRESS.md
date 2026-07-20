@@ -26,7 +26,7 @@
 
 | 功能 | 进度 | 备注 |
 |------|------|------|
-| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 127 warns / 40 tests pass（38 FSRS + 2 IPC）|
+| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 123 warns / 40 tests pass（38 FSRS + 2 IPC）|
 | CodeGraph 知识图谱 | 已建图 | 100 文件 / 1,451 节点 / 4,645 边，1.3s 增量同步 |
 | 比赛展示打磨 | 0% | 7/20-7/31 比赛期间，本周不开发新功能，只修 bug + 优化体验 |
 
