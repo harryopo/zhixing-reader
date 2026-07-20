@@ -15,8 +15,10 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
   return response.data as T;
 }
 
-// ===== 流式监听器单例管理 =====
-// 避免每次 onStreamChunk/Complete/Error 被调用时累积新监听器
+// ===== 流式监听器管理 =====
+// 使用 Map<callback, handler> 隔离每个订阅者的 handler，避免 A/B 两个消费者
+// 共享单例时出现"dispose A 误删 B"的交叉污染。
+// 重复用相同 callback 注册时，会先 removeListener 旧 handler 再覆盖（幂等）。
 interface StreamChunkPayload { chunk: string }
 interface StreamCompletePayload { usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } }
 interface StreamErrorPayload { error: string }
@@ -30,10 +32,15 @@ interface DistillProgressPayload {
   error?: string
 }
 
-let streamChunkHandler: ((event: IpcRendererEvent, data: StreamChunkPayload) => void) | null = null;
-let streamCompleteHandler: ((event: IpcRendererEvent, data: StreamCompletePayload) => void) | null = null;
-let streamErrorHandler: ((event: IpcRendererEvent, data: StreamErrorPayload) => void) | null = null;
-let distillProgressHandler: ((event: IpcRendererEvent, data: DistillProgressPayload) => void) | null = null;
+type StreamChunkHandler = (event: IpcRendererEvent, data: StreamChunkPayload) => void
+type StreamCompleteHandler = (event: IpcRendererEvent, data: StreamCompletePayload) => void
+type StreamErrorHandler = (event: IpcRendererEvent, data: StreamErrorPayload) => void
+type DistillProgressHandler = (event: IpcRendererEvent, data: DistillProgressPayload) => void
+
+const streamChunkHandlers = new Map<(chunk: string) => void, StreamChunkHandler>()
+const streamCompleteHandlers = new Map<(usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void, StreamCompleteHandler>()
+const streamErrorHandlers = new Map<(error: string) => void, StreamErrorHandler>()
+const distillProgressHandlers = new Map<(progress: DistillProgressPayload) => void, DistillProgressHandler>()
 
 const electronAPI = {
   book: {
@@ -166,43 +173,52 @@ const electronAPI = {
       return invoke(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, params)
     },
     onStreamChunk: (callback: (chunk: string) => void) => {
-      if (streamChunkHandler) {
-        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, streamChunkHandler);
+      const existing = streamChunkHandlers.get(callback)
+      if (existing) {
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, existing)
       }
-      streamChunkHandler = (_event, data) => callback(data.chunk);
-      ipcRenderer.on(IPC_CHANNELS.STREAM.CHUNK, streamChunkHandler);
+      const handler: StreamChunkHandler = (_event, data) => callback(data.chunk)
+      streamChunkHandlers.set(callback, handler)
+      ipcRenderer.on(IPC_CHANNELS.STREAM.CHUNK, handler)
       return () => {
-        if (streamChunkHandler) {
-          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, streamChunkHandler);
-          streamChunkHandler = null;
+        const h = streamChunkHandlers.get(callback)
+        if (h) {
+          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, h)
+          streamChunkHandlers.delete(callback)
         }
-      };
+      }
     },
     onStreamComplete: (callback: (usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void) => {
-      if (streamCompleteHandler) {
-        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.COMPLETE, streamCompleteHandler);
+      const existing = streamCompleteHandlers.get(callback)
+      if (existing) {
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.COMPLETE, existing)
       }
-      streamCompleteHandler = (_event, data) => callback(data.usage);
-      ipcRenderer.on(IPC_CHANNELS.STREAM.COMPLETE, streamCompleteHandler);
+      const handler: StreamCompleteHandler = (_event, data) => callback(data.usage)
+      streamCompleteHandlers.set(callback, handler)
+      ipcRenderer.on(IPC_CHANNELS.STREAM.COMPLETE, handler)
       return () => {
-        if (streamCompleteHandler) {
-          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.COMPLETE, streamCompleteHandler);
-          streamCompleteHandler = null;
+        const h = streamCompleteHandlers.get(callback)
+        if (h) {
+          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.COMPLETE, h)
+          streamCompleteHandlers.delete(callback)
         }
-      };
+      }
     },
     onStreamError: (callback: (error: string) => void) => {
-      if (streamErrorHandler) {
-        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.ERROR, streamErrorHandler);
+      const existing = streamErrorHandlers.get(callback)
+      if (existing) {
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.ERROR, existing)
       }
-      streamErrorHandler = (_event, data) => callback(data.error);
-      ipcRenderer.on(IPC_CHANNELS.STREAM.ERROR, streamErrorHandler);
+      const handler: StreamErrorHandler = (_event, data) => callback(data.error)
+      streamErrorHandlers.set(callback, handler)
+      ipcRenderer.on(IPC_CHANNELS.STREAM.ERROR, handler)
       return () => {
-        if (streamErrorHandler) {
-          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.ERROR, streamErrorHandler);
-          streamErrorHandler = null;
+        const h = streamErrorHandlers.get(callback)
+        if (h) {
+          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.ERROR, h)
+          streamErrorHandlers.delete(callback)
         }
-      };
+      }
     },
   },
 
@@ -269,17 +285,20 @@ const electronAPI = {
       message?: string
       error?: string
     }) => void) => {
-      if (distillProgressHandler) {
-        ipcRenderer.removeListener(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, distillProgressHandler);
+      const existing = distillProgressHandlers.get(callback)
+      if (existing) {
+        ipcRenderer.removeListener(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, existing)
       }
-      distillProgressHandler = (_event, data) => callback(data);
-      ipcRenderer.on(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, distillProgressHandler);
+      const handler: DistillProgressHandler = (_event, data) => callback(data)
+      distillProgressHandlers.set(callback, handler)
+      ipcRenderer.on(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, handler)
       return () => {
-        if (distillProgressHandler) {
-          ipcRenderer.removeListener(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, distillProgressHandler);
-          distillProgressHandler = null;
+        const h = distillProgressHandlers.get(callback)
+        if (h) {
+          ipcRenderer.removeListener(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, h)
+          distillProgressHandlers.delete(callback)
         }
-      };
+      }
     },
   },
 

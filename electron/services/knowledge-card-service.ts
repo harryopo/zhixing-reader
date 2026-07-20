@@ -3,6 +3,7 @@ import { knowledgeCardsDb, highlightsDb } from '../database'
 import { fetchAllContent } from '../weread-api'
 import { distillKnowledgeCards, DistillOptions, DistilledKnowledgeCard } from '../ai-service'
 import { logger } from '../logger'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels'
 
 export interface DistillTaskProgress {
   bookId: string
@@ -75,7 +76,7 @@ class KnowledgeCardService {
       const windows = BrowserWindow.getAllWindows()
       for (const win of windows) {
         if (!win.isDestroyed()) {
-          win.webContents.send('knowledgeCard:distillProgress', progress)
+          win.webContents.send(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, progress)
         }
       }
     } catch (e) {
