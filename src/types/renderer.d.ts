@@ -20,34 +20,6 @@ export interface TokenRecord {
   created_at: string
 }
 
-export interface ProviderStats {
-  provider: string
-  model: string
-  request_count: number
-  total_input_tokens: number
-  total_output_tokens: number
-  total_tokens: number
-  total_duration_ms: number
-}
-
-export interface FeatureStats {
-  feature: string
-  request_count: number
-  total_input_tokens: number
-  total_output_tokens: number
-  total_tokens: number
-  total_duration_ms: number
-  avg_duration_ms: number
-}
-
-export interface DailyTokenStats {
-  date: string
-  request_count: number
-  total_input_tokens: number
-  total_output_tokens: number
-  total_tokens: number
-}
-
 export interface ElectronAPI {
   book: {
     getAll: () => Promise<Book[]>
@@ -277,6 +249,9 @@ export interface ProviderStats {
   total_input_tokens: number
   total_output_tokens: number
   request_count: number
+  /** 后端聚合：累计耗时（毫秒）；TokenUsage 页面暂时不展示，但保证类型可访问 */
+  total_duration_ms: number
+  /** 后端聚合：累计费用（USD），可选字段 — 仅启用价格表时存在 */
   total_cost?: number
 }
 
@@ -286,6 +261,10 @@ export interface FeatureStats {
   total_input_tokens: number
   total_output_tokens: number
   request_count: number
+  /** 后端聚合：累计耗时（毫秒） */
+  total_duration_ms: number
+  /** 后端聚合：平均耗时（毫秒）；TokenUsage 页面第 707 行消费 */
+  avg_duration_ms: number
 }
 
 export interface DailyTokenStats {
