@@ -148,7 +148,8 @@ export function setCustomParameters(params: Partial<FSRSParameters>): void {
     internalConfig.maximumInterval = params.maximumInterval;
   }
   if (params.w !== undefined) {
-    // 保存用户传入的 w（用于 getParameters 返回兼容；ts-fsrs 算法仍用 19 元素默认）
+    // ✅ P0-2 修复：用户传入的 w 实际生效（≥ 19 元素时），原实现仅保存不应用
+    // 兼容旧 API 形状：长度 < 19 的 w 仅用于校验保存，算法仍走 ts-fsrs 默认 19 元素
     internalConfig.customW = [...params.w];
   }
   // 重新创建 fsrs 引擎实例以应用新参数
@@ -200,7 +201,12 @@ function buildFsrsInstance() {
     enable_fuzz: internalConfig.enableFuzz,
     learning_steps: [...LEARNING_STEPS],
     relearning_steps: [...RELEARNING_STEPS],
-  });
+    // ✅ P0-2 修复：把用户传入的 customW（≥ 19 元素）传给 generatorParameters，
+    //    真正让 ts-fsrs 算法用上自定义权重；旧 API 形状（17 元素）保持原行为。
+    ...(internalConfig.customW && internalConfig.customW.length >= 19
+      ? { w: [...internalConfig.customW] }
+      : {}),
+  } as Parameters<typeof generatorParameters>[0]);
   return createFsrs(params);
 }
 
