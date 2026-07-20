@@ -167,39 +167,39 @@ const electronAPI = {
     },
     onStreamChunk: (callback: (chunk: string) => void) => {
       if (streamChunkHandler) {
-        ipcRenderer.removeListener('ai:streamChunk', streamChunkHandler);
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, streamChunkHandler);
       }
       streamChunkHandler = (_event, data) => callback(data.chunk);
-      ipcRenderer.on('ai:streamChunk', streamChunkHandler);
+      ipcRenderer.on(IPC_CHANNELS.STREAM.CHUNK, streamChunkHandler);
       return () => {
         if (streamChunkHandler) {
-          ipcRenderer.removeListener('ai:streamChunk', streamChunkHandler);
+          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, streamChunkHandler);
           streamChunkHandler = null;
         }
       };
     },
     onStreamComplete: (callback: (usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void) => {
       if (streamCompleteHandler) {
-        ipcRenderer.removeListener('ai:streamComplete', streamCompleteHandler);
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.COMPLETE, streamCompleteHandler);
       }
       streamCompleteHandler = (_event, data) => callback(data.usage);
-      ipcRenderer.on('ai:streamComplete', streamCompleteHandler);
+      ipcRenderer.on(IPC_CHANNELS.STREAM.COMPLETE, streamCompleteHandler);
       return () => {
         if (streamCompleteHandler) {
-          ipcRenderer.removeListener('ai:streamComplete', streamCompleteHandler);
+          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.COMPLETE, streamCompleteHandler);
           streamCompleteHandler = null;
         }
       };
     },
     onStreamError: (callback: (error: string) => void) => {
       if (streamErrorHandler) {
-        ipcRenderer.removeListener('ai:streamError', streamErrorHandler);
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.ERROR, streamErrorHandler);
       }
       streamErrorHandler = (_event, data) => callback(data.error);
-      ipcRenderer.on('ai:streamError', streamErrorHandler);
+      ipcRenderer.on(IPC_CHANNELS.STREAM.ERROR, streamErrorHandler);
       return () => {
         if (streamErrorHandler) {
-          ipcRenderer.removeListener('ai:streamError', streamErrorHandler);
+          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.ERROR, streamErrorHandler);
           streamErrorHandler = null;
         }
       };
@@ -270,13 +270,13 @@ const electronAPI = {
       error?: string
     }) => void) => {
       if (distillProgressHandler) {
-        ipcRenderer.removeListener('knowledgeCard:distillProgress', distillProgressHandler);
+        ipcRenderer.removeListener(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, distillProgressHandler);
       }
       distillProgressHandler = (_event, data) => callback(data);
-      ipcRenderer.on('knowledgeCard:distillProgress', distillProgressHandler);
+      ipcRenderer.on(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, distillProgressHandler);
       return () => {
         if (distillProgressHandler) {
-          ipcRenderer.removeListener('knowledgeCard:distillProgress', distillProgressHandler);
+          ipcRenderer.removeListener(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL_PROGRESS, distillProgressHandler);
           distillProgressHandler = null;
         }
       };

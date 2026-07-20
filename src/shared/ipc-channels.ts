@@ -55,6 +55,7 @@ export const IPC_CHANNELS = {
     FETCH_BOOKMARKS: 'weread:fetchBookmarks',
     FETCH_NOTES: 'weread:fetchNotes',
     FETCH_ALL_CONTENT: 'weread:fetchAllContent',
+    FETCH_ALL_CONTENT_BATCH: 'weread:fetchAllContentBatch',
     TEST: 'weread:test',
   },
   READING_DATA: {
@@ -86,6 +87,12 @@ export const IPC_CHANNELS = {
     CHAT: 'agent:chat',
     STREAM_CHAT: 'agent:streamChat',
     STREAM_CHAT_WITH_CONTEXT: 'agent:streamChatWithContext',
+  },
+  // 流式事件 channel（主进程 -> 渲染进程，由主进程 send 触发）
+  STREAM: {
+    CHUNK: 'ai:streamChunk',
+    COMPLETE: 'ai:streamComplete',
+    ERROR: 'ai:streamError',
   },
   ADMIN: {
     GET_STATS: 'admin:getStats',
@@ -143,6 +150,8 @@ export const IPC_CHANNELS = {
     DISTILL: 'knowledgeCards:distill',
     CANCEL_DISTILL: 'knowledgeCards:cancelDistill',
     IS_DISTILLING: 'knowledgeCards:isDistilling',
+    // 知识卡片蒸馏进度事件（主进程 -> 渲染进程）
+    DISTILL_PROGRESS: 'knowledgeCard:distillProgress',
     GENERATE_INTERPRETATION: 'knowledgeCards:generateInterpretation',
     GENERATE_APPLICATION: 'knowledgeCards:generateApplication',
   },
@@ -184,6 +193,17 @@ export const IPC_CHANNELS = {
     LOOKUP: 'dictionary:lookup',
     LOOKUP_BATCH: 'dictionary:lookupBatch',
     GET_SIZE: 'dictionary:getSize',
+  },
+  SYSTEM: {
+    FORCE_SAVE_DATABASE: 'system:forceSaveDatabase',
+    CLEAR_CACHE: 'system:clearCache',
+  },
+  FSRS: {
+    SET_PARAMETERS: 'fsrs:setParameters',
+    RESET_PARAMETERS: 'fsrs:resetParameters',
+    GET_PARAMETERS: 'fsrs:getParameters',
+    GET_FORECAST: 'fsrs:getForecast',
+    GET_OPTIMAL_REVIEW_ORDER: 'fsrs:getOptimalReviewOrder',
   },
   SKILL: {
     GENERATE: 'skill:generate',

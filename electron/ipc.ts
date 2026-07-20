@@ -267,13 +267,13 @@ export function registerIpcHandlers(): void {
     await streamChat(
       params.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
       (chunk: string) => {
-        event.sender.send('ai:streamChunk', { chunk });
+        event.sender.send(IPC_CHANNELS.STREAM.CHUNK, { chunk });
       },
       (usage) => {
-        event.sender.send('ai:streamComplete', { usage });
+        event.sender.send(IPC_CHANNELS.STREAM.COMPLETE, { usage });
       },
       (error: Error) => {
-        event.sender.send('ai:streamError', { error: error.message });
+        event.sender.send(IPC_CHANNELS.STREAM.ERROR, { error: error.message });
       }
     );
 
@@ -294,13 +294,13 @@ export function registerIpcHandlers(): void {
       },
       params.userMessage,
       (chunk: string) => {
-        event.sender.send('ai:streamChunk', { chunk })
+        event.sender.send(IPC_CHANNELS.STREAM.CHUNK, { chunk })
       },
       (usage) => {
-        event.sender.send('ai:streamComplete', { usage })
+        event.sender.send(IPC_CHANNELS.STREAM.COMPLETE, { usage })
       },
       (error: Error) => {
-        event.sender.send('ai:streamError', { error: error.message })
+        event.sender.send(IPC_CHANNELS.STREAM.ERROR, { error: error.message })
       }
     )
 
@@ -387,66 +387,66 @@ export function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.SETTINGS.SET, (key: string, value: unknown) => settingsService.set(key, value));
   handle(IPC_CHANNELS.SETTINGS.GET_ALL, () => settingsService.getAll());
 
-  handle('system:forceSaveDatabase', () => {
+  handle(IPC_CHANNELS.SYSTEM.FORCE_SAVE_DATABASE, () => {
     forceSaveDatabase();
     return { success: true };
   });
 
-  handle('system:clearCache', () => {
+  handle(IPC_CHANNELS.SYSTEM.CLEAR_CACHE, () => {
     clearWeReadApiCache();
     return { success: true };
   });
 
-  handle('fsrs:setParameters', (params: Record<string, unknown>) => {
+  handle(IPC_CHANNELS.FSRS.SET_PARAMETERS, (params: Record<string, unknown>) => {
     setCustomParameters(params as Partial<import('./fsrs-engine').FSRSParameters>);
     return { success: true };
   });
 
-  handle('fsrs:resetParameters', () => {
+  handle(IPC_CHANNELS.FSRS.RESET_PARAMETERS, () => {
     resetParameters();
     return { success: true };
   });
 
-  handle('fsrs:getParameters', () => {
+  handle(IPC_CHANNELS.FSRS.GET_PARAMETERS, () => {
     return getParameters();
   });
 
-  handle('fsrs:getForecast', (cards: Array<Record<string, unknown>>, days?: number) => {
+  handle(IPC_CHANNELS.FSRS.GET_FORECAST, (cards: Array<Record<string, unknown>>, days?: number) => {
     const typedCards = cards as unknown as import('./fsrs-engine').Card[];
     const forecast = getForecast(typedCards, days);
     return Object.fromEntries(forecast);
   });
 
-  handle('fsrs:getOptimalReviewOrder', (cards: Array<Record<string, unknown>>, limit?: number) => {
+  handle(IPC_CHANNELS.FSRS.GET_OPTIMAL_REVIEW_ORDER, (cards: Array<Record<string, unknown>>, limit?: number) => {
     const typedCards = cards as unknown as import('./fsrs-engine').Card[];
     return getOptimalReviewOrder(typedCards, limit);
   });
 
-  handle('weread:fetchAllContentBatch', (bookIds: string[]) => {
+  handle(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT_BATCH, (bookIds: string[]) => {
     return fetchAllContentBatch(bookIds);
   });
 
-  handle('tokenUsage:getRecent', (limit?: number) => {
+  handle(IPC_CHANNELS.TOKEN_USAGE.GET_RECENT, (limit?: number) => {
     return tokenUsageDb.getRecent(limit);
   });
 
-  handle('tokenUsage:getByDateRange', (startDate: string, endDate: string) => {
+  handle(IPC_CHANNELS.TOKEN_USAGE.GET_BY_DATE_RANGE, (startDate: string, endDate: string) => {
     return tokenUsageDb.getByDateRange(startDate, endDate);
   });
 
-  handle('tokenUsage:getStatsByProvider', () => {
+  handle(IPC_CHANNELS.TOKEN_USAGE.GET_STATS_BY_PROVIDER, () => {
     return tokenUsageDb.getStatsByProvider();
   });
 
-  handle('tokenUsage:getStatsByFeature', () => {
+  handle(IPC_CHANNELS.TOKEN_USAGE.GET_STATS_BY_FEATURE, () => {
     return tokenUsageDb.getStatsByFeature();
   });
 
-  handle('tokenUsage:getDailyStats', (days?: number) => {
+  handle(IPC_CHANNELS.TOKEN_USAGE.GET_DAILY_STATS, (days?: number) => {
     return tokenUsageDb.getDailyStats(days);
   });
 
-  handle('tokenUsage:getTotalStats', () => {
+  handle(IPC_CHANNELS.TOKEN_USAGE.GET_TOTAL_STATS, () => {
     return tokenUsageDb.getTotalStats();
   });
 
