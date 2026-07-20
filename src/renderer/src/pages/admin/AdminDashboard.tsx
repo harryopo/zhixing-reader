@@ -76,8 +76,13 @@ export default function AdminDashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // ✅ P1-3 修复：5 秒自动刷新并发保护 — 防止上一次 loadData 未完成时再次触发，
+  //    避免后到达的响应覆盖先到达的响应导致"数字回退"视觉异常。
+  const isLoadingRef = useRef(false)
 
   const loadData = useCallback(async (silent = false) => {
+    if (isLoadingRef.current) return
+    isLoadingRef.current = true
     try {
       if (!silent) setLoading(true)
       setError(null)
@@ -125,6 +130,7 @@ export default function AdminDashboard() {
       console.error('加载概览数据失败:', e)
       setError(e?.message || String(err))
     } finally {
+      isLoadingRef.current = false
       setLoading(false)
       setRefreshing(false)
     }

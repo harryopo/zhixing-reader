@@ -16,7 +16,6 @@
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
-import type { ReactNode } from 'react'
 
 // 必须在 import 被测组件前 mock（vitest 提升）
 vi.mock('echarts-for-react', () => ({
