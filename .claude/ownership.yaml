@@ -1,0 +1,160 @@
+# File Ownership — 知行读书 Sub-agent 文件域声明
+
+> **作用**：多 Sub-agent 并行开发时声明文件所有权，防止越界编辑
+> **详细规范**：ai-dev-workflow §七（Sub-agent 编排策略）
+> **当前状态**：单 agent 模式（比赛期间），本文件作为未来扩展用
+
+---
+
+## 1. 域声明
+
+```yaml
+# 知行读书多 agent 文件所有权
+version: 1
+
+agents:
+  # ====== 渲染进程（前端） ======
+  renderer-agent:
+    role: "负责 src/renderer/src/** 全部 React + 状态管理"
+    domains:
+      - "src/renderer/src/**"
+    forbidden:
+      - "electron/**"
+      - "shared/**"
+    exclusive:
+      - "src/renderer/src/stores/**"  # Zustand stores 独占
+      - "src/renderer/src/styles/**"  # 样式独占
+
+  # ====== 主进程（后端） ======
+  backend-agent:
+    role: "负责 electron/** 全部主进程 + DB + AI 服务"
+    domains:
+      - "electron/**"
+    forbidden:
+      - "src/renderer/src/**"
+      - "src/shared/**"  # 共享层需协调
+    exclusive:
+      - "electron/database.ts"          # 数据库独占
+      - "electron/repositories/**"      # 仓储层独占
+      - "electron/services/**"          # 业务服务独占
+      - "electron/agent/**"             # 智能体独占
+      - "electron/ai-service.ts"        # AI 服务独占
+      - "electron/weread-api.ts"        # 微信读书 API 独占
+      - "electron/fsrs-engine.ts"       # FSRS 引擎独占
+
+  # ====== 共享层（需协调） ======
+  shared-agent:
+    role: "负责跨进程共享的类型/常量，修改需通知另一方"
+    domains:
+      - "src/shared/**"
+    forbidden:
+      - "src/renderer/src/**"
+      - "electron/**"
+    exclusive:
+      - "src/shared/types.ts"
+      - "src/shared/ipc-channels.ts"
+      - "src/shared/constants.ts"
+
+  # ====== 测试（只读源码） ======
+  test-agent:
+    role: "只读源码，只写测试"
+    domains:
+      - "tests/**"
+    forbidden:
+      - "electron/**"      # 只读
+      - "src/renderer/src/**"  # 只读
+    read_only:
+      - "electron/**"
+      - "src/renderer/src/**"
+
+  # ====== 文档（信息检索） ======
+  docs-agent:
+    role: "负责 AGENTS.md / CLAUDE.md / .claude/rules/ / .learnings/"
+    domains:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - ".claude/**"
+      - ".learnings/**"
+      - "docs/**"
+    forbidden:
+      - "electron/**"
+      - "src/renderer/**"
+
+  # ====== 基础设施（构建/配置） ======
+  infra-agent:
+    role: "负责构建/CI/依赖/Husky"
+    domains:
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.web.json"
+      - "tsconfig.node.json"
+      - "electron.vite.config.ts"
+      - "eslint.config.js"
+      - "postcss.config.js"
+      - "tailwind.config.js"
+      - ".github/**"
+      - ".husky/**"
+      - "vitest.config.ts"
+    forbidden:
+      - "electron/**"
+      - "src/renderer/src/**"
+```
+
+---
+
+## 2. 共享文件修改协议
+
+当 Sub-agent A 需要修改另一 agent 的 exclusive 文件时：
+
+```
+A 发起请求 ──→ 主协调器（人）审批
+                  │
+                  ├─→ 通知 B："A 需要修改 X，是否同意"
+                  ├─→ B 同意
+                  └─→ A 获得临时锁（1 小时）
+                       │
+                       └─→ A 修改
+                            │
+                            └─→ A 释放锁
+                                 │
+                                 └─→ 通知 B 验证
+```
+
+**示例**：renderer-agent 要新增 IPC 通道，需要修改 `shared/ipc-channels.ts`（shared-agent exclusive）
+
+```
+1. renderer-agent 在 shared-agent 域中发起 PR
+2. 人在协调器中授权（临时 lock shared-agent）
+3. renderer-agent 在 shared/ipc-channels.ts 加常量
+4. renderer-agent 在 electron/preload.ts 暴露 API（属于 backend-agent exclusive）
+5. backend-agent 收到通知，在 ipc.ts 注册 handler
+6. 全部完成后释放 lock
+```
+
+---
+
+## 3. 当前（单 Agent）模式
+
+比赛期间（11 天冲刺），所有修改由主 agent 完成，本文件作为未来扩展的 reference。
+
+**当前规则**：
+- 修改任何文件前必读 `AGENTS.md` 确认架构
+- 修改 IPC 通道：必须同步修改 `shared/ipc-channels.ts` + `preload.ts` + `ipc.ts` 三处
+- 修改 DB schema：必须用 `PRAGMA table_info` 检查后再 `ALTER TABLE`
+
+---
+
+## 4. Sub-agent 调用约定
+
+| Sub-agent | 何时调用 | 输入 | 输出 |
+|-----------|---------|------|------|
+| `code-reviewer` | 提交前、PR review | diff / 文件 | 7 维审查报告 |
+| `test-writer` | 新增功能、Bug 修复 | 源文件 | vitest 测试文件 |
+| `frontend-design` | UI 改动 | 描述 + 草图 | 设计 + 代码 |
+| `debugging-strategies` | 复杂 Bug | 错误日志 + 复现步骤 | 假设 → 验证 |
+| `requesting-code-review` | 大功能完成 | 功能描述 | 审查请求 |
+
+---
+
+*最后更新：2026-07-20 | 由 ai-dev-workflow skill 自动生成*
