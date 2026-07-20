@@ -32,6 +32,24 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html')
+        },
+        output: {
+          // 让 manualChunks 的 chunk 名稳定
+          chunkFileNames: 'assets/[name]-[hash].js',
+          // 手动分包：把 echarts 单独切出，admin chunk 只保留业务代码
+          // 目标：admin 页 admin-charts.tsx 业务代码 < 50KB
+          manualChunks(id) {
+            if (id.includes('echarts') || id.includes('zrender')) {
+              return 'echarts-vendor'
+            }
+            if (id.includes('recharts') || id.includes('d3-') || id.includes('victory-vendor')) {
+              return 'recharts-vendor'
+            }
+            if (id.includes('sql.js')) {
+              return 'sqljs-vendor'
+            }
+            return undefined
+          }
         }
       }
     },

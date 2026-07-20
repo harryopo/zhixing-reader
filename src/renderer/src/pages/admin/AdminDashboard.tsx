@@ -1,18 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { ProviderStats, FeatureStats } from '../../../../types/renderer'
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from 'recharts'
-import { ProviderStats, FeatureStats, DailyTokenStats as _DailyTokenStats } from '../../../../types/renderer'
+  FeatureBarChart,
+  ModelBarChart,
+  ProviderPieChart,
+  ProviderTokenBarChart,
+  RequestPieChart,
+  TokensGauge,
+  formatTokens,
+} from '@/admin-charts'
 
 interface DashboardData {
   stats: {
@@ -25,28 +21,6 @@ interface DashboardData {
   }
   providers: ProviderStats[]
   features: FeatureStats[]
-}
-
-const CHART_COLORS = {
-  primary: '#6366F1',
-  primaryFill: 'rgba(99, 102, 241, 0.15)',
-  secondary: '#A78BFA',
-  secondaryFill: 'rgba(167, 139, 250, 0.15)',
-  accent: '#F59E0B',
-  emerald: '#10B981',
-  rose: '#F43F5E',
-  blue: '#3B82F6',
-  cyan: '#06B6D4',
-  pink: '#EC4899',
-  amber: '#F59E0B',
-}
-
-const PIE_COLORS = ['#6366F1', '#A78BFA', '#F59E0B', '#10B981', '#3B82F6', '#F43F5E', '#06B6D4', '#EC4899']
-
-function formatTokens(n: number): string {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k'
-  return String(n)
 }
 
 const StatCard = ({ label, value, color, icon }: { label: string; value: string | number; color: string; icon?: string }) => {
@@ -71,7 +45,17 @@ const StatCard = ({ label, value, color, icon }: { label: string; value: string 
   )
 }
 
-const ChartCard = ({ title, subtitle, children, action }: { title: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode }) => (
+const ChartCard = ({
+  title,
+  subtitle,
+  children,
+  action,
+}: {
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+  action?: React.ReactNode
+}) => (
   <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
     <div className="flex items-start justify-between mb-3">
       <div>
@@ -105,20 +89,41 @@ export default function AdminDashboard() {
           return fallback
         }
       }
-      const [stats, providers, features] = await Promise.all([
-        safeCall(() => window.electronAPI.admin.getStats(), { stats: { totalConversations: 0, totalMessages: 0, totalTokens: 0, totalBooks: 0, totalHighlights: 0, totalCards: 0 }, tokenTrend: [], recentSessions: [] }),
-        safeCall(() => window.electronAPI.tokenUsage.getStatsByProvider(), [] as any[]),
-        safeCall(() => window.electronAPI.tokenUsage.getStatsByFeature(), [] as any[]),
+      const [statsResult, providers, features] = await Promise.all([
+        safeCall(() => window.electronAPI.admin.getStats(), {
+          stats: {
+            totalConversations: 0,
+            totalMessages: 0,
+            totalTokens: 0,
+            totalBooks: 0,
+            totalHighlights: 0,
+            totalCards: 0,
+          },
+          tokenTrend: [],
+          recentSessions: [],
+        }),
+        safeCall(() => window.electronAPI.tokenUsage.getStatsByProvider(), [] as ProviderStats[]),
+        safeCall(() => window.electronAPI.tokenUsage.getStatsByFeature(), [] as FeatureStats[]),
       ])
+      const statsObj = (statsResult as { stats?: DashboardData['stats'] })?.stats
+      const stats: DashboardData['stats'] = statsObj ?? {
+        totalConversations: 0,
+        totalMessages: 0,
+        totalTokens: 0,
+        totalBooks: 0,
+        totalHighlights: 0,
+        totalCards: 0,
+      }
       setData({
-        stats: (stats as any)?.stats ?? stats ?? { totalConversations: 0, totalMessages: 0, totalTokens: 0, totalBooks: 0, totalHighlights: 0, totalCards: 0 },
+        stats,
         providers: Array.isArray(providers) ? providers : [],
         features: Array.isArray(features) ? features : [],
       })
       setLastUpdated(new Date())
-    } catch (err: any) {
-      console.error('加载概览数据失败:', err)
-      setError(String(err?.message || err))
+    } catch (err) {
+      const e = err as Error
+      console.error('加载概览数据失败:', e)
+      setError(e?.message || String(err))
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -177,23 +182,6 @@ export default function AdminDashboard() {
     { label: '知识卡片', value: stats.totalCards, color: 'rose', icon: '🎴' },
   ]
 
-  const providerPieData = providers.map((p: ProviderStats) => ({
-    name: p.provider === 'unknown' ? '未指定' : p.provider,
-    value: p.total_tokens,
-  }))
-
-  const modelBarData = providers.slice(0, 10).map((p: ProviderStats) => ({
-    name: p.model === 'unknown' ? '未指定' : p.model.length > 12 ? p.model.slice(0, 12) + '...' : p.model,
-    tokens: p.total_tokens,
-    requests: p.request_count,
-  }))
-
-  const featureBarData = features.map((f: FeatureStats) => ({
-    name: f.feature,
-    tokens: f.total_tokens,
-    requests: f.request_count,
-  }))
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -231,78 +219,33 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {/* 第 1 行：Provider 占比 + Token 综合 */}
       <div className="grid grid-cols-2 gap-4">
         <ChartCard title="Provider 占比" subtitle="按 Token 用量">
-          {providerPieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie
-                  data={providerPieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                  label={(props) => `${props.name ?? ''} ${(((props.percent as number) ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {providerPieData.map((_item: unknown, i: number) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ background: 'rgba(31,41,55,0.95)', border: 'none', borderRadius: 8, fontSize: 12, color: '#fff' }}
-                  formatter={(v) => formatTokens(Number(v))}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[240px] flex items-center justify-center text-gray-300 text-sm">暂无数据</div>
-          )}
+          <ProviderPieChart providers={providers} />
+        </ChartCard>
+        <ChartCard title="Token 用量综合" subtitle="相对参考容量 5M">
+          <TokensGauge totalTokens={stats.totalTokens} />
         </ChartCard>
       </div>
 
+      {/* 第 2 行：Model Top10 + Feature 拆分 */}
       <div className="grid grid-cols-2 gap-4">
         <ChartCard title="Model 用量 Top 10" subtitle="按 Token 用量">
-          {modelBarData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={modelBarData} layout="vertical" margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={formatTokens} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#9CA3AF' }} width={100} />
-                <Tooltip
-                  contentStyle={{ background: 'rgba(31,41,55,0.95)', border: 'none', borderRadius: 8, fontSize: 12, color: '#fff' }}
-                  formatter={(v) => formatTokens(Number(v))}
-                />
-                <Bar dataKey="tokens" fill={CHART_COLORS.primary} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[280px] flex items-center justify-center text-gray-300 text-sm">暂无数据</div>
-          )}
+          <ModelBarChart providers={providers} />
         </ChartCard>
-
         <ChartCard title="Feature 拆分" subtitle="各功能调用情况">
-          {featureBarData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={featureBarData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#9CA3AF' }} angle={-15} textAnchor="end" height={60} />
-                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={formatTokens} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-                <Tooltip
-                  contentStyle={{ background: 'rgba(31,41,55,0.95)', border: 'none', borderRadius: 8, fontSize: 12, color: '#fff' }}
-                  formatter={(v, name) => name === 'tokens' ? formatTokens(Number(v)) : v}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar yAxisId="left" dataKey="tokens" name="Token" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
-                <Bar yAxisId="right" dataKey="requests" name="请求数" fill={CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[280px] flex items-center justify-center text-gray-300 text-sm">暂无数据</div>
-          )}
+          <FeatureBarChart features={features} />
+        </ChartCard>
+      </div>
+
+      {/* 第 3 行：请求数占比 + Provider 输入/输出 */}
+      <div className="grid grid-cols-2 gap-4">
+        <ChartCard title="Feature 请求数占比" subtitle="按请求数">
+          <RequestPieChart features={features} />
+        </ChartCard>
+        <ChartCard title="Provider 输入/输出 Token" subtitle="按 Provider 分组堆叠">
+          <ProviderTokenBarChart providers={providers} />
         </ChartCard>
       </div>
     </div>
