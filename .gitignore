@@ -37,6 +37,7 @@ temp/
 # Build installer artifacts (electron-builder output now points here)
 installer/
 installer-v2/
+installer-test/
 dist-installer/
 builder-output-override.json
 
