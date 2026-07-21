@@ -1636,7 +1636,11 @@ function MethodDetailPanel({
       {/* 输出格式 */}
       {methodology.outputFormat && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-          <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
+          <div
+            className="eyebrow"
+            title="应用该方法论时产出的成果形式，例如文本摘要、知识卡片、思维导图、大纲等"
+            style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}
+          >
             输出格式
           </div>
           <div
