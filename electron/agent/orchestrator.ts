@@ -154,7 +154,8 @@ export async function processMessageStream(
   userMessage: string,
   onChunk: (chunk: string) => void,
   onComplete: (usage?: { promptTokens: number; completionTokens: number }) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void }
 ): Promise<void> {
   // 1. 意图分类和策略选择
   const intent = await classifyIntent(userMessage, context.conversationHistory)
@@ -267,7 +268,10 @@ export async function processMessageStream(
     originalOnComplete(usage)
   }
 
-  await streamChat(messages, wrappedOnChunk, wrappedOnComplete, onError)
+  await streamChat(messages, wrappedOnChunk, wrappedOnComplete, onError, {
+    enableReasoning: options?.enableReasoning,
+    onReasoningChunk: options?.onReasoningChunk,
+  })
 }
 
 export { clearState }

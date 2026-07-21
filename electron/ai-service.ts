@@ -1069,11 +1069,19 @@ function isCancelledError(error: unknown): boolean {
   return false
 }
 
+export interface StreamChatOptions {
+  /** 开启深度思考模式（DeepSeek R1 reasoning_content / Claude thinking / OpenAI o-series summary） */
+  enableReasoning?: boolean
+  /** 推理过程流式回调（chunk 增量） */
+  onReasoningChunk?: (chunk: string) => void
+}
+
 export async function streamChat(
   messages: Message[],
   onChunk: (chunk: string) => void,
   onComplete: (usage?: { promptTokens: number; completionTokens: number }) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  options?: StreamChatOptions
 ): Promise<void> {
   if (!config) {
     onError(new Error('AI service not configured'));
@@ -1104,9 +1112,9 @@ export async function streamChat(
 
   try {
     if (isOpenAICompatible) {
-      await streamOpenAI(messages, onChunk, safeComplete, safeError, signal);
+      await streamOpenAI(messages, onChunk, safeComplete, safeError, signal, options);
     } else {
-      await streamAnthropic(messages, onChunk, safeComplete, safeError, signal);
+      await streamAnthropic(messages, onChunk, safeComplete, safeError, signal, options);
     }
   } catch (error) {
     if (isCancelledError(error) || signal.aborted) {
@@ -1126,9 +1134,13 @@ async function streamOpenAI(
   onChunk: (chunk: string) => void,
   onComplete: (usage?: { promptTokens: number; completionTokens: number }) => void,
   onError: (error: Error) => void,
-  signal: AbortSignal
+  signal: AbortSignal,
+  options?: StreamChatOptions
 ): Promise<void> {
   if (!config) throw new Error('AI service not configured');
+
+  const enableReasoning = options?.enableReasoning === true
+  const onReasoningChunk = options?.onReasoningChunk
 
   const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
   const model = config.model || 'gpt-4o-mini';
@@ -1138,19 +1150,30 @@ async function streamOpenAI(
   const startTime = Date.now();
 
   try {
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      stream: true,
+    }
+    // 深度思考模式：DeepSeek R1 (deepseek-reasoner) 默认返回 reasoning_content；
+    // OpenAI o 系列需要 reasoning_effort；其它模型只尽力解析 delta.reasoning_content。
+    // 不强行修改 model —— 由用户在设置里选择支持的模型。
+    if (enableReasoning) {
+      // OpenAI o 系列参数（若模型是 o1/o3/o4-mini 会生效；其它模型会被忽略）
+      body.reasoning_effort = 'medium'
+      // DeepSeek / 第三方兼容 API：stream_options 让 usage 提早返回，但不影响 reasoning
+      body.stream_options = { include_usage: true }
+    }
+
     const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     }, {
       timeoutMs: RETRY_CONFIGS.AI_SERVICE.timeout,
       externalSignal: signal,
@@ -1194,6 +1217,23 @@ async function streamOpenAI(
               _totalContent += delta.content;
               onChunk(delta.content);
             }
+            // DeepSeek R1 / 兼容 API：reasoning_content 字段
+            if (enableReasoning && onReasoningChunk && delta?.reasoning_content) {
+              onReasoningChunk(delta.reasoning_content);
+            }
+            // OpenAI o 系列：reasoning summary（部分 provider 通过 delta.reasoning 透传）
+            if (enableReasoning && onReasoningChunk && delta?.reasoning) {
+              const r = delta.reasoning
+              if (typeof r === 'string') {
+                onReasoningChunk(r)
+              } else if (r && typeof r === 'object' && Array.isArray(r.summary)) {
+                for (const s of r.summary) {
+                  if (s && typeof s === 'object' && typeof s.text === 'string') {
+                    onReasoningChunk(s.text)
+                  }
+                }
+              }
+            }
             if (parsed.usage) {
               usageData = {
                 promptTokens: parsed.usage.prompt_tokens,
@@ -1226,9 +1266,13 @@ async function streamAnthropic(
   onChunk: (chunk: string) => void,
   onComplete: (usage?: { promptTokens: number; completionTokens: number }) => void,
   onError: (error: Error) => void,
-  signal: AbortSignal
+  signal: AbortSignal,
+  options?: StreamChatOptions
 ): Promise<void> {
   if (!config) throw new Error('AI service not configured');
+
+  const enableReasoning = options?.enableReasoning === true
+  const onReasoningChunk = options?.onReasoningChunk
 
   const baseUrl = config.baseUrl || 'https://api.anthropic.com/v1';
   const model = config.model || 'claude-3-5-sonnet-20241022';
@@ -1240,6 +1284,21 @@ async function streamAnthropic(
   const startTime = Date.now();
 
   try {
+    const body: Record<string, unknown> = {
+      model,
+      system: systemMessage,
+      messages: nonSystemMessages.map(m => ({
+        role: m.role,
+        content: m.content,
+      })),
+      max_tokens: maxTokens,
+      stream: true,
+    }
+    // Claude extended thinking（sonnet-4.6 / opus-4.6 等）
+    if (enableReasoning) {
+      body.thinking = { type: 'enabled', budget_tokens: Math.min(10000, Math.max(1024, maxTokens - 1)) }
+    }
+
     const response = await fetchWithTimeout(`${baseUrl}/messages`, {
       method: 'POST',
       headers: {
@@ -1247,16 +1306,7 @@ async function streamAnthropic(
         'x-api-key': config.apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model,
-        system: systemMessage,
-        messages: nonSystemMessages.map(m => ({
-          role: m.role,
-          content: m.content,
-        })),
-        max_tokens: maxTokens,
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     }, {
       timeoutMs: RETRY_CONFIGS.AI_SERVICE.timeout,
       externalSignal: signal,
@@ -1293,8 +1343,15 @@ async function streamAnthropic(
 
           try {
             const parsed = JSON.parse(data);
-            if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-              onChunk(parsed.delta.text);
+            // 文本增量
+            if (parsed.type === 'content_block_delta') {
+              if (parsed.delta?.text) {
+                onChunk(parsed.delta.text);
+              }
+              // Claude thinking 增量
+              if (enableReasoning && onReasoningChunk && parsed.delta?.type === 'thinking_delta' && typeof parsed.delta.thinking === 'string') {
+                onReasoningChunk(parsed.delta.thinking);
+              }
             }
             if (parsed.type === 'message_delta' && parsed.usage) {
               usageData = {

@@ -40,6 +40,7 @@ type DistillProgressHandler = (event: IpcRendererEvent, data: DistillProgressPay
 const streamChunkHandlers = new Map<(chunk: string) => void, StreamChunkHandler>()
 const streamCompleteHandlers = new Map<(usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void, StreamCompleteHandler>()
 const streamErrorHandlers = new Map<(error: string) => void, StreamErrorHandler>()
+const streamReasoningChunkHandlers = new Map<(chunk: string) => void, StreamChunkHandler>()
 const distillProgressHandlers = new Map<(progress: DistillProgressPayload) => void, DistillProgressHandler>()
 
 const electronAPI = {
@@ -171,14 +172,15 @@ const electronAPI = {
     explain: (content: string, bookTitle: string, chapterTitle?: string) =>
       invoke(IPC_CHANNELS.AI.EXPLAIN, content, bookTitle, chapterTitle),
     test: (config: Record<string, unknown>) => invoke(IPC_CHANNELS.AI.TEST, config),
-    streamChat: (messages: Array<{role: string; content: string}>) => {
-      return invoke(IPC_CHANNELS.AGENT.STREAM_CHAT, { messages });
+    streamChat: (messages: Array<{role: string; content: string}>, enableReasoning?: boolean) => {
+      return invoke(IPC_CHANNELS.AGENT.STREAM_CHAT, { messages, enableReasoning });
     },
     streamChatWithContext: (params: {
       sessionId: string
       bookId?: string
       userMessage: string
       conversationHistory: Array<{ role: string; content: string }>
+      enableReasoning?: boolean
     }) => {
       return invoke(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, params)
     },
@@ -196,6 +198,22 @@ const electronAPI = {
         if (h) {
           ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, h)
           streamChunkHandlers.delete(callback)
+        }
+      }
+    },
+    onStreamReasoningChunk: (callback: (chunk: string) => void) => {
+      const existing = streamReasoningChunkHandlers.get(callback)
+      if (existing) {
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM.REASONING_CHUNK, existing)
+      }
+      const handler: StreamChunkHandler = (_event, data) => callback(data.chunk)
+      streamReasoningChunkHandlers.set(callback, handler)
+      ipcRenderer.on(IPC_CHANNELS.STREAM.REASONING_CHUNK, handler)
+      return () => {
+        const h = streamReasoningChunkHandlers.get(callback)
+        if (h) {
+          ipcRenderer.removeListener(IPC_CHANNELS.STREAM.REASONING_CHUNK, h)
+          streamReasoningChunkHandlers.delete(callback)
         }
       }
     },

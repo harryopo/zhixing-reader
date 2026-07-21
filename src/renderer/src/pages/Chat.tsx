@@ -7,10 +7,11 @@
  * 业务逻辑全部保留：
  *   - useChatStore: sessions / currentSessionId / messages / streaming / streamingContent
  *   - sendMessage / stopStreaming / createSession / switchSession / deleteSession
- *   - 4 个快捷操作（全书问答 / 费曼教学 / 深度提问 / 考考我）
+ *   - 3 个快捷操作（费曼教学 / 深度提问 / 考考我）+ 深度思考模式开关
  *   - Enter 发送 / Shift+Enter 换行
  *   - 自动滚动到底部 + error toast
- *   - 流式响应（onStreamChunk / onStreamComplete / onStreamError）
+ *   - 流式响应（onStreamChunk / onStreamComplete / onStreamError / onStreamReasoningChunk）
+ *   - Markdown 渲染 + 代码高亮 + 思考过程面板（components/chat/MessageBubble）
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
@@ -20,6 +21,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
+import MessageBubble, { RAGSource } from '@/components/chat/MessageBubble'
 import { useChatStore } from '../stores/chatStore'
 import { toast } from '../stores/toastStore'
 
@@ -44,14 +46,8 @@ interface HighlightRow {
 
 // ===== 常量 =====
 
-/** 4 个快捷操作（保留旧版业务逻辑） */
+/** 3 个快捷操作（T13 删除"全书问答"，保留费曼教学 / 深度提问 / 考考我） */
 const QUICK_ACTIONS = [
-  {
-    key: 'summary',
-    label: '全书问答',
-    icon: 'bookshelf' as const,
-    prompt: '请帮我总结这本书的核心观点和主要内容',
-  },
   {
     key: 'feynman',
     label: '费曼教学',
@@ -105,6 +101,8 @@ export default function Chat() {
     loading,
     streaming,
     streamingContent,
+    streamingReasoning,
+    enableReasoning,
     error,
     currentBookId,
     loadSessions,
@@ -115,6 +113,7 @@ export default function Chat() {
     stopStreaming,
     setCurrentBook,
     clearError,
+    setEnableReasoning,
   } = useChatStore()
 
   const [input, setInput] = useState('')
@@ -255,6 +254,22 @@ export default function Chat() {
       .then(() => toast.success('已复制到剪贴板'))
       .catch(() => toast.error('复制失败'))
   }
+
+  // 重新生成：取出最后一条 user 消息重发（chatStore 暂无 regenerate 方法，避免 over-engineer）
+  const handleRegenerate = useCallback(() => {
+    if (loading || streaming) return
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
+    if (!lastUserMsg) {
+      toast.info('没有可重新生成的消息')
+      return
+    }
+    sendMessage(lastUserMsg.content)
+  }, [messages, loading, streaming, sendMessage])
+
+  // 切换深度思考模式
+  const handleToggleReasoning = useCallback(() => {
+    setEnableReasoning(!enableReasoning)
+  }, [enableReasoning, setEnableReasoning])
 
   // ===== 派生数据 =====
   const currentSession = sessions.find((s) => s.id === currentSessionId)
@@ -527,18 +542,36 @@ export default function Chat() {
                       key={message.id || idx}
                       role={message.role}
                       content={message.content}
+                      reasoning={
+                        message.reasoning
+                          ? {
+                              content: message.reasoning.content,
+                              isStreaming: false,
+                              duration: message.reasoning.duration,
+                            }
+                          : undefined
+                      }
+                      sources={message.sources as RAGSource[] | undefined}
                       onCopy={() => handleCopyMessage(message.content)}
+                      onRegenerate={message.role === 'assistant' ? handleRegenerate : undefined}
                     />
                   ))}
-                  {streaming && streamingContent && (
+                  {streaming && (
                     <MessageBubble
                       role="assistant"
                       content={streamingContent}
                       isStreaming
+                      reasoning={
+                        streamingReasoning
+                          ? { content: streamingReasoning, isStreaming: true }
+                          : undefined
+                      }
                       onCopy={() => handleCopyMessage(streamingContent)}
                     />
                   )}
-                  {loading && !streaming && <TypingDots />}
+                  {loading && !streaming && (
+                    <MessageBubble role="assistant" content="" isStreaming />
+                  )}
                 </>
               )}
               <div ref={messagesEndRef} />
@@ -606,9 +639,40 @@ export default function Chat() {
                     display: 'flex',
                     gap: 'calc(var(--spacing) * 2)',
                     flexWrap: 'wrap',
+                    alignItems: 'center',
                   }}
                 >
-                  {/* 4 个快捷操作 chip */}
+                  {/* 深度思考模式开关（DeepSeek R1 reasoning_content / Claude thinking / OpenAI o-series） */}
+                  <button
+                    type="button"
+                    onClick={handleToggleReasoning}
+                    aria-pressed={enableReasoning}
+                    title={enableReasoning ? '已开启深度思考：AI 会先展示思考过程再回答（消耗更多 Token）' : '开启深度思考：AI 会先展示思考过程再回答'}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.34rem 0.7rem',
+                      borderRadius: 999,
+                      background: enableReasoning ? 'var(--primary)' : 'var(--secondary)',
+                      color: enableReasoning ? 'var(--primary-foreground)' : 'var(--secondary-foreground)',
+                      fontSize: '0.78rem',
+                      border: enableReasoning ? '1px solid var(--primary)' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease',
+                      whiteSpace: 'nowrap',
+                      font: 'inherit',
+                      fontWeight: enableReasoning ? 600 : 400,
+                    }}
+                  >
+                    {/* 大脑图标（与 Reasoning.tsx 一致） */}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+                      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+                    </svg>
+                    深度思考
+                  </button>
+                  {/* 3 个快捷操作 chip */}
                   {QUICK_ACTIONS.map((qa) => (
                     <button
                       key={qa.key}
@@ -1038,145 +1102,5 @@ function IconButtonSmall({
     >
       {children}
     </button>
-  )
-}
-
-// ===== 子组件：消息气泡 =====
-interface MessageBubbleProps {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  isStreaming?: boolean
-  onCopy: () => void
-}
-
-function MessageBubble({ role, content, isStreaming, onCopy }: MessageBubbleProps) {
-  const isUser = role === 'user'
-  return (
-    <div
-      className={`msg ${isUser ? 'user' : 'assistant'}${isStreaming ? ' streaming' : ''}`}
-      style={{
-        display: 'flex',
-        gap: 'calc(var(--spacing) * 3)',
-        justifyContent: isUser ? 'flex-end' : 'flex-start',
-        alignItems: isUser ? 'flex-end' : 'flex-start',
-      }}
-    >
-      {!isUser && (
-        <div
-          className="msg-avatar"
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            background: 'var(--secondary)',
-            color: 'var(--secondary-foreground)',
-            display: 'grid',
-            placeItems: 'center',
-            fontWeight: 700,
-            fontSize: '0.82rem',
-            flexShrink: 0,
-          }}
-        >
-          AI
-        </div>
-      )}
-      <div
-        className="msg-content"
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'calc(var(--spacing) * 2)',
-          alignItems: isUser ? 'flex-end' : 'flex-start',
-          minWidth: 0,
-        }}
-      >
-        <div
-          className="msg-bubble"
-          style={{
-            padding: 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
-            borderRadius: 'calc(var(--radius) + 4px)',
-            fontSize: '0.92rem',
-            lineHeight: 1.6,
-            maxWidth: isUser ? '70%' : '90%',
-            background: isUser ? 'var(--primary)' : 'var(--background)',
-            color: isUser ? 'var(--primary-foreground)' : 'var(--card-foreground)',
-            border: isUser ? 'none' : '1px solid var(--border)',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            overflowWrap: 'anywhere',
-          }}
-        >
-          {content || (isStreaming ? <TypingDots inline /> : '')}
-        </div>
-        {!isUser && !isStreaming && content && (
-          <div
-            className="msg-actions"
-            style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}
-          >
-            <IconButtonSmall label="复制" onClick={onCopy}>
-              <Icon name="file" size={14} />
-            </IconButtonSmall>
-            <IconButtonSmall label="点赞" onClick={() => toast.info('感谢反馈')}>
-              <Icon name="thumbs-up" size={14} />
-            </IconButtonSmall>
-            <IconButtonSmall label="收藏" onClick={() => toast.info('已收藏')}>
-              <Icon name="star" size={14} />
-            </IconButtonSmall>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ===== 子组件：打字动画 =====
-function TypingDots({ inline = false }: { inline?: boolean }) {
-  const wrapperStyle: React.CSSProperties = inline
-    ? {
-        display: 'inline-flex',
-        gap: 4,
-        alignItems: 'center',
-        padding: 'calc(var(--spacing) * 1)',
-      }
-    : {
-        display: 'inline-flex',
-        gap: 4,
-        alignItems: 'center',
-        padding: 'calc(var(--spacing) * 2)',
-      }
-  return (
-    <div className="typing-dots" style={wrapperStyle} aria-label="AI 正在思考">
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: 'var(--muted-foreground)',
-          animation: 'typing-blink 1.4s infinite',
-        }}
-      />
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: 'var(--muted-foreground)',
-          animation: 'typing-blink 1.4s infinite',
-          animationDelay: '0.2s',
-        }}
-      />
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: 'var(--muted-foreground)',
-          animation: 'typing-blink 1.4s infinite',
-          animationDelay: '0.4s',
-        }}
-      />
-      <style>{`@keyframes typing-blink { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }`}</style>
-    </div>
   )
 }

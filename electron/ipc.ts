@@ -381,7 +381,7 @@ export function registerIpcHandlers(): void {
   );
   handle(IPC_CHANNELS.AI.TEST, (config: Record<string, unknown>) => testAIConnection(config as unknown as Parameters<typeof testAIConnection>[0]));
 
-  ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT, async (event, params: { messages: Array<{role: string; content: string}> }) => {
+  ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT, async (event, params: { messages: Array<{role: string; content: string}>; enableReasoning?: boolean }) => {
     await streamChat(
       params.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
       (chunk: string) => {
@@ -392,6 +392,12 @@ export function registerIpcHandlers(): void {
       },
       (error: Error) => {
         event.sender.send(IPC_CHANNELS.STREAM.ERROR, { error: error.message });
+      },
+      {
+        enableReasoning: params?.enableReasoning === true,
+        onReasoningChunk: (chunk: string) => {
+          event.sender.send(IPC_CHANNELS.STREAM.REASONING_CHUNK, { chunk });
+        },
       }
     );
 
@@ -409,6 +415,7 @@ export function registerIpcHandlers(): void {
     bookId?: string
     userMessage: string
     conversationHistory: Array<{ role: string; content: string }>
+    enableReasoning?: boolean
   }) => {
     await processMessageStream(
       {
@@ -425,6 +432,12 @@ export function registerIpcHandlers(): void {
       },
       (error: Error) => {
         event.sender.send(IPC_CHANNELS.STREAM.ERROR, { error: error.message })
+      },
+      {
+        enableReasoning: params?.enableReasoning === true,
+        onReasoningChunk: (chunk: string) => {
+          event.sender.send(IPC_CHANNELS.STREAM.REASONING_CHUNK, { chunk })
+        },
       }
     )
 

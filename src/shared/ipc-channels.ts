@@ -93,6 +93,7 @@ export const IPC_CHANNELS = {
   // 流式事件 channel（主进程 -> 渲染进程，由主进程 send 触发）
   STREAM: {
     CHUNK: 'ai:streamChunk',
+    REASONING_CHUNK: 'ai:streamReasoningChunk',
     COMPLETE: 'ai:streamComplete',
     ERROR: 'ai:streamError',
   },

@@ -1,5 +1,14 @@
 import { create } from 'zustand'
 
+interface ReasoningBlock {
+  /** 思考内容（明文） */
+  content: string
+  /** 是否流式中 */
+  isStreaming: boolean
+  /** 思考耗时（秒） */
+  duration?: number
+}
+
 interface Source {
   bookId: string
   bookTitle: string
@@ -20,6 +29,7 @@ interface Message {
     confidence: number
   }
   sources?: Source[]
+  reasoning?: ReasoningBlock
   createdAt?: string
 }
 
@@ -80,8 +90,14 @@ interface ChatState {
   loading: boolean
   streaming: boolean
   streamingContent: string
+  /** 流式中的思考过程内容 */
+  streamingReasoning: string
+  /** 当前流式的思考开始时间戳（ms）；用于计算 duration） */
+  reasoningStartTime: number | null
   error: string | null
   currentBookId: string | null
+  /** 深度思考模式开关（开启后下一次 sendMessage 生效） */
+  enableReasoning: boolean
 
   loadSessions: () => Promise<void>
   createSession: (bookId?: string) => Promise<void>
@@ -92,6 +108,8 @@ interface ChatState {
   stopStreaming: () => void
   setCurrentBook: (bookId: string | null) => void
   clearError: () => void
+  /** 切换深度思考模式 */
+  setEnableReasoning: (enabled: boolean) => void
 }
 
 /** Active stream control for stop button (module-level, not in zustand state) */
@@ -104,8 +122,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loading: false,
   streaming: false,
   streamingContent: '',
+  streamingReasoning: '',
+  reasoningStartTime: null,
   error: null,
   currentBookId: null,
+  enableReasoning: false,
 
   loadSessions: async () => {
     try {
@@ -163,7 +184,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (content: string) => {
-    const { currentSessionId, currentBookId, loading, streaming, messages } = get()
+    const { currentSessionId, currentBookId, loading, streaming, messages, enableReasoning } = get()
     if (loading || streaming) return
 
     let sessionId = currentSessionId
@@ -211,15 +232,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     try {
-      set({ streaming: true, streamingContent: '' })
+      set({
+        streaming: true,
+        streamingContent: '',
+        streamingReasoning: '',
+        reasoningStartTime: enableReasoning ? Date.now() : null,
+      })
 
       let settled = false
       let removeChunkListener: (() => void) | undefined
+      let removeReasoningListener: (() => void) | undefined
       let removeErrorListener: (() => void) | undefined
       let removeCompleteListener: (() => void) | undefined
 
       const cleanupListeners = () => {
         removeChunkListener?.()
+        removeReasoningListener?.()
         removeErrorListener?.()
         removeCompleteListener?.()
         activeStreamStop = null
@@ -234,8 +262,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
 
         const finishWithContent = (fullContent: string, resolveStream: boolean) => {
+          const state = get()
+          const fullReasoning = state.streamingReasoning
+          const reasoningDuration = state.reasoningStartTime
+            ? Math.max(1, Math.ceil((Date.now() - state.reasoningStartTime) / 1000))
+            : undefined
+
           set(state => {
-            const assistantMessage: Message = { role: 'assistant', content: fullContent }
+            const assistantMessage: Message = {
+              role: 'assistant',
+              content: fullContent,
+              reasoning: fullReasoning
+                ? { content: fullReasoning, isStreaming: false, duration: reasoningDuration }
+                : undefined,
+            }
             const allMessages = fullContent
               ? [...state.messages, assistantMessage]
               : state.messages
@@ -251,6 +291,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messages: allMessages,
               streaming: false,
               streamingContent: '',
+              streamingReasoning: '',
+              reasoningStartTime: null,
               loading: false,
               sessions: state.sessions.map(s =>
                 s.id === sessionId && fullContent
@@ -268,8 +310,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set(state => ({ streamingContent: state.streamingContent + chunk }))
         })
 
+        // 思考过程流式（DeepSeek R1 reasoning_content / Claude thinking / OpenAI o-series summary）
+        removeReasoningListener = window.electronAPI.ai.onStreamReasoningChunk?.((chunk: string) => {
+          if (settled) return
+          set(state => ({
+            streamingReasoning: state.streamingReasoning + chunk,
+            // 第一次收到 reasoning chunk 时记下开始时间（若尚未设置）
+            reasoningStartTime: state.reasoningStartTime ?? Date.now(),
+          }))
+        })
+
         removeErrorListener = window.electronAPI.ai.onStreamError?.((error: string) => {
-          set({ streaming: false, loading: false, error })
+          set({ streaming: false, loading: false, error, streamingReasoning: '', reasoningStartTime: null })
           settle(() => reject(new Error(error)))
         })
 
@@ -294,6 +346,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         bookId: currentBookId || undefined,
         userMessage: content,
         conversationHistory,
+        enableReasoning,
       })
 
       await streamPromise
@@ -302,7 +355,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const errorMessage = (error as Error).message
       // Soft-stop uses resolve path; only real errors land here
       if (get().streaming || get().loading) {
-        set({ error: errorMessage, loading: false, streaming: false, streamingContent: '' })
+        set({ error: errorMessage, loading: false, streaming: false, streamingContent: '', streamingReasoning: '', reasoningStartTime: null })
       }
     }
   },
@@ -323,5 +376,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearError: () => {
     set({ error: null })
+  },
+
+  setEnableReasoning: (enabled: boolean) => {
+    set({ enableReasoning: enabled })
   },
 }))
