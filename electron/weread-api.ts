@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { sleep, fetchWithTimeout, RETRY_CONFIGS } from './http-client';
+import type { RecommendationItem } from '../src/shared/types';
 
 const GATEWAY_URL = 'https://i.weread.qq.com/api/agent/gateway';
 const SKILL_VERSION = '1.0.5';
@@ -663,4 +664,161 @@ export async function fetchReadingData(mode: ReadingMode = 'monthly', baseTime?:
     logger.error(`Failed to fetch reading data (mode=${mode})`, error);
     throw error;
   }
+}
+
+// ===== 推荐好书 =====
+
+export type { RecommendationItem } from '../src/shared/types';
+
+interface GatewayRecommendBook {
+  bookId: string;
+  title?: string;
+  author?: string;
+  cover?: string;
+  intro?: string;
+  category?: string;
+  reason?: string;
+  newRating?: number;
+  newRatingCount?: number;
+  newRatingDetail?: { title?: string };
+  readingCount?: number;
+  searchIdx?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * 推荐好书 — 优先调用 gateway 官方推荐接口，失败/空时降级为衍生推荐。
+ *
+ * 优先策略：POST /book/recommend（个性化推荐，与 App 首页「为你推荐」一致）
+ * 降级策略：基于阅读统计 preferCategory + preferAuthor，调用 searchBooks 搜索同类/同作者书
+ */
+export async function fetchRecommendations(): Promise<RecommendationItem[]> {
+  try {
+    const data = await gatewayRequest<{ books?: GatewayRecommendBook[] }>({
+      api_name: '/book/recommend',
+      count: 20,
+    }, false);
+
+    const books = data.books || [];
+    if (books.length > 0) {
+      return books.map((b) => ({
+        bookId: b.bookId,
+        title: b.title || '',
+        author: b.author || '',
+        cover: b.cover || '',
+        intro: b.intro || '',
+        category: b.category || '',
+        rating: typeof b.newRating === 'number' ? b.newRating : undefined,
+        reason: b.reason || '基于您的阅读偏好',
+      }));
+    }
+
+    logger.info('Gateway recommend API returned empty, falling back to derived recommendations');
+    return await generateDerivedRecommendations();
+  } catch (error) {
+    logger.warn('Gateway recommend API failed, falling back to derived recommendations', { error: String(error) });
+    return await generateDerivedRecommendations();
+  }
+}
+
+/**
+ * 衍生推荐 — 基于阅读统计的偏好生成推荐。
+ *
+ * 算法：
+ * 1. 调 fetchReadingData('overall') 获取 preferCategory + preferAuthor
+ * 2. 对每个 preferCategory（按 readingTime 排序，取 Top 3）调 searchBooks(categoryTitle) 搜索同类书
+ * 3. 对每个 preferAuthor（按 count 排序，取 Top 3）调 searchBooks(authorName) 搜索同作者书
+ * 4. 去重：过滤已在书架中的书（调 getBookshelf 获取已有 bookId）
+ * 5. 返回 Top 20，每本书带 reason 字段说明推荐理由
+ */
+async function generateDerivedRecommendations(): Promise<RecommendationItem[]> {
+  const recommendations = new Map<string, RecommendationItem>();
+
+  // 并行获取阅读偏好与书架（用于去重）
+  const [readingData, shelfBooks] = await Promise.all([
+    fetchReadingData('overall').catch((err) => {
+      logger.warn('Failed to fetch reading data for derived recommendations', { error: String(err) });
+      return null;
+    }),
+    getBookshelf().catch((err) => {
+      logger.warn('Failed to fetch bookshelf for dedup', { error: String(err) });
+      return [] as WereadBook[];
+    }),
+  ]);
+
+  const shelfBookIds = new Set(shelfBooks.map((b) => b.bookId));
+
+  // 处理 preferCategory（按 readingTime 倒序，取 Top 3）
+  const topCategories = (readingData?.preferCategory || [])
+    .slice()
+    .sort((a, b) => b.readingTime - a.readingTime)
+    .slice(0, 3);
+
+  // 处理 preferAuthor（按 count 倒序，取 Top 3）
+  const topAuthors = (readingData?.preferAuthor || [])
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  // 并行搜索各类别/作者
+  const searchTasks: Array<Promise<void>> = [];
+
+  for (const cat of topCategories) {
+    if (!cat.categoryTitle) continue;
+    searchTasks.push(
+      (async () => {
+        try {
+          const results = await searchBooks(cat.categoryTitle, 8);
+          for (const book of results) {
+            if (shelfBookIds.has(book.bookId)) continue;
+            if (recommendations.has(book.bookId)) continue;
+            recommendations.set(book.bookId, {
+              bookId: book.bookId,
+              title: book.title,
+              author: book.author,
+              cover: book.cover,
+              intro: book.intro,
+              category: book.category || cat.categoryTitle,
+              rating: undefined,
+              reason: `基于您阅读的「${cat.categoryTitle}」类别`,
+            });
+          }
+        } catch (err) {
+          logger.warn(`Derived recommend: search category failed: ${cat.categoryTitle}`, { error: String(err) });
+        }
+      })(),
+    );
+  }
+
+  for (const author of topAuthors) {
+    if (!author.name) continue;
+    searchTasks.push(
+      (async () => {
+        try {
+          const results = await searchBooks(author.name, 5);
+          for (const book of results) {
+            if (shelfBookIds.has(book.bookId)) continue;
+            if (recommendations.has(book.bookId)) continue;
+            recommendations.set(book.bookId, {
+              bookId: book.bookId,
+              title: book.title,
+              author: book.author,
+              cover: book.cover,
+              intro: book.intro,
+              category: book.category,
+              rating: undefined,
+              reason: `基于您喜欢的作者「${author.name}」`,
+            });
+          }
+        } catch (err) {
+          logger.warn(`Derived recommend: search author failed: ${author.name}`, { error: String(err) });
+        }
+      })(),
+    );
+  }
+
+  await Promise.all(searchTasks);
+
+  // 衍生推荐也可能为空（如用户无阅读统计或搜索全部失败），返回空数组让 UI 显示 EmptyState
+  return Array.from(recommendations.values()).slice(0, 20);
 }

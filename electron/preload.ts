@@ -139,6 +139,7 @@ const electronAPI = {
     fetchBookmarks: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_BOOKMARKS, bookId),
     fetchNotes: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_NOTES, bookId),
     fetchAllContent: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT, bookId),
+    fetchRecommendations: () => invoke(IPC_CHANNELS.WEREAD.FETCH_RECOMMENDATIONS),
     test: (apiKey: string) => invoke(IPC_CHANNELS.WEREAD.TEST, apiKey),
   },
 

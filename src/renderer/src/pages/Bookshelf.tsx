@@ -19,7 +19,7 @@ import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 import { mapBooks, mapHighlights, mapCards, safeNum, formatTimeAgo } from '../utils/db-mapper'
-import { Book } from '../../../shared/types'
+import { Book, RecommendationItem } from '../../../shared/types'
 
 // ===== 类型 =====
 interface BookRow {
@@ -102,6 +102,10 @@ export default function Bookshelf() {
   const [syncing, setSyncing] = useState(false)
   const [importingBookId, setImportingBookId] = useState<string | null>(null)
 
+  // 推荐好书
+  const [recommendations, setRecommendations] = useState<RecommendationItem[]>([])
+  const [loadingRecs, setLoadingRecs] = useState(false)
+
   // 筛选与排序
   const initialQuery = searchParams.get('q') ?? ''
   const [filter, setFilter] = useState<FilterKey>('all')
@@ -110,6 +114,7 @@ export default function Bookshelf() {
 
   useEffect(() => {
     loadData()
+    loadRecommendations()
   }, [])
 
   const loadData = async () => {
@@ -306,6 +311,21 @@ export default function Bookshelf() {
       setImportingBookId(null)
     }
   }, [])
+
+  const loadRecommendations = async () => {
+    if (!window.electronAPI?.weread?.fetchRecommendations) {
+      return
+    }
+    setLoadingRecs(true)
+    try {
+      const recs = await window.electronAPI.weread.fetchRecommendations()
+      setRecommendations(recs)
+    } catch (error) {
+      toast.error(`加载推荐失败: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setLoadingRecs(false)
+    }
+  }
 
   // ===== 派生数据 =====
 
@@ -702,6 +722,296 @@ export default function Bookshelf() {
             })}
           </div>
         )}
+
+        {/* ===== 第三层：为你推荐 ===== */}
+        <section
+          style={{
+            marginTop: 'calc(var(--spacing) * 6)',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'calc(var(--radius) + 6px)',
+            padding: 'calc(var(--spacing) * 5)',
+            color: 'var(--card-foreground)',
+          }}
+          aria-label="为你推荐"
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 'calc(var(--spacing) * 4)',
+              flexWrap: 'wrap',
+              gap: 'calc(var(--spacing) * 3)',
+            }}
+          >
+            <div>
+              <h2
+                style={{
+                  fontSize: '1.15rem',
+                  fontWeight: 700,
+                  color: 'var(--card-foreground)',
+                  margin: 0,
+                }}
+              >
+                为你推荐
+              </h2>
+              <p
+                style={{
+                  fontSize: '0.85rem',
+                  color: 'var(--muted-foreground)',
+                  margin: 0,
+                  marginTop: 'var(--spacing)',
+                }}
+              >
+                基于您的阅读偏好
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={loadRecommendations}
+              disabled={loadingRecs}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 'calc(var(--spacing) * 2)',
+                padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 4)',
+                border: '1px solid var(--border)',
+                background: 'var(--card)',
+                color: 'var(--card-foreground)',
+                borderRadius: 'var(--radius)',
+                cursor: loadingRecs ? 'not-allowed' : 'pointer',
+                opacity: loadingRecs ? 0.5 : 1,
+                fontSize: '0.85rem',
+                font: 'inherit',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!loadingRecs) {
+                  e.currentTarget.style.background = 'var(--accent)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--card)'
+              }}
+            >
+              <Icon name="refresh" size={16} />
+              {loadingRecs ? '加载中...' : '刷新推荐'}
+            </button>
+          </div>
+
+          {loadingRecs && recommendations.length === 0 ? (
+            <Loading hint="正在加载推荐..." />
+          ) : recommendations.length === 0 ? (
+            <EmptyState
+              icon={<Icon name="bookshelf" size={24} />}
+              title="暂无推荐"
+              description="同步微信读书书架后，将基于您的阅读偏好生成推荐"
+              action={
+                <Button variant="primary" onClick={handleSync} disabled={syncing}>
+                  <Icon name="refresh" size={16} /> 同步微信读书
+                </Button>
+              }
+            />
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: 'calc(var(--spacing) * 4)',
+              }}
+            >
+              {recommendations.map((rec, i) => (
+                <div
+                  key={rec.bookId}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 'calc(var(--radius) + 4px)',
+                    background: 'var(--card)',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    transition: 'border-color 0.2s ease, transform 0.16s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--ring)'
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                  }}
+                >
+                  {/* 封面 */}
+                  <div
+                    style={{
+                      aspectRatio: '3 / 4',
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: 'var(--primary-foreground)',
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      textAlign: 'center',
+                      padding: 'calc(var(--spacing) * 2)',
+                      lineHeight: 1.3,
+                      wordBreak: 'keep-all',
+                      overflowWrap: 'break-word',
+                      background: rec.cover ? 'var(--muted)' : coverColor(i),
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {rec.cover ? (
+                      <img
+                        src={rec.cover}
+                        alt={rec.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.style.display = 'none'
+                          if (target.parentElement) {
+                            target.parentElement.style.background = coverColor(i)
+                            target.parentElement.textContent = rec.title
+                          }
+                        }}
+                      />
+                    ) : (
+                      rec.title
+                    )}
+                  </div>
+
+                  {/* 元信息 */}
+                  <div
+                    style={{
+                      padding: 'calc(var(--spacing) * 3)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flex: 1,
+                      gap: 'calc(var(--spacing) * 2)',
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '0.92rem',
+                          fontWeight: 600,
+                          color: 'var(--card-foreground)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {rec.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          color: 'var(--muted-foreground)',
+                          marginTop: '0.18rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {rec.author || '未知作者'}
+                      </div>
+                      {rec.rating && rec.rating > 0 ? (
+                        <div
+                          style={{
+                            fontSize: '0.72rem',
+                            color: 'var(--primary)',
+                            marginTop: '0.18rem',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          评分 {rec.rating}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* 推荐理由 */}
+                    <div
+                      style={{
+                        fontSize: '0.74rem',
+                        color: 'var(--muted-foreground)',
+                        lineHeight: 1.5,
+                        background: 'var(--muted)',
+                        padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 2.5)',
+                        borderRadius: 'var(--radius)',
+                        borderLeft: '2px solid var(--primary)',
+                      }}
+                    >
+                      {rec.reason}
+                    </div>
+
+                    {/* 操作按钮 */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 'calc(var(--spacing) * 2)',
+                        marginTop: 'auto',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.electronAPI.system.openExternal(
+                            `https://weread.qq.com/web/reader/${encodeURIComponent(rec.bookId)}`,
+                          )
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)',
+                          fontSize: '0.8rem',
+                          fontWeight: 500,
+                          color: 'var(--primary-foreground)',
+                          background: 'var(--primary)',
+                          border: '1px solid var(--primary)',
+                          borderRadius: 'var(--radius)',
+                          cursor: 'pointer',
+                          transition: 'opacity 0.2s ease',
+                          font: 'inherit',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = '0.85'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = '1'
+                        }}
+                      >
+                        在微信读书打开
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/bookshelf/${rec.bookId}`)}
+                        style={{
+                          flex: 1,
+                          padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)',
+                          fontSize: '0.8rem',
+                          fontWeight: 500,
+                          color: 'var(--primary)',
+                          background: 'transparent',
+                          border: '1px solid var(--primary)',
+                          borderRadius: 'var(--radius)',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s ease',
+                          font: 'inherit',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'var(--accent)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                        }}
+                      >
+                        查看详情
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </PageHero>
     </>
   )

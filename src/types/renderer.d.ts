@@ -1,4 +1,4 @@
-import { Book, Highlight, Card, Review, BookSummary, DailyStats, ReviewStats, ReadingDataResponse } from '../shared/types'
+import { Book, Highlight, Card, Review, BookSummary, DailyStats, ReviewStats, ReadingDataResponse, RecommendationItem } from '../shared/types'
 
 export interface TokenSummary {
   totalRequests: number
@@ -106,6 +106,7 @@ export interface ElectronAPI {
     fetchBookmarks: (bookId: string) => Promise<unknown>
     fetchNotes: (bookId: string) => Promise<unknown>
     fetchAllContent: (bookId: string) => Promise<unknown>
+    fetchRecommendations: () => Promise<RecommendationItem[]>
     test: (apiKey: string) => Promise<{ success: boolean; message: string }>
   }
   readingData: {

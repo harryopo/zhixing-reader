@@ -213,6 +213,17 @@ export interface ReadingDataResponse {
 
 export type ReadingMode = 'weekly' | 'monthly' | 'annually' | 'overall'
 
+export interface RecommendationItem {
+  bookId: string
+  title: string
+  author: string
+  cover: string
+  intro: string
+  category: string
+  rating?: number
+  reason: string
+}
+
 export interface LearningMilestone {
   id: string
   title: string

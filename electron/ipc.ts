@@ -1,6 +1,6 @@
 import { ipcMain, IpcMainInvokeEvent, shell, app } from 'electron';
 import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, dailyStatsDb, tokenUsageDb, conversationDb, methodologiesDb, knowledgeCardsDb, bookArchitectureDb, articlesDb, vocabularyDb, forceSaveDatabase, getDatabase, clearConversationsAndMessages, resetDatabase } from './database';
-import { setApiKey, getBookshelf, fetchBookmarks, fetchNotes, fetchAllContent, fetchAllContentBatch, testConnection as testWereadConnection, clearCache as clearWeReadApiCache, fetchReadingData, ReadingMode } from './weread-api';
+import { setApiKey, getBookshelf, fetchBookmarks, fetchNotes, fetchAllContent, fetchAllContentBatch, testConnection as testWereadConnection, clearCache as clearWeReadApiCache, fetchReadingData, ReadingMode, fetchRecommendations } from './weread-api';
 import { setAIConfig, generateCards, generateSummary, chatWithContext, explainHighlight, testConnection as testAIConnection, extractMethodologies, analyzeBookArchitecture, distillKnowledgeCards as _distillKnowledgeCards, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch, streamChat, cancelActiveStream, translateArticle } from './ai-service';
 import { Rating, setCustomParameters, resetParameters, getParameters, calculateStats as _calculateStats, getForecast, getOptimalReviewOrder, previewReviewRatings, cardFromDb } from './fsrs-engine';
 import { logger } from './logger';
@@ -256,6 +256,7 @@ export function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.WEREAD.FETCH_BOOKMARKS, (bookId: string) => fetchBookmarks(bookId));
   handle(IPC_CHANNELS.WEREAD.FETCH_NOTES, (bookId: string) => fetchNotes(bookId));
   handle(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT, (bookId: string) => fetchAllContent(bookId));
+  handle(IPC_CHANNELS.WEREAD.FETCH_RECOMMENDATIONS, () => fetchRecommendations());
 
   handle(IPC_CHANNELS.AI.SET_CONFIG, (config: Record<string, unknown>) => setAIConfig(config as unknown as Parameters<typeof setAIConfig>[0]));
   handle(IPC_CHANNELS.AI.GENERATE_CARDS, (highlights: Array<{ content: string; note?: string }>, bookTitle: string) =>

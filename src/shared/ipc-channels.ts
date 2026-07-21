@@ -56,6 +56,7 @@ export const IPC_CHANNELS = {
     FETCH_NOTES: 'weread:fetchNotes',
     FETCH_ALL_CONTENT: 'weread:fetchAllContent',
     FETCH_ALL_CONTENT_BATCH: 'weread:fetchAllContentBatch',
+    FETCH_RECOMMENDATIONS: 'weread:fetchRecommendations',
     TEST: 'weread:test',
   },
   READING_DATA: {
