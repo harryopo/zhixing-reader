@@ -694,8 +694,8 @@ export default function DailyLearning() {
     try {
       setTranslating(true)
       const { title_zh, summary_zh, content_zh } = await window.electronAPI.article.translate(article.id)
-      setArticles(prev => prev.map((a, i) =>
-        i === currentIndex ? { ...a, title_zh, summary_zh, content_zh } : a
+      setArticles(prev => prev.map(a =>
+        a.id === article.id ? { ...a, title_zh, summary_zh, content_zh } : a
       ))
       toast.success('翻译完成')
     } catch (error) {
@@ -1948,41 +1948,88 @@ interface ArticleListPanelProps {
 }
 
 function ArticleListPanel({ articles, currentArticleId, onSelect, onClose }: ArticleListPanelProps) {
-  // ESC 关闭
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  // 记录打开面板前的焦点元素（触发按钮），关闭时还原
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  // ESC 关闭 + focus trap（Tab 循环焦点，匹配 aria-modal=true 语义）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const panel = panelRef.current
+      if (!panel) return
+      const focusables = panel.querySelectorAll<HTMLElement>(
+        'button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+      if (focusables.length === 0) return
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
+  // 打开面板：焦点进入；关闭时：焦点返回触发按钮
+  useEffect(() => {
+    triggerRef.current = document.activeElement as HTMLElement
+    closeButtonRef.current?.focus()
+    return () => {
+      triggerRef.current?.focus()
+    }
+  }, [])
+
   const currentIdx = articles.findIndex(a => a.id === currentArticleId)
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="文章列表"
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        width: 360,
-        background: 'var(--card)',
-        borderRight: '1px solid var(--border)',
-        boxShadow: 'var(--shadow-xl)',
-        zIndex: 40,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <>
+      {/* 遮罩层：与 aria-modal=true 语义一致，点击关闭 */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 30,
+        }}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="文章列表"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: 360,
+          background: 'var(--card)',
+          borderRight: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-xl)',
+          zIndex: 40,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
       {/* 面板头部 */}
       <div style={{ padding: 'calc(var(--spacing) * 4)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)' }}>文章列表</h3>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             style={{
@@ -2073,6 +2120,7 @@ function ArticleListPanel({ articles, currentArticleId, onSelect, onClose }: Art
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   )
 }
