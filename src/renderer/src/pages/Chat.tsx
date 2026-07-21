@@ -1,11 +1,100 @@
-import { useState, useRef, useEffect } from 'react'
+/**
+ * Chat — AI 对话页（Google Design Library 1:1 重构）
+ * 基于设计稿 zhixing-reader-redesign/pages/chat.html
+ *
+ * 三栏布局：240px sessions list + 1fr messages stream + 280px context panel
+ *
+ * 业务逻辑全部保留：
+ *   - useChatStore: sessions / currentSessionId / messages / streaming / streamingContent
+ *   - sendMessage / stopStreaming / createSession / switchSession / deleteSession
+ *   - 4 个快捷操作（全书问答 / 费曼教学 / 深度提问 / 考考我）
+ *   - Enter 发送 / Shift+Enter 换行
+ *   - 自动滚动到底部 + error toast
+ *   - 流式响应（onStreamChunk / onStreamComplete / onStreamError）
+ */
+
+import { useState, useRef, useEffect, useCallback } from 'react'
+import PageHero from '@/components/layout/PageHero'
+import Button from '@/components/ui/Button'
+import Badge from '@/components/ui/Badge'
+import Icon from '@/components/ui/Icon'
+import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
 import { useChatStore } from '../stores/chatStore'
 import { toast } from '../stores/toastStore'
-import MessageBubble from '../components/chat/MessageBubble'
-import SessionList from '../components/chat/SessionList'
-import ContextPanel from '../components/chat/ContextPanel'
-import QuickActions from '../components/chat/QuickActions'
 
+// ===== 类型 =====
+interface BookRow {
+  id: string
+  title: string
+  author: string
+  cover: string
+  progress: number
+  isFinished?: number
+  is_finished?: number
+}
+
+interface HighlightRow {
+  id: string
+  bookId: string
+  content: string
+  chapterTitle?: string
+  type?: string
+}
+
+// ===== 常量 =====
+
+/** 4 个快捷操作（保留旧版业务逻辑） */
+const QUICK_ACTIONS = [
+  {
+    key: 'summary',
+    label: '全书问答',
+    icon: 'bookshelf' as const,
+    prompt: '请帮我总结这本书的核心观点和主要内容',
+  },
+  {
+    key: 'feynman',
+    label: '费曼教学',
+    icon: 'message-circle' as const,
+    prompt: '请用费曼学习法教我这本书中最核心的概念',
+  },
+  {
+    key: 'deep',
+    label: '深度提问',
+    icon: 'question' as const,
+    prompt: '请对我正在读的内容提出一些深度思考问题',
+  },
+  {
+    key: 'quiz',
+    label: '考考我',
+    icon: 'check' as const,
+    prompt: '请考考我对这本书内容的理解程度',
+  },
+]
+
+/** 时间相对显示（"2 小时前 / 昨天 / 3 天前 / 上周"） */
+function formatRelativeTime(iso: string): string {
+  if (!iso) return ''
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const diff = Date.now() - then
+  const min = Math.floor(diff / 60000)
+  if (min < 60) return `${min || 1} 分钟前`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} 小时前`
+  const day = Math.floor(hr / 24)
+  if (day === 1) return '昨天'
+  if (day < 7) return `${day} 天前`
+  if (day < 14) return '上周'
+  return `${Math.floor(day / 7)} 周前`
+}
+
+/** 截断会话标题用于左侧列表展示 */
+function truncate(s: string, n: number): string {
+  if (!s) return ''
+  return s.length > n ? s.slice(0, n) + '…' : s
+}
+
+// ===== 主组件 =====
 export default function Chat() {
   const {
     sessions,
@@ -21,22 +110,60 @@ export default function Chat() {
     switchSession,
     deleteSession,
     sendMessage,
+    stopStreaming,
     setCurrentBook,
     clearError,
   } = useChatStore()
 
   const [input, setInput] = useState('')
-  const [showSessionList, setShowSessionList] = useState(true)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [books, setBooks] = useState<BookRow[]>([])
+  const [highlights, setHighlights] = useState<HighlightRow[]>([])
+  const [loadingContext, setLoadingContext] = useState(true)
 
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // ===== 初次加载：会话列表 + 书籍/笔记上下文 =====
   useEffect(() => {
     loadSessions()
+    loadContextData()
   }, [loadSessions])
 
+  // ===== 当切换关联书籍时，刷新该书的笔记 =====
   useEffect(() => {
-    scrollToBottom()
+    if (!currentBookId) {
+      setHighlights([])
+      return
+    }
+    let cancelled = false
+    window.electronAPI?.highlight
+      ?.getByBook(currentBookId)
+      .then((res) => {
+        if (cancelled) return
+        const list = (res && Array.isArray(res) ? res : []) as unknown as HighlightRow[]
+        setHighlights(list.map((h) => ({
+          id: String(h.id ?? ''),
+          bookId: String(h.bookId ?? ''),
+          content: String(h.content ?? ''),
+          chapterTitle: h.chapterTitle ? String(h.chapterTitle) : undefined,
+          type: h.type ? String(h.type) : undefined,
+        })))
+      })
+      .catch((err) => {
+        console.warn('加载书籍笔记失败:', err)
+        if (!cancelled) setHighlights([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentBookId])
+
+  // ===== 自动滚动到底部 =====
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingContent])
 
+  // ===== error toast =====
   useEffect(() => {
     if (error) {
       toast.error(error)
@@ -44,18 +171,39 @@ export default function Chat() {
     }
   }, [error, clearError])
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  const loadContextData = async () => {
+    if (!window.electronAPI?.book) {
+      setLoadingContext(false)
+      return
+    }
+    try {
+      const raw = (await window.electronAPI.book.getAll()) as unknown as BookRow[]
+      const list = (raw || []).map((b) => ({
+        id: String(b.id ?? ''),
+        title: String(b.title ?? ''),
+        author: String(b.author ?? ''),
+        cover: String(b.cover ?? ''),
+        progress: Number(b.progress ?? 0),
+        isFinished: b.isFinished ?? b.is_finished,
+      }))
+      setBooks(list)
+    } catch (err) {
+      console.warn('加载书籍列表失败:', err)
+    } finally {
+      setLoadingContext(false)
+    }
   }
 
-  const handleSend = async () => {
+  // ===== 发送消息 =====
+  const handleSend = useCallback(async () => {
     if (!input.trim() || loading || streaming) return
     const question = input.trim()
     setInput('')
+    if (textareaRef.current) textareaRef.current.style.height = '44px'
     await sendMessage(question)
-  }
+  }, [input, loading, streaming, sendMessage])
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -64,8 +212,22 @@ export default function Chat() {
 
   const handleQuickAction = (prompt: string) => {
     if (loading || streaming) return
-    setInput('')
     sendMessage(prompt)
+  }
+
+  const handleNewChat = () => {
+    createSession(currentBookId || undefined)
+  }
+
+  const handleClearHistory = () => {
+    if (sessions.length === 0) {
+      toast.info('当前没有可清空的会话')
+      return
+    }
+    // 逐个删除（保留 store 行为一致性）
+    Promise.all(sessions.map((s) => deleteSession(s.id)))
+      .then(() => toast.success('已清空全部对话历史'))
+      .catch((err) => toast.error(`清空失败: ${err instanceof Error ? err.message : String(err)}`))
   }
 
   const handleDeleteSession = async (id: string) => {
@@ -73,170 +235,934 @@ export default function Chat() {
     toast.info('对话已删除')
   }
 
+  const handleCopyMessage = (content: string) => {
+    navigator.clipboard
+      ?.writeText(content)
+      .then(() => toast.success('已复制到剪贴板'))
+      .catch(() => toast.error('复制失败'))
+  }
+
+  // ===== 派生数据 =====
+  const currentSession = sessions.find((s) => s.id === currentSessionId)
+  const currentBook = books.find((b) => b.id === currentBookId) || null
+  const bookProgressPct = currentBook
+    ? Math.round(Number(currentBook.progress ?? 0) * 100)
+    : 0
+  const bookHighlights = highlights.filter((h) => h.bookId === currentBookId)
+
+  const inputDisabled = loading || streaming
+
   return (
-    <div className="h-full flex bg-gray-50">
-      {showSessionList && (
-        <SessionList
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          onSelect={switchSession}
-          onCreate={() => createSession(currentBookId || undefined)}
-          onDelete={handleDeleteSession}
-        />
-      )}
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowSessionList(!showSessionList)}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              title={showSessionList ? '收起会话列表' : '展开会话列表'}
+    <>
+      <PageHero
+        title="AI 对话"
+        subtitle="基于你的书库与笔记，与 AI 深度探讨"
+        actions={
+          <>
+            <Button variant="primary" onClick={handleNewChat} data-dom-id="cta-new-chat">
+              <Icon name="plus" size={16} /> 新建会话
+            </Button>
+            <Button variant="ghost" onClick={handleClearHistory} data-dom-id="cta-clear">
+              <Icon name="trash" size={16} /> 清空历史
+            </Button>
+          </>
+        }
+      >
+        {/* ===== 三栏对话工作台 ===== */}
+        <div
+          className="page-body chat-workspace"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '240px 1fr 280px',
+            gap: 'calc(var(--spacing) * 4)',
+            minHeight: 'calc(100vh - 76px - 220px)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* ============ 左栏：会话列表 ============ */}
+          <aside
+            className="chat-sessions"
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'calc(var(--radius) + 4px)',
+              background: 'var(--card)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              minHeight: 0,
+            }}
+          >
+            <div
+              className="sessions-head"
+              style={{
+                padding: 'calc(var(--spacing) * 4)',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <div>
-              <h1 className="text-sm font-semibold text-gray-800">AI 阅读助手</h1>
-              <p className="text-[11px] text-gray-400">智能对话 · 费曼教学 · 深度提问</p>
+              <span
+                className="eyebrow"
+                style={{
+                  fontSize: '0.78rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--muted-foreground)',
+                  fontWeight: 600,
+                }}
+              >
+                会话
+              </span>
+              <IconButtonSmall label="新建会话" onClick={handleNewChat}>
+                <Icon name="plus" size={14} />
+              </IconButtonSmall>
             </div>
-          </div>
-          {currentBookId && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-medium">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              已关联书籍
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-5 py-6">
-            {messages.length === 0 && !streaming ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-20">
-                <div className="w-14 h-14 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-indigo-200">
-                  <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
+            <div
+              className="sessions-list"
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: 'calc(var(--spacing) * 2)',
+                minHeight: 0,
+              }}
+            >
+              {sessions.length === 0 ? (
+                <div
+                  style={{
+                    padding: 'calc(var(--spacing) * 4)',
+                    textAlign: 'center',
+                    color: 'var(--muted-foreground)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  暂无会话
+                  <br />
+                  点击右上角 + 新建
                 </div>
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">你好！我是AI阅读助手</h2>
-                <p className="text-gray-400 text-sm max-w-sm mb-8 leading-relaxed">
-                  我可以帮你理解书籍内容、进行费曼教学、深度提问、跨书关联
-                </p>
-                <div className="grid grid-cols-2 gap-3 w-full max-w-md">
-                  <button
-                    onClick={() => handleQuickAction('请帮我总结这本书的核心观点和主要内容')}
-                    className="flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all duration-200 shadow-sm"
-                  >
-                    <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    <span className="font-medium">全书问答</span>
-                  </button>
-                  <button
-                    onClick={() => handleQuickAction('请用费曼学习法教我这本书中最核心的概念')}
-                    className="flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-violet-300 hover:bg-violet-50/50 transition-all duration-200 shadow-sm"
-                  >
-                    <svg className="w-4 h-4 text-violet-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    <span className="font-medium">费曼教学</span>
-                  </button>
-                  <button
-                    onClick={() => handleQuickAction('请对我正在读的内容提出一些深度思考问题')}
-                    className="flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-amber-300 hover:bg-amber-50/50 transition-all duration-200 shadow-sm"
-                  >
-                    <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <span className="font-medium">深度提问</span>
-                  </button>
-                  <button
-                    onClick={() => handleQuickAction('请考考我对这本书内容的理解程度')}
-                    className="flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all duration-200 shadow-sm"
-                  >
-                    <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="font-medium">考考我</span>
-                  </button>
+              ) : (
+                sessions.map((s) => {
+                  const active = s.id === currentSessionId
+                  return (
+                    <div
+                      key={s.id}
+                      style={{
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'stretch',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        data-active={active ? 'true' : undefined}
+                        onClick={() => switchSession(s.id)}
+                        style={{
+                          flex: 1,
+                          width: '100%',
+                          padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                          textAlign: 'left',
+                          border: 'none',
+                          background: active ? 'var(--sidebar-accent)' : 'transparent',
+                          color: 'var(--foreground)',
+                          borderRadius: 'var(--radius)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.3rem',
+                          transition: 'background 0.2s ease',
+                          font: 'inherit',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) e.currentTarget.style.background = 'var(--sidebar-accent)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) e.currentTarget.style.background = 'transparent'
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: '0.88rem',
+                            fontWeight: 500,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            color: active ? 'var(--sidebar-accent-foreground)' : 'inherit',
+                          }}
+                        >
+                          {truncate(s.title || '新对话', 18)}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            color: 'var(--muted-foreground)',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          {formatRelativeTime(s.updatedAt || s.createdAt)}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="删除会话"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteSession(s.id)
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: 'calc(var(--spacing) * 2)',
+                          right: 'calc(var(--spacing) * 2)',
+                          width: 20,
+                          height: 20,
+                          display: 'grid',
+                          placeItems: 'center',
+                          border: 'none',
+                          background: 'transparent',
+                          color: 'var(--muted-foreground)',
+                          cursor: 'pointer',
+                          borderRadius: 4,
+                          opacity: 0.4,
+                          transition: 'opacity 0.2s ease, color 0.2s ease',
+                          padding: 0,
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = '1'
+                          e.currentTarget.style.color = 'var(--state-error)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = '0.4'
+                          e.currentTarget.style.color = 'var(--muted-foreground)'
+                        }}
+                      >
+                        <Icon name="close" size={12} />
+                      </button>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </aside>
+
+          {/* ============ 中栏：消息流 ============ */}
+          <section
+            className="chat-messages"
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'calc(var(--radius) + 4px)',
+              background: 'var(--card)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              minHeight: 0,
+            }}
+          >
+            <div
+              className="messages-head"
+              style={{
+                padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 5)',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'calc(var(--spacing) * 2)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <strong style={{ fontSize: '0.95rem', color: 'var(--foreground)' }}>
+                {currentSession?.title || 'AI 阅读助手'}
+              </strong>
+              <span
+                className="tiny"
+                style={{
+                  fontSize: '0.72rem',
+                  color: 'var(--muted-foreground)',
+                }}
+              >
+                {messages.length} 条消息 · 智能对话
+              </span>
+              {currentBook && (
+                <Badge variant="ok" style={{ marginLeft: 'auto' }}>
+                  <Icon name="bookshelf" size={12} /> {currentBook.title}
+                </Badge>
+              )}
+            </div>
+
+            {/* 消息流 */}
+            <div
+              className="messages-stream"
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: 'calc(var(--spacing) * 5)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'calc(var(--spacing) * 5)',
+                minHeight: 0,
+              }}
+            >
+              {messages.length === 0 && !streaming && !loading ? (
+                <EmptyState
+                  icon={<Icon name="chat" size={24} />}
+                  title="你好！我是 AI 阅读助手"
+                  description="我可以帮你理解书籍内容、进行费曼教学、深度提问、跨书关联"
+                  style={{ padding: 'calc(var(--spacing) * 6)' }}
+                />
+              ) : (
+                <>
+                  {messages.map((message, idx) => (
+                    <MessageBubble
+                      key={message.id || idx}
+                      role={message.role}
+                      content={message.content}
+                      onCopy={() => handleCopyMessage(message.content)}
+                    />
+                  ))}
+                  {streaming && streamingContent && (
+                    <MessageBubble
+                      role="assistant"
+                      content={streamingContent}
+                      isStreaming
+                      onCopy={() => handleCopyMessage(streamingContent)}
+                    />
+                  )}
+                  {loading && !streaming && <TypingDots />}
+                </>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* 输入区 */}
+            <div
+              className="messages-input"
+              style={{
+                padding: 'calc(var(--spacing) * 4)',
+                borderTop: '1px solid var(--border)',
+                display: 'flex',
+                gap: 'calc(var(--spacing) * 3)',
+                alignItems: 'flex-end',
+              }}
+            >
+              <div
+                className="input-area"
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'calc(var(--spacing) * 2)',
+                }}
+              >
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value)
+                    // 自适应高度
+                    e.target.style.height = '44px'
+                    e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'
+                  }}
+                  onKeyPress={handleKeyPress}
+                  placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
+                  rows={1}
+                  disabled={inputDisabled}
+                  style={{
+                    width: '100%',
+                    minHeight: 44,
+                    maxHeight: 120,
+                    resize: 'none',
+                    padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                    border: '1px solid var(--input)',
+                    borderRadius: 'calc(var(--radius) + 4px)',
+                    background: 'var(--popover)',
+                    color: 'var(--foreground)',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: '0.92rem',
+                    outline: 'none',
+                    transition: 'border-color 0.2s ease',
+                    font: 'inherit',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--ring)'
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--input)'
+                  }}
+                />
+                <div
+                  className="input-tools"
+                  style={{
+                    display: 'flex',
+                    gap: 'calc(var(--spacing) * 2)',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {/* 4 个快捷操作 chip */}
+                  {QUICK_ACTIONS.map((qa) => (
+                    <button
+                      key={qa.key}
+                      type="button"
+                      onClick={() => handleQuickAction(qa.prompt)}
+                      disabled={inputDisabled}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        padding: '0.34rem 0.65rem',
+                        borderRadius: 999,
+                        background: 'var(--secondary)',
+                        color: 'var(--secondary-foreground)',
+                        fontSize: '0.78rem',
+                        border: 'none',
+                        cursor: inputDisabled ? 'not-allowed' : 'pointer',
+                        transition: 'background 0.2s ease',
+                        whiteSpace: 'nowrap',
+                        opacity: inputDisabled ? 0.5 : 1,
+                        font: 'inherit',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!inputDisabled) e.currentTarget.style.background = 'var(--sidebar-accent)'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!inputDisabled) e.currentTarget.style.background = 'var(--secondary)'
+                      }}
+                    >
+                      <Icon name={qa.icon} size={12} />
+                      {qa.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <div className="space-y-5">
-                {messages.map((message, index) => (
-                  <MessageBubble
-                    key={message.id || index}
-                    role={message.role}
-                    content={message.content}
-                    sources={message.sources}
-                  />
-                ))}
-                {streaming && streamingContent && (
-                  <MessageBubble
-                    role="assistant"
-                    content={streamingContent}
-                    isStreaming={true}
-                  />
-                )}
-                {loading && !streaming && (
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                      <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                      </svg>
+
+              {/* 发送按钮 / 停止按钮 */}
+              {streaming || loading ? (
+                <Button
+                  variant="danger"
+                  onClick={() => stopStreaming()}
+                  data-dom-id="cta-stop"
+                >
+                  <Icon name="pause" size={16} /> 停止
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  data-dom-id="cta-send"
+                >
+                  <Icon name="send" size={16} /> 发送
+                </Button>
+              )}
+            </div>
+          </section>
+
+          {/* ============ 右栏：上下文面板 ============ */}
+          <aside
+            className="chat-context"
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'calc(var(--radius) + 4px)',
+              background: 'var(--card)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              minHeight: 0,
+            }}
+          >
+            <div
+              className="context-head"
+              style={{
+                padding: 'calc(var(--spacing) * 4)',
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <span
+                className="eyebrow"
+                style={{
+                  fontSize: '0.78rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--muted-foreground)',
+                  fontWeight: 600,
+                }}
+              >
+                上下文
+              </span>
+              <strong
+                style={{
+                  display: 'block',
+                  marginTop: 'calc(var(--spacing) * 1)',
+                  fontSize: '0.92rem',
+                  color: 'var(--foreground)',
+                }}
+              >
+                关联书籍
+              </strong>
+            </div>
+            <div
+              className="context-body"
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: 'calc(var(--spacing) * 3)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'calc(var(--spacing) * 3)',
+                minHeight: 0,
+              }}
+            >
+              {loadingContext ? (
+                <Loading hint="加载上下文..." />
+              ) : currentBook ? (
+                <>
+                  {/* 关联书籍卡片 */}
+                  <div
+                    className="context-book"
+                    style={{
+                      padding: 'calc(var(--spacing) * 3)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--background)',
+                    }}
+                  >
+                    <div
+                      className="book-cover-mini"
+                      style={{
+                        width: '100%',
+                        aspectRatio: '3 / 4',
+                        borderRadius: 'var(--radius)',
+                        background: currentBook.cover
+                          ? `url(${currentBook.cover}) center/cover`
+                          : 'var(--chart-1)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: 'var(--primary-foreground)',
+                        fontWeight: 700,
+                        marginBottom: 'calc(var(--spacing) * 3)',
+                        fontSize: '0.95rem',
+                        textAlign: 'center',
+                        padding: 'calc(var(--spacing) * 2)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {!currentBook.cover && currentBook.title}
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-xl shadow-sm border border-gray-100">
-                      <div className="flex gap-1">
-                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <div
+                      className="book-title-mini"
+                      style={{
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        color: 'var(--foreground)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {currentBook.title}
+                    </div>
+                    <div
+                      className="book-author-mini"
+                      style={{
+                        fontSize: '0.72rem',
+                        color: 'var(--muted-foreground)',
+                        marginTop: '0.2rem',
+                      }}
+                    >
+                      {currentBook.author || '未知作者'}
+                    </div>
+                    <div
+                      className="book-progress-mini"
+                      style={{ marginTop: 'calc(var(--spacing) * 2)' }}
+                    >
+                      <div
+                        className="progress-track"
+                        style={{
+                          height: 4,
+                          background: 'var(--muted)',
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          className="progress-fill"
+                          style={{
+                            height: '100%',
+                            width: `${bookProgressPct}%`,
+                            background: 'var(--primary)',
+                            borderRadius: 2,
+                            transition: 'width 0.3s ease',
+                          }}
+                        />
                       </div>
-                      <span className="text-gray-400 text-xs">正在思考</span>
+                      <span
+                        className="progress-text"
+                        style={{
+                          fontSize: '0.72rem',
+                          color: 'var(--muted-foreground)',
+                          fontFamily: 'var(--font-mono)',
+                          marginTop: 'calc(var(--spacing) * 1)',
+                          display: 'block',
+                        }}
+                      >
+                        {bookProgressPct}%
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentBook(null)}
+                      style={{
+                        width: '100%',
+                        marginTop: 'calc(var(--spacing) * 3)',
+                        padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+                        fontSize: '0.78rem',
+                        color: 'var(--muted-foreground)',
+                        background: 'transparent',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius)',
+                        cursor: 'pointer',
+                        transition: 'color 0.2s ease, border-color 0.2s ease',
+                        font: 'inherit',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--state-error)'
+                        e.currentTarget.style.borderColor = 'var(--state-error)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--muted-foreground)'
+                        e.currentTarget.style.borderColor = 'var(--border)'
+                      }}
+                    >
+                      取消关联
+                    </button>
+                  </div>
+
+                  {/* 引用笔记 */}
+                  <div className="context-section">
+                    <div
+                      className="context-label"
+                      style={{
+                        fontSize: '0.78rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: 'var(--muted-foreground)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      引用笔记 ({bookHighlights.length})
+                    </div>
+                    <div
+                      className="context-list"
+                      style={{
+                        marginTop: 'calc(var(--spacing) * 2)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 'calc(var(--spacing) * 2)',
+                      }}
+                    >
+                      {bookHighlights.length === 0 ? (
+                        <Tiny>这本书暂无笔记</Tiny>
+                      ) : (
+                        bookHighlights.slice(0, 5).map((h) => (
+                          <div
+                            key={h.id}
+                            className="context-note"
+                            style={{
+                              padding: 'calc(var(--spacing) * 2.5)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius)',
+                              fontSize: '0.78rem',
+                              lineHeight: 1.5,
+                              color: 'var(--card-foreground)',
+                              cursor: 'pointer',
+                              transition: 'border-color 0.2s ease',
+                              background: 'var(--background)',
+                              overflow: 'hidden',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: 'vertical',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = 'var(--ring)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = 'var(--border)'
+                            }}
+                            title={h.content}
+                          >
+                            {h.content}
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
-
-        <div className="border-t border-gray-100 bg-white/80 backdrop-blur-sm">
-          <div className="max-w-3xl mx-auto px-5 py-3">
-            <QuickActions onAction={handleQuickAction} disabled={loading || streaming} />
-            <div className="flex gap-2 mt-2 items-end">
-              <div className="flex-1 relative">
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="输入你的问题..."
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-none transition-all text-[13px] leading-relaxed placeholder-gray-400"
-                  rows={1}
-                  disabled={loading || streaming}
-                />
-              </div>
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || loading || streaming}
-                className="flex-shrink-0 w-9 h-9 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-sm shadow-indigo-200"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </button>
+                </>
+              ) : (
+                <>
+                  <EmptyState
+                    icon={<Icon name="bookshelf" size={24} />}
+                    title="未关联书籍"
+                    description="选择一本书以提供 AI 上下文"
+                  />
+                  {/* 书籍选择列表 */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 'calc(var(--spacing) * 2)',
+                    }}
+                  >
+                    {books.slice(0, 8).map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setCurrentBook(b.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'calc(var(--spacing) * 3)',
+                          padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 3)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--background)',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.2s ease',
+                          textAlign: 'left',
+                          font: 'inherit',
+                          color: 'inherit',
+                          width: '100%',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--ring)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border)'
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 28,
+                            height: 36,
+                            borderRadius: 4,
+                            background: b.cover
+                              ? `url(${b.cover}) center/cover`
+                              : 'var(--chart-1)',
+                            flexShrink: 0,
+                            display: b.cover ? 'block' : 'grid',
+                            placeItems: 'center',
+                            color: 'var(--primary-foreground)',
+                            fontSize: '0.55rem',
+                            fontWeight: 700,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {!b.cover && b.title.slice(0, 2)}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            style={{
+                              fontSize: '0.82rem',
+                              fontWeight: 600,
+                              color: 'var(--foreground)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {b.title}
+                          </div>
+                          <Tiny>{b.author || '未知作者'}</Tiny>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-          </div>
+          </aside>
         </div>
-      </div>
+      </PageHero>
+    </>
+  )
+}
 
-      <ContextPanel
-        currentBookId={currentBookId}
-        onBookSelect={setCurrentBook}
+// ===== 子组件：小型图标按钮 =====
+function IconButtonSmall({
+  children,
+  label,
+  onClick,
+}: {
+  children: React.ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      style={{
+        width: 28,
+        height: 28,
+        display: 'grid',
+        placeItems: 'center',
+        border: '1px solid var(--border)',
+        background: 'var(--card)',
+        color: 'var(--foreground)',
+        borderRadius: 'var(--radius)',
+        cursor: 'pointer',
+        transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease',
+        flexShrink: 0,
+        padding: 0,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'var(--sidebar-accent)'
+        e.currentTarget.style.color = 'var(--sidebar-accent-foreground)'
+        e.currentTarget.style.borderColor = 'var(--sidebar-border)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'var(--card)'
+        e.currentTarget.style.color = 'var(--foreground)'
+        e.currentTarget.style.borderColor = 'var(--border)'
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ===== 子组件：消息气泡 =====
+interface MessageBubbleProps {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  isStreaming?: boolean
+  onCopy: () => void
+}
+
+function MessageBubble({ role, content, isStreaming, onCopy }: MessageBubbleProps) {
+  const isUser = role === 'user'
+  return (
+    <div
+      className={`msg ${isUser ? 'user' : 'assistant'}${isStreaming ? ' streaming' : ''}`}
+      style={{
+        display: 'flex',
+        gap: 'calc(var(--spacing) * 3)',
+        justifyContent: isUser ? 'flex-end' : 'flex-start',
+        alignItems: isUser ? 'flex-end' : 'flex-start',
+      }}
+    >
+      {!isUser && (
+        <div
+          className="msg-avatar"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'var(--secondary)',
+            color: 'var(--secondary-foreground)',
+            display: 'grid',
+            placeItems: 'center',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            flexShrink: 0,
+          }}
+        >
+          AI
+        </div>
+      )}
+      <div
+        className="msg-content"
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'calc(var(--spacing) * 2)',
+          alignItems: isUser ? 'flex-end' : 'flex-start',
+          minWidth: 0,
+        }}
+      >
+        <div
+          className="msg-bubble"
+          style={{
+            padding: 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
+            borderRadius: 'calc(var(--radius) + 4px)',
+            fontSize: '0.92rem',
+            lineHeight: 1.6,
+            maxWidth: isUser ? '70%' : '90%',
+            background: isUser ? 'var(--primary)' : 'var(--background)',
+            color: isUser ? 'var(--primary-foreground)' : 'var(--card-foreground)',
+            border: isUser ? 'none' : '1px solid var(--border)',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            overflowWrap: 'anywhere',
+          }}
+        >
+          {content || (isStreaming ? <TypingDots inline /> : '')}
+        </div>
+        {!isUser && !isStreaming && content && (
+          <div
+            className="msg-actions"
+            style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}
+          >
+            <IconButtonSmall label="复制" onClick={onCopy}>
+              <Icon name="file" size={14} />
+            </IconButtonSmall>
+            <IconButtonSmall label="点赞" onClick={() => toast.info('感谢反馈')}>
+              <Icon name="thumbs-up" size={14} />
+            </IconButtonSmall>
+            <IconButtonSmall label="收藏" onClick={() => toast.info('已收藏')}>
+              <Icon name="star" size={14} />
+            </IconButtonSmall>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ===== 子组件：打字动画 =====
+function TypingDots({ inline = false }: { inline?: boolean }) {
+  const wrapperStyle: React.CSSProperties = inline
+    ? {
+        display: 'inline-flex',
+        gap: 4,
+        alignItems: 'center',
+        padding: 'calc(var(--spacing) * 1)',
+      }
+    : {
+        display: 'inline-flex',
+        gap: 4,
+        alignItems: 'center',
+        padding: 'calc(var(--spacing) * 2)',
+      }
+  return (
+    <div className="typing-dots" style={wrapperStyle} aria-label="AI 正在思考">
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: 'var(--muted-foreground)',
+          animation: 'typing-blink 1.4s infinite',
+        }}
       />
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: 'var(--muted-foreground)',
+          animation: 'typing-blink 1.4s infinite',
+          animationDelay: '0.2s',
+        }}
+      />
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: 'var(--muted-foreground)',
+          animation: 'typing-blink 1.4s infinite',
+          animationDelay: '0.4s',
+        }}
+      />
+      <style>{`@keyframes typing-blink { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }`}</style>
     </div>
   )
 }

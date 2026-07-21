@@ -1,8 +1,40 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { toast } from '../stores/toastStore'
-import { safeStr, safeNum, formatDate, mapKnowledgeCards, mapBook } from '../utils/db-mapper'
+/**
+ * KnowledgeCards — 知识卡片页（Google Design Library 1:1 重构）
+ * 基于设计稿 zhixing-reader-redesign/pages/knowledge-cards.html
+ *
+ * 结构：
+ *   - hero: 标题 + 副标题（X 张卡片 · 跨 X 本书） + 3 actions（新建/AI生成/导出）
+ *   - 双 tab: 卡片库 / 蒸馏中心
+ *   - 全局蒸馏进度 banner（distillProgress 显示时）
+ *   - cards tab:
+ *     - 4 统计卡（概念/方法/引用/平均掌握度）
+ *     - 筛选条 card（5 类型 chips + 搜索 + 书籍 select + 标签 select + 网格/列表切换）
+ *     - 卡片网格（auto-fill minmax(280px, 1fr)）
+ *       - 卡片正面：badge + 书名 + 标题 + 内容 + 时间 + 3 icon-btn（复习/编辑/删除）
+ *       - 卡片反面：内容 + 解读(AI生成) + 应用(AI生成) + 标签 + 复习信息 + 5星评分
+ *   - distill tab:
+ *     - 说明卡
+ *     - 书籍网格（含蒸馏按钮 + 进度浮层）
+ *
+ * 业务逻辑全部保留：cards/distill 双 tab / 统计 / 4 筛选 / 翻转 / AI 生成解读与应用 /
+ *   蒸馏中心 / onDistillProgress 监听 / 取消订阅 / toast 全套反馈
+ */
 
+import { useState, useEffect, useMemo, useCallback, useRef, CSSProperties } from 'react'
+import PageHero from '@/components/layout/PageHero'
+import Card from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import Icon from '@/components/ui/Icon'
+import { Loading, EmptyState, Metric } from '@/components/ui/Feedback'
+import { toast } from '../stores/toastStore'
+import { safeStr, safeNum, formatDate, formatTimeAgo, mapKnowledgeCards, mapBook } from '../utils/db-mapper'
+
+// ===== 类型 =====
 type CardType = 'concept' | 'methodology' | 'quote'
+
+type FilterType = 'all' | 'concept' | 'methodology' | 'quote' | 'reflection'
+
+type TabKey = 'cards' | 'distill'
 
 interface KnowledgeCardItem {
   id: string
@@ -31,13 +63,78 @@ interface DistillProgress {
   error?: string
 }
 
-const typeConfig: Record<CardType, { label: string; icon: string; color: string; bgColor: string }> = {
-  concept: { label: '概念', icon: '🧠', color: 'text-blue-600', bgColor: 'bg-blue-50' },
-  methodology: { label: '方法论', icon: '⚙️', color: 'text-green-600', bgColor: 'bg-green-50' },
-  quote: { label: '金句', icon: '✨', color: 'text-amber-600', bgColor: 'bg-amber-50' },
+interface BookRow {
+  id: string
+  title: string
+  author: string
+  cover: string
 }
 
-function classifyErrorMessage(msg: string): { type: 'timeout' | 'cancelled' | 'network' | 'config' | 'empty' | 'parse' | 'import' | 'unknown'; text: string } {
+// ===== 类型 → 视觉配置（设计稿 1:1） =====
+const typeConfig: Record<CardType, { label: string; badgeStyle: CSSProperties }> = {
+  concept: {
+    label: '概念',
+    badgeStyle: {
+      fontSize: '0.72rem',
+      padding: '0.2rem 0.6rem',
+      borderRadius: '999px',
+      background: 'color-mix(in srgb, var(--chart-1) 14%, transparent)',
+      color: 'var(--chart-1)',
+      whiteSpace: 'nowrap',
+      fontWeight: 600,
+      display: 'inline-flex',
+      alignItems: 'center',
+    },
+  },
+  methodology: {
+    label: '方法',
+    badgeStyle: {
+      fontSize: '0.72rem',
+      padding: '0.2rem 0.6rem',
+      borderRadius: '999px',
+      background: 'color-mix(in srgb, var(--chart-5) 14%, transparent)',
+      color: 'var(--chart-5)',
+      whiteSpace: 'nowrap',
+      fontWeight: 600,
+      display: 'inline-flex',
+      alignItems: 'center',
+    },
+  },
+  quote: {
+    label: '引用',
+    badgeStyle: {
+      fontSize: '0.72rem',
+      padding: '0.2rem 0.6rem',
+      borderRadius: '999px',
+      background: 'color-mix(in srgb, var(--chart-3) 16%, transparent)',
+      color: 'var(--chart-4)',
+      whiteSpace: 'nowrap',
+      fontWeight: 600,
+      display: 'inline-flex',
+      alignItems: 'center',
+    },
+  },
+}
+
+// 类型筛选 chips（设计稿 5 个：全部/概念/方法/引用/反思）
+const TYPE_FILTERS: { key: FilterType; label: string }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'concept', label: '概念' },
+  { key: 'methodology', label: '方法' },
+  { key: 'quote', label: '引用' },
+  { key: 'reflection', label: '反思' },
+]
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'cards', label: '卡片库' },
+  { key: 'distill', label: '蒸馏中心' },
+]
+
+// ===== 错误分类（保留原逻辑） =====
+function classifyErrorMessage(msg: string): {
+  type: 'timeout' | 'cancelled' | 'network' | 'config' | 'empty' | 'parse' | 'import' | 'unknown'
+  text: string
+} {
   if (msg.includes('已被取消') || msg.includes('用户取消') || msg.includes('aborted')) {
     return { type: 'cancelled', text: '蒸馏已取消' }
   }
@@ -62,14 +159,15 @@ function classifyErrorMessage(msg: string): { type: 'timeout' | 'cancelled' | 'n
   return { type: 'unknown', text: msg }
 }
 
+// ===== 主组件 =====
 export default function KnowledgeCards() {
-  const [activeTab, setActiveTab] = useState<'cards' | 'distill'>('cards')
+  const [activeTab, setActiveTab] = useState<TabKey>('cards')
   const [cards, setCards] = useState<KnowledgeCardItem[]>([])
-  const [books, setBooks] = useState<Record<string, unknown>[]>([])
+  const [books, setBooks] = useState<BookRow[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedBook, setSelectedBook] = useState('')
-  const [selectedType, setSelectedType] = useState<CardType | ''>('')
+  const [selectedType, setSelectedType] = useState<FilterType>('all')
   const [selectedTag, setSelectedTag] = useState('')
   const [distillingBookId, setDistillingBookId] = useState<string | null>(null)
   const [distillProgress, setDistillProgress] = useState<DistillProgress | null>(null)
@@ -77,7 +175,9 @@ export default function KnowledgeCards() {
   const [generatingMap, setGeneratingMap] = useState<Record<string, 'interpretation' | 'application' | null>>({})
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    loadData()
+  }, [])
 
   useEffect(() => {
     if (window.electronAPI?.knowledgeCard?.onDistillProgress) {
@@ -101,10 +201,10 @@ export default function KnowledgeCards() {
     try {
       const [cardsRaw, booksRaw] = await Promise.all([
         window.electronAPI.knowledgeCard.getAll(),
-        window.electronAPI.book.getAll()
+        window.electronAPI.book.getAll(),
       ])
       const mappedCards = mapKnowledgeCards(cardsRaw) as unknown as KnowledgeCardItem[]
-      const mappedBooks = (booksRaw as unknown as Record<string, unknown>[]).map(b => mapBook(b))
+      const mappedBooks = (booksRaw as unknown as Record<string, unknown>[]).map((b) => mapBook(b)) as unknown as BookRow[]
       setCards(mappedCards)
       setBooks(mappedBooks)
     } catch (error) {
@@ -115,54 +215,61 @@ export default function KnowledgeCards() {
     }
   }
 
-  const getBookTitle = useCallback((bookId: string) => {
-    const book = books.find(b => String(b.id) === bookId)
-    return safeStr(book?.title, '未知书籍')
-  }, [books])
+  const getBookTitle = useCallback(
+    (bookId: string) => {
+      const book = books.find((b) => b.id === bookId)
+      return safeStr(book?.title, '未知书籍')
+    },
+    [books],
+  )
 
   const allTags = useMemo(() => {
     const tagSet = new Set<string>()
-    cards.forEach(c => {
-      c.tags?.forEach(tag => tagSet.add(tag))
+    cards.forEach((c) => {
+      c.tags?.forEach((tag) => tagSet.add(tag))
     })
     return Array.from(tagSet).sort()
   }, [cards])
 
   const stats = useMemo(() => {
     const total = cards.length
-    const concepts = cards.filter(c => c.type === 'concept').length
-    const methodologies = cards.filter(c => c.type === 'methodology').length
-    const quotes = cards.filter(c => c.type === 'quote').length
-    return { total, concepts, methodologies, quotes }
+    const concepts = cards.filter((c) => c.type === 'concept').length
+    const methodologies = cards.filter((c) => c.type === 'methodology').length
+    const quotes = cards.filter((c) => c.type === 'quote').length
+    const avgMastery =
+      total > 0 ? Math.round(cards.reduce((s, c) => s + safeNum(c.masteryLevel), 0) / total) : 0
+    return { total, concepts, methodologies, quotes, avgMastery }
+  }, [cards])
+
+  const bookCount = useMemo(() => {
+    const ids = new Set(cards.map((c) => c.bookId).filter(Boolean))
+    return ids.size
   }, [cards])
 
   const filteredCards = useMemo(() => {
     let result = cards
 
     if (selectedBook) {
-      result = result.filter(c => c.bookId === selectedBook)
+      result = result.filter((c) => c.bookId === selectedBook)
     }
 
-    if (selectedType) {
-      result = result.filter(c => c.type === selectedType)
+    if (selectedType !== 'all') {
+      result = result.filter((c) => c.type === selectedType)
     }
 
     if (selectedTag) {
-      result = result.filter(c => c.tags?.includes(selectedTag))
+      result = result.filter((c) => c.tags?.includes(selectedTag))
     }
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
-      const terms = query.split(/\s+/).filter(t => t.length > 0)
-      result = result.filter(c => {
-        const searchText = [
-          c.title,
-          c.content,
-          c.interpretation,
-          c.application,
-          getBookTitle(c.bookId)
-        ].filter(Boolean).join(' ').toLowerCase()
-        return terms.every(term => searchText.includes(term))
+      const terms = query.split(/\s+/).filter((t) => t.length > 0)
+      result = result.filter((c) => {
+        const searchText = [c.title, c.content, c.interpretation, c.application, getBookTitle(c.bookId)]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        return terms.every((term) => searchText.includes(term))
       })
     }
 
@@ -170,7 +277,7 @@ export default function KnowledgeCards() {
   }, [cards, selectedBook, selectedType, selectedTag, searchQuery, getBookTitle])
 
   const handleDistill = async (bookId: string) => {
-    const book = books.find(b => b.id === bookId)
+    const book = books.find((b) => b.id === bookId)
     if (!book) return
 
     if (distillingBookId) {
@@ -249,13 +356,13 @@ export default function KnowledgeCards() {
   }
 
   const handleGenerateInterpretation = async (card: KnowledgeCardItem) => {
-    setGeneratingMap(prev => ({ ...prev, [card.id]: 'interpretation' }))
+    setGeneratingMap((prev) => ({ ...prev, [card.id]: 'interpretation' }))
     try {
       const result = await window.electronAPI.knowledgeCard.generateInterpretation(
         getBookTitle(card.bookId),
         card.title,
         card.content,
-        typeConfig[card.type].label
+        typeConfig[card.type].label,
       )
       await window.electronAPI.knowledgeCard.update(card.id, { interpretation: result.text })
       await loadData()
@@ -263,18 +370,18 @@ export default function KnowledgeCards() {
     } catch (error) {
       toast.error(`生成解读失败: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
-      setGeneratingMap(prev => ({ ...prev, [card.id]: null }))
+      setGeneratingMap((prev) => ({ ...prev, [card.id]: null }))
     }
   }
 
   const handleGenerateApplication = async (card: KnowledgeCardItem) => {
-    setGeneratingMap(prev => ({ ...prev, [card.id]: 'application' }))
+    setGeneratingMap((prev) => ({ ...prev, [card.id]: 'application' }))
     try {
       const result = await window.electronAPI.knowledgeCard.generateApplication(
         getBookTitle(card.bookId),
         card.title,
         card.content,
-        typeConfig[card.type].label
+        typeConfig[card.type].label,
       )
       await window.electronAPI.knowledgeCard.update(card.id, { application: result.text })
       await loadData()
@@ -282,7 +389,7 @@ export default function KnowledgeCards() {
     } catch (error) {
       toast.error(`生成应用失败: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
-      setGeneratingMap(prev => ({ ...prev, [card.id]: null }))
+      setGeneratingMap((prev) => ({ ...prev, [card.id]: null }))
     }
   }
 
@@ -291,12 +398,27 @@ export default function KnowledgeCards() {
     return '★'.repeat(Math.min(stars, 5)) + '☆'.repeat(Math.max(0, 5 - stars))
   }
 
+  const handleUpdateMastery = async (card: KnowledgeCardItem, level: number) => {
+    try {
+      await window.electronAPI.knowledgeCard.update(card.id, {
+        masteryLevel: level * 20,
+        reviewCount: safeNum(card.reviewCount) + 1,
+      })
+      await loadData()
+      toast.success(`掌握度已更新为 ${level * 20}%`)
+    } catch (_error) {
+      toast.error('更新失败')
+    }
+  }
+
+  // 蒸馏进度浮层（覆盖在蒸馏书籍卡片上）
   const renderDistillProgress = (bookId: string) => {
     if (distillingBookId !== bookId || !distillProgress) return null
 
-    const percent = distillProgress.total > 0
-      ? Math.min(100, Math.round((distillProgress.current / distillProgress.total) * 100))
-      : 0
+    const percent =
+      distillProgress.total > 0
+        ? Math.min(100, Math.round((distillProgress.current / distillProgress.total) * 100))
+        : 0
 
     const stageLabels: Record<DistillProgress['stage'], string> = {
       fetch: '准备中',
@@ -310,520 +432,1473 @@ export default function KnowledgeCards() {
     const isError = distillProgress.stage === 'error'
 
     return (
-      <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-4 rounded-xl z-10">
-        <div className={`w-12 h-12 mb-3 ${isError ? 'text-red-500' : 'text-primary'}`}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'color-mix(in srgb, var(--card) 95%, transparent)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'calc(var(--spacing) * 4)',
+          borderRadius: 'calc(var(--radius) + 4px)',
+          zIndex: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            marginBottom: 12,
+            color: isError ? 'var(--state-error)' : 'var(--primary)',
+          }}
+        >
           {isError ? (
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+            <Icon name="alert" size={48} />
           ) : (
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                border: '2px solid var(--primary)',
+                borderTopColor: 'transparent',
+                animation: 'spin 0.8s linear infinite',
+              }}
+            />
           )}
         </div>
-        <p className="text-sm font-medium text-gray-900 mb-1">
+        <p
+          style={{
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            color: 'var(--foreground)',
+            marginBottom: 4,
+            margin: '0 0 4px 0',
+          }}
+        >
           {stageLabels[distillProgress.stage] || '处理中'}
         </p>
         {distillProgress.message && (
-          <p className="text-xs text-gray-600 mb-2 text-center max-w-[200px] truncate" title={distillProgress.message}>
+          <p
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--muted-foreground)',
+              marginBottom: 8,
+              textAlign: 'center',
+              maxWidth: 200,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              margin: '0 0 8px 0',
+            }}
+            title={distillProgress.message}
+          >
             {distillProgress.message}
           </p>
         )}
         {distillProgress.total > 0 && !isError && (
-          <div className="w-full max-w-[200px] mt-1">
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div style={{ width: '100%', maxWidth: 200, marginTop: 4 }}>
+            <div
+              style={{
+                height: 6,
+                background: 'var(--muted)',
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
               <div
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${percent}%` }}
+                style={{
+                  height: '100%',
+                  background: 'var(--primary)',
+                  transition: 'width 0.3s ease',
+                  width: `${percent}%`,
+                }}
               />
             </div>
-            <p className="text-xs text-gray-500 text-center mt-1">
+            <p
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--muted-foreground)',
+                textAlign: 'center',
+                marginTop: 4,
+                margin: '4px 0 0 0',
+              }}
+            >
               {distillProgress.current} / {distillProgress.total} ({percent}%)
             </p>
           </div>
         )}
-        {isError ? (
-          <button
-            onClick={() => handleCancelDistill(bookId)}
-            className="mt-3 px-3 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
-          >
-            关闭
-          </button>
-        ) : (
-          <button
-            onClick={() => handleCancelDistill(bookId)}
-            className="mt-3 px-3 py-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-          >
-            取消蒸馏
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => handleCancelDistill(bookId)}
+          style={{
+            marginTop: 12,
+            padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+            fontSize: '0.75rem',
+            color: isError ? 'var(--muted-foreground)' : 'var(--state-error)',
+            background: 'transparent',
+            border: '1px solid currentColor',
+            borderRadius: 'var(--radius)',
+            cursor: 'pointer',
+            transition: 'background 0.2s ease',
+            fontFamily: 'inherit',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = isError
+              ? 'var(--muted)'
+              : 'color-mix(in srgb, var(--state-error) 8%, transparent)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent'
+          }}
+        >
+          {isError ? '关闭' : '取消蒸馏'}
+        </button>
       </div>
     )
   }
 
   if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
+    return <Loading hint="正在加载知识卡片..." />
+  }
+
+  const subtitle = `共 ${stats.total} 张卡片 · 跨 ${bookCount} 本书`
+  const hasFilter = !!(searchQuery || selectedBook || selectedType !== 'all' || selectedTag)
+
+  return (
+    <>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <PageHero
+        title="知识卡片"
+        subtitle={subtitle}
+        actions={
+          <>
+            <Button
+              variant="primary"
+              onClick={() => toast.info('新建卡片功能即将上线')}
+              data-dom-id="cta-new"
+            >
+              <Icon name="plus" size={16} /> 新建卡片
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setActiveTab('distill')}
+              data-dom-id="cta-ai-gen"
+            >
+              <Icon name="agent" size={16} /> AI 批量生成
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => toast.info('导出功能即将上线')}
+              data-dom-id="cta-export"
+            >
+              <Icon name="external-link" size={16} /> 导出
+            </Button>
+          </>
+        }
+      >
+        {/* ===== 双 tab 切换 ===== */}
+        <Chips items={TABS} value={activeTab} onChange={setActiveTab} />
+
+        {/* ===== 全局蒸馏进度 banner ===== */}
+        {distillProgress && (
+          <div
+            style={{
+              background:
+                distillProgress.stage === 'done'
+                  ? 'color-mix(in srgb, var(--state-success) 8%, transparent)'
+                  : distillProgress.stage === 'error'
+                    ? 'color-mix(in srgb, var(--state-error) 8%, transparent)'
+                    : 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+              border: '1px solid',
+              borderColor:
+                distillProgress.stage === 'done'
+                  ? 'color-mix(in srgb, var(--state-success) 30%, transparent)'
+                  : distillProgress.stage === 'error'
+                    ? 'color-mix(in srgb, var(--state-error) 30%, transparent)'
+                    : 'color-mix(in srgb, var(--state-info) 30%, transparent)',
+              borderRadius: 'calc(var(--radius) + 6px)',
+              padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 5)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'calc(var(--spacing) * 3)',
+            }}
+          >
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                flexShrink: 0,
+                color:
+                  distillProgress.stage === 'done'
+                    ? 'var(--state-success)'
+                    : distillProgress.stage === 'error'
+                      ? 'var(--state-error)'
+                      : 'var(--state-info)',
+              }}
+            >
+              {distillProgress.stage === 'done' ? (
+                <Icon name="check" size={20} />
+              ) : distillProgress.stage === 'error' ? (
+                <Icon name="alert" size={20} />
+              ) : (
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    border: '2px solid currentColor',
+                    borderTopColor: 'transparent',
+                    animation: 'spin 0.8s linear infinite',
+                  }}
+                />
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                }}
+              >
+                {distillProgress.stage === 'done'
+                  ? `《${distillProgress.bookTitle}》蒸馏完成`
+                  : distillProgress.stage === 'error'
+                    ? `《${distillProgress.bookTitle}》蒸馏失败`
+                    : `正在蒸馏《${distillProgress.bookTitle}》`}
+              </p>
+              <p
+                style={{
+                  margin: '4px 0 0',
+                  fontSize: '0.75rem',
+                  color: 'var(--muted-foreground)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {distillProgress.message || '处理中...'}
+                {distillProgress.total > 0 &&
+                  distillProgress.stage !== 'done' &&
+                  distillProgress.stage !== 'error' &&
+                  ` · ${distillProgress.current}/${distillProgress.total}`}
+              </p>
+            </div>
+            {distillProgress.stage !== 'done' && distillProgress.stage !== 'error' && (
+              <button
+                type="button"
+                onClick={() => handleCancelDistill(distillProgress.bookId)}
+                style={{
+                  padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+                  fontSize: '0.75rem',
+                  color: 'var(--state-info)',
+                  background: 'transparent',
+                  border: '1px solid currentColor',
+                  borderRadius: 'var(--radius)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  fontFamily: 'inherit',
+                }}
+              >
+                取消
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ===== cards tab ===== */}
+        {activeTab === 'cards' && (
+          <>
+            {/* 4 统计卡 */}
+            <div
+              className="grid stats"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 'calc(var(--spacing) * 4)',
+              }}
+            >
+              <Card interactive>
+                <div
+                  style={{
+                    color: 'var(--muted-foreground)',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  概念卡片
+                </div>
+                <Metric value={stats.concepts} />
+                <span style={typeConfig.concept.badgeStyle}>概念</span>
+              </Card>
+
+              <Card interactive>
+                <div
+                  style={{
+                    color: 'var(--muted-foreground)',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  方法卡片
+                </div>
+                <Metric value={stats.methodologies} />
+                <span style={typeConfig.methodology.badgeStyle}>方法</span>
+              </Card>
+
+              <Card interactive>
+                <div
+                  style={{
+                    color: 'var(--muted-foreground)',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  引用卡片
+                </div>
+                <Metric value={stats.quotes} />
+                <span style={typeConfig.quote.badgeStyle}>引用</span>
+              </Card>
+
+              <Card interactive>
+                <div
+                  style={{
+                    color: 'var(--muted-foreground)',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  平均掌握度
+                </div>
+                <Metric value={`${stats.avgMastery}%`} />
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.34rem 0.65rem',
+                    borderRadius: 999,
+                    background: 'var(--muted)',
+                    color: 'var(--foreground)',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {getMasteryStars(stats.avgMastery)}
+                </span>
+              </Card>
+            </div>
+
+            {/* 筛选条 card */}
+            <div
+              className="card"
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'calc(var(--radius) + 6px)',
+                padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 5)',
+                color: 'var(--card-foreground)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 'calc(var(--spacing) * 4)',
+                  flexWrap: 'wrap',
+                }}
+              >
+                {/* 左侧：5 类型 chips */}
+                <Chips items={TYPE_FILTERS} value={selectedType} onChange={setSelectedType} />
+
+                {/* 右侧：搜索 + 书籍 + 标签 + 网格/列表切换 */}
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 'calc(var(--spacing) * 3)',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <CompactSearch value={searchQuery} onChange={setSearchQuery} placeholder="搜索卡片..." />
+
+                  {/* 书籍筛选 */}
+                  <select
+                    value={selectedBook}
+                    onChange={(e) => setSelectedBook(e.target.value)}
+                    aria-label="按书籍筛选"
+                    style={selectStyle}
+                  >
+                    <option value="">全部书籍</option>
+                    {books.map((book) => (
+                      <option key={book.id} value={book.id}>
+                        {book.title}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* 标签筛选 */}
+                  <select
+                    value={selectedTag}
+                    onChange={(e) => setSelectedTag(e.target.value)}
+                    aria-label="按标签筛选"
+                    style={selectStyle}
+                  >
+                    <option value="">全部标签</option>
+                    {allTags.map((tag) => (
+                      <option key={tag} value={tag}>
+                        {tag}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* 网格/列表切换 */}
+                  <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      data-dom-id="view-grid"
+                      aria-label="网格视图"
+                      style={iconBtnStyle(true)}
+                    >
+                      <Icon name="cards" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      data-dom-id="view-list"
+                      aria-label="列表视图"
+                      onClick={() => toast.info('列表视图即将上线')}
+                      style={iconBtnStyle(false)}
+                    >
+                      <Icon name="menu" size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 卡片网格 */}
+            {filteredCards.length === 0 ? (
+              <EmptyState
+                icon={<Icon name="cards" size={24} />}
+                title={hasFilter ? '没有找到匹配的卡片' : '还没有知识卡片'}
+                description={
+                  hasFilter ? '尝试调整筛选条件' : '切换到"蒸馏中心"从书籍中提取知识卡片'
+                }
+                action={
+                  !hasFilter ? (
+                    <Button variant="primary" onClick={() => setActiveTab('distill')}>
+                      <Icon name="agent" size={16} /> 前往蒸馏中心
+                    </Button>
+                  ) : undefined
+                }
+                style={{
+                  background: 'var(--card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'calc(var(--radius) + 6px)',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: 'calc(var(--spacing) * 4)',
+                }}
+              >
+                {filteredCards.map((card) => (
+                  <KnowledgeCardArticle
+                    key={card.id}
+                    card={card}
+                    isFlipped={flippedId === card.id}
+                    onFlip={() => setFlippedId(flippedId === card.id ? null : card.id)}
+                    onClose={() => setFlippedId(null)}
+                    onDelete={() => handleDelete(card.id)}
+                    onEdit={() => toast.info('编辑卡片功能即将上线')}
+                    onReview={() => setFlippedId(card.id)}
+                    onReviewAction={() => toast.info('复习功能即将上线')}
+                    onGenerateInterpretation={() => handleGenerateInterpretation(card)}
+                    onGenerateApplication={() => handleGenerateApplication(card)}
+                    onUpdateMastery={(level) => handleUpdateMastery(card, level)}
+                    getBookTitle={getBookTitle}
+                    getMasteryStars={getMasteryStars}
+                    generating={generatingMap[card.id] ?? null}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ===== distill tab ===== */}
+        {activeTab === 'distill' && (
+          <>
+            {/* 蒸馏说明卡 */}
+            <Card>
+              <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', alignItems: 'flex-start' }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    flexShrink: 0,
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--accent)',
+                    color: 'var(--accent-foreground)',
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  <Icon name="agent" size={18} />
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    蒸馏说明
+                  </h3>
+                  <p
+                    style={{
+                      margin: '0.5rem 0 0',
+                      fontSize: '0.875rem',
+                      color: 'var(--muted-foreground)',
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    选择下方书籍，AI
+                    会从你的划线/笔记中提取概念、方法论和金句，生成知识卡片。解读和应用场景可在卡片生成后手动添加。
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* 书籍网格 */}
+            {books.length > 0 ? (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: 'calc(var(--spacing) * 4)',
+                }}
+              >
+                {books.map((book) => {
+                  const bookId = String(book.id)
+                  const isCurrentDistilling = distillingBookId === bookId
+                  const cardCount = cards.filter((c) => c.bookId === bookId).length
+                  return (
+                    <div
+                      key={bookId}
+                      style={{
+                        position: 'relative',
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'calc(var(--radius) + 4px)',
+                        padding: 'calc(var(--spacing) * 4)',
+                        transition: 'border-color 0.2s ease',
+                        overflow: 'hidden',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--ring)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border)'
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'calc(var(--spacing) * 3)',
+                          marginBottom: 'calc(var(--spacing) * 3)',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 48,
+                            height: 64,
+                            flexShrink: 0,
+                            background: 'var(--muted)',
+                            borderRadius: 'var(--radius)',
+                            overflow: 'hidden',
+                            display: 'grid',
+                            placeItems: 'center',
+                            color: 'var(--primary)',
+                          }}
+                        >
+                          {book.cover ? (
+                            <img
+                              src={book.cover}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <Icon name="bookshelf" size={20} />
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: '0.92rem',
+                              fontWeight: 600,
+                              color: 'var(--card-foreground)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {safeStr(book.title)}
+                          </p>
+                          <p
+                            style={{
+                              margin: '0.18rem 0 0',
+                              fontSize: '0.75rem',
+                              color: 'var(--muted-foreground)',
+                            }}
+                          >
+                            {safeStr(book.author, '未知作者')}
+                          </p>
+                          <p
+                            style={{
+                              margin: '0.18rem 0 0',
+                              fontSize: '0.72rem',
+                              color: 'var(--muted-foreground)',
+                              fontFamily: 'var(--font-mono)',
+                            }}
+                          >
+                            {cardCount > 0 ? `已有 ${cardCount} 张卡片` : '暂无卡片'}
+                          </p>
+                        </div>
+                      </div>
+                      {isCurrentDistilling ? (
+                        <button
+                          type="button"
+                          onClick={() => handleCancelDistill(bookId)}
+                          style={{
+                            width: '100%',
+                            padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 3)',
+                            fontSize: '0.84rem',
+                            fontWeight: 600,
+                            background: 'color-mix(in srgb, var(--state-error) 8%, transparent)',
+                            color: 'var(--state-error)',
+                            border: '1px solid color-mix(in srgb, var(--state-error) 30%, transparent)',
+                            borderRadius: 'var(--radius)',
+                            cursor: 'pointer',
+                            transition: 'background 0.2s ease',
+                            fontFamily: 'inherit',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background =
+                              'color-mix(in srgb, var(--state-error) 14%, transparent)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background =
+                              'color-mix(in srgb, var(--state-error) 8%, transparent)'
+                          }}
+                        >
+                          取消蒸馏
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleDistill(bookId)}
+                          disabled={!!distillingBookId}
+                          style={{
+                            width: '100%',
+                            padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 3)',
+                            fontSize: '0.84rem',
+                            fontWeight: 600,
+                            background: 'var(--primary)',
+                            color: 'var(--primary-foreground)',
+                            border: '1px solid var(--primary)',
+                            borderRadius: 'var(--radius)',
+                            cursor: distillingBookId ? 'not-allowed' : 'pointer',
+                            opacity: distillingBookId ? 0.5 : 1,
+                            transition: 'background 0.2s ease, border-color 0.2s ease',
+                            fontFamily: 'inherit',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!distillingBookId) e.currentTarget.style.borderColor = 'var(--ring)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--primary)'
+                          }}
+                        >
+                          {distillingBookId ? '等待中...' : cardCount > 0 ? '重新蒸馏' : '开始蒸馏'}
+                        </button>
+                      )}
+                      {renderDistillProgress(bookId)}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <EmptyState
+                icon={<Icon name="bookshelf" size={24} />}
+                title="暂无书籍"
+                description="请先从书架导入书籍"
+                style={{
+                  background: 'var(--card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'calc(var(--radius) + 6px)',
+                }}
+              />
+            )}
+          </>
+        )}
+      </PageHero>
+    </>
+  )
+}
+
+// ===== 子组件：知识卡片 article（正面 + 反面） =====
+interface KnowledgeCardArticleProps {
+  card: KnowledgeCardItem
+  isFlipped: boolean
+  onFlip: () => void
+  onClose: () => void
+  onDelete: () => void
+  onEdit: () => void
+  onReview: () => void
+  onReviewAction: () => void
+  onGenerateInterpretation: () => void
+  onGenerateApplication: () => void
+  onUpdateMastery: (level: number) => void
+  getBookTitle: (bookId: string) => string
+  getMasteryStars: (level: number) => string
+  generating: 'interpretation' | 'application' | null
+}
+
+function KnowledgeCardArticle({
+  card,
+  isFlipped,
+  onFlip,
+  onClose,
+  onDelete,
+  onEdit,
+  onReview,
+  onReviewAction,
+  onGenerateInterpretation,
+  onGenerateApplication,
+  onUpdateMastery,
+  getBookTitle,
+  getMasteryStars,
+  generating,
+}: KnowledgeCardArticleProps) {
+  const typeInfo = typeConfig[card.type]
+  const bookTitle = getBookTitle(card.bookId)
+  const timeLabel = formatTimeAgo(card.updatedAt || card.createdAt)
+
+  const articleStyle: CSSProperties = {
+    padding: 'calc(var(--spacing) * 5)',
+    border: '1px solid var(--border)',
+    borderRadius: 'calc(var(--radius) + 4px)',
+    background: 'var(--card)',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'calc(var(--spacing) * 3)',
+    transition: 'border-color 0.2s ease, transform 0.16s ease',
+    position: 'relative',
+  }
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.borderColor = 'var(--ring)'
+    e.currentTarget.style.transform = 'translateY(-2px)'
+  }
+  const handleMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.borderColor = 'var(--border)'
+    e.currentTarget.style.transform = 'translateY(0)'
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">知识卡片</h1>
-          <p className="text-gray-600 mt-1">
-            共 {stats.total} 张卡片
-            {activeTab === 'cards' && filteredCards.length !== stats.total && ` · 筛选显示 ${filteredCards.length} 张`}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setActiveTab('cards')}
-              className={`px-4 py-1.5 text-sm rounded-md transition-all ${
-                activeTab === 'cards'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              卡片库
-            </button>
-            <button
-              onClick={() => setActiveTab('distill')}
-              className={`px-4 py-1.5 text-sm rounded-md transition-all ${
-                activeTab === 'distill'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              蒸馏中心
-            </button>
-          </div>
-          <button
-            onClick={() => loadData()}
-            className="px-4 py-2 text-sm bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-all flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            刷新
-          </button>
-        </div>
-      </div>
-
-      {distillProgress && (
-        <div className={`rounded-xl p-4 flex items-center gap-3 ${
-          distillProgress.stage === 'done'
-            ? 'bg-green-50 border border-green-200'
-            : distillProgress.stage === 'error'
-              ? 'bg-red-50 border border-red-200'
-              : 'bg-blue-50 border border-blue-200'
-        }`}>
-          {distillProgress.stage === 'done' ? (
-            <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          ) : distillProgress.stage === 'error' ? (
-            <svg className="w-5 h-5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          ) : (
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 flex-shrink-0"></div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className={`text-sm font-medium ${
-              distillProgress.stage === 'done'
-                ? 'text-green-900'
-                : distillProgress.stage === 'error'
-                  ? 'text-red-900'
-                  : 'text-blue-900'
-            }`}>
-              {distillProgress.stage === 'done'
-                ? `《${distillProgress.bookTitle}》蒸馏完成`
-                : distillProgress.stage === 'error'
-                  ? `《${distillProgress.bookTitle}》蒸馏失败`
-                  : `正在蒸馏《${distillProgress.bookTitle}》`}
-            </p>
-            <p className={`text-xs truncate ${
-              distillProgress.stage === 'done'
-                ? 'text-green-700'
-                : distillProgress.stage === 'error'
-                  ? 'text-red-700'
-                  : 'text-blue-700'
-            }`}>
-              {distillProgress.message || '处理中...'}
-              {distillProgress.total > 0 && distillProgress.stage !== 'done' && distillProgress.stage !== 'error' && ` · ${distillProgress.current}/${distillProgress.total}`}
-            </p>
-          </div>
-          {distillProgress.stage !== 'done' && distillProgress.stage !== 'error' && (
-            <button
-              onClick={() => handleCancelDistill(distillProgress.bookId)}
-              className="px-2 py-1 text-xs text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded transition-colors flex-shrink-0"
-            >
-              取消
-            </button>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'cards' ? (
+    <article
+      data-dom-id={`card-${card.id}`}
+      style={articleStyle}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={onFlip}
+    >
+      {!isFlipped ? (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">概念卡片</p>
-                  <p className="text-2xl font-bold text-blue-600">{stats.concepts}</p>
-                </div>
-                <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-xl">🧠</div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">方法论卡片</p>
-                  <p className="text-2xl font-bold text-green-600">{stats.methodologies}</p>
-                </div>
-                <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-xl">⚙️</div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">金句卡片</p>
-                  <p className="text-2xl font-bold text-amber-600">{stats.quotes}</p>
-                </div>
-                <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center text-xl">✨</div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">平均掌握度</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {stats.total > 0 ? Math.round(cards.reduce((s, c) => s + safeNum(c.masteryLevel), 0) / stats.total) : 0}%
-                  </p>
-                </div>
-                <div className="w-10 h-10 bg-primary-light rounded-lg flex items-center justify-center text-xl">📊</div>
-              </div>
-            </div>
+          {/* 顶部：badge + 书名 */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+            }}
+          >
+            <span style={typeInfo.badgeStyle}>{typeInfo.label}</span>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                color: 'var(--muted-foreground)',
+                fontFamily: 'var(--font-mono)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '60%',
+              }}
+            >
+              《{bookTitle}》
+            </span>
           </div>
 
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[240px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">搜索卡片</label>
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="搜索标题、内容、解读..."
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="min-w-[160px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">按书籍</label>
-              <select
-                value={selectedBook}
-                onChange={(e) => setSelectedBook(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          {/* 标题 */}
+          <h3
+            style={{
+              margin: 0,
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--card-foreground)',
+              lineHeight: 1.5,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {card.title}
+          </h3>
+
+          {/* 内容预览 */}
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.88rem',
+              lineHeight: 1.7,
+              color: 'var(--muted-foreground)',
+              flex: 1,
+              display: '-webkit-box',
+              WebkitLineClamp: 4,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {card.content}
+          </p>
+
+          {/* 底部：时间 + 3 icon-btn */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingTop: 'calc(var(--spacing) * 3)',
+              borderTop: '1px solid var(--border)',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '0.72rem',
+                color: 'var(--muted-foreground)',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              {timeLabel}
+            </span>
+            <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
+              <button
+                type="button"
+                aria-label="复习"
+                data-dom-id={`card-${card.id}-review`}
+                style={iconBtnStyle(false)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onReview()
+                }}
               >
-                <option value="">全部书籍</option>
-                {books.map(book => (
-                  <option key={book.id as string} value={book.id as string}>{book.title as string}</option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-[140px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">按类型</label>
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value as CardType | '')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                <Icon name="refresh" size={14} />
+              </button>
+              <button
+                type="button"
+                aria-label="编辑"
+                data-dom-id={`card-${card.id}-edit`}
+                style={iconBtnStyle(false)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit()
+                }}
               >
-                <option value="">全部类型</option>
-                <option value="concept">概念</option>
-                <option value="methodology">方法论</option>
-                <option value="quote">金句</option>
-              </select>
-            </div>
-            <div className="min-w-[140px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">按标签</label>
-              <select
-                value={selectedTag}
-                onChange={(e) => setSelectedTag(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                <Icon name="edit" size={14} />
+              </button>
+              <button
+                type="button"
+                aria-label="删除"
+                data-dom-id={`card-${card.id}-delete`}
+                style={iconBtnStyle(false)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete()
+                }}
               >
-                <option value="">全部标签</option>
-                {allTags.map(tag => (
-                  <option key={tag} value={tag}>{tag}</option>
-                ))}
-              </select>
+                <Icon name="trash" size={14} />
+              </button>
             </div>
           </div>
+        </>
+      ) : (
+        /* 卡片反面：保留所有详情/AI/标签/评分逻辑 */
+        <div
+          style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* 顶部 */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+            }}
+          >
+            <span style={typeInfo.badgeStyle}>{typeInfo.label}</span>
+            <button type="button" aria-label="收起" onClick={onClose} style={iconBtnStyle(false)}>
+              <Icon name="close" size={14} />
+            </button>
+          </div>
 
-          {filteredCards.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 border border-gray-200 text-center shadow-sm">
-              <div className="text-6xl mb-4">🃏</div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                {searchQuery || selectedBook || selectedType || selectedTag ? '没有找到匹配的卡片' : '还没有知识卡片'}
-              </h2>
-              <p className="text-gray-600">
-                {searchQuery || selectedBook || selectedType || selectedTag
-                  ? '尝试调整筛选条件'
-                  : '切换到"蒸馏中心"从书籍中提取知识卡片'}
+          {/* 标题 + 书名 */}
+          <div>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: '1rem',
+                fontWeight: 600,
+                color: 'var(--card-foreground)',
+                lineHeight: 1.5,
+              }}
+            >
+              {card.title}
+            </h3>
+            <p
+              style={{
+                margin: '0.25rem 0 0',
+                fontSize: '0.72rem',
+                color: 'var(--muted-foreground)',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              《{bookTitle}》
+            </p>
+          </div>
+
+          {/* 内容 */}
+          <div>
+            <h4
+              style={{
+                margin: 0,
+                fontSize: '0.72rem',
+                fontWeight: 500,
+                color: 'var(--muted-foreground)',
+                marginBottom: 'calc(var(--spacing) * 1.5)',
+              }}
+            >
+              内容
+            </h4>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '0.875rem',
+                lineHeight: 1.7,
+                color: 'var(--card-foreground)',
+              }}
+            >
+              {card.content}
+            </p>
+          </div>
+
+          {/* 解读（AI 生成） */}
+          {card.interpretation ? (
+            <div>
+              <h4
+                style={{
+                  margin: 0,
+                  fontSize: '0.72rem',
+                  fontWeight: 500,
+                  color: 'var(--muted-foreground)',
+                  marginBottom: 'calc(var(--spacing) * 1.5)',
+                }}
+              >
+                解读
+              </h4>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.875rem',
+                  lineHeight: 1.7,
+                  color: 'var(--card-foreground)',
+                }}
+              >
+                {card.interpretation}
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCards.map((card) => {
-                const typeInfo = typeConfig[card.type]
-                const isFlipped = flippedId === card.id
-                return (
-                  <div
-                    key={card.id}
-                    className="bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
-                    onClick={() => setFlippedId(isFlipped ? null : card.id)}
-                  >
-                    <div className="p-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${typeInfo.bgColor} ${typeInfo.color}`}>
-                            {typeInfo.icon} {typeInfo.label}
-                          </span>
-                          <span className="text-xs text-gray-400">{getBookTitle(card.bookId)}</span>
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(card.id) }}
-                          className="text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-
-                      <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{card.title}</h3>
-
-                      {!isFlipped ? (
-                        <>
-                          <p className="text-sm text-gray-600 leading-relaxed line-clamp-4">{card.content}</p>
-                          <div className="mt-3 flex items-center justify-between">
-                            <div className="flex items-center gap-1 text-amber-500 text-sm">
-                              {getMasteryStars(card.masteryLevel)}
-                            </div>
-                            <span className="text-xs text-gray-400">点击查看详情</span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
-                          <div>
-                            <h4 className="text-xs font-medium text-gray-500 mb-1">内容</h4>
-                            <p className="text-sm text-gray-700 leading-relaxed">{card.content}</p>
-                          </div>
-
-                          {card.interpretation ? (
-                            <div>
-                              <h4 className="text-xs font-medium text-gray-500 mb-1">解读</h4>
-                              <p className="text-sm text-gray-600 leading-relaxed">{card.interpretation}</p>
-                            </div>
-                          ) : (
-                            <div className="bg-gray-50 rounded-lg p-3">
-                              <p className="text-xs text-gray-500 mb-2">暂无解读</p>
-                              <button
-                                onClick={() => handleGenerateInterpretation(card)}
-                                disabled={!!generatingMap[card.id]}
-                                className="px-3 py-1.5 text-xs bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-primary disabled:opacity-50 transition-all flex items-center gap-1"
-                              >
-                                {generatingMap[card.id] === 'interpretation' ? (
-                                  <>
-                                    <span className="animate-spin inline-block w-3 h-3 border-b border-gray-600 rounded-full"></span>
-                                    生成中...
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                    AI 生成解读
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
-
-                          {card.application ? (
-                            <div>
-                              <h4 className="text-xs font-medium text-gray-500 mb-1">应用</h4>
-                              <p className="text-sm text-gray-600 leading-relaxed">{card.application}</p>
-                            </div>
-                          ) : (
-                            <div className="bg-gray-50 rounded-lg p-3">
-                              <p className="text-xs text-gray-500 mb-2">暂无应用场景</p>
-                              <button
-                                onClick={() => handleGenerateApplication(card)}
-                                disabled={!!generatingMap[card.id]}
-                                className="px-3 py-1.5 text-xs bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-primary disabled:opacity-50 transition-all flex items-center gap-1"
-                              >
-                                {generatingMap[card.id] === 'application' ? (
-                                  <>
-                                    <span className="animate-spin inline-block w-3 h-3 border-b border-gray-600 rounded-full"></span>
-                                    生成中...
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                    AI 生成应用场景
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
-
-                          {card.tags && card.tags.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {card.tags.map(tag => (
-                                <span key={tag} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
-                            <div className="flex items-center gap-2">
-                              <span>复习 {safeNum(card.reviewCount)} 次</span>
-                              <span>·</span>
-                              <span>掌握度 {safeNum(card.masteryLevel)}%</span>
-                            </div>
-                            <span title="基于您的划线/笔记提取">{formatDate(card.createdAt)} · 来自笔记</span>
-                          </div>
-
-                          <div className="bg-gray-50 rounded-lg p-3">
-                            <p className="text-xs text-gray-500 mb-2">你对这条内容的掌握程度：</p>
-                            <div className="flex items-center gap-2">
-                              {[1, 2, 3, 4, 5].map(level => (
-                                <button
-                                  key={level}
-                                  onClick={async () => {
-                                    try {
-                                      await window.electronAPI.knowledgeCard.update(card.id, {
-                                        masteryLevel: level * 20,
-                                        reviewCount: safeNum(card.reviewCount) + 1,
-                                      })
-                                      await loadData()
-                                      toast.success(`掌握度已更新为 ${level * 20}%`)
-                                    } catch (_error) {
-                                      toast.error('更新失败')
-                                    }
-                                  }}
-                                  className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
-                                    Math.ceil(safeNum(card.masteryLevel) / 20) >= level
-                                      ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                      : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {'★'.repeat(level)}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => setFlippedId(null)}
-                            className="w-full py-1.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
-                          >
-                            收起详情
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
+            <div
+              style={{
+                background: 'var(--muted)',
+                borderRadius: 'var(--radius)',
+                padding: 'calc(var(--spacing) * 3)',
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.75rem',
+                  color: 'var(--muted-foreground)',
+                  marginBottom: 'calc(var(--spacing) * 2)',
+                }}
+              >
+                暂无解读
+              </p>
+              <button
+                type="button"
+                onClick={onGenerateInterpretation}
+                disabled={!!generating}
+                style={aiGenBtnStyle(!!generating)}
+                onMouseEnter={(e) => {
+                  if (!generating) e.currentTarget.style.borderColor = 'var(--ring)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                }}
+              >
+                {generating === 'interpretation' ? (
+                  <>
+                    <span style={spinnerStyle} />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="agent" size={12} /> AI 生成解读
+                  </>
+                )}
+              </button>
             </div>
           )}
-        </>
-      ) : (
-        <>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <h3 className="text-sm font-medium text-blue-900 mb-1">蒸馏说明</h3>
-            <p className="text-sm text-blue-700">
-              选择下方书籍，AI 会从你的划线/笔记中提取概念、方法论和金句，生成知识卡片。
-              解读和应用场景可在卡片生成后手动添加。
-            </p>
-          </div>
 
-          {books.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {books.map(book => {
-                const bookId = String(book.id)
-                const isCurrentDistilling = distillingBookId === bookId
-                const cardCount = cards.filter(c => c.bookId === bookId).length
-                return (
-                  <div key={bookId} className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:border-primary transition-colors">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-16 bg-primary-light rounded flex-shrink-0 overflow-hidden">
-                        {book.cover ? (
-                          <img src={safeStr(book.cover)} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-primary text-lg">📖</div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{safeStr(book.title)}</p>
-                        <p className="text-xs text-gray-500">{safeStr(book.author)}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{cardCount > 0 ? `已有 ${cardCount} 张卡片` : '暂无卡片'}</p>
-                      </div>
-                    </div>
-                    {isCurrentDistilling ? (
-                      <button
-                        onClick={() => handleCancelDistill(bookId)}
-                        className="w-full px-3 py-2 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                      >
-                        取消蒸馏
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleDistill(bookId)}
-                        disabled={!!distillingBookId}
-                        className="w-full px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                      >
-                        {distillingBookId ? '等待中...' : cardCount > 0 ? '重新蒸馏' : '开始蒸馏'}
-                      </button>
-                    )}
-                    {renderDistillProgress(bookId)}
-                  </div>
-                )
-              })}
+          {/* 应用（AI 生成） */}
+          {card.application ? (
+            <div>
+              <h4
+                style={{
+                  margin: 0,
+                  fontSize: '0.72rem',
+                  fontWeight: 500,
+                  color: 'var(--muted-foreground)',
+                  marginBottom: 'calc(var(--spacing) * 1.5)',
+                }}
+              >
+                应用
+              </h4>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.875rem',
+                  lineHeight: 1.7,
+                  color: 'var(--card-foreground)',
+                }}
+              >
+                {card.application}
+              </p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl p-12 border border-gray-200 text-center shadow-sm">
-              <div className="text-6xl mb-4">📚</div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">暂无书籍</h2>
-              <p className="text-gray-600">请先从书架导入书籍</p>
+            <div
+              style={{
+                background: 'var(--muted)',
+                borderRadius: 'var(--radius)',
+                padding: 'calc(var(--spacing) * 3)',
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.75rem',
+                  color: 'var(--muted-foreground)',
+                  marginBottom: 'calc(var(--spacing) * 2)',
+                }}
+              >
+                暂无应用场景
+              </p>
+              <button
+                type="button"
+                onClick={onGenerateApplication}
+                disabled={!!generating}
+                style={aiGenBtnStyle(!!generating)}
+                onMouseEnter={(e) => {
+                  if (!generating) e.currentTarget.style.borderColor = 'var(--ring)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                }}
+              >
+                {generating === 'application' ? (
+                  <>
+                    <span style={spinnerStyle} />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="agent" size={12} /> AI 生成应用场景
+                  </>
+                )}
+              </button>
             </div>
           )}
-        </>
+
+          {/* 标签 */}
+          {card.tags && card.tags.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'calc(var(--spacing) * 2)',
+                flexWrap: 'wrap',
+              }}
+            >
+              {card.tags.map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    padding: '0.2rem 0.6rem',
+                    fontSize: '0.72rem',
+                    background: 'var(--muted)',
+                    color: 'var(--muted-foreground)',
+                    borderRadius: '999px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* 复习信息 */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '0.72rem',
+              color: 'var(--muted-foreground)',
+              paddingTop: 'calc(var(--spacing) * 2)',
+              borderTop: '1px solid var(--border)',
+            }}
+          >
+            <span>
+              复习 {safeNum(card.reviewCount)} 次 · 掌握度 {safeNum(card.masteryLevel)}%
+            </span>
+            <span title="基于您的划线/笔记提取">{formatDate(card.createdAt)}</span>
+          </div>
+
+          {/* 5 星评分 */}
+          <div
+            style={{
+              background: 'var(--muted)',
+              borderRadius: 'var(--radius)',
+              padding: 'calc(var(--spacing) * 3)',
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                fontSize: '0.75rem',
+                color: 'var(--muted-foreground)',
+                marginBottom: 'calc(var(--spacing) * 2)',
+              }}
+            >
+              你对这条内容的掌握程度：
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'calc(var(--spacing) * 2)',
+                flexWrap: 'wrap',
+              }}
+            >
+              {[1, 2, 3, 4, 5].map((level) => {
+                const active = Math.ceil(safeNum(card.masteryLevel) / 20) >= level
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => onUpdateMastery(level)}
+                    style={{
+                      padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+                      fontSize: '0.875rem',
+                      borderRadius: 'var(--radius)',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s ease, color 0.2s ease',
+                      fontFamily: 'inherit',
+                      border: '1px solid',
+                      background: active
+                        ? 'color-mix(in srgb, var(--state-warning) 20%, transparent)'
+                        : 'var(--card)',
+                      color: active ? 'var(--state-warning)' : 'var(--muted-foreground)',
+                      borderColor: active
+                        ? 'color-mix(in srgb, var(--state-warning) 30%, transparent)'
+                        : 'var(--border)',
+                    }}
+                  >
+                    {'★'.repeat(level)}
+                  </button>
+                )
+              })}
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--muted-foreground)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {getMasteryStars(card.masteryLevel)}
+              </span>
+            </div>
+          </div>
+
+          {/* 底部时间 + 3 icon-btn */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingTop: 'calc(var(--spacing) * 3)',
+              borderTop: '1px solid var(--border)',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '0.72rem',
+                color: 'var(--muted-foreground)',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              {timeLabel}
+            </span>
+            <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
+              <button
+                type="button"
+                aria-label="复习"
+                style={iconBtnStyle(false)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onReviewAction()
+                }}
+              >
+                <Icon name="refresh" size={14} />
+              </button>
+              <button
+                type="button"
+                aria-label="编辑"
+                style={iconBtnStyle(false)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit()
+                }}
+              >
+                <Icon name="edit" size={14} />
+              </button>
+              <button
+                type="button"
+                aria-label="删除"
+                style={iconBtnStyle(false)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete()
+                }}
+              >
+                <Icon name="trash" size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
       )}
+    </article>
+  )
+}
+
+// ===== 子组件：Chip 组 =====
+interface ChipsProps<T extends string> {
+  items: { key: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+}
+
+function Chips<T extends string>({ items, value, onChange }: ChipsProps<T>) {
+  return (
+    <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)', flexWrap: 'wrap' }}>
+      {items.map((item) => {
+        const active = item.key === value
+        return (
+          <button
+            key={item.key}
+            type="button"
+            data-dom-id={`filter-${item.key}`}
+            onClick={() => onChange(item.key)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 4)',
+              border: '1px solid',
+              borderColor: active ? 'var(--primary)' : 'var(--border)',
+              background: active ? 'var(--primary)' : 'var(--card)',
+              color: active ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+              borderRadius: 'var(--radius)',
+              cursor: 'pointer',
+              transition:
+                'background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.16s ease',
+              fontSize: '0.84rem',
+              fontWeight: active ? 600 : 400,
+              whiteSpace: 'nowrap',
+              fontFamily: 'inherit',
+            }}
+            onMouseEnter={(e) => {
+              if (!active) {
+                e.currentTarget.style.background = 'var(--sidebar-accent)'
+                e.currentTarget.style.color = 'var(--sidebar-accent-foreground)'
+                e.currentTarget.style.borderColor = 'var(--sidebar-border)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!active) {
+                e.currentTarget.style.background = 'var(--card)'
+                e.currentTarget.style.color = 'var(--muted-foreground)'
+                e.currentTarget.style.borderColor = 'var(--border)'
+              }
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.transform = 'scale(0.97)'
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
+          >
+            {item.label}
+          </button>
+        )
+      })}
     </div>
   )
+}
+
+// ===== 子组件：紧凑搜索框 =====
+interface CompactSearchProps {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+}
+
+function CompactSearch({ value, onChange, placeholder }: CompactSearchProps) {
+  return (
+    <div
+      role="search"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'calc(var(--spacing) * 3)',
+        width: 200,
+        padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+        border: '1px solid var(--input)',
+        borderRadius: 'var(--radius)',
+        background: 'var(--popover)',
+        color: 'var(--muted-foreground)',
+      }}
+    >
+      <Icon name="search" size={14} />
+      <input
+        type="search"
+        aria-label="搜索卡片"
+        placeholder={placeholder ?? '搜索...'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          border: 'none',
+          outline: 'none',
+          background: 'transparent',
+          color: 'var(--foreground)',
+          width: '100%',
+          fontSize: '0.82rem',
+          fontFamily: 'inherit',
+        }}
+      />
+    </div>
+  )
+}
+
+// ===== 共享样式常量 =====
+const selectStyle: CSSProperties = {
+  width: 160,
+  padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 4)',
+  border: '1px solid var(--input)',
+  borderRadius: 'var(--radius)',
+  background: 'var(--card)',
+  color: 'var(--foreground)',
+  fontSize: '0.84rem',
+  outline: 'none',
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+}
+
+function iconBtnStyle(active: boolean): CSSProperties {
+  return {
+    width: 28,
+    height: 28,
+    display: 'grid',
+    placeItems: 'center',
+    border: '1px solid',
+    borderColor: active ? 'var(--sidebar-border)' : 'var(--border)',
+    background: active ? 'var(--sidebar-accent)' : 'var(--card)',
+    color: active ? 'var(--sidebar-accent-foreground)' : 'var(--foreground)',
+    borderRadius: 'var(--radius)',
+    cursor: 'pointer',
+    transition:
+      'background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.16s ease',
+    padding: 0,
+    fontFamily: 'inherit',
+  }
+}
+
+function aiGenBtnStyle(disabled: boolean): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 'calc(var(--spacing) * 2)',
+    padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+    fontSize: '0.75rem',
+    background: 'var(--card)',
+    border: '1px solid var(--border)',
+    color: 'var(--foreground)',
+    borderRadius: 'var(--radius)',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+    transition: 'border-color 0.2s ease',
+    fontFamily: 'inherit',
+  }
+}
+
+const spinnerStyle: CSSProperties = {
+  width: 12,
+  height: 12,
+  borderRadius: '50%',
+  border: '1.5px solid var(--muted-foreground)',
+  borderTopColor: 'transparent',
+  animation: 'spin 0.8s linear infinite',
+  display: 'inline-block',
 }

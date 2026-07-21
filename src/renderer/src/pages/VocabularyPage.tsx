@@ -1,7 +1,25 @@
-import { useState, useEffect, useCallback } from 'react'
+/**
+ * VocabularyPage — 生词本（Google Design Library 1:1 重构）
+ * 基于设计稿 zhixing-reader-redesign/pages/vocabulary.html + vocabulary-drawer.html
+ *
+ * 三种状态：
+ *   1. 默认态：双栏布局（左列表 + 右快速详情 sticky 卡片）
+ *   2. 抽屉态：点击列表项 / "详情"按钮，打开右侧 420px 抽屉（含完整词典信息 + 掌握度进度条）
+ *   3. 复习态：覆盖整页的复习模式（4 评分按钮，FSRS 评分提交）
+ *
+ * 业务逻辑全部保留：vocabulary.* IPC、复习模式、搜索、tab 筛选、添加/删除/标记掌握/加入复习
+ */
+
+import { useState, useEffect, useCallback, useMemo, CSSProperties } from 'react'
+import PageHero from '@/components/layout/PageHero'
+import Card from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import Badge from '@/components/ui/Badge'
+import Icon from '@/components/ui/Icon'
+import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 
-// 生词类型定义
+// ===== 类型定义 =====
 interface VocabularyItem {
   id: string
   word: string
@@ -23,29 +41,118 @@ interface VocabularyItem {
   created_at: string
 }
 
-// 复习评分
 enum ReviewRating {
-  AGAIN = 1,   // 完全忘记
-  HARD = 3,    // 困难想起
-  GOOD = 4,    // 正常想起
-  EASY = 5,    // 轻松想起
+  AGAIN = 1, // 完全忘记
+  HARD = 3, // 困难想起
+  GOOD = 4, // 正常想起
+  EASY = 5, // 轻松想起
 }
 
+// ===== 常量 =====
+type FilterKey = 'all' | 'due' | 'mastered' | 'starred'
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'due', label: '待复习' },
+  { key: 'mastered', label: '已掌握' },
+  { key: 'starred', label: '收藏' },
+]
+
+type MasteryKind = 'pending' | 'mastered' | 'new'
+
+// ===== 工具函数 =====
+
+/** 根据单词状态推导 mastery 类型 */
+function getMasteryKind(item: VocabularyItem): MasteryKind {
+  if (item.is_mastered === 1) return 'mastered'
+  if ((item.learning_stage ?? 0) === 0 && (item.review_count ?? 0) === 0) return 'new'
+  return 'pending'
+}
+
+/** mastery 标签 */
+function masteryLabel(kind: MasteryKind): string {
+  switch (kind) {
+    case 'mastered':
+      return '已掌握'
+    case 'new':
+      return '新增'
+    case 'pending':
+    default:
+      return '待复习'
+  }
+}
+
+/** 计算下次复习时间显示 */
+function getNextReviewText(nextReview?: string): string {
+  if (!nextReview) return '立即复习'
+  const next = new Date(nextReview)
+  const now = new Date()
+  const diff = next.getTime() - now.getTime()
+  if (diff <= 0) return '立即复习'
+  const minutes = Math.ceil(diff / (1000 * 60))
+  if (minutes < 60) return `${minutes}分钟后`
+  const hours = Math.ceil(diff / (1000 * 60 * 60))
+  if (hours < 24) return `${hours}小时后`
+  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+  if (days === 1) return '明天'
+  return `${days}天后`
+}
+
+/** 格式化日期（YYYY-MM-DD） */
+function formatDateOnly(val?: string): string {
+  if (!val) return '-'
+  try {
+    const d = new Date(val)
+    if (isNaN(d.getTime())) return '-'
+    return d.toISOString().split('T')[0]
+  } catch {
+    return '-'
+  }
+}
+
+/** 计算掌握度百分比（基于 familiarity_level 0-5 + is_mastered） */
+function calcMasteryPct(item: VocabularyItem): number {
+  if (item.is_mastered === 1) return 100
+  const fam = item.familiarity_level ?? 0
+  return Math.min(100, Math.round((fam / 5) * 100))
+}
+
+/** 根据掌握度选状态色 */
+function masteryStatusColor(pct: number): string {
+  if (pct >= 80) return 'var(--state-success)'
+  if (pct >= 40) return 'var(--state-warning)'
+  return 'var(--state-error)'
+}
+
+/** 根据掌握度选状态标签 */
+function masteryStatusLabel(pct: number): string {
+  if (pct >= 80) return '已掌握'
+  if (pct >= 40) return '学习中'
+  return '入门'
+}
+
+// ===== 主组件 =====
 export default function VocabularyPage() {
+  // 列表 + 统计
   const [vocabulary, setVocabulary] = useState<VocabularyItem[]>([])
   const [stats, setStats] = useState({ total: 0, mastered: 0, dueToday: 0 })
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<FilterKey>('all')
   const [searchKeyword, setSearchKeyword] = useState('')
-  const [activeTab, setActiveTab] = useState<'all' | 'due' | 'mastered'>('all')
 
-  // 复习模式状态
+  // 选中的单词（右侧详情）
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  // 抽屉
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // 复习模式
   const [reviewMode, setReviewMode] = useState(false)
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0)
   const [showAnswer, setShowAnswer] = useState(false)
   const [reviewList, setReviewList] = useState<VocabularyItem[]>([])
   const [reviewStats, setReviewStats] = useState({ correct: 0, total: 0 })
 
-  // 加载生词本数据
+  // ===== 数据加载 =====
   const loadVocabulary = useCallback(async () => {
     if (!window.electronAPI?.vocabulary) {
       setLoading(false)
@@ -54,16 +161,14 @@ export default function VocabularyPage() {
     try {
       setLoading(true)
       let result: unknown[] = []
-
       if (activeTab === 'due') {
         result = await window.electronAPI.vocabulary.getDueForReview(200)
       } else if (activeTab === 'mastered') {
         const all = await window.electronAPI.vocabulary.getAll(200)
-        result = (all as unknown as VocabularyItem[]).filter(v => v.is_mastered === 1)
+        result = (all as unknown as VocabularyItem[]).filter((v) => v.is_mastered === 1)
       } else {
         result = await window.electronAPI.vocabulary.getAll(200)
       }
-
       const data = Array.isArray(result) ? result : []
       setVocabulary(data as unknown as VocabularyItem[])
 
@@ -82,8 +187,17 @@ export default function VocabularyPage() {
     loadVocabulary()
   }, [loadVocabulary])
 
-  // 搜索功能
+  // 选中单词的派生数据（未选时 fallback 到第一个）
+  const selectedItem = useMemo(() => {
+    if (!selectedId) return vocabulary[0] ?? null
+    return vocabulary.find((v) => v.id === selectedId) ?? null
+  }, [selectedId, vocabulary])
+
+  // ===== 业务逻辑 =====
+
+  /** 搜索 */
   const handleSearch = async () => {
+    if (!window.electronAPI?.vocabulary) return
     if (!searchKeyword.trim()) {
       loadVocabulary()
       return
@@ -94,24 +208,94 @@ export default function VocabularyPage() {
       setVocabulary(data as unknown as VocabularyItem[])
     } catch (error) {
       console.error('搜索失败:', error)
+      toast.error('搜索失败')
     }
   }
 
-  // 删除生词
+  /** 添加生词（通过词典查询） */
+  const handleAddWord = async () => {
+    if (!window.electronAPI?.vocabulary) return
+    const word = window.prompt('请输入要添加的英文单词：')
+    if (!word || !word.trim()) return
+    try {
+      const result = await window.electronAPI.vocabulary.createFromLookup(
+        word.trim().toLowerCase(),
+        '手动添加',
+      )
+      if (result === null) {
+        toast.info(`"${word}" 已在生词本中`)
+      } else {
+        toast.success(`已添加 "${word}"`)
+        await loadVocabulary()
+      }
+    } catch (error) {
+      console.error('添加失败:', error)
+      toast.error(error instanceof Error ? error.message : '添加失败')
+    }
+  }
+
+  /** 删除生词 */
   const handleDelete = async (id: string, word: string) => {
-    if (!confirm(`确定要删除 "${word}" 吗？`)) return
+    if (!window.electronAPI?.vocabulary) return
+    if (!window.confirm(`确定要删除 "${word}" 吗？`)) return
     try {
       await window.electronAPI.vocabulary.delete(id)
       toast.success('已删除')
-      loadVocabulary()
+      setDrawerOpen(false)
+      if (selectedId === id) setSelectedId(null)
+      await loadVocabulary()
     } catch (error) {
       console.error('删除失败:', error)
       toast.error('删除失败')
     }
   }
 
-  // 开始复习模式
+  /** 标记已掌握 */
+  const handleMarkMastered = async (id: string) => {
+    if (!window.electronAPI?.vocabulary) return
+    try {
+      await window.electronAPI.vocabulary.markAsMastered(id)
+      toast.success('已标记为掌握')
+      await loadVocabulary()
+    } catch (error) {
+      console.error('标记掌握失败:', error)
+      toast.error('标记掌握失败')
+    }
+  }
+
+  /** 加入复习（立即触发一次 GOOD 评分，将其纳入复习队列） */
+  const handleAddReview = async (id: string) => {
+    if (!window.electronAPI?.vocabulary) return
+    try {
+      await window.electronAPI.vocabulary.updateReviewData(id, { quality: ReviewRating.GOOD })
+      toast.success('已加入复习队列')
+      await loadVocabulary()
+    } catch (error) {
+      console.error('加入复习失败:', error)
+      toast.error('加入复习失败')
+    }
+  }
+
+  /** 朗读单词（Web Speech API） */
+  const handlePronounce = (word: string) => {
+    try {
+      if ('speechSynthesis' in window) {
+        const utter = new SpeechSynthesisUtterance(word)
+        utter.lang = 'en-US'
+        utter.rate = 0.9
+        window.speechSynthesis.cancel()
+        window.speechSynthesis.speak(utter)
+      } else {
+        toast.info('当前环境不支持语音合成')
+      }
+    } catch (error) {
+      console.error('朗读失败:', error)
+    }
+  }
+
+  /** 开始复习模式 */
   const startReview = async () => {
+    if (!window.electronAPI?.vocabulary) return
     try {
       const result = await window.electronAPI.vocabulary.getDueForReview(50)
       const data = Array.isArray(result) ? result : []
@@ -130,29 +314,28 @@ export default function VocabularyPage() {
     }
   }
 
-  // 提交复习评分
+  /** 提交复习评分 */
   const submitReview = async (rating: ReviewRating) => {
+    if (!window.electronAPI?.vocabulary) return
     const currentWord = reviewList[currentReviewIndex]
     if (!currentWord) return
-
     try {
       await window.electronAPI.vocabulary.updateReviewData(currentWord.id, {
         quality: rating,
       })
 
-      setReviewStats(prev => ({
-        correct: prev.correct + (rating >= ReviewRating.GOOD ? 1 : 0),
-        total: prev.total + 1,
-      }))
+      const newCorrect = reviewStats.correct + (rating >= ReviewRating.GOOD ? 1 : 0)
+      const newTotal = reviewStats.total + 1
+      setReviewStats({ correct: newCorrect, total: newTotal })
 
       if (currentReviewIndex < reviewList.length - 1) {
-        setCurrentReviewIndex(prev => prev + 1)
+        setCurrentReviewIndex((prev) => prev + 1)
         setShowAnswer(false)
       } else {
-        // 复习完成
-        toast.success(`复习完成！正确率: ${Math.round((reviewStats.correct + (rating >= ReviewRating.GOOD ? 1 : 0)) / (reviewStats.total + 1) * 100)}%`)
+        const pct = Math.round((newCorrect / newTotal) * 100)
+        toast.success(`复习完成！正确率: ${pct}%`)
         setReviewMode(false)
-        loadVocabulary()
+        await loadVocabulary()
       }
     } catch (error) {
       console.error('提交复习失败:', error)
@@ -160,154 +343,217 @@ export default function VocabularyPage() {
     }
   }
 
-  // 获取熟悉度颜色
-  const getFamiliarityColor = (level?: number) => {
-    switch (level) {
-      case 0: return 'bg-gray-200'
-      case 1: return 'bg-red-300'
-      case 2: return 'bg-orange-300'
-      case 3: return 'bg-yellow-300'
-      case 4: return 'bg-green-300'
-      case 5: return 'bg-green-500'
-      default: return 'bg-gray-200'
-    }
-  }
-
-  // 获取学习阶段标签
-  const getLearningStageLabel = (stage?: number) => {
-    switch (stage) {
-      case 0: return { text: '新词', color: 'bg-gray-100 text-gray-600' }
-      case 1: return { text: '学习中', color: 'bg-amber-100 text-amber-700' }
-      case 2: return { text: '复习中', color: 'bg-blue-100 text-blue-700' }
-      default: return { text: '新词', color: 'bg-gray-100 text-gray-600' }
-    }
-  }
-
-  // 获取下次复习时间显示
-  const getNextReviewText = (nextReview?: string) => {
-    if (!nextReview) return '立即复习'
-    const next = new Date(nextReview)
-    const now = new Date()
-    const diff = next.getTime() - now.getTime()
-    if (diff <= 0) return '立即复习'
-    const minutes = Math.ceil(diff / (1000 * 60))
-    if (minutes < 60) return `${minutes}分钟后`
-    const hours = Math.ceil(diff / (1000 * 60 * 60))
-    if (hours < 24) return `${hours}小时后`
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-    if (days === 1) return '明天'
-    return `${days}天后`
-  }
-
+  // ===== 渲染 =====
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
+    return <Loading hint="正在加载生词本..." />
   }
 
-  // 复习模式
+  // ===== 复习模式 UI =====
   if (reviewMode && reviewList.length > 0) {
     const currentWord = reviewList[currentReviewIndex]
     const progress = ((currentReviewIndex + 1) / reviewList.length) * 100
-
     return (
-      <div className="flex flex-col h-full bg-gray-50">
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          background: 'var(--background)',
+        }}
+      >
         {/* 复习头部 */}
-        <div className="bg-white border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between max-w-2xl mx-auto">
-            <button
-              onClick={() => setReviewMode(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              ✕ 退出
-            </button>
-            <div className="flex-1 mx-4">
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          style={{
+            borderBottom: '1px solid var(--border)',
+            padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 6)',
+            background: 'var(--card)',
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              maxWidth: 720,
+              margin: '0 auto',
+              gap: 'calc(var(--spacing) * 4)',
+            }}
+          >
+            <Button variant="ghost" onClick={() => setReviewMode(false)}>
+              <Icon name="close" size={16} /> 退出
+            </Button>
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  height: 8,
+                  background: 'var(--muted)',
+                  borderRadius: 999,
+                  overflow: 'hidden',
+                }}
+              >
                 <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${progress}%` }}
+                  style={{
+                    height: '100%',
+                    width: `${progress}%`,
+                    background: 'var(--primary)',
+                    transition: 'width 0.3s ease',
+                  }}
                 />
               </div>
             </div>
-            <span className="text-sm text-gray-500">
+            <span
+              style={{
+                fontSize: '0.85rem',
+                color: 'var(--muted-foreground)',
+                fontFamily: 'var(--font-mono)',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {currentReviewIndex + 1} / {reviewList.length}
             </span>
           </div>
         </div>
 
         {/* 复习卡片 */}
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-lg">
-            {/* 单词正面 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 mb-6 text-center">
-              <h2 className="text-4xl font-bold text-gray-900 mb-3">{currentWord.word}</h2>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'calc(var(--spacing) * 6)',
+          }}
+        >
+          <div style={{ width: '100%', maxWidth: 560 }}>
+            <Card style={{ textAlign: 'center', marginBottom: 'calc(var(--spacing) * 5)' }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: '2rem',
+                  fontWeight: 700,
+                  color: 'var(--foreground)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {currentWord.word}
+              </h2>
               {currentWord.phonetic && (
-                <p className="text-lg text-gray-500 mb-4">{currentWord.phonetic}</p>
+                <p
+                  style={{
+                    margin: '0.5rem 0 0',
+                    fontSize: '1rem',
+                    color: 'var(--muted-foreground)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {currentWord.phonetic}
+                </p>
               )}
 
               {!showAnswer ? (
-                <div className="mt-8">
-                  <p className="text-gray-400 mb-6">先回忆一下这个单词的意思...</p>
-                  <button
-                    onClick={() => setShowAnswer(true)}
-                    className="px-8 py-3 bg-primary text-white rounded-xl hover:bg-primary-hover text-lg font-medium"
+                <div style={{ marginTop: 'calc(var(--spacing) * 6)' }}>
+                  <p
+                    style={{
+                      color: 'var(--muted-foreground)',
+                      marginBottom: 'calc(var(--spacing) * 4)',
+                    }}
                   >
+                    先回忆一下这个单词的意思...
+                  </p>
+                  <Button variant="primary" onClick={() => setShowAnswer(true)}>
                     显示答案
-                  </button>
+                  </Button>
                 </div>
               ) : (
-                <div className="mt-6 animate-fade-in">
+                <div
+                  className="animate-fade-in"
+                  style={{ marginTop: 'calc(var(--spacing) * 5)' }}
+                >
                   {currentWord.part_of_speech && (
-                    <span className="inline-block px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-full mb-3">
+                    <Badge
+                      variant="ok"
+                      style={{ marginBottom: 'calc(var(--spacing) * 3)' }}
+                    >
                       {currentWord.part_of_speech}
-                    </span>
+                    </Badge>
                   )}
-                  <p className="text-xl text-gray-800 mb-4">{currentWord.meaning_zh}</p>
+                  <p
+                    style={{
+                      fontSize: '1.1rem',
+                      color: 'var(--foreground)',
+                      margin: '0 0 calc(var(--spacing) * 4)',
+                    }}
+                  >
+                    {currentWord.meaning_zh}
+                  </p>
                   {currentWord.example_en && (
-                    <div className="bg-gray-50 rounded-lg p-4 mt-4 text-left">
-                      <p className="text-gray-700 italic">{currentWord.example_en}</p>
+                    <div
+                      style={{
+                        background: 'var(--muted)',
+                        borderRadius: 'var(--radius)',
+                        padding: 'calc(var(--spacing) * 4)',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          fontStyle: 'italic',
+                          color: 'var(--foreground)',
+                        }}
+                      >
+                        {currentWord.example_en}
+                      </p>
                       {currentWord.example_zh && (
-                        <p className="text-gray-500 text-sm mt-2">{currentWord.example_zh}</p>
+                        <p
+                          style={{
+                            margin: '0.5rem 0 0',
+                            fontSize: '0.85rem',
+                            color: 'var(--muted-foreground)',
+                          }}
+                        >
+                          {currentWord.example_zh}
+                        </p>
                       )}
                     </div>
                   )}
                 </div>
               )}
-            </div>
+            </Card>
 
-            {/* 评分按钮 */}
             {showAnswer && (
-              <div className="grid grid-cols-4 gap-3">
-                <button
-                  onClick={() => submitReview(ReviewRating.AGAIN)}
-                  className="py-3 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 font-medium"
-                >
-                  <div className="text-lg mb-1">😵</div>
-                  <div className="text-sm">忘记</div>
-                </button>
-                <button
-                  onClick={() => submitReview(ReviewRating.HARD)}
-                  className="py-3 bg-orange-100 text-orange-700 rounded-xl hover:bg-orange-200 font-medium"
-                >
-                  <div className="text-lg mb-1">😰</div>
-                  <div className="text-sm">困难</div>
-                </button>
-                <button
-                  onClick={() => submitReview(ReviewRating.GOOD)}
-                  className="py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 font-medium"
-                >
-                  <div className="text-lg mb-1">🙂</div>
-                  <div className="text-sm">良好</div>
-                </button>
-                <button
-                  onClick={() => submitReview(ReviewRating.EASY)}
-                  className="py-3 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 font-medium"
-                >
-                  <div className="text-lg mb-1">😎</div>
-                  <div className="text-sm">简单</div>
-                </button>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: 'calc(var(--spacing) * 3)',
+                }}
+              >
+                <ReviewRatingButton
+                  rating={ReviewRating.AGAIN}
+                  label="忘记"
+                  color="error"
+                  onClick={submitReview}
+                />
+                <ReviewRatingButton
+                  rating={ReviewRating.HARD}
+                  label="困难"
+                  color="warning"
+                  onClick={submitReview}
+                />
+                <ReviewRatingButton
+                  rating={ReviewRating.GOOD}
+                  label="良好"
+                  color="info"
+                  onClick={submitReview}
+                />
+                <ReviewRatingButton
+                  rating={ReviewRating.EASY}
+                  label="简单"
+                  color="success"
+                  onClick={submitReview}
+                />
               </div>
             )}
           </div>
@@ -316,186 +562,1128 @@ export default function VocabularyPage() {
     )
   }
 
+  // ===== 主页面 =====
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      {/* 头部 */}
-      <div className="bg-white border-b border-gray-200 p-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">生词本</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                共 {stats.total} 个单词 · 已掌握 {stats.mastered} · 今日待复习 {stats.dueToday}
-              </p>
-            </div>
-            <button
+    <>
+      <PageHero
+        title="生词本"
+        subtitle={`共 ${stats.total} 个生词 · 待复习 ${stats.dueToday} 个`}
+        actions={
+          <>
+            <Button variant="primary" onClick={handleAddWord} data-dom-id="cta-add">
+              <Icon name="plus" size={16} /> 添加生词
+            </Button>
+            <Button
+              variant="secondary"
               onClick={startReview}
               disabled={stats.dueToday === 0}
-              className="px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
+              data-dom-id="cta-review"
             >
-              <span>📚</span>
-              <span>开始复习</span>
-              {stats.dueToday > 0 && (
-                <span className="bg-white text-primary text-xs px-2 py-0.5 rounded-full">
-                  {stats.dueToday}
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* 搜索和筛选 */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
+              <Icon name="refresh" size={16} /> 开始复习
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => toast.info('批量导入即将上线')}
+              data-dom-id="cta-import"
+            >
+              <Icon name="file" size={16} /> 导入
+            </Button>
+          </>
+        }
+      >
+        {/* 双栏布局：左列表 + 右快速详情 */}
+        <div
+          className="vocab-page-body"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.6fr 1fr',
+            gap: 'calc(var(--spacing) * 5)',
+            alignItems: 'start',
+          }}
+        >
+          {/* ===== 左：vocab-table 卡片 ===== */}
+          <Card
+            padding={0}
+            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+          >
+            {/* head bar：chips + search */}
+            <div
+              style={{
+                padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 5)',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 'calc(var(--spacing) * 4)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <FilterChips
+                value={activeTab}
+                onChange={setActiveTab}
+                onStarred={() => toast.info('收藏功能即将上线')}
+              />
               <input
-                type="text"
-                placeholder="搜索单词或释义..."
+                type="search"
+                placeholder="搜索单词..."
+                aria-label="搜索单词"
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full px-4 py-2 pl-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSearch()
+                }}
+                style={{
+                  width: 180,
+                  padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+                  border: '1px solid var(--input)',
+                  borderRadius: 'var(--radius)',
+                  background: 'var(--popover)',
+                  fontSize: '0.82rem',
+                  color: 'var(--foreground)',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
               />
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
             </div>
-            <button
-              onClick={handleSearch}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+
+            {/* body: vocab-list */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: 'calc(var(--spacing) * 3)',
+                maxHeight: 'calc(100vh - 280px)',
+              }}
             >
-              搜索
-            </button>
-          </div>
-
-          {/* 标签页 */}
-          <div className="flex items-center gap-1 mt-4">
-            {(['all', 'due', 'mastered'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === tab
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {tab === 'all' && '全部单词'}
-                {tab === 'due' && `待复习 ${stats.dueToday > 0 ? `(${stats.dueToday})` : ''}`}
-                {tab === 'mastered' && '已掌握'}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 单词列表 */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-6xl mx-auto">
-          {vocabulary.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📖</div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                {activeTab === 'due' ? '没有待复习的单词' : activeTab === 'mastered' ? '还没有掌握的单词' : '生词本为空'}
-              </h3>
-              <p className="text-gray-500">
-                {activeTab === 'due'
-                  ? '先去学习模块阅读文章，右键点击单词添加到生词本吧'
-                  : '在阅读文章时，右键点击单词即可添加到生词本'}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {vocabulary.map((item) => (
+              {vocabulary.length === 0 ? (
+                <EmptyState
+                  icon={<Icon name="vocabulary" size={24} />}
+                  title={
+                    activeTab === 'due'
+                      ? '没有待复习的单词'
+                      : activeTab === 'mastered'
+                        ? '还没有掌握的单词'
+                        : '生词本为空'
+                  }
+                  description={
+                    activeTab === 'due'
+                      ? '继续阅读文章，遇到生词即可添加到生词本'
+                      : '点击上方"添加生词"按钮，或在阅读时右键点击单词'
+                  }
+                />
+              ) : (
                 <div
-                  key={item.id}
-                  className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'calc(var(--spacing) * 2)',
+                  }}
                 >
-                  {/* 单词头部 */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">{item.word}</h3>
-                      {item.phonetic && (
-                        <span className="text-sm text-gray-500">{item.phonetic}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const stageLabel = getLearningStageLabel(item.learning_stage)
-                        return (
-                          <span className={`text-xs px-2 py-1 rounded-full ${stageLabel.color}`}>
-                            {stageLabel.text}
-                          </span>
-                        )
-                      })()}
-                      {item.is_mastered === 1 && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                          已掌握
-                        </span>
-                      )}
+                  {vocabulary.map((item) => {
+                    const kind = getMasteryKind(item)
+                    const active = selectedItem?.id === item.id
+                    return (
                       <button
-                        onClick={() => handleDelete(item.id, item.word)}
-                        className="text-gray-400 hover:text-red-500 text-sm"
-                        title="删除"
+                        key={item.id}
+                        type="button"
+                        data-dom-id={`vocab-item-${item.id}`}
+                        onClick={() => setSelectedId(item.id)}
+                        style={{
+                          width: '100%',
+                          padding: 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
+                          textAlign: 'left',
+                          border: '1px solid',
+                          borderColor: active ? 'var(--primary)' : 'var(--border)',
+                          borderRadius: 'var(--radius)',
+                          background: active ? 'var(--popover)' : 'var(--background)',
+                          cursor: 'pointer',
+                          transition:
+                            'border-color 0.2s ease, background 0.2s ease, transform 0.16s ease',
+                          display: 'grid',
+                          gridTemplateColumns: '1.5fr 2fr 0.8fr 0.7fr',
+                          gap: 'calc(var(--spacing) * 3)',
+                          alignItems: 'center',
+                          font: 'inherit',
+                          color: 'inherit',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.borderColor = 'var(--ring)'
+                            e.currentTarget.style.background = 'var(--popover)'
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.borderColor = 'var(--border)'
+                            e.currentTarget.style.background = 'var(--background)'
+                          }
+                        }}
+                        onMouseDown={(e) => {
+                          e.currentTarget.style.transform = 'scale(0.99)'
+                        }}
+                        onMouseUp={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)'
+                        }}
                       >
-                        🗑️
+                        <span
+                          style={{
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                            fontFamily: 'var(--font-mono)',
+                            color: 'var(--card-foreground)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {item.word}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.88rem',
+                            color: 'var(--muted-foreground)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {item.meaning_zh}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.78rem',
+                            color: 'var(--muted-foreground)',
+                            fontFamily: 'var(--font-mono)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {item.source ? `《${item.source}》` : '—'}
+                        </span>
+                        <MasteryBadge kind={kind} />
                       </button>
-                    </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* ===== 右：vocab-detail 卡片（快速详情） ===== */}
+          {selectedItem ? (
+            <Card
+              style={{
+                position: 'sticky',
+                top: 'calc(var(--spacing) * 4)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'calc(var(--spacing) * 4)',
+                alignSelf: 'start',
+              }}
+            >
+              {/* head：word + phonetic + play-btn */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 'calc(var(--spacing) * 3)',
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: '1.5rem',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--card-foreground)',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {selectedItem.word}
                   </div>
-
-                  {/* 词性和释义 */}
-                  <div className="mb-3">
-                    {item.part_of_speech && (
-                      <span className="inline-block px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded mb-2 mr-2">
-                        {item.part_of_speech}
-                      </span>
-                    )}
-                    <p className="text-gray-700">{item.meaning_zh}</p>
-                  </div>
-
-                  {/* 例句 */}
-                  {item.example_en && (
-                    <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                      <p className="text-sm text-gray-600 italic">{item.example_en}</p>
-                      {item.example_zh && (
-                        <p className="text-sm text-gray-500 mt-1">{item.example_zh}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 底部信息 */}
-                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                    <div className="flex items-center gap-2">
-                      {/* 熟悉度指示器 */}
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((level) => (
-                          <div
-                            key={level}
-                            className={`w-2 h-2 rounded-full ${
-                              level <= (item.familiarity_level || 0)
-                                ? getFamiliarityColor(item.familiarity_level)
-                                : 'bg-gray-200'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-xs text-gray-400">
-                        复习 {item.review_count} 次
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      {getNextReviewText(item.next_review_at)}
-                    </span>
-                  </div>
-
-                  {/* 来源 */}
-                  {item.source && (
-                    <div className="mt-2 text-xs text-gray-400">
-                      来源: {item.source}
+                  {selectedItem.phonetic && (
+                    <div
+                      style={{
+                        fontSize: '0.88rem',
+                        color: 'var(--muted-foreground)',
+                        fontFamily: 'var(--font-mono)',
+                        marginTop: '0.4rem',
+                      }}
+                    >
+                      {selectedItem.phonetic}
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+                <IconButton
+                  dataDomId="cta-pronounce"
+                  ariaLabel="发音"
+                  onClick={() => handlePronounce(selectedItem.word)}
+                >
+                  <Icon name="play" size={16} />
+                </IconButton>
+              </div>
+
+              {/* 释义 section */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={eyebrowStyle}>释义</div>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'calc(var(--spacing) * 2)',
+                    marginTop: 'calc(var(--spacing) * 2)',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: 'calc(var(--spacing) * 3)',
+                      background: 'var(--background)',
+                      borderRadius: 'var(--radius)',
+                      borderLeft: '3px solid var(--chart-1)',
+                      fontSize: '0.9rem',
+                      color: 'var(--card-foreground)',
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {selectedItem.part_of_speech && (
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: 'var(--foreground)',
+                          marginRight: '0.3rem',
+                        }}
+                      >
+                        {selectedItem.part_of_speech}
+                      </span>
+                    )}
+                    {selectedItem.meaning_zh}
+                  </div>
+                </div>
+              </div>
+
+              {/* 例句 section */}
+              {selectedItem.example_en && (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={eyebrowStyle}>例句</div>
+                  <p
+                    style={{
+                      fontSize: '0.92rem',
+                      lineHeight: 1.7,
+                      color: 'var(--card-foreground)',
+                      marginTop: 'calc(var(--spacing) * 2)',
+                      fontStyle: 'italic',
+                      margin: 'calc(var(--spacing) * 2) 0 0 0',
+                    }}
+                  >
+                    {selectedItem.example_en}
+                  </p>
+                  {selectedItem.example_zh && (
+                    <p
+                      style={{
+                        fontSize: '0.82rem',
+                        color: 'var(--muted-foreground)',
+                        marginTop: '0.5rem',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {selectedItem.example_zh}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* 来源 section */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={eyebrowStyle}>来源</div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'calc(var(--spacing) * 3)',
+                    marginTop: 'calc(var(--spacing) * 2)',
+                    padding: 'calc(var(--spacing) * 3)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 40,
+                      height: 56,
+                      borderRadius: 4,
+                      background: 'var(--chart-1)',
+                      flexShrink: 0,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <strong
+                      style={{
+                        display: 'block',
+                        fontSize: '0.9rem',
+                        color: 'var(--card-foreground)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {selectedItem.source || '手动添加'}
+                    </strong>
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--muted-foreground)',
+                        fontFamily: 'var(--font-mono)',
+                        marginTop: '0.2rem',
+                      }}
+                    >
+                      复习 {selectedItem.review_count} 次 ·{' '}
+                      {getNextReviewText(selectedItem.next_review_at)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 操作按钮 */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 'calc(var(--spacing) * 3)',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Button
+                  variant="primary"
+                  data-dom-id="cta-add-review"
+                  onClick={() => handleAddReview(selectedItem.id)}
+                >
+                  加入复习
+                </Button>
+                <Button
+                  variant="secondary"
+                  data-dom-id="cta-master"
+                  onClick={() => handleMarkMastered(selectedItem.id)}
+                >
+                  标记掌握
+                </Button>
+                <Button
+                  variant="ghost"
+                  data-dom-id="cta-edit-word"
+                  onClick={() => setDrawerOpen(true)}
+                >
+                  <Icon name="edit" size={14} /> 详情
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <Card
+              style={{
+                position: 'sticky',
+                top: 'calc(var(--spacing) * 4)',
+                alignSelf: 'start',
+              }}
+            >
+              <EmptyState
+                icon={<Icon name="vocabulary" size={24} />}
+                title="选择一个单词查看详情"
+                description="点击左侧列表中的任意单词，此处将展示它的释义、例句与来源。"
+              />
+            </Card>
           )}
         </div>
-      </div>
+      </PageHero>
+
+      {/* ===== 抽屉（深度详情） ===== */}
+      {drawerOpen && selectedItem && (
+        <VocabularyDrawer
+          item={selectedItem}
+          onClose={() => setDrawerOpen(false)}
+          onPronounce={handlePronounce}
+          onAddReview={handleAddReview}
+          onMarkMastered={handleMarkMastered}
+          onDelete={handleDelete}
+        />
+      )}
+    </>
+  )
+}
+
+// ===== 子组件：Filter Chips =====
+interface FilterChipsProps {
+  value: FilterKey
+  onChange: (v: FilterKey) => void
+  onStarred: () => void
+}
+function FilterChips({ value, onChange, onStarred }: FilterChipsProps) {
+  return (
+    <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)', flexWrap: 'wrap' }}>
+      {FILTERS.map((item) => {
+        const active = item.key === value
+        return (
+          <button
+            key={item.key}
+            type="button"
+            data-active={active ? 'true' : undefined}
+            onClick={() => {
+              if (item.key === 'starred') {
+                onStarred()
+                return
+              }
+              onChange(item.key)
+            }}
+            style={{
+              padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 4)',
+              border: '1px solid',
+              borderColor: active ? 'var(--primary)' : 'var(--border)',
+              background: active ? 'var(--primary)' : 'var(--card)',
+              color: active ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+              borderRadius: 'var(--radius)',
+              cursor: 'pointer',
+              transition:
+                'background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.16s ease',
+              fontSize: '0.84rem',
+              whiteSpace: 'nowrap',
+              font: 'inherit',
+            }}
+            onMouseEnter={(e) => {
+              if (!active) {
+                e.currentTarget.style.borderColor = 'var(--ring)'
+                e.currentTarget.style.color = 'var(--foreground)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!active) {
+                e.currentTarget.style.borderColor = 'var(--border)'
+                e.currentTarget.style.color = 'var(--muted-foreground)'
+              }
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.transform = 'scale(0.97)'
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
+          >
+            {item.label}
+          </button>
+        )
+      })}
     </div>
   )
+}
+
+// ===== 子组件：Mastery Badge =====
+function MasteryBadge({ kind }: { kind: MasteryKind }) {
+  const colors: Record<MasteryKind, { bg: string; color: string }> = {
+    pending: {
+      bg: 'color-mix(in srgb, var(--state-error) 12%, transparent)',
+      color: 'var(--state-error)',
+    },
+    mastered: {
+      bg: 'color-mix(in srgb, var(--state-success) 14%, transparent)',
+      color: 'var(--state-success)',
+    },
+    new: {
+      bg: 'color-mix(in srgb, var(--state-info) 12%, transparent)',
+      color: 'var(--state-info)',
+    },
+  }
+  const c = colors[kind]
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '0.28rem 0.6rem',
+        borderRadius: 999,
+        fontSize: '0.75rem',
+        whiteSpace: 'nowrap',
+        justifySelf: 'end',
+        fontWeight: 600,
+        background: c.bg,
+        color: c.color,
+      }}
+    >
+      {masteryLabel(kind)}
+    </span>
+  )
+}
+
+// ===== 子组件：复习评分按钮 =====
+interface ReviewRatingButtonProps {
+  rating: ReviewRating
+  label: string
+  color: 'error' | 'warning' | 'info' | 'success'
+  onClick: (r: ReviewRating) => void
+}
+function ReviewRatingButton({ rating, label, color, onClick }: ReviewRatingButtonProps) {
+  const colorMap: Record<ReviewRatingButtonProps['color'], string> = {
+    error: 'var(--state-error)',
+    warning: 'var(--state-warning)',
+    info: 'var(--state-info)',
+    success: 'var(--state-success)',
+  }
+  const c = colorMap[color]
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(rating)}
+      style={{
+        padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 3)',
+        background: `color-mix(in srgb, ${c} 12%, transparent)`,
+        color: c,
+        border: '1px solid transparent',
+        borderRadius: 'var(--radius)',
+        cursor: 'pointer',
+        fontWeight: 500,
+        font: 'inherit',
+        transition: 'background 0.2s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = `color-mix(in srgb, ${c} 20%, transparent)`
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = `color-mix(in srgb, ${c} 12%, transparent)`
+      }}
+    >
+      <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{label}</div>
+    </button>
+  )
+}
+
+// ===== 子组件：IconButton（小型图标按钮，如发音按钮） =====
+interface IconButtonProps {
+  children: React.ReactNode
+  onClick: () => void
+  ariaLabel: string
+  dataDomId?: string
+}
+function IconButton({ children, onClick, ariaLabel, dataDomId }: IconButtonProps) {
+  return (
+    <button
+      type="button"
+      data-dom-id={dataDomId}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      style={{
+        width: 36,
+        height: 36,
+        display: 'grid',
+        placeItems: 'center',
+        border: '1px solid var(--border)',
+        background: 'var(--card)',
+        color: 'var(--foreground)',
+        borderRadius: 'var(--radius)',
+        cursor: 'pointer',
+        flexShrink: 0,
+        transition:
+          'background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.16s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'var(--sidebar-accent)'
+        e.currentTarget.style.color = 'var(--sidebar-accent-foreground)'
+        e.currentTarget.style.borderColor = 'var(--sidebar-border)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'var(--card)'
+        e.currentTarget.style.color = 'var(--foreground)'
+        e.currentTarget.style.borderColor = 'var(--border)'
+      }}
+      onMouseDown={(e) => {
+        e.currentTarget.style.transform = 'scale(0.97)'
+      }}
+      onMouseUp={(e) => {
+        e.currentTarget.style.transform = 'scale(1)'
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ===== 子组件：抽屉 =====
+interface VocabularyDrawerProps {
+  item: VocabularyItem
+  onClose: () => void
+  onPronounce: (word: string) => void
+  onAddReview: (id: string) => void
+  onMarkMastered: (id: string) => void
+  onDelete: (id: string, word: string) => void
+}
+function VocabularyDrawer({
+  item,
+  onClose,
+  onPronounce,
+  onAddReview,
+  onMarkMastered,
+  onDelete,
+}: VocabularyDrawerProps) {
+  const masteryPct = calcMasteryPct(item)
+  const statusColor = masteryStatusColor(masteryPct)
+  const statusLabel = masteryStatusLabel(masteryPct)
+
+  // ESC 关闭
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <>
+      {/* scrim */}
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(14, 17, 21, 0.5)',
+          zIndex: 40,
+          animation: 'scrim-in 0.24s cubic-bezier(.3,0,0,1)',
+        }}
+      />
+      <style>{`
+        @keyframes scrim-in { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes drawer-in { from { transform: translateX(100%) } to { transform: translateX(0) } }
+      `}</style>
+
+      {/* drawer */}
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="drawer-word-title"
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 420,
+          maxWidth: '100vw',
+          background: 'var(--card)',
+          borderLeft: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-lg)',
+          zIndex: 50,
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'drawer-in 0.28s cubic-bezier(.3,0,0,1)',
+        }}
+      >
+        {/* ===== header ===== */}
+        <header
+          style={{
+            padding: 'calc(var(--spacing) * 6)',
+            borderBottom: '1px solid var(--border)',
+            position: 'relative',
+            flexShrink: 0,
+            background: 'var(--card)',
+          }}
+        >
+          <button
+            type="button"
+            data-dom-id="cta-close"
+            aria-label="关闭抽屉"
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: 'calc(var(--spacing) * 5)',
+              right: 'calc(var(--spacing) * 5)',
+              width: 32,
+              height: 32,
+              display: 'grid',
+              placeItems: 'center',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--muted-foreground)',
+              borderRadius: 'var(--radius)',
+              cursor: 'pointer',
+              transition: 'background 0.16s ease, color 0.16s ease, transform 0.16s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--muted)'
+              e.currentTarget.style.color = 'var(--foreground)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = 'var(--muted-foreground)'
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.transform = 'scale(0.94)'
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
+          >
+            <Icon name="close" size={18} />
+          </button>
+          <h2
+            id="drawer-word-title"
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: '1.75rem',
+              fontWeight: 700,
+              color: 'var(--card-foreground)',
+              letterSpacing: '-0.01em',
+              lineHeight: 1.2,
+              wordBreak: 'keep-all',
+              overflowWrap: 'break-word',
+              paddingRight: 'calc(var(--spacing) * 8)',
+              margin: 0,
+            }}
+          >
+            {item.word}
+          </h2>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'calc(var(--spacing) * 3)',
+              marginTop: '0.55rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            {item.phonetic && (
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.9rem',
+                  color: 'var(--muted-foreground)',
+                }}
+              >
+                {item.phonetic}
+              </span>
+            )}
+            {item.part_of_speech && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '0.28rem 0.7rem',
+                  borderRadius: 999,
+                  background: 'var(--secondary)',
+                  color: 'var(--secondary-foreground)',
+                  fontSize: '0.78rem',
+                  whiteSpace: 'nowrap',
+                  fontWeight: 600,
+                }}
+              >
+                {item.part_of_speech}
+              </span>
+            )}
+            <IconButton
+              dataDomId="cta-pronounce"
+              ariaLabel="播放发音"
+              onClick={() => onPronounce(item.word)}
+            >
+              <Icon name="play" size={16} />
+            </IconButton>
+          </div>
+        </header>
+
+        {/* ===== body ===== */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: 'calc(var(--spacing) * 6)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'calc(var(--spacing) * 6)',
+            minHeight: 0,
+          }}
+        >
+          {/* 释义 */}
+          <section
+            style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
+          >
+            <span style={sectionLabelStyle}>释义</span>
+            <div>
+              <p
+                style={{
+                  fontSize: '1rem',
+                  lineHeight: 1.6,
+                  color: 'var(--card-foreground)',
+                  fontWeight: 600,
+                  margin: 0,
+                }}
+              >
+                {item.meaning_zh}
+              </p>
+              {item.part_of_speech && (
+                <p
+                  style={{
+                    fontSize: '0.84rem',
+                    lineHeight: 1.6,
+                    color: 'var(--muted-foreground)',
+                    fontFamily: 'var(--font-mono)',
+                    marginTop: '0.5rem',
+                    wordBreak: 'break-word',
+                    margin: '0.5rem 0 0 0',
+                  }}
+                >
+                  {item.part_of_speech}
+                </p>
+              )}
+            </div>
+          </section>
+
+          {/* 例句 */}
+          {item.example_en && (
+            <section
+              style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
+            >
+              <span style={sectionLabelStyle}>例句</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 4)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <p
+                    style={{
+                      fontSize: '0.9rem',
+                      lineHeight: 1.65,
+                      color: 'var(--card-foreground)',
+                      fontStyle: 'italic',
+                      wordBreak: 'break-word',
+                      margin: 0,
+                    }}
+                  >
+                    {item.example_en}
+                  </p>
+                  {item.example_zh && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        alignSelf: 'flex-start',
+                        padding: '0.22rem 0.6rem',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--muted)',
+                        color: 'var(--muted-foreground)',
+                        fontSize: '0.72rem',
+                        whiteSpace: 'nowrap',
+                        fontFamily: 'var(--font-mono)',
+                      }}
+                    >
+                      {item.example_zh}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 出处与掌握度 */}
+          <section
+            style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
+          >
+            <span style={sectionLabelStyle}>出处与掌握度</span>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 'calc(var(--spacing) * 4) calc(var(--spacing) * 4)',
+              }}
+            >
+              <MetaItem label="来源书籍" value={item.source || '手动添加'} />
+              <MetaItem label="添加日期" value={formatDateOnly(item.created_at)} mono />
+              <MetaItem label="复习次数" value={`${item.review_count} 次`} mono />
+              <MetaItem label="下次复习" value={formatDateOnly(item.next_review_at)} mono />
+              <MetaItem label="熟悉度" value={`Lv.${item.familiarity_level ?? 0}`} mono />
+              <MetaItem label="状态" value={statusLabel} style={{ color: statusColor }} />
+            </div>
+            {/* 掌握度进度条 */}
+            <div
+              style={{
+                marginTop: 'calc(var(--spacing) * 4)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+              }}
+            >
+              <div
+                style={{
+                  height: 8,
+                  borderRadius: 999,
+                  background: 'var(--muted)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  role="progressbar"
+                  aria-valuenow={masteryPct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`掌握度 ${masteryPct}%`}
+                  style={{
+                    height: '100%',
+                    width: `${masteryPct}%`,
+                    borderRadius: 999,
+                    background: statusColor,
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    color: statusColor,
+                    fontWeight: 600,
+                  }}
+                >
+                  {masteryStatusLabel(masteryPct)}
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    color: 'var(--muted-foreground)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {masteryPct}%
+                </span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* ===== footer ===== */}
+        <footer
+          style={{
+            padding: 'calc(var(--spacing) * 5) calc(var(--spacing) * 6)',
+            borderTop: '1px solid var(--border)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'calc(var(--spacing) * 3)',
+            flexShrink: 0,
+            background: 'var(--card)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              gap: 'calc(var(--spacing) * 3)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <Button
+              variant="primary"
+              data-dom-id="cta-review"
+              onClick={() => onAddReview(item.id)}
+              style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}
+            >
+              加入复习
+            </Button>
+            <Button
+              variant="secondary"
+              data-dom-id="cta-master"
+              onClick={() => onMarkMastered(item.id)}
+              style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}
+            >
+              标记已掌握
+            </Button>
+          </div>
+          <button
+            type="button"
+            data-dom-id="cta-delete"
+            onClick={() => onDelete(item.id, item.word)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--state-error)',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              padding: 'calc(var(--spacing) * 2) 0',
+              transition: 'color 0.2s ease, text-decoration 0.2s ease',
+              textAlign: 'center',
+              borderRadius: 'var(--radius)',
+              font: 'inherit',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.textDecoration = 'underline'
+              e.currentTarget.style.textUnderlineOffset = '3px'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.textDecoration = 'none'
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.transform = 'scale(0.98)'
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
+          >
+            删除该生词
+          </button>
+        </footer>
+      </aside>
+    </>
+  )
+}
+
+// ===== MetaItem =====
+interface MetaItemProps {
+  label: string
+  value: string
+  mono?: boolean
+  style?: CSSProperties
+}
+function MetaItem({ label, value, mono, style }: MetaItemProps) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
+      <span
+        style={{
+          fontSize: '0.7rem',
+          color: 'var(--muted-foreground)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: '0.88rem',
+          color: 'var(--card-foreground)',
+          fontWeight: 500,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          ...(mono
+            ? { fontFamily: 'var(--font-mono)', fontSize: '0.82rem', fontWeight: 400 }
+            : {}),
+          ...style,
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
+// ===== 共享 style =====
+const eyebrowStyle: CSSProperties = {
+  fontSize: '0.78rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  color: 'var(--muted-foreground)',
+}
+
+const sectionLabelStyle: CSSProperties = {
+  fontSize: '0.72rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  color: 'var(--muted-foreground)',
+  fontWeight: 600,
 }

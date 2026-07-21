@@ -1,5 +1,10 @@
+/**
+ * Layout — 兼容旧调用，内部委托给 AppShell
+ * 新代码应直接使用 AppShell
+ */
+
 import { ReactNode } from 'react'
-import Sidebar from './Sidebar'
+import AppShell from './AppShell'
 import ErrorBoundary from '../ErrorBoundary'
 
 interface LayoutProps {
@@ -8,13 +13,8 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">
-        <ErrorBoundary>
-          {children}
-        </ErrorBoundary>
-      </main>
-    </div>
+    <AppShell>
+      <ErrorBoundary>{children}</ErrorBoundary>
+    </AppShell>
   )
 }

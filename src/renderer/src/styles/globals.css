@@ -1,34 +1,13 @@
-@import "tailwindcss";
+/* globals.css — 全局通用样式
+ * 设计 token 已由 design-tokens.css 统一定义（含 @theme inline 桥接 Tailwind v4）
+ * 此文件仅保留 markdown-body / 全局动画 / 兼容样式，不重复定义颜色 token
+ */
 
-@theme {
-  --color-primary: #1A73E8;
-  --color-primary-light: #E8F0FE;
-  --color-primary-hover: #1557B0;
-  --color-primary-foreground: #FFFFFF;
-
-  --color-accent: #E8B931;
-  --color-accent-light: #FFF8E1;
-
-  --color-surface: #FFFFFF;
-  --color-surface-secondary: #F7F8FA;
-  --color-surface-tertiary: #F0F2F5;
-
-  --color-text-primary: #1F2937;
-  --color-text-secondary: #6B7280;
-  --color-text-tertiary: #9CA3AF;
-  --color-text-inverse: #FFFFFF;
-
-  --color-border: #E5E7EB;
-  --color-border-light: #F3F4F6;
-
-  --font-serif: "Source Han Serif SC", "Noto Serif SC", "STSong", serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-}
-
+/* ===== Markdown 渲染样式（用于 AI 对话 / 知识卡片详情） ===== */
 .markdown-body {
   font-size: 13px;
   line-height: 1.7;
-  color: #374151;
+  color: var(--foreground);
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
@@ -37,7 +16,7 @@
   font-size: 18px;
   font-weight: 700;
   margin: 16px 0 8px;
-  color: #111827;
+  color: var(--foreground);
   line-height: 1.4;
 }
 
@@ -45,7 +24,7 @@
   font-size: 16px;
   font-weight: 600;
   margin: 14px 0 6px;
-  color: #1f2937;
+  color: var(--foreground);
   line-height: 1.4;
 }
 
@@ -53,22 +32,25 @@
   font-size: 14px;
   font-weight: 600;
   margin: 12px 0 4px;
-  color: #1f2937;
+  color: var(--foreground);
   line-height: 1.4;
 }
 
-.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
   font-size: 13px;
   font-weight: 600;
   margin: 8px 0 4px;
-  color: #374151;
+  color: var(--foreground);
 }
 
 .markdown-body p {
   margin: 6px 0;
 }
 
-.markdown-body ul, .markdown-body ol {
+.markdown-body ul,
+.markdown-body ol {
   margin: 6px 0;
   padding-left: 20px;
 }
@@ -80,10 +62,10 @@
 .markdown-body blockquote {
   margin: 8px 0;
   padding: 4px 12px;
-  border-left: 3px solid #c7d2fe;
-  background: #eef2ff;
+  border-left: 3px solid var(--primary);
+  background: var(--secondary);
   border-radius: 0 6px 6px 0;
-  color: #4338ca;
+  color: var(--accent-foreground);
 }
 
 .markdown-body blockquote p {
@@ -92,11 +74,11 @@
 
 .markdown-body code {
   font-size: 12px;
-  background: #f3f4f6;
+  background: var(--muted);
   padding: 1px 5px;
   border-radius: 4px;
-  color: #dc2626;
-  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
+  color: var(--destructive);
+  font-family: var(--font-mono);
 }
 
 .markdown-body pre {
@@ -123,25 +105,26 @@
   font-size: 12px;
 }
 
-.markdown-body th, .markdown-body td {
-  border: 1px solid #e5e7eb;
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
   padding: 6px 10px;
   text-align: left;
 }
 
 .markdown-body th {
-  background: #f9fafb;
+  background: var(--muted);
   font-weight: 600;
-  color: #374151;
+  color: var(--foreground);
 }
 
 .markdown-body hr {
   margin: 12px 0;
-  border-color: #e5e7eb;
+  border-color: var(--border);
 }
 
 .markdown-body a {
-  color: #4f46e5;
+  color: var(--primary);
   text-decoration: none;
 }
 
@@ -151,10 +134,172 @@
 
 .markdown-body strong {
   font-weight: 600;
-  color: #111827;
+  color: var(--foreground);
 }
 
 .markdown-body img {
   max-width: 100%;
   border-radius: 8px;
+}
+
+/* ===== 设计稿共用 primitives（从 project-shell.html 提取） ===== */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 5);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 600;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.16s ease,
+    border-color 0.2s ease;
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
+.action-btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.action-btn.secondary {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.action-btn.ghost {
+  background: transparent;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn:hover {
+  border-color: var(--ring);
+}
+
+.action-btn.primary:hover {
+  background: var(--primary);
+  border-color: var(--ring);
+}
+
+.action-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.action-btn:active {
+  transform: scale(0.97);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.65rem;
+  border-radius: 999px;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* ===== 设计稿 App shell 通用类（供页面级直接使用） ===== */
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 100%;
+  background: var(--background);
+  overflow: hidden;
+}
+
+.app-shell[data-collapsed='true'] {
+  grid-template-columns: 88px 1fr;
+}
+
+@media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 88px 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 通用页面容器 ===== */
+.page-content {
+  padding: calc(var(--spacing) * 6);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 5);
+  min-height: 0;
+  overflow: auto;
+}
+
+.page-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: calc(var(--spacing) * 4);
+  flex-wrap: wrap;
+}
+
+.page-hero-text {
+  min-width: 0;
+  flex: 1;
+  max-width: 100%;
+}
+
+.page-hero h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-wrap: balance;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  color: var(--foreground);
+}
+
+.page-hero p {
+  margin: 0.45rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  max-width: 60ch;
+}
+
+.page-hero-actions {
+  display: flex;
+  gap: calc(var(--spacing) * 3);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.page-body {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 5);
+}
+
+/* ===== 通用卡片（无阴影 / 边框分层 — Google Design Library） ===== */
+.card-base {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 6px);
+  padding: calc(var(--spacing) * 5);
+  color: var(--card-foreground);
 }
