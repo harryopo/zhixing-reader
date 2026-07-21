@@ -60,6 +60,19 @@ interface Session {
   messageCount: number
 }
 
+/** DB/IPC returns snake_case; UI Session is camelCase */
+function mapSession(raw: Record<string, unknown>): Session {
+  const bookId = raw.book_id ?? raw.bookId
+  return {
+    id: String(raw.id ?? ''),
+    title: String(raw.title ?? '新对话'),
+    bookId: bookId != null && bookId !== '' ? String(bookId) : undefined,
+    createdAt: String(raw.created_at ?? raw.createdAt ?? ''),
+    updatedAt: String(raw.updated_at ?? raw.updatedAt ?? ''),
+    messageCount: Number(raw.message_count ?? raw.messageCount ?? 0),
+  }
+}
+
 interface ChatState {
   sessions: Session[]
   currentSessionId: string | null
@@ -75,9 +88,14 @@ interface ChatState {
   switchSession: (id: string) => Promise<void>
   deleteSession: (id: string) => Promise<void>
   sendMessage: (content: string) => Promise<void>
+  /** Soft-stop: keep partial reply, free UI (main process stream may still finish) */
+  stopStreaming: () => void
   setCurrentBook: (bookId: string | null) => void
   clearError: () => void
 }
+
+/** Active stream control for stop button (module-level, not in zustand state) */
+let activeStreamStop: (() => void) | null = null
 
 export const useChatStore = create<ChatState>((set, get) => ({
   sessions: [],
@@ -92,8 +110,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadSessions: async () => {
     try {
       if (!window.electronAPI?.conversation) return
-      const sessions = await window.electronAPI.conversation.getAll() as Session[]
-      set({ sessions })
+      const raw = await window.electronAPI.conversation.getAll() as Record<string, unknown>[]
+      set({ sessions: (raw || []).map(mapSession) })
     } catch (error) {
       console.error('加载会话列表失败:', error)
     }
@@ -101,7 +119,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   createSession: async (bookId?: string) => {
     try {
-      const session = await window.electronAPI.conversation.create(undefined, bookId) as Session
+      const raw = await window.electronAPI.conversation.create(undefined, bookId) as Record<string, unknown>
+      const session = mapSession(raw)
       set(state => ({
         sessions: [session, ...state.sessions],
         currentSessionId: session.id,
@@ -151,7 +170,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (!sessionId) {
       try {
-        const session = await window.electronAPI.conversation.create(undefined, currentBookId || undefined) as Session
+        const raw = await window.electronAPI.conversation.create(undefined, currentBookId || undefined) as Record<string, unknown>
+        const session = mapSession(raw)
         sessionId = session.id
         set(state => ({
           sessions: [session, ...state.sessions],
@@ -173,6 +193,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role: 'user',
         content,
       })
+      // bump local message count + title hint
+      set(state => ({
+        sessions: state.sessions.map(s =>
+          s.id === sessionId
+            ? {
+                ...s,
+                messageCount: (s.messageCount || 0) + 1,
+                title: s.title === '新对话' ? content.slice(0, 24) : s.title,
+                updatedAt: new Date().toISOString(),
+              }
+            : s
+        ),
+      }))
     } catch (error) {
       console.error('保存用户消息失败:', error)
     }
@@ -180,27 +213,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       set({ streaming: true, streamingContent: '' })
 
-      const removeChunkListener = window.electronAPI.ai.onStreamChunk?.((chunk: string) => {
-        set(state => ({ streamingContent: state.streamingContent + chunk }))
-      })
+      let settled = false
+      let removeChunkListener: (() => void) | undefined
+      let removeErrorListener: (() => void) | undefined
+      let removeCompleteListener: (() => void) | undefined
 
-      const removeErrorListener = window.electronAPI.ai.onStreamError?.((error: string) => {
-        set({ streaming: false, loading: false, error })
+      const cleanupListeners = () => {
         removeChunkListener?.()
         removeErrorListener?.()
         removeCompleteListener?.()
-      })
+        activeStreamStop = null
+      }
 
-      let removeCompleteListener: (() => void) | undefined
+      const streamPromise = new Promise<void>((resolve, reject) => {
+        const settle = (fn: () => void) => {
+          if (settled) return
+          settled = true
+          cleanupListeners()
+          fn()
+        }
 
-      const streamPromise = new Promise<void>((resolve) => {
-        removeCompleteListener = window.electronAPI.ai.onStreamComplete?.(() => {
+        const finishWithContent = (fullContent: string, resolveStream: boolean) => {
           set(state => {
-            const fullContent = state.streamingContent
             const assistantMessage: Message = { role: 'assistant', content: fullContent }
-            const allMessages = [...state.messages, assistantMessage]
+            const allMessages = fullContent
+              ? [...state.messages, assistantMessage]
+              : state.messages
 
-            if (sessionId) {
+            if (sessionId && fullContent) {
               window.electronAPI.conversation.addMessage(sessionId, {
                 role: 'assistant',
                 content: fullContent,
@@ -212,32 +252,68 @@ export const useChatStore = create<ChatState>((set, get) => ({
               streaming: false,
               streamingContent: '',
               loading: false,
+              sessions: state.sessions.map(s =>
+                s.id === sessionId && fullContent
+                  ? { ...s, messageCount: (s.messageCount || 0) + 1, updatedAt: new Date().toISOString() }
+                  : s
+              ),
             }
           })
+          settle(() => (resolveStream ? resolve() : resolve()))
+        }
 
-          removeChunkListener?.()
-          removeErrorListener?.()
-          removeCompleteListener?.()
-          resolve()
+        removeChunkListener = window.electronAPI.ai.onStreamChunk?.((chunk: string) => {
+          // Ignore late chunks after soft-stop
+          if (settled) return
+          set(state => ({ streamingContent: state.streamingContent + chunk }))
         })
+
+        removeErrorListener = window.electronAPI.ai.onStreamError?.((error: string) => {
+          set({ streaming: false, loading: false, error })
+          settle(() => reject(new Error(error)))
+        })
+
+        removeCompleteListener = window.electronAPI.ai.onStreamComplete?.(() => {
+          if (settled) return
+          finishWithContent(get().streamingContent, true)
+        })
+
+        activeStreamStop = () => {
+          const partial = get().streamingContent
+          finishWithContent(partial, true)
+        }
       })
 
-      const conversationHistory = messages.slice(-6).map(m => ({
-        role: m.role,
-        content: m.content,
-      }))
+      const conversationHistory = [
+        ...messages.slice(-5).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user' as const, content },
+      ]
 
       await window.electronAPI.ai.streamChatWithContext({
-        conversationId: sessionId!,
+        sessionId: sessionId!,
         bookId: currentBookId || undefined,
-        question: content,
-        context: conversationHistory,
+        userMessage: content,
+        conversationHistory,
       })
 
       await streamPromise
     } catch (error) {
+      activeStreamStop = null
       const errorMessage = (error as Error).message
-      set({ error: errorMessage, loading: false, streaming: false, streamingContent: '' })
+      // Soft-stop uses resolve path; only real errors land here
+      if (get().streaming || get().loading) {
+        set({ error: errorMessage, loading: false, streaming: false, streamingContent: '' })
+      }
+    }
+  },
+
+  stopStreaming: () => {
+    // Hard abort main-process network stream (best-effort)
+    void window.electronAPI?.ai?.cancelStream?.().catch(() => {})
+    if (activeStreamStop) {
+      activeStreamStop()
+    } else {
+      set({ streaming: false, loading: false })
     }
   },
 

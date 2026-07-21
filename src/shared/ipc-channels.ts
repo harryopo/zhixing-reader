@@ -87,6 +87,7 @@ export const IPC_CHANNELS = {
     CHAT: 'agent:chat',
     STREAM_CHAT: 'agent:streamChat',
     STREAM_CHAT_WITH_CONTEXT: 'agent:streamChatWithContext',
+    CANCEL_STREAM: 'agent:cancelStream',
   },
   // 流式事件 channel（主进程 -> 渲染进程，由主进程 send 触发）
   STREAM: {
@@ -204,6 +205,7 @@ export const IPC_CHANNELS = {
     GET_PARAMETERS: 'fsrs:getParameters',
     GET_FORECAST: 'fsrs:getForecast',
     GET_OPTIMAL_REVIEW_ORDER: 'fsrs:getOptimalReviewOrder',
+    PREVIEW_REVIEW_RATINGS: 'fsrs:previewReviewRatings',
   },
   SKILL: {
     GENERATE: 'skill:generate',

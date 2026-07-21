@@ -121,11 +121,17 @@ export interface ElectronAPI {
     generateSummary: (highlights: Array<{ content: string; chapterTitle?: string }>, bookTitle: string) => Promise<BookSummary>
     chat: (question: string, context: Array<{ content: string; bookTitle?: string }>) => Promise<string>
     explain: (content: string, bookTitle: string, chapterTitle?: string) => Promise<string>
-    streamChatWithContext: (params: { question: string; context: Array<{ content: string; bookTitle?: string }>; conversationId?: string; bookId?: string }) => Promise<void>
+    streamChatWithContext: (params: {
+      sessionId: string
+      bookId?: string
+      userMessage: string
+      conversationHistory: Array<{ role: string; content: string }>
+    }) => Promise<void>
+    cancelStream?: () => Promise<{ aborted: boolean }>
     test: (config: Record<string, unknown>) => Promise<{ success: boolean; message: string }>
     onStreamChunk?: (callback: (chunk: string) => void) => (() => void)
     onStreamError?: (callback: (error: string) => void) => (() => void)
-    onStreamComplete?: (callback: () => void) => (() => void)
+    onStreamComplete?: (callback: (usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void) => (() => void)
   }
   conversation: {
     getAll: () => Promise<Conversation[]>
@@ -184,6 +190,21 @@ export interface ElectronAPI {
   skill: {
     generate: (methodologyIds: string[]) => Promise<unknown>
     exportBatch: (methodologyIds: string[]) => Promise<unknown>
+  }
+  fsrs: {
+    setParameters: (params: Record<string, unknown>) => Promise<void>
+    resetParameters: () => Promise<void>
+    getParameters: () => Promise<Record<string, unknown>>
+    getForecast: (cards: Array<Record<string, unknown>>, days?: number) => Promise<Record<string, number>>
+    getOptimalReviewOrder: (cards: Array<Record<string, unknown>>, limit?: number) => Promise<Card[]>
+    previewReviewRatings: (card: Record<string, unknown>) => Promise<Array<{
+      rating: number
+      due: string
+      scheduledDays: number
+      state: number
+      stability: number
+      intervalLabel: string
+    }>>
   }
   admin: {
     getStats: () => Promise<{

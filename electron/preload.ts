@@ -172,6 +172,7 @@ const electronAPI = {
     }) => {
       return invoke(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, params)
     },
+    cancelStream: () => invoke(IPC_CHANNELS.AGENT.CANCEL_STREAM) as Promise<{ aborted: boolean }>,
     onStreamChunk: (callback: (chunk: string) => void) => {
       const existing = streamChunkHandlers.get(callback)
       if (existing) {
@@ -313,6 +314,18 @@ const electronAPI = {
   skill: {
     generate: (methodologyIds: string[]) => invoke(IPC_CHANNELS.SKILL.GENERATE, methodologyIds),
     exportBatch: (methodologyIds: string[]) => invoke(IPC_CHANNELS.SKILL.EXPORT_BATCH, methodologyIds),
+  },
+
+  fsrs: {
+    setParameters: (params: Record<string, unknown>) => invoke(IPC_CHANNELS.FSRS.SET_PARAMETERS, params),
+    resetParameters: () => invoke(IPC_CHANNELS.FSRS.RESET_PARAMETERS),
+    getParameters: () => invoke(IPC_CHANNELS.FSRS.GET_PARAMETERS),
+    getForecast: (cards: Array<Record<string, unknown>>, days?: number) =>
+      invoke(IPC_CHANNELS.FSRS.GET_FORECAST, cards, days),
+    getOptimalReviewOrder: (cards: Array<Record<string, unknown>>, limit?: number) =>
+      invoke(IPC_CHANNELS.FSRS.GET_OPTIMAL_REVIEW_ORDER, cards, limit),
+    previewReviewRatings: (card: Record<string, unknown>) =>
+      invoke(IPC_CHANNELS.FSRS.PREVIEW_REVIEW_RATINGS, card),
   },
 
   admin: {

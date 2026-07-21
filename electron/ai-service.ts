@@ -1042,6 +1042,33 @@ export async function generateSkillBatch(
   return results
 }
 
+/** Active chat stream — only one at a time; cancelActiveStream aborts network read */
+let activeStreamController: AbortController | null = null
+
+/** Abort in-flight streamChat (user stop). Returns true if something was aborted. */
+export function cancelActiveStream(): boolean {
+  if (!activeStreamController) return false
+  try {
+    activeStreamController.abort()
+  } catch {
+    // ignore
+  }
+  activeStreamController = null
+  return true
+}
+
+function isCancelledError(error: unknown): boolean {
+  if (error instanceof HttpAbortError && error.cause === 'cancelled') return true
+  if (error instanceof Error) {
+    const msg = error.message || ''
+    if (error.name === 'AbortError') return true
+    if (msg.includes('aborted') || msg.includes('The operation was aborted') || msg.includes('请求被用户取消')) {
+      return true
+    }
+  }
+  return false
+}
+
 export async function streamChat(
   messages: Message[],
   onChunk: (chunk: string) => void,
@@ -1053,16 +1080,44 @@ export async function streamChat(
     return;
   }
 
+  // Replace any previous stream
+  if (activeStreamController) {
+    try { activeStreamController.abort() } catch { /* ignore */ }
+  }
+  const controller = new AbortController()
+  activeStreamController = controller
+  const signal = controller.signal
+
+  let completed = false
+  const safeComplete = (usage?: { promptTokens: number; completionTokens: number }) => {
+    if (completed) return
+    completed = true
+    onComplete(usage)
+  }
+  const safeError = (error: Error) => {
+    if (completed) return
+    completed = true
+    onError(error)
+  }
+
   const isOpenAICompatible = config.provider === 'openai' || config.provider === 'custom';
 
   try {
     if (isOpenAICompatible) {
-      await streamOpenAI(messages, onChunk, onComplete, onError);
+      await streamOpenAI(messages, onChunk, safeComplete, safeError, signal);
     } else {
-      await streamAnthropic(messages, onChunk, onComplete, onError);
+      await streamAnthropic(messages, onChunk, safeComplete, safeError, signal);
     }
   } catch (error) {
-    onError(error instanceof Error ? error : new Error(String(error)));
+    if (isCancelledError(error) || signal.aborted) {
+      safeComplete(undefined)
+      return
+    }
+    safeError(error instanceof Error ? error : new Error(String(error)));
+  } finally {
+    if (activeStreamController === controller) {
+      activeStreamController = null
+    }
   }
 }
 
@@ -1070,7 +1125,8 @@ async function streamOpenAI(
   messages: Message[],
   onChunk: (chunk: string) => void,
   onComplete: (usage?: { promptTokens: number; completionTokens: number }) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  signal: AbortSignal
 ): Promise<void> {
   if (!config) throw new Error('AI service not configured');
 
@@ -1095,7 +1151,10 @@ async function streamOpenAI(
         max_tokens: maxTokens,
         stream: true,
       }),
-    }, RETRY_CONFIGS.AI_SERVICE.timeout);
+    }, {
+      timeoutMs: RETRY_CONFIGS.AI_SERVICE.timeout,
+      externalSignal: signal,
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -1112,6 +1171,11 @@ async function streamOpenAI(
     let usageData: { promptTokens: number; completionTokens: number } | undefined;
 
     while (true) {
+      if (signal.aborted) {
+        try { await reader.cancel() } catch { /* ignore */ }
+        onComplete(usageData)
+        return
+      }
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -1149,6 +1213,10 @@ async function streamOpenAI(
 
     onComplete(usageData);
   } catch (error) {
+    if (isCancelledError(error) || signal.aborted) {
+      onComplete(undefined)
+      return
+    }
     onError(error instanceof Error ? error : new Error(String(error)));
   }
 }
@@ -1157,7 +1225,8 @@ async function streamAnthropic(
   messages: Message[],
   onChunk: (chunk: string) => void,
   onComplete: (usage?: { promptTokens: number; completionTokens: number }) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  signal: AbortSignal
 ): Promise<void> {
   if (!config) throw new Error('AI service not configured');
 
@@ -1188,7 +1257,10 @@ async function streamAnthropic(
         max_tokens: maxTokens,
         stream: true,
       }),
-    }, RETRY_CONFIGS.AI_SERVICE.timeout);
+    }, {
+      timeoutMs: RETRY_CONFIGS.AI_SERVICE.timeout,
+      externalSignal: signal,
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -1204,6 +1276,11 @@ async function streamAnthropic(
     let usageData: { promptTokens: number; completionTokens: number } | undefined;
 
     while (true) {
+      if (signal.aborted) {
+        try { await reader.cancel() } catch { /* ignore */ }
+        onComplete(usageData)
+        return
+      }
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -1248,6 +1325,10 @@ async function streamAnthropic(
 
     onComplete(usageData);
   } catch (error) {
+    if (isCancelledError(error) || signal.aborted) {
+      onComplete(undefined)
+      return
+    }
     onError(error instanceof Error ? error : new Error(String(error)));
   }
 }

@@ -45,6 +45,8 @@ const FORBIDDEN_CHANNELS: ReadonlyArray<string> = [
   'agent:chat',
   'agent:streamChat',
   'agent:streamChatWithContext',
+  'agent:cancelStream',
+  'fsrs:previewReviewRatings',
 ]
 
 const SCAN_EXTENSIONS = new Set(['.ts', '.tsx'])

@@ -1,8 +1,8 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, dailyStatsDb, tokenUsageDb, conversationDb, methodologiesDb, knowledgeCardsDb, bookArchitectureDb, articlesDb, vocabularyDb, forceSaveDatabase, getDatabase } from './database';
 import { setApiKey, getBookshelf, fetchBookmarks, fetchNotes, fetchAllContent, fetchAllContentBatch, testConnection as testWereadConnection, clearCache as clearWeReadApiCache, fetchReadingData, ReadingMode } from './weread-api';
-import { setAIConfig, generateCards, generateSummary, chatWithContext, explainHighlight, testConnection as testAIConnection, extractMethodologies, analyzeBookArchitecture, distillKnowledgeCards as _distillKnowledgeCards, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch, streamChat, translateArticle } from './ai-service';
-import { Rating, setCustomParameters, resetParameters, getParameters, calculateStats as _calculateStats, getForecast, getOptimalReviewOrder } from './fsrs-engine';
+import { setAIConfig, generateCards, generateSummary, chatWithContext, explainHighlight, testConnection as testAIConnection, extractMethodologies, analyzeBookArchitecture, distillKnowledgeCards as _distillKnowledgeCards, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch, streamChat, cancelActiveStream, translateArticle } from './ai-service';
+import { Rating, setCustomParameters, resetParameters, getParameters, calculateStats as _calculateStats, getForecast, getOptimalReviewOrder, previewReviewRatings, cardFromDb } from './fsrs-engine';
 import { logger } from './logger';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 import { settingsService } from './services/settings-service';
@@ -54,6 +54,15 @@ export function registerIpcHandlers(): void {
 
     // Auto-index to vector DB in background (fire-and-forget)
     if (created) {
+      // Single-create path used by bookshelf import — also create FSRS card (batch path already does)
+      try {
+        if (!cardsDb.getByHighlightId(id)) {
+          cardsDb.create(id);
+        }
+      } catch (cardErr) {
+        logger.error('Auto-create FSRS card failed', { highlightId: id, error: String(cardErr) });
+      }
+
       const books = booksDb.getAll();
       const book = books.find(b => b.id === bookId);
       indexHighlightRAG({
@@ -61,7 +70,7 @@ export function registerIpcHandlers(): void {
         bookId: bookId as string,
         bookTitle: (book?.title as string) || 'Unknown',
         content: highlight.content as string,
-        chapterTitle: highlight.chapter_title as string | undefined,
+        chapterTitle: (highlight.chapter_title ?? highlight.chapterTitle) as string | undefined,
         createdAt: new Date().toISOString(),
       }).catch(() => {})
     }
@@ -280,6 +289,12 @@ export function registerIpcHandlers(): void {
     return { success: true };
   });
 
+  handle(IPC_CHANNELS.AGENT.CANCEL_STREAM, () => {
+    const aborted = cancelActiveStream()
+    logger.info('Stream cancel requested', { aborted })
+    return { aborted }
+  })
+
   ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, async (event, params: {
     sessionId: string
     bookId?: string
@@ -420,6 +435,15 @@ export function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.FSRS.GET_OPTIMAL_REVIEW_ORDER, (cards: Array<Record<string, unknown>>, limit?: number) => {
     const typedCards = cards as unknown as import('./fsrs-engine').Card[];
     return getOptimalReviewOrder(typedCards, limit);
+  });
+
+  handle(IPC_CHANNELS.FSRS.PREVIEW_REVIEW_RATINGS, (card: Record<string, unknown>) => {
+    // Accept either DB snake_case rows or renderer camelCase cards
+    const hasSnake = 'highlight_id' in card || 'scheduled_days' in card
+    const typed = hasSnake
+      ? cardFromDb(card)
+      : (card as unknown as import('./fsrs-engine').Card)
+    return previewReviewRatings(typed)
   });
 
   handle(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT_BATCH, (bookIds: string[]) => {
