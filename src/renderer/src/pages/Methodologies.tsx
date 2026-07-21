@@ -649,9 +649,11 @@ export default function Methodologies() {
         className="page-body methodologies-v2"
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.4fr 1fr',
+          // minmax(0, ...) 强制 fr 列允许收缩到 0，避免 min-content 把右侧 aside 撑出父容器
+          gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
           gap: 'calc(var(--spacing) * 5)',
           alignItems: 'start',
+          minWidth: 0,
         }}
       >
         {/* ===== 左列：方法论列表 ===== */}
@@ -1132,7 +1134,7 @@ export default function Methodologies() {
 
         {/* ===== 右列：详情面板（sticky） ===== */}
         <aside
-          className="card method-detail-v2"
+          className="card method-detail-v2 methodology-scroll"
           aria-label="方法论详情"
           style={{
             position: 'sticky',
@@ -1142,6 +1144,8 @@ export default function Methodologies() {
             flexDirection: 'column',
             gap: 'calc(var(--spacing) * 4)',
             minWidth: 0,
+            maxWidth: '100%',
+            overflowX: 'auto',
             background: 'var(--card)',
             border: '1px solid var(--border)',
             borderRadius: 'calc(var(--radius) + 6px)',
@@ -1176,6 +1180,32 @@ export default function Methodologies() {
             />
           )}
         </aside>
+
+        {/* 自定义细滚动条：不抢视觉，仅在 hover 时高亮 */}
+        <style>{`
+          .methodology-scroll::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+          }
+          .methodology-scroll::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+            transition: background 0.2s ease;
+          }
+          .methodology-scroll:hover::-webkit-scrollbar-thumb {
+            background: var(--muted-foreground);
+          }
+          .methodology-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .methodology-scroll::-webkit-scrollbar-corner {
+            background: transparent;
+          }
+          .methodology-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+          }
+        `}</style>
       </div>
     </PageHero>
   )
