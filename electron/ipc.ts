@@ -1,4 +1,5 @@
-import { ipcMain, IpcMainInvokeEvent, shell, app } from 'electron';
+import { ipcMain, IpcMainInvokeEvent, shell, app, dialog, BrowserWindow } from 'electron';
+import * as fs from 'fs';
 import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, dailyStatsDb, tokenUsageDb, conversationDb, methodologiesDb, knowledgeCardsDb, bookArchitectureDb, articlesDb, vocabularyDb, forceSaveDatabase, getDatabase, clearConversationsAndMessages, resetDatabase } from './database';
 import { setApiKey, getBookshelf, fetchBookmarks, fetchNotes, fetchAllContent, fetchAllContentBatch, testConnection as testWereadConnection, clearCache as clearWeReadApiCache, fetchReadingData, ReadingMode, fetchRecommendations } from './weread-api';
 import { setAIConfig, generateCards, generateSummary, chatWithContext, explainHighlight, testConnection as testAIConnection, extractMethodologies, analyzeBookArchitecture, distillKnowledgeCards as _distillKnowledgeCards, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch, streamChat, cancelActiveStream, translateArticle } from './ai-service';
@@ -246,6 +247,86 @@ export function registerIpcHandlers(): void {
     dueToday: vocabularyDb.getDueCount(),
   }));
   handle(IPC_CHANNELS.VOCABULARY.SEARCH, (keyword: string) => vocabularyDb.search(keyword));
+  handle(IPC_CHANNELS.VOCABULARY.EXPORT, async (format: 'csv' | 'anki', items: Array<{
+    word: string;
+    phonetic?: string;
+    part_of_speech?: string;
+    meaning_zh: string;
+    example_en?: string;
+    example_zh?: string;
+  }>) => {
+    if (format !== 'csv' && format !== 'anki') {
+      throw new Error('不支持的导出格式，仅支持 csv 或 anki');
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error('没有可导出的生词');
+    }
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const isCsv = format === 'csv';
+    const filters = isCsv
+      ? [{ name: 'CSV', extensions: ['csv'] }]
+      : [{ name: 'Anki TSV', extensions: ['txt'] }];
+    const result = await dialog.showSaveDialog(win, {
+      title: '导出生词本',
+      defaultPath: isCsv ? 'vocabulary.csv' : 'vocabulary.txt',
+      filters,
+    });
+    if (result.canceled || !result.filePath) {
+      return { saved: false, count: 0 };
+    }
+
+    // 防御 CSV 公式注入：= + - @ 开头的单元格前置单引号
+    const sanitize = (val: unknown): string => {
+      const s = val == null ? '' : String(val);
+      if (s && /^[=+\-@]/.test(s)) {
+        return `'${s}`;
+      }
+      return s;
+    };
+    // CSV 字段转义：含 " , \n \r 的字段用双引号包裹，内部双引号转义为 ""
+    const csvEscape = (val: unknown): string => {
+      const s = sanitize(val);
+      if (/[",\n\r]/.test(s)) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+    // Anki TSV 字段转义：制表符/换行替换为空格
+    const tsvEscape = (val: unknown): string => {
+      const s = sanitize(val);
+      return s.replace(/[\t\n\r]/g, ' ');
+    };
+
+    let content: string;
+    if (isCsv) {
+      // UTF-8 BOM 防止 Excel 乱码
+      const bom = '\uFEFF';
+      const header = ['单词', '音标', '词性', '释义', '例句', '例句翻译'].map(csvEscape).join(',');
+      const rows = items.map((it) =>
+        [it.word, it.phonetic ?? '', it.part_of_speech ?? '', it.meaning_zh, it.example_en ?? '', it.example_zh ?? '']
+          .map(csvEscape)
+          .join(','),
+      );
+      content = `${bom}${header}\n${rows.join('\n')}\n`;
+    } else {
+      // Anki TSV: front \t back \t tags
+      const rows = items.map((it) => {
+        const front = tsvEscape(it.word);
+        const back = tsvEscape(
+          [it.part_of_speech, it.meaning_zh, it.example_en, it.example_zh]
+            .filter((x) => x && String(x).trim().length > 0)
+            .join('<br>'),
+        );
+        const tags = 'zhixing-reader';
+        return `${front}\t${back}\t${tags}`;
+      });
+      content = `# Anki 导入文件（制表符分隔）\n# 标签字段以空格分隔\n${rows.join('\n')}\n`;
+    }
+
+    fs.writeFileSync(result.filePath, content, 'utf8');
+    logger.info(`Vocabulary exported`, { format, count: items.length, path: result.filePath });
+    return { saved: true, count: items.length, path: result.filePath };
+  });
 
   // 本地词典查询
   handle(IPC_CHANNELS.DICTIONARY.LOOKUP, (word: string) => {

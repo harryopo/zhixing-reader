@@ -195,6 +195,7 @@ export const IPC_CHANNELS = {
     DELETE: 'vocabulary:delete',
     GET_STATS: 'vocabulary:getStats',
     SEARCH: 'vocabulary:search',
+    EXPORT: 'vocabulary:export',
   },
   DICTIONARY: {
     LOOKUP: 'dictionary:lookup',

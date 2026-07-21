@@ -153,6 +153,11 @@ export default function VocabularyPage() {
   const [reviewList, setReviewList] = useState<VocabularyItem[]>([])
   const [reviewStats, setReviewStats] = useState({ correct: 0, total: 0 })
 
+  // 导出 Modal
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [exportFormat, setExportFormat] = useState<'csv' | 'anki'>('csv')
+  const [exporting, setExporting] = useState(false)
+
   // ===== 数据加载 =====
   const loadVocabulary = useCallback(async () => {
     if (!window.electronAPI?.vocabulary) {
@@ -312,6 +317,51 @@ export default function VocabularyPage() {
     } catch (error) {
       console.error('加入复习失败:', error)
       toast.error('加入复习失败')
+    }
+  }
+
+  /** 打开导出 Modal */
+  const handleOpenExport = () => {
+    if (vocabulary.length === 0) {
+      toast.info('生词本为空，无法导出')
+      return
+    }
+    setExportFormat('csv')
+    setExportModalOpen(true)
+  }
+
+  /** 确认导出：调用主进程 dialog.showSaveDialog + 写文件 */
+  const handleConfirmExport = async () => {
+    if (!window.electronAPI?.vocabulary?.export) {
+      toast.error('导出接口不可用')
+      return
+    }
+    if (vocabulary.length === 0) {
+      toast.info('生词本为空，无法导出')
+      return
+    }
+    try {
+      setExporting(true)
+      const items = vocabulary.map((v) => ({
+        word: v.word,
+        phonetic: v.phonetic,
+        part_of_speech: v.part_of_speech,
+        meaning_zh: v.meaning_zh,
+        example_en: v.example_en,
+        example_zh: v.example_zh,
+      }))
+      const result = await window.electronAPI.vocabulary.export(exportFormat, items)
+      if (result?.saved) {
+        toast.success(`已导出 ${result.count} 个生词`)
+        setExportModalOpen(false)
+      } else {
+        toast.info('已取消导出')
+      }
+    } catch (error) {
+      console.error('导出失败:', error)
+      toast.error(error instanceof Error ? error.message : '导出失败')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -618,7 +668,7 @@ export default function VocabularyPage() {
               disabled={stats.dueToday === 0}
               data-dom-id="cta-review"
             >
-              <Icon name="refresh" size={16} /> 开始复习
+              <Icon name="refresh" size={16} /> 批量复习
             </Button>
             <Button
               variant="ghost"
@@ -626,6 +676,14 @@ export default function VocabularyPage() {
               data-dom-id="cta-import"
             >
               <Icon name="file" size={16} /> 导入
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => void handleOpenExport()}
+              disabled={vocabulary.length === 0}
+              data-dom-id="cta-export"
+            >
+              <Icon name="arrow-down" size={16} /> 一键导出
             </Button>
           </>
         }
@@ -735,7 +793,7 @@ export default function VocabularyPage() {
                           transition:
                             'border-color 0.2s ease, background 0.2s ease, transform 0.16s ease',
                           display: 'grid',
-                          gridTemplateColumns: '1.5fr 2fr 0.8fr 0.7fr',
+                          gridTemplateColumns: '1.6fr 2fr 0.7fr',
                           gap: 'calc(var(--spacing) * 3)',
                           alignItems: 'center',
                           font: 'inherit',
@@ -783,18 +841,6 @@ export default function VocabularyPage() {
                           }}
                         >
                           {item.meaning_zh}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: '0.78rem',
-                            color: 'var(--muted-foreground)',
-                            fontFamily: 'var(--font-mono)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {item.source ? `《${item.source}》` : '—'}
                         </span>
                         <MasteryBadge kind={kind} />
                       </button>
@@ -929,13 +975,14 @@ export default function VocabularyPage() {
                 </div>
               )}
 
-              {/* 来源 section */}
+              {/* 复习状态 section */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={eyebrowStyle}>来源</div>
+                <div style={eyebrowStyle}>复习状态</div>
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'space-between',
                     gap: 'calc(var(--spacing) * 3)',
                     marginTop: 'calc(var(--spacing) * 2)',
                     padding: 'calc(var(--spacing) * 3)',
@@ -943,40 +990,51 @@ export default function VocabularyPage() {
                     borderRadius: 'var(--radius)',
                   }}
                 >
-                  <div
-                    style={{
-                      width: 40,
-                      height: 56,
-                      borderRadius: 4,
-                      background: 'var(--chart-1)',
-                      flexShrink: 0,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <strong
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <span
                       style={{
-                        display: 'block',
+                        fontSize: '0.7rem',
+                        color: 'var(--muted-foreground)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                        fontWeight: 600,
+                      }}
+                    >
+                      复习次数
+                    </span>
+                    <span
+                      style={{
                         fontSize: '0.9rem',
                         color: 'var(--card-foreground)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {selectedItem.source || '手动添加'}
-                    </strong>
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--muted-foreground)',
                         fontFamily: 'var(--font-mono)',
-                        marginTop: '0.2rem',
+                        fontWeight: 600,
                       }}
                     >
-                      复习 {selectedItem.review_count} 次 ·{' '}
+                      {selectedItem.review_count} 次
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', textAlign: 'right' }}>
+                    <span
+                      style={{
+                        fontSize: '0.7rem',
+                        color: 'var(--muted-foreground)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                        fontWeight: 600,
+                      }}
+                    >
+                      下次复习
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '0.9rem',
+                        color: 'var(--card-foreground)',
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 600,
+                      }}
+                    >
                       {getNextReviewText(selectedItem.next_review_at)}
-                    </div>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1039,6 +1097,18 @@ export default function VocabularyPage() {
           onAddReview={handleAddReview}
           onMarkMastered={handleMarkMastered}
           onDelete={handleDelete}
+        />
+      )}
+
+      {/* ===== 导出 Modal ===== */}
+      {exportModalOpen && (
+        <ExportModal
+          format={exportFormat}
+          onFormatChange={setExportFormat}
+          onConfirm={() => void handleConfirmExport()}
+          onCancel={() => setExportModalOpen(false)}
+          exporting={exporting}
+          count={vocabulary.length}
         />
       )}
     </>
@@ -1503,11 +1573,11 @@ function VocabularyDrawer({
             </section>
           )}
 
-          {/* 出处与掌握度 */}
+          {/* 复习数据 */}
           <section
             style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
           >
-            <span style={sectionLabelStyle}>出处与掌握度</span>
+            <span style={sectionLabelStyle}>复习数据</span>
             <div
               style={{
                 display: 'grid',
@@ -1515,7 +1585,6 @@ function VocabularyDrawer({
                 gap: 'calc(var(--spacing) * 4) calc(var(--spacing) * 4)',
               }}
             >
-              <MetaItem label="来源书籍" value={item.source || '手动添加'} />
               <MetaItem label="添加日期" value={formatDateOnly(item.created_at)} mono />
               <MetaItem label="复习次数" value={`${item.review_count} 次`} mono />
               <MetaItem label="下次复习" value={formatDateOnly(item.next_review_at)} mono />
@@ -1714,4 +1783,159 @@ const sectionLabelStyle: CSSProperties = {
   letterSpacing: '0.08em',
   color: 'var(--muted-foreground)',
   fontWeight: 600,
+}
+
+// ===== 子组件：导出 Modal =====
+interface ExportModalProps {
+  format: 'csv' | 'anki'
+  onFormatChange: (f: 'csv' | 'anki') => void
+  onConfirm: () => void
+  onCancel: () => void
+  exporting: boolean
+  count: number
+}
+function ExportModal({ format, onFormatChange, onConfirm, onCancel, exporting, count }: ExportModalProps) {
+  // ESC 关闭 + 焦点管理
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !exporting) onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel, exporting])
+
+  return (
+    <>
+      {/* scrim */}
+      <div
+        onClick={() => {
+          if (!exporting) onCancel()
+        }}
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(14, 17, 21, 0.5)',
+          zIndex: 60,
+          animation: 'scrim-in 0.2s ease',
+        }}
+      />
+
+      {/* dialog */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-modal-title"
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'calc(var(--radius) * 1.5)',
+          boxShadow: 'var(--shadow-lg)',
+          padding: 'calc(var(--spacing) * 6)',
+          width: 420,
+          maxWidth: '90vw',
+          zIndex: 70,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'calc(var(--spacing) * 4)',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 1)' }}>
+          <h2
+            id="export-modal-title"
+            style={{
+              margin: 0,
+              fontSize: '1.15rem',
+              fontWeight: 700,
+              color: 'var(--card-foreground)',
+            }}
+          >
+            导出生词本
+          </h2>
+          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted-foreground)' }}>
+            将导出 {count} 个生词，请选择导出格式：
+          </p>
+        </div>
+
+        {/* 格式选择 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+              padding: 'calc(var(--spacing) * 3)',
+              border: '1px solid',
+              borderColor: format === 'csv' ? 'var(--primary)' : 'var(--border)',
+              borderRadius: 'var(--radius)',
+              cursor: 'pointer',
+              background: format === 'csv' ? 'var(--popover)' : 'transparent',
+              transition: 'border-color 0.2s ease, background 0.2s ease',
+              font: 'inherit',
+            }}
+          >
+            <input
+              type="radio"
+              name="export-format"
+              value="csv"
+              checked={format === 'csv'}
+              onChange={() => onFormatChange('csv')}
+              style={{ marginTop: '0.2rem', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              <strong style={{ fontSize: '0.92rem', color: 'var(--card-foreground)' }}>CSV 格式</strong>
+              <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
+                Excel/WPS 可直接打开，含音标、词性、释义、例句等字段（UTF-8 BOM，已防御公式注入）
+              </span>
+            </div>
+          </label>
+
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+              padding: 'calc(var(--spacing) * 3)',
+              border: '1px solid',
+              borderColor: format === 'anki' ? 'var(--primary)' : 'var(--border)',
+              borderRadius: 'var(--radius)',
+              cursor: 'pointer',
+              background: format === 'anki' ? 'var(--popover)' : 'transparent',
+              transition: 'border-color 0.2s ease, background 0.2s ease',
+              font: 'inherit',
+            }}
+          >
+            <input
+              type="radio"
+              name="export-format"
+              value="anki"
+              checked={format === 'anki'}
+              onChange={() => onFormatChange('anki')}
+              style={{ marginTop: '0.2rem', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              <strong style={{ fontSize: '0.92rem', color: 'var(--card-foreground)' }}>Anki 格式</strong>
+              <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
+                TSV 制表符分隔（front/back/tags），可直接导入 Anki（导入时勾选「字段以制表符分隔」）
+              </span>
+            </div>
+          </label>
+        </div>
+
+        {/* 操作按钮 */}
+        <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={onCancel} disabled={exporting}>
+            取消
+          </Button>
+          <Button variant="primary" onClick={onConfirm} disabled={exporting}>
+            {exporting ? '导出中...' : '导出'}
+          </Button>
+        </div>
+      </div>
+    </>
+  )
 }

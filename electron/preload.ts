@@ -112,6 +112,14 @@ const electronAPI = {
     delete: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.DELETE, id),
     getStats: () => invoke(IPC_CHANNELS.VOCABULARY.GET_STATS),
     search: (keyword: string) => invoke(IPC_CHANNELS.VOCABULARY.SEARCH, keyword),
+    export: (format: 'csv' | 'anki', items: Array<{
+      word: string;
+      phonetic?: string;
+      part_of_speech?: string;
+      meaning_zh: string;
+      example_en?: string;
+      example_zh?: string;
+    }>) => invoke(IPC_CHANNELS.VOCABULARY.EXPORT, format, items),
   },
 
   dictionary: {

@@ -85,6 +85,17 @@ export interface ElectronAPI {
     delete: (id: string) => Promise<void>
     getStats: () => Promise<{ total: number; mastered: number; dueToday: number }>
     search: (keyword: string) => Promise<Record<string, unknown>[]>
+    export: (
+      format: 'csv' | 'anki',
+      items: Array<{
+        word: string
+        phonetic?: string
+        part_of_speech?: string
+        meaning_zh: string
+        example_en?: string
+        example_zh?: string
+      }>,
+    ) => Promise<{ saved: boolean; count: number; path?: string }>
   }
   dictionary: {
     lookup: (word: string) => Promise<Record<string, unknown> | null>
