@@ -7,6 +7,7 @@
  *   - 清空确认 banner（showClearConfirm 时显示）
  *   - 4 KPI 卡（用量 / 预估费用 / 会话数 / 平均消耗）
  *   - 双 panel: 模型分布 donut + 用量趋势柱状图
+ *   - Layer 2.5: 用量趋势折线图（input/output 双线，复用 chartDailyStats 日历填充）
  *   - 用量明细 card：tab 切换（调用记录 / 模型统计 / 功能统计）
  *
  * 业务逻辑全部保留：
@@ -17,6 +18,7 @@
  *   - 模型分组统计 + donut conic-gradient 渲染
  *   - 成本计算（cost_usd × 汇率）
  *   - 用量趋势柱状图（日常 / 高峰 双色）
+ *   - 用量趋势折线图（input / output 双线，recharts + CHART_COLORS 常量）
  *   - tab 切换（logs / providers / features）
  *   - 清空记录确认 + 调用
  *   - toast 反馈
@@ -87,6 +89,12 @@ const FILTER_DAYS_MAP: Record<FilterDateRange, number> = {
 
 // USD → CNY 汇率（用于预估费用展示，与设计稿 ¥18.60 / 1.24M tokens 量级一致）
 const USD_TO_CNY = 7
+
+/** Layer 2.5 折线图配色（input 蓝 / output 绿，与设计稿双色对比一致） */
+const CHART_COLORS = {
+  input: '#3b82f6', // 蓝色 - 输入 tokens
+  output: '#10b981', // 绿色 - 输出 tokens
+} as const
 
 /** 模型 → 颜色 token（设计稿：GPT-4o chart-1, Claude chart-5, mini chart-3, 其他 chart-2） */
 function getModelColor(model: string): string {
@@ -848,6 +856,12 @@ export default function TokenUsagePage() {
             />
           ) : (
             <div
+              role="img"
+              aria-label={`Token 用量趋势折线图,${chartLineData.length} 天数据,输入 ${chartLineData
+                .reduce((s, d) => s + d.input, 0)
+                .toLocaleString()} tokens,输出 ${chartLineData
+                .reduce((s, d) => s + d.output, 0)
+                .toLocaleString()} tokens`}
               style={{
                 width: '100%',
                 height: 320,
@@ -907,20 +921,20 @@ export default function TokenUsagePage() {
                   <Line
                     type="monotone"
                     dataKey="input"
-                    stroke="#3b82f6"
+                    stroke={CHART_COLORS.input}
                     strokeWidth={2}
                     name="输入"
-                    dot={{ r: 3, fill: '#3b82f6' }}
+                    dot={{ r: 3, fill: CHART_COLORS.input }}
                     activeDot={{ r: 5 }}
                     isAnimationActive={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="output"
-                    stroke="#10b981"
+                    stroke={CHART_COLORS.output}
                     strokeWidth={2}
                     name="输出"
-                    dot={{ r: 3, fill: '#10b981' }}
+                    dot={{ r: 3, fill: CHART_COLORS.output }}
                     activeDot={{ r: 5 }}
                     isAnimationActive={false}
                   />
