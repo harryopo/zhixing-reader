@@ -5,7 +5,7 @@ interface SettingsState {
   llmEndpoint: string
   llmKey: string
   llmModel: string
-  /** 复习模块开关（默认 true）。关闭后侧栏隐藏复习入口、/review 路由重定向 /home */
+  /** 复习模块开关（默认 true）。关闭后侧栏隐藏复习入口、/review 路由重定向到首页 /（项目无 /home 路由） */
   reviewEnabled: boolean
 
   loading: boolean

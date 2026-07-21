@@ -14,6 +14,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
 import { safeStr } from '@/utils/db-mapper'
+import { useShallow } from 'zustand/react/shallow'
 import { useSettingsStore } from '@/stores/settingsStore'
 
 /** 设置分类导航项 */
@@ -92,7 +93,14 @@ export default function SettingsAccount() {
   const navigate = useNavigate()
 
   // 复习模块开关（来自 settingsStore，与 Sidebar/App 共享状态）
-  const { reviewEnabled, loadSettings, setReviewEnabled } = useSettingsStore()
+  // 使用 useShallow selector 避免整体订阅 12 个字段导致的无关重渲染
+  const { reviewEnabled, loadSettings, setReviewEnabled } = useSettingsStore(
+    useShallow((s) => ({
+      reviewEnabled: s.reviewEnabled,
+      loadSettings: s.loadSettings,
+      setReviewEnabled: s.setReviewEnabled,
+    }))
+  )
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
