@@ -191,6 +191,13 @@ export interface ElectronAPI {
     generate: (methodologyIds: string[]) => Promise<unknown>
     exportBatch: (methodologyIds: string[]) => Promise<unknown>
   }
+  system: {
+    openExternal: (url: string) => Promise<{ opened: boolean }>
+    forceSaveDatabase: () => Promise<void>
+    clearCache: () => Promise<void>
+    clearHistory: () => Promise<{ success: boolean }>
+    resetDatabase: () => Promise<{ success: boolean }>
+  }
   fsrs: {
     setParameters: (params: Record<string, unknown>) => Promise<void>
     resetParameters: () => Promise<void>
@@ -240,6 +247,10 @@ export interface ElectronAPI {
       rows: Record<string, unknown>[]
       total: number
     }>
+    createCustomPrompt: (name: string, content: string) => Promise<CustomPrompt>
+    updateCustomPrompt: (id: string, name: string, content: string) => Promise<{ success: boolean; error?: string }>
+    deleteCustomPrompt: (id: string) => Promise<{ success: boolean; error?: string }>
+    getCustomPrompts: () => Promise<CustomPrompt[]>
   }
 }
 
@@ -261,6 +272,15 @@ export interface PromptWithOverride {
   exampleVars: Record<string, string>
   currentTemplate: string
   isCustom: boolean
+}
+
+export interface CustomPrompt {
+  id: string
+  name: string
+  content: string
+  category: 'custom'
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ProviderStats {

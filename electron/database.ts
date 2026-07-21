@@ -105,6 +105,7 @@ export async function initDatabase(): Promise<void> {
       total_chapter INTEGER DEFAULT 0,
       last_read_time TEXT,
       is_finished INTEGER DEFAULT 0,
+      source TEXT DEFAULT 'weread',
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -376,6 +377,9 @@ export async function initDatabase(): Promise<void> {
   // 数据库迁移：为 cards 表新增应用标签和掌握度字段
   migrateCardsTable();
 
+  // 数据库迁移：为 books 表新增 source 字段（区分微信读书/本地导入）
+  migrateBooksTable();
+
   saveDatabase();
   logger.info(`Database connected: ${dbPath}`);
   logger.info('Database initialized successfully');
@@ -441,12 +445,79 @@ function migrateCardsTable(): void {
   }
 }
 
+// books 表迁移：添加 source 字段（区分微信读书/本地导入）
+// 旧数据无该列时默认 'weread'，保证"在微信读书打开"按钮的兼容性
+function migrateBooksTable(): void {
+  try {
+    const database = getDatabase();
+    const cols = database.exec("PRAGMA table_info(books)");
+    const colNames = rowsToObjects(cols).map((c: Record<string, unknown>) => c.name as string);
+
+    if (!colNames.includes('source')) {
+      database.run("ALTER TABLE books ADD COLUMN source TEXT DEFAULT 'weread'");
+      logger.info('Migration: added source column to books table');
+    }
+  } catch (error) {
+    logger.error('Migration failed for books table', { error: String(error) });
+  }
+}
+
 export function closeDatabase(): void {
   if (db) {
     forceSaveDatabase();
     db.close();
     db = null;
     logger.info('Database closed');
+  }
+}
+
+/**
+ * 清空对话历史（conversations + chat_messages 表）
+ * 保留表结构与 schema，仅删除数据。
+ */
+export function clearConversationsAndMessages(): void {
+  runTransaction((database) => {
+    database.run('DELETE FROM chat_messages');
+    database.run('DELETE FROM conversations');
+  });
+  logger.info('Cleared all conversations and chat messages');
+}
+
+/**
+ * 重置数据库：清空所有业务表数据，保留 schema。
+ * 关闭外键检查避免级联约束干扰，清空后重新落盘。
+ */
+export function resetDatabase(): void {
+  const database = getDatabase();
+  // 关闭 FK 检查以避免删除顺序约束
+  database.run('PRAGMA foreign_keys = OFF');
+  try {
+    const tables = [
+      'chat_messages',
+      'conversations',
+      'reviews',
+      'cards',
+      'highlights',
+      'book_summaries',
+      'daily_stats',
+      'token_usage',
+      'user_profiles',
+      'methodologies',
+      'knowledge_cards',
+      'book_architecture',
+      'articles',
+      'vocabulary',
+      'memories',
+      'books',
+    ];
+    runTransaction((db) => {
+      for (const table of tables) {
+        db.run(`DELETE FROM ${table}`);
+      }
+    });
+    logger.info('Database reset: all tables cleared');
+  } finally {
+    database.run('PRAGMA foreign_keys = ON');
   }
 }
 

@@ -1,5 +1,5 @@
-import { ipcMain, IpcMainInvokeEvent } from 'electron';
-import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, dailyStatsDb, tokenUsageDb, conversationDb, methodologiesDb, knowledgeCardsDb, bookArchitectureDb, articlesDb, vocabularyDb, forceSaveDatabase, getDatabase } from './database';
+import { ipcMain, IpcMainInvokeEvent, shell, app } from 'electron';
+import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, dailyStatsDb, tokenUsageDb, conversationDb, methodologiesDb, knowledgeCardsDb, bookArchitectureDb, articlesDb, vocabularyDb, forceSaveDatabase, getDatabase, clearConversationsAndMessages, resetDatabase } from './database';
 import { setApiKey, getBookshelf, fetchBookmarks, fetchNotes, fetchAllContent, fetchAllContentBatch, testConnection as testWereadConnection, clearCache as clearWeReadApiCache, fetchReadingData, ReadingMode } from './weread-api';
 import { setAIConfig, generateCards, generateSummary, chatWithContext, explainHighlight, testConnection as testAIConnection, extractMethodologies, analyzeBookArchitecture, distillKnowledgeCards as _distillKnowledgeCards, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch, streamChat, cancelActiveStream, translateArticle } from './ai-service';
 import { Rating, setCustomParameters, resetParameters, getParameters, calculateStats as _calculateStats, getForecast, getOptimalReviewOrder, previewReviewRatings, cardFromDb } from './fsrs-engine';
@@ -389,6 +389,18 @@ export function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.ADMIN.GET_TABLE_DATA, (tableName: string, limit?: number, offset?: number) => {
     return admin.getDatabaseTableData(tableName, limit, offset)
   })
+  handle(IPC_CHANNELS.ADMIN.CREATE_CUSTOM_PROMPT, (name: string, content: string) => {
+    return admin.createAdminCustomPrompt(name, content)
+  })
+  handle(IPC_CHANNELS.ADMIN.UPDATE_CUSTOM_PROMPT, (id: string, name: string, content: string) => {
+    return admin.updateAdminCustomPrompt(id, name, content)
+  })
+  handle(IPC_CHANNELS.ADMIN.DELETE_CUSTOM_PROMPT, (id: string) => {
+    return admin.deleteAdminCustomPrompt(id)
+  })
+  handle(IPC_CHANNELS.ADMIN.GET_CUSTOM_PROMPTS, () => {
+    return admin.getAllAdminCustomPrompts()
+  })
 
   handle(IPC_CHANNELS.WEREAD.TEST, (cookies: string) => testWereadConnection(cookies));
 
@@ -409,6 +421,33 @@ export function registerIpcHandlers(): void {
 
   handle(IPC_CHANNELS.SYSTEM.CLEAR_CACHE, () => {
     clearWeReadApiCache();
+    return { success: true };
+  });
+
+  handle(IPC_CHANNELS.SYSTEM.OPEN_EXTERNAL, async (url: string) => {
+    if (typeof url !== 'string' || url.length === 0) {
+      throw new Error('Invalid URL');
+    }
+    // Only allow http(s) / weread deep links — no file:// or arbitrary protocols
+    if (!/^(https?:|weread:)/i.test(url)) {
+      throw new Error('Only http(s) or weread: URLs allowed');
+    }
+    await shell.openExternal(url);
+    return { opened: true };
+  });
+
+  handle(IPC_CHANNELS.SYSTEM.CLEAR_HISTORY, () => {
+    clearConversationsAndMessages();
+    return { success: true };
+  });
+
+  handle(IPC_CHANNELS.SYSTEM.RESET_DATABASE, () => {
+    resetDatabase();
+    // 给前端一点时间收到响应后再重启
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 500);
     return { success: true };
   });
 

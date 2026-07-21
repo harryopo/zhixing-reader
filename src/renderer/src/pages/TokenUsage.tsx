@@ -42,6 +42,7 @@ import {
 // ===== 类型 =====
 type TimeRange = 'today' | '7d' | '14d' | '30d'
 type TabKey = 'logs' | 'providers' | 'features'
+type FilterDateRange = '7d' | '30d' | '90d' | 'all'
 
 // ===== 常量 =====
 const FEATURE_LABELS: Record<string, string> = {
@@ -65,6 +66,14 @@ const TABS: { key: TabKey; label: string }[] = [
 ]
 
 const DAYS_MAP: Record<TimeRange, number> = { today: 1, '7d': 7, '14d': 14, '30d': 30 }
+
+/** 筛选日期范围 → 天数（'all' 用 3650 天近似 10 年，足够覆盖全量数据） */
+const FILTER_DAYS_MAP: Record<FilterDateRange, number> = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+  all: 3650,
+}
 
 // USD → CNY 汇率（用于预估费用展示，与设计稿 ¥18.60 / 1.24M tokens 量级一致）
 const USD_TO_CNY = 7
@@ -119,6 +128,39 @@ function formatDateFull(dateStr: string): string {
   }
 }
 
+/** CSV 字段转义：包含 `,` `"` `\n` 时用 `"` 包裹，内部 `"` 转义为 `""`。
+ *  同时防御 CSV 公式注入：以 `=` `+` `-` `@` 开头的值前置单引号（OWASP CSV Injection 防护）。 */
+function escapeCsv(value: unknown): string {
+  let s = String(value ?? '')
+  // 防御 CSV 公式注入：以 = + - @ 开头的值前置单引号（OWASP CSV Injection 防护）
+  if (/^[=+\-@]/.test(s)) {
+    s = "'" + s
+  }
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`
+  }
+  return s
+}
+
+/** 筛选日期范围 → { startDate, endDate } ISO 日期字符串（YYYY-MM-DD） */
+function getFilterRangeDates(range: FilterDateRange): { startDate: string; endDate: string } {
+  const end = new Date()
+  end.setHours(23, 59, 59, 0)
+  const endDate = end.toISOString().split('T')[0]
+  const days = FILTER_DAYS_MAP[range]
+  const start = new Date(end)
+  start.setDate(start.getDate() - days + 1)
+  start.setHours(0, 0, 0, 0)
+  return { startDate: start.toISOString().split('T')[0], endDate }
+}
+
+/** 时间戳格式化：YYYYMMDD-HHmm */
+function formatExportTimestamp(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+}
+
 /** 时间范围副标题（设计稿："本月累计 · 7 月 1-20 日"） */
 function getRangeLabel(range: TimeRange): string {
   const days = DAYS_MAP[range]
@@ -154,6 +196,13 @@ export default function TokenUsagePage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [clearing, setClearing] = useState(false)
 
+  // 筛选相关状态（用于"调用记录"tab 的二次筛选）
+  const [filterProvider, setFilterProvider] = useState<string>('')
+  const [filterFeature, setFilterFeature] = useState<string>('')
+  const [filterDateRange, setFilterDateRange] = useState<FilterDateRange>('30d')
+  const [showFilter, setShowFilter] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
   const loadAll = useCallback(async () => {
     if (!window.electronAPI?.tokenUsage) {
       setLoading(false)
@@ -161,9 +210,10 @@ export default function TokenUsagePage() {
     }
     setLoading(true)
     try {
+      const { startDate, endDate } = getFilterRangeDates(filterDateRange)
       const [s, r, p, f, d] = await Promise.all([
         window.electronAPI.tokenUsage.getTotalStats(),
-        window.electronAPI.tokenUsage.getRecent(100),
+        window.electronAPI.tokenUsage.getByDateRange(startDate, endDate),
         window.electronAPI.tokenUsage.getStatsByProvider(),
         window.electronAPI.tokenUsage.getStatsByFeature(),
         window.electronAPI.tokenUsage.getDailyStats(DAYS_MAP[timeRange]),
@@ -179,7 +229,7 @@ export default function TokenUsagePage() {
     } finally {
       setLoading(false)
     }
-  }, [timeRange])
+  }, [timeRange, filterDateRange])
 
   useEffect(() => {
     loadAll()
@@ -280,6 +330,29 @@ export default function TokenUsagePage() {
     }))
   }, [chartDailyStats])
 
+  // 可选 provider 列表（从 providerStats 提取去重）
+  const providerOptions = useMemo(() => {
+    const set = new Set<string>()
+    providerStats.forEach((p) => set.add(p.provider))
+    return Array.from(set)
+  }, [providerStats])
+
+  // 可选 feature 列表（从 featureStats 提取去重）
+  const featureOptions = useMemo(() => {
+    const set = new Set<string>()
+    featureStats.forEach((f) => set.add(f.feature))
+    return Array.from(set)
+  }, [featureStats])
+
+  // 客户端二次筛选：按 provider + feature 过滤 records
+  const filteredRecords = useMemo(() => {
+    return records.filter((r) => {
+      if (filterProvider && r.provider !== filterProvider) return false
+      if (filterFeature && r.feature !== filterFeature) return false
+      return true
+    })
+  }, [records, filterProvider, filterFeature])
+
   const handleClearAll = async () => {
     setClearing(true)
     try {
@@ -295,16 +368,68 @@ export default function TokenUsagePage() {
     }
   }
 
-  const handleExport = () => {
-    if (records.length === 0) {
+  const handleExport = async () => {
+    if (filteredRecords.length === 0) {
       toast.info('暂无可导出的数据')
       return
     }
-    toast.info('导出功能即将上线')
+    setExporting(true)
+    try {
+      const data = filteredRecords
+      const headers = [
+        'provider',
+        'model',
+        'feature',
+        'input_tokens',
+        'output_tokens',
+        'total_tokens',
+        'cost_usd',
+        'duration_ms',
+        'created_at',
+      ]
+      const lines = [headers.join(',')]
+      for (const r of data) {
+        const row = [
+          r.provider,
+          r.model,
+          r.feature,
+          r.input_tokens,
+          r.output_tokens,
+          r.total_tokens,
+          r.cost_usd || 0,
+          r.duration_ms || 0,
+          r.created_at,
+        ].map(escapeCsv)
+        lines.push(row.join(','))
+      }
+      // 加 UTF-8 BOM 防止 Excel 中文乱码
+      const csv = '\ufeff' + lines.join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `token-usage-${formatExportTimestamp()}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success(`已导出 ${data.length} 条记录到 CSV`)
+    } catch (error) {
+      console.error('导出CSV失败:', error)
+      toast.error('导出 CSV 失败')
+    } finally {
+      setExporting(false)
+    }
   }
 
   const handleFilter = () => {
-    toast.info('筛选功能即将上线')
+    setShowFilter((v) => !v)
+  }
+
+  const handleResetFilter = () => {
+    setFilterProvider('')
+    setFilterFeature('')
+    setFilterDateRange('30d')
   }
 
   const hasData = (summary?.totalRequests ?? 0) > 0
@@ -322,8 +447,13 @@ export default function TokenUsagePage() {
         actions={
           <>
             <Chips items={TIME_RANGES} value={timeRange} onChange={setTimeRange} />
-            <Button variant="secondary" onClick={handleExport} data-dom-id="cta-export">
-              <Icon name="external-link" size={16} /> 导出明细
+            <Button
+              variant="secondary"
+              onClick={handleExport}
+              disabled={exporting}
+              data-dom-id="cta-export"
+            >
+              <Icon name="external-link" size={16} /> {exporting ? '导出中...' : '导出明细'}
             </Button>
             {hasData && (
               <Button
@@ -695,14 +825,92 @@ export default function TokenUsagePage() {
             }
             action={
               <Button variant="ghost" onClick={handleFilter} data-dom-id="cta-filter">
-                <Icon name="filter" size={16} /> 筛选
+                <Icon name="filter" size={16} /> {showFilter ? '收起筛选' : '筛选'}
               </Button>
             }
           />
           <Chips items={TABS} value={activeTab} onChange={setActiveTab} />
 
+          {showFilter && (
+            <div
+              style={{
+                display: 'flex',
+                gap: 'calc(var(--spacing) * 3)',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                padding: 'calc(var(--spacing) * 3)',
+                background: 'var(--muted)',
+                borderRadius: 'var(--radius)',
+                marginTop: 'calc(var(--spacing) * 4)',
+              }}
+            >
+              <div style={filterFieldStyle}>
+                <label style={filterLabelStyle} htmlFor="filter-date-range">
+                  日期范围
+                </label>
+                <select
+                  id="filter-date-range"
+                  value={filterDateRange}
+                  onChange={(e) => setFilterDateRange(e.target.value as FilterDateRange)}
+                  style={selectStyle}
+                >
+                  <option value="7d">近 7 天</option>
+                  <option value="30d">近 30 天</option>
+                  <option value="90d">近 90 天</option>
+                  <option value="all">全部</option>
+                </select>
+              </div>
+              <div style={filterFieldStyle}>
+                <label style={filterLabelStyle} htmlFor="filter-provider">
+                  模型供应商
+                </label>
+                <select
+                  id="filter-provider"
+                  value={filterProvider}
+                  onChange={(e) => setFilterProvider(e.target.value)}
+                  style={selectStyle}
+                >
+                  <option value="">全部</option>
+                  {providerOptions.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={filterFieldStyle}>
+                <label style={filterLabelStyle} htmlFor="filter-feature">
+                  功能
+                </label>
+                <select
+                  id="filter-feature"
+                  value={filterFeature}
+                  onChange={(e) => setFilterFeature(e.target.value)}
+                  style={selectStyle}
+                >
+                  <option value="">全部</option>
+                  {featureOptions.map((f) => (
+                    <option key={f} value={f}>
+                      {FEATURE_LABELS[f] || f}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button variant="ghost" onClick={handleResetFilter} data-dom-id="cta-filter-reset">
+                重置
+              </Button>
+              {filterProvider === '' && filterFeature === '' && filterDateRange === '30d' ? null : (
+                <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
+                  匹配 {filteredRecords.length} 条
+                </span>
+              )}
+            </div>
+          )}
+
           <div style={{ marginTop: 'calc(var(--spacing) * 4)' }}>
-            {activeTab === 'logs' && <RequestLogTable records={records} loading={loading} />}
+            {activeTab === 'logs' && (
+              <RequestLogTable records={filteredRecords} loading={loading} />
+            )}
             {activeTab === 'providers' && (
               <ProviderStatsList stats={providerStats} loading={loading} />
             )}
@@ -1199,6 +1407,31 @@ const providerBadgeStyle: CSSProperties = {
   padding: '0.2rem 0.5rem',
   borderRadius: 'var(--radius)',
   whiteSpace: 'nowrap',
+}
+
+const filterFieldStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'calc(var(--spacing) * 2)',
+}
+
+const filterLabelStyle: CSSProperties = {
+  fontSize: '0.8rem',
+  color: 'var(--muted-foreground)',
+  whiteSpace: 'nowrap',
+}
+
+const selectStyle: CSSProperties = {
+  padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius)',
+  background: 'var(--card)',
+  color: 'var(--foreground)',
+  fontSize: '0.85rem',
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+  outline: 'none',
+  minWidth: 110,
 }
 
 const spinnerStyle: CSSProperties = {

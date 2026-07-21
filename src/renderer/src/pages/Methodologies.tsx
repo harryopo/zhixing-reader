@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
@@ -214,6 +215,7 @@ function getTriggerBadge(
 
 // ===== 主组件 =====
 export default function Methodologies() {
+  const navigate = useNavigate()
   const [methodologies, setMethodologies] = useState<MethodologyItem[]>([])
   const [books, setBooks] = useState<BookInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -427,7 +429,7 @@ export default function Methodologies() {
           </Button>
           <Button
             variant="ghost"
-            onClick={() => toast.info('练习模式即将上线，敬请期待')}
+            onClick={() => navigate('/review')}
             data-dom-id="cta-practice"
           >
             <Icon name="play" size={15} /> 开始练习
@@ -1153,9 +1155,18 @@ export default function Methodologies() {
               bookTitle={getBookTitle(selectedMethod.bookId)}
               onClose={() => setSelectedMethod(null)}
               onDelete={() => handleDelete(selectedMethod.id)}
-              onInjectChat={() => toast.info('已注入AI对话，即将跳转...')}
-              onPractice={() => toast.info('练习模式即将上线，敬请期待')}
-              onEdit={() => toast.info('编辑功能即将上线，敬请期待')}
+              onInjectChat={() => {
+                const bookId = selectedMethod.bookId
+                const name = selectedMethod.name || '方法论'
+                // 带书上下文进入对话；编排器会自动加载该书方法论
+                if (bookId) {
+                  navigate(`/chat?bookId=${encodeURIComponent(bookId)}`)
+                } else {
+                  navigate('/chat')
+                }
+                toast.success(`已打开对话，可继续讨论「${name}」`)
+              }}
+              onPractice={() => navigate('/review')}
             />
           ) : (
             <EmptyState
@@ -1420,7 +1431,6 @@ interface MethodDetailPanelProps {
   onDelete: () => void
   onInjectChat: () => void
   onPractice: () => void
-  onEdit: () => void
 }
 
 function MethodDetailPanel({
@@ -1431,7 +1441,6 @@ function MethodDetailPanel({
   onDelete,
   onInjectChat,
   onPractice,
-  onEdit,
 }: MethodDetailPanelProps) {
   const pct = getMasteryProgress(methodology.masteryLevel)
   const lvl = getMasteryLabel(methodology.masteryLevel)
@@ -1768,9 +1777,6 @@ function MethodDetailPanel({
         <Button variant="ghost" onClick={onPractice} data-dom-id="cta-practice-detail">
           <Icon name="play" size={15} /> 开始练习
         </Button>
-        <Button variant="ghost" onClick={onEdit} data-dom-id="cta-edit">
-          <Icon name="edit" size={15} /> 编辑
-        </Button>
         <Button
           variant="ghost"
           onClick={onDelete}
@@ -1779,6 +1785,9 @@ function MethodDetailPanel({
         >
           <Icon name="trash" size={15} /> 删除
         </Button>
+        <p className="text-sm text-gray-500" style={{ width: '100%', fontSize: '0.82rem' }}>
+          方法论来自 AI 提取，暂不支持本地编辑；可删除后重新提取
+        </p>
       </div>
     </>
   )

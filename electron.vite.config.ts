@@ -60,7 +60,8 @@ export default defineConfig({
       }
     },
     server: {
-      port: 5176
+      // 端口从 5176 改为 5275：Windows Hyper-V/WSL 保留了 5175-5274 范围导致 EACCES
+      port: 5275
     }
   }
 })

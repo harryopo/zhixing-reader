@@ -679,10 +679,6 @@ export default function DailyLearning() {
     }
   }
 
-  const handleEditPlan = () => {
-    toast.info('编辑计划功能即将上线')
-  }
-
   const handleBackToDashboard = () => {
     setView('dashboard')
   }
@@ -1189,9 +1185,6 @@ export default function DailyLearning() {
           <>
             <Button variant="primary" onClick={handleStartToday} data-dom-id="cta-start">
               <Icon name="play" size={16} /> 开始今日学习
-            </Button>
-            <Button variant="ghost" onClick={handleEditPlan} data-dom-id="cta-edit">
-              <Icon name="edit" size={16} /> 编辑计划
             </Button>
           </>
         }

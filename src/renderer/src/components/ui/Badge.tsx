@@ -3,11 +3,11 @@
  * 4 个变体：default / ok / alert / warning
  */
 
-import { CSSProperties, ReactNode } from 'react'
+import { CSSProperties, HTMLAttributes, ReactNode } from 'react'
 
 type BadgeVariant = 'default' | 'ok' | 'alert' | 'warning' | 'success' | 'error'
 
-interface BadgeProps {
+interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   children: ReactNode
   variant?: BadgeVariant
   style?: CSSProperties
@@ -40,7 +40,7 @@ const VARIANT_STYLES: Record<BadgeVariant, Record<string, string>> = {
   },
 }
 
-export default function Badge({ children, variant = 'default', style }: BadgeProps) {
+export default function Badge({ children, variant = 'default', style, ...rest }: BadgeProps) {
   const variantStyle = VARIANT_STYLES[variant]
   return (
     <span
@@ -55,6 +55,7 @@ export default function Badge({ children, variant = 'default', style }: BadgePro
         ...variantStyle,
         ...style,
       }}
+      {...rest}
     >
       {children}
     </span>

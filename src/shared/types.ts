@@ -12,6 +12,8 @@ export interface Book {
   lastReadAt: Date
   createdAt: Date
   updatedAt: Date
+  /** 书籍来源：'weread' = 微信读书同步（id 为 weread bookId），其他 = 本地导入（id 为 UUID） */
+  source?: string
 }
 
 export interface Highlight {

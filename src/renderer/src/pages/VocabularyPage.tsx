@@ -49,12 +49,13 @@ enum ReviewRating {
 }
 
 // ===== 常量 =====
-type FilterKey = 'all' | 'due' | 'mastered' | 'starred'
+type FilterKey = 'all' | 'due' | 'mastered' | 'unmastered'
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'due', label: '待复习' },
   { key: 'mastered', label: '已掌握' },
-  { key: 'starred', label: '收藏' },
+  // schema 无 favorite：用未掌握代替设计稿「收藏」，避免假 toast
+  { key: 'unmastered', label: '未掌握' },
 ]
 
 type MasteryKind = 'pending' | 'mastered' | 'new'
@@ -166,6 +167,8 @@ export default function VocabularyPage() {
       } else if (activeTab === 'mastered') {
         const all = await window.electronAPI.vocabulary.getAll(200)
         result = (all as unknown as VocabularyItem[]).filter((v) => v.is_mastered === 1)
+      } else if (activeTab === 'unmastered') {
+        result = await window.electronAPI.vocabulary.getUnmastered(200)
       } else {
         result = await window.electronAPI.vocabulary.getAll(200)
       }
@@ -232,6 +235,42 @@ export default function VocabularyPage() {
       console.error('添加失败:', error)
       toast.error(error instanceof Error ? error.message : '添加失败')
     }
+  }
+
+  /** 批量导入：每行一个英文词 → createFromLookup */
+  const handleBatchImport = async () => {
+    if (!window.electronAPI?.vocabulary) {
+      toast.error('生词接口不可用')
+      return
+    }
+    const raw = window.prompt('批量导入：每行一个英文单词（最多 50 个）')
+    if (raw === null || !raw.trim()) return
+    const words = [
+      ...new Set(
+        raw
+          .split(/[\n,，;；\s]+/)
+          .map((w) => w.trim().toLowerCase())
+          .filter((w) => /^[a-z][a-z'-]*$/i.test(w)),
+      ),
+    ].slice(0, 50)
+    if (words.length === 0) {
+      toast.info('未识别到有效英文单词')
+      return
+    }
+    let added = 0
+    let skipped = 0
+    let failed = 0
+    for (const word of words) {
+      try {
+        const result = await window.electronAPI.vocabulary.createFromLookup(word, '批量导入')
+        if (result === null) skipped++
+        else added++
+      } catch {
+        failed++
+      }
+    }
+    await loadVocabulary()
+    toast.success(`导入完成：新增 ${added} · 已存在 ${skipped} · 失败 ${failed}`)
   }
 
   /** 删除生词 */
@@ -583,7 +622,7 @@ export default function VocabularyPage() {
             </Button>
             <Button
               variant="ghost"
-              onClick={() => toast.info('批量导入即将上线')}
+              onClick={() => void handleBatchImport()}
               data-dom-id="cta-import"
             >
               <Icon name="file" size={16} /> 导入
@@ -618,11 +657,7 @@ export default function VocabularyPage() {
                 flexWrap: 'wrap',
               }}
             >
-              <FilterChips
-                value={activeTab}
-                onChange={setActiveTab}
-                onStarred={() => toast.info('收藏功能即将上线')}
-              />
+              <FilterChips value={activeTab} onChange={setActiveTab} />
               <input
                 type="search"
                 placeholder="搜索单词..."
@@ -1014,9 +1049,8 @@ export default function VocabularyPage() {
 interface FilterChipsProps {
   value: FilterKey
   onChange: (v: FilterKey) => void
-  onStarred: () => void
 }
-function FilterChips({ value, onChange, onStarred }: FilterChipsProps) {
+function FilterChips({ value, onChange }: FilterChipsProps) {
   return (
     <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)', flexWrap: 'wrap' }}>
       {FILTERS.map((item) => {
@@ -1026,13 +1060,7 @@ function FilterChips({ value, onChange, onStarred }: FilterChipsProps) {
             key={item.key}
             type="button"
             data-active={active ? 'true' : undefined}
-            onClick={() => {
-              if (item.key === 'starred') {
-                onStarred()
-                return
-              }
-              onChange(item.key)
-            }}
+            onClick={() => onChange(item.key)}
             style={{
               padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 4)',
               border: '1px solid',

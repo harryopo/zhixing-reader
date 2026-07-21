@@ -124,6 +124,7 @@ export default function Review() {
   const [totalCards, setTotalCards] = useState(0)
   const [creatingCards, setCreatingCards] = useState(false)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [ratingPreviews, setRatingPreviews] = useState<Record<number, string>>({})
   const [reviewDurations, setReviewDurations] = useState<number[]>([])
   const [cardStartTs, setCardStartTs] = useState<number>(Date.now())
 
@@ -210,7 +211,30 @@ export default function Review() {
     return books.find((b) => b.id === bookId) || null
   }
 
-  const handleShowAnswer = () => setShowAnswer(true)
+  const handleShowAnswer = () => {
+    setShowAnswer(true)
+    void loadRatingPreviews()
+  }
+
+  const loadRatingPreviews = async () => {
+    const currentCard = cards[currentIndex]
+    if (!currentCard || !window.electronAPI?.fsrs?.previewReviewRatings) {
+      setRatingPreviews({})
+      return
+    }
+    try {
+      const previews = await window.electronAPI.fsrs.previewReviewRatings(
+        currentCard as Record<string, unknown>,
+      )
+      const map: Record<number, string> = {}
+      for (const p of previews) {
+        map[p.rating] = p.intervalLabel
+      }
+      setRatingPreviews(map)
+    } catch {
+      setRatingPreviews({})
+    }
+  }
 
   const handleRate = async (quality: number) => {
     const currentCard = cards[currentIndex]
@@ -230,6 +254,7 @@ export default function Review() {
       setReviewedCount((prev) => prev + 1)
       if (quality >= 3) setCorrectCount((prev) => prev + 1)
       setSelectedTag(null)
+      setRatingPreviews({})
 
       if (currentIndex < cards.length - 1) {
         setCurrentIndex((prev) => prev + 1)
@@ -257,6 +282,7 @@ export default function Review() {
 
   const handleSkip = () => {
     setSelectedTag(null)
+    setRatingPreviews({})
     if (currentIndex < cards.length - 1) {
       setCurrentIndex((prev) => prev + 1)
       setShowAnswer(false)
@@ -716,7 +742,7 @@ export default function Review() {
                 type="button"
                 data-dom-id={`rate-${level.key}`}
                 data-rating={level.key}
-                aria-label={`${level.label}，间隔 ${level.meta}`}
+                aria-label={`${level.label}，间隔 ${ratingPreviews[level.score] ?? level.meta}`}
                 onClick={() => handleRate(level.score)}
                 style={{
                   padding: 'calc(var(--spacing) * 4)',
@@ -771,7 +797,7 @@ export default function Review() {
                     fontFamily: 'var(--font-mono)',
                   }}
                 >
-                  {level.meta}
+                  {ratingPreviews[level.score] ?? level.meta}
                 </span>
               </button>
             ))}

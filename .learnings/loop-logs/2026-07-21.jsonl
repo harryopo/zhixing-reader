@@ -1,0 +1,59 @@
+{"ts":"2026-07-21T04:49:42.738Z","type":"init","message":"loop-log initialized"}
+{"ts":"2026-07-21T04:49:42.862Z","type":"item","wave":"F","item":"F1","status":"done","message":"loop-log backend"}
+{"ts":"2026-07-21T04:49:42.982Z","type":"item","wave":"F","item":"F2","status":"done","message":"loop-detect desktop"}
+{"ts":"2026-07-21T04:49:43.108Z","type":"item","wave":"F","item":"F3","status":"done","message":"previewReviewRatings + Review UI"}
+{"ts":"2026-07-21T04:51:05.018Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=false"}
+{"ts":"2026-07-21T04:52:09.850Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T04:52:09.943Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T04:52:10.053Z","type":"round","rounds":1}
+{"ts":"2026-07-21T04:53:37.696Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T04:55:26.241Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T05:21:39.482Z","type":"item","wave":"G","item":"G-all","status":"done","message":"UI-capability disconnects fixed; typecheck 0 test 173"}
+{"ts":"2026-07-21T05:21:39.604Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T05:21:39.721Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T05:21:39.840Z","type":"round","rounds":2}
+{"ts":"2026-07-21T05:21:40.970Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T05:25:34.827Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T05:27:05.250Z","type":"item","wave":"H","item":"H0","status":"idle","message":"post-compact reverify typecheck0 test173 detect ok"}
+{"ts":"2026-07-21T05:27:06.128Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T05:27:07.023Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T05:31:44.420Z","type":"item","wave":"H","item":"H1","status":"done","message":"SettingsData clearCache wired; cron durable 2caf07d3 only"}
+{"ts":"2026-07-21T05:31:45.303Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T05:31:46.197Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T06:23:37.723Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T06:30:36.009Z","type":"item","wave":"I","item":"I-all","status":"done","message":"KnowledgeCards create/edit/export/list + Vocab batchImport/unmastered; cron 15m 46c4779e"}
+{"ts":"2026-07-21T06:30:36.964Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T06:30:37.934Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T06:32:55.340Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T06:34:39.352Z","type":"item","wave":"idle","item":"reverify","status":"idle","message":"15m reverify: pending=[] type0 test173 dist+installer ok; no code change"}
+{"ts":"2026-07-21T06:34:40.343Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T06:34:41.352Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T06:47:55.225Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T06:49:21.224Z","type":"item","wave":"idle","item":"reverify","status":"idle","message":"15m#2 reverify pending=[] type0 test173 dist+installer ok no code"}
+{"ts":"2026-07-21T06:49:22.615Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T06:49:24.097Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T07:02:58.163Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T07:03:59.246Z","type":"item","wave":"idle","item":"reverify","status":"idle","message":"15m#3 reverify pending=[] type0 test173 no code"}
+{"ts":"2026-07-21T07:04:00.132Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T07:04:01.031Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T07:17:55.338Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T07:18:44.724Z","type":"item","wave":"idle","item":"reverify","status":"idle","message":"15m#4 reverify pending=[] type0 test173 no code"}
+{"ts":"2026-07-21T07:18:45.648Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T07:18:46.579Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T08:18:35.994Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T08:19:28.341Z","type":"item","wave":"idle","item":"reverify","status":"idle","message":"15m#5 reverify pending=[] type0 test173 no code (batch fire)"}
+{"ts":"2026-07-21T08:19:29.166Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T08:19:30.051Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T08:32:45.961Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T08:33:36.830Z","type":"item","wave":"idle","item":"reverify","status":"idle","message":"15m#6 reverify pending=[] type0 test173 no code"}
+{"ts":"2026-07-21T08:33:37.662Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T08:33:38.500Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T08:47:57.623Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T08:48:49.027Z","type":"item","wave":"idle","item":"reverify","status":"idle","message":"15m#7 reverify pending=[] type0 test173 no code"}
+{"ts":"2026-07-21T08:48:49.892Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T08:48:50.738Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T09:03:19.894Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}
+{"ts":"2026-07-21T09:04:29.673Z","type":"item","wave":"idle","item":"reverify","status":"idle","message":"15m#8 reverify pending=[] type0 test173 no code"}
+{"ts":"2026-07-21T09:04:30.519Z","type":"gate","name":"typecheck","ok":true,"detail":"0"}
+{"ts":"2026-07-21T09:04:31.375Z","type":"gate","name":"test","ok":true,"detail":"173 passed"}
+{"ts":"2026-07-21T09:17:52.125Z","type":"item","wave":"F","item":"F2","status":"info","message":"detect appRunning=false installer=true"}

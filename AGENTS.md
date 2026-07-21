@@ -64,7 +64,7 @@ zhixing-reader/
 
 ```bash
 # 日常开发
-npm run dev              # 开发模式（Vite 端口 5176 + Electron 自动开）
+npm run dev              # 开发模式（Vite 端口 5275 + Electron 自动开）
 npm run build            # 三进程编译到 dist/
 npm run start            # 预览生产构建
 
@@ -171,7 +171,7 @@ npm run verify
 
 来自 [AGENTS.md 根级规则](d:/ai/claude%20code/%E5%BE%AE%E4%BF%A1%E8%AF%BB%E4%B9%A6/AGENTS.md)：
 
-1. **端口 5176 硬编码** — 不要单独修改 `electron.vite.config.ts` 或 `electron/main.ts` 的端口
+1. **端口 5275 硬编码** — 不要单独修改 `electron.vite.config.ts` 或 `electron/main.ts` 的端口（原 5176 因 Windows Hyper-V 保留端口范围 5175-5274 改为 5275）
 2. **sql.js 是 WASM** — 默认内存运行，持久化必须显式 read/write
 3. **preload path 解析** — `getPreloadPath()` 尝试多路径，改 build 输出需同步
 4. **Windows-only 打包** — electron-builder 只配 NSIS，无 macOS/Linux

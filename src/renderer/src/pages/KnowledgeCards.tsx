@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef, CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -161,6 +162,7 @@ function classifyErrorMessage(msg: string): {
 
 // ===== 主组件 =====
 export default function KnowledgeCards() {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabKey>('cards')
   const [cards, setCards] = useState<KnowledgeCardItem[]>([])
   const [books, setBooks] = useState<BookRow[]>([])
@@ -173,6 +175,7 @@ export default function KnowledgeCards() {
   const [distillProgress, setDistillProgress] = useState<DistillProgress | null>(null)
   const [flippedId, setFlippedId] = useState<string | null>(null)
   const [generatingMap, setGeneratingMap] = useState<Record<string, 'interpretation' | 'application' | null>>({})
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -352,6 +355,105 @@ export default function KnowledgeCards() {
       toast.success('已删除')
     } catch (error) {
       toast.error(`删除失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  /** 手动新建（knowledgeCards:create 已有 IPC） */
+  const handleCreateCard = async () => {
+    if (!window.electronAPI?.knowledgeCard) {
+      toast.error('知识卡片接口不可用')
+      return
+    }
+    if (books.length === 0) {
+      toast.info('请先同步书籍后再新建卡片')
+      return
+    }
+    const defaultBook = books[0]
+    const bookHint =
+      books.length === 1
+        ? defaultBook.title
+        : window.prompt(
+            `关联书籍（输入书名关键词，回车用第一本「${defaultBook.title}」）:`,
+            defaultBook.title,
+          )
+    if (bookHint === null) return
+    const book =
+      books.find((b) => b.title.includes(bookHint.trim()) || b.id === bookHint.trim()) ?? defaultBook
+    const typeRaw = window.prompt('类型: concept / methodology / quote', 'concept')
+    if (typeRaw === null) return
+    const type = (['concept', 'methodology', 'quote'].includes(typeRaw.trim())
+      ? typeRaw.trim()
+      : 'concept') as CardType
+    const title = window.prompt('卡片标题')
+    if (title === null || !title.trim()) return
+    const content = window.prompt('卡片内容')
+    if (content === null || !content.trim()) return
+    try {
+      await window.electronAPI.knowledgeCard.create({
+        bookId: book.id,
+        type,
+        title: title.trim(),
+        content: content.trim(),
+        tags: [],
+        masteryLevel: 0,
+        reviewCount: 0,
+      })
+      await loadData()
+      toast.success('已新建知识卡片')
+    } catch (error) {
+      toast.error(`新建失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  /** 编辑标题/内容（knowledgeCards:update） */
+  const handleEditCard = async (card: KnowledgeCardItem) => {
+    if (!window.electronAPI?.knowledgeCard) return
+    const title = window.prompt('编辑标题', card.title)
+    if (title === null) return
+    const content = window.prompt('编辑内容', card.content)
+    if (content === null) return
+    try {
+      await window.electronAPI.knowledgeCard.update(card.id, {
+        title: title.trim() || card.title,
+        content: content.trim() || card.content,
+      })
+      await loadData()
+      toast.success('已保存修改')
+    } catch (error) {
+      toast.error(`编辑失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  /** 导出当前筛选结果为 JSON（纯前端下载，无后端） */
+  const handleExportCards = () => {
+    if (filteredCards.length === 0) {
+      toast.info('没有可导出的卡片')
+      return
+    }
+    try {
+      const payload = filteredCards.map((c) => ({
+        id: c.id,
+        bookId: c.bookId,
+        bookTitle: getBookTitle(c.bookId),
+        type: c.type,
+        title: c.title,
+        content: c.content,
+        interpretation: c.interpretation ?? '',
+        application: c.application ?? '',
+        tags: c.tags ?? [],
+        masteryLevel: c.masteryLevel,
+        reviewCount: c.reviewCount,
+      }))
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `knowledge-cards-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(`已导出 ${payload.length} 张卡片`)
+    } catch (error) {
+      toast.error(`导出失败: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -578,7 +680,7 @@ export default function KnowledgeCards() {
           <>
             <Button
               variant="primary"
-              onClick={() => toast.info('新建卡片功能即将上线')}
+              onClick={() => void handleCreateCard()}
               data-dom-id="cta-new"
             >
               <Icon name="plus" size={16} /> 新建卡片
@@ -592,7 +694,7 @@ export default function KnowledgeCards() {
             </Button>
             <Button
               variant="ghost"
-              onClick={() => toast.info('导出功能即将上线')}
+              onClick={handleExportCards}
               data-dom-id="cta-export"
             >
               <Icon name="external-link" size={16} /> 导出
@@ -868,7 +970,8 @@ export default function KnowledgeCards() {
                       type="button"
                       data-dom-id="view-grid"
                       aria-label="网格视图"
-                      style={iconBtnStyle(true)}
+                      onClick={() => setViewMode('grid')}
+                      style={iconBtnStyle(viewMode === 'grid')}
                     >
                       <Icon name="cards" size={14} />
                     </button>
@@ -876,8 +979,8 @@ export default function KnowledgeCards() {
                       type="button"
                       data-dom-id="view-list"
                       aria-label="列表视图"
-                      onClick={() => toast.info('列表视图即将上线')}
-                      style={iconBtnStyle(false)}
+                      onClick={() => setViewMode('list')}
+                      style={iconBtnStyle(viewMode === 'list')}
                     >
                       <Icon name="menu" size={14} />
                     </button>
@@ -907,6 +1010,62 @@ export default function KnowledgeCards() {
                   borderRadius: 'calc(var(--radius) + 6px)',
                 }}
               />
+            ) : viewMode === 'list' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
+                {filteredCards.map((card) => (
+                  <div
+                    key={card.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1.4fr 0.6fr 1fr auto',
+                      gap: 'calc(var(--spacing) * 3)',
+                      alignItems: 'center',
+                      padding: 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--card)',
+                    }}
+                  >
+                    <strong
+                      style={{
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={card.title}
+                    >
+                      {card.title}
+                    </strong>
+                    <span style={{ color: 'var(--muted-foreground)', fontSize: '0.84rem' }}>
+                      {typeConfig[card.type]?.label ?? card.type}
+                    </span>
+                    <span
+                      style={{
+                        color: 'var(--muted-foreground)',
+                        fontSize: '0.84rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={getBookTitle(card.bookId)}
+                    >
+                      {getBookTitle(card.bookId)}
+                    </span>
+                    <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
+                      <Button variant="ghost" onClick={() => void handleEditCard(card)}>
+                        编辑
+                      </Button>
+                      <Button variant="ghost" onClick={() => navigate('/review')}>
+                        复习
+                      </Button>
+                      <Button variant="ghost" onClick={() => void handleDelete(card.id)}>
+                        删除
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div
                 style={{
@@ -923,9 +1082,11 @@ export default function KnowledgeCards() {
                     onFlip={() => setFlippedId(flippedId === card.id ? null : card.id)}
                     onClose={() => setFlippedId(null)}
                     onDelete={() => handleDelete(card.id)}
-                    onEdit={() => toast.info('编辑卡片功能即将上线')}
+                    onEdit={() => void handleEditCard(card)}
                     onReview={() => setFlippedId(card.id)}
-                    onReviewAction={() => toast.info('复习功能即将上线')}
+                    onReviewAction={() => {
+                      navigate('/review')
+                    }}
                     onGenerateInterpretation={() => handleGenerateInterpretation(card)}
                     onGenerateApplication={() => handleGenerateApplication(card)}
                     onUpdateMastery={(level) => handleUpdateMastery(card, level)}

@@ -247,7 +247,7 @@ zhixing-reader/
 # 安装依赖（使用 npmmirror 镜像）
 npm install
 
-# 开发模式（Vite 端口 5176 + Electron 自动开）
+# 开发模式（Vite 端口 5275 + Electron 自动开）
 npm run dev
 
 # 质量门禁（提交前必跑）

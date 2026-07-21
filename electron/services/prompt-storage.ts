@@ -3,10 +3,20 @@ import { settingsService } from './settings-service'
 import { PROMPT_REGISTRY, getPromptMeta, getAllPromptIds, PromptMeta } from './prompt-registry'
 
 const STORE_KEY = 'admin_prompts'
+const STORE_KEY_CUSTOM = 'admin_custom_prompts'
 
 export interface PromptWithOverride extends PromptMeta {
   currentTemplate: string
   isCustom: boolean
+}
+
+export interface CustomPrompt {
+  id: string
+  name: string
+  content: string
+  category: 'custom'
+  createdAt: string
+  updatedAt: string
 }
 
 function readStore(): Record<string, string> {
@@ -19,6 +29,18 @@ function readStore(): Record<string, string> {
 
 function writeStore(store: Record<string, string>): void {
   settingsService.set(STORE_KEY, store)
+}
+
+function readCustomStore(): Record<string, CustomPrompt> {
+  const v = settingsService.get(STORE_KEY_CUSTOM)
+  if (v && typeof v === 'object') {
+    return v as Record<string, CustomPrompt>
+  }
+  return {}
+}
+
+function writeCustomStore(store: Record<string, CustomPrompt>): void {
+  settingsService.set(STORE_KEY_CUSTOM, store)
 }
 
 export function getAllPrompts(): PromptWithOverride[] {
@@ -116,6 +138,79 @@ export function importPrompts(json: string): { success: boolean; imported: numbe
   } catch (e) {
     return { success: false, imported: 0, error: String(e) }
   }
+}
+
+// ===== 自定义模板（用户在 SettingsAI 新建的提示词模板） =====
+
+export function createCustomPrompt(name: string, content: string): CustomPrompt {
+  const trimmedName = name.trim()
+  if (!trimmedName) {
+    throw new Error('模板名称不能为空')
+  }
+  if (!content.trim()) {
+    throw new Error('模板内容不能为空')
+  }
+  const now = new Date().toISOString()
+  const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  const prompt: CustomPrompt = {
+    id,
+    name: trimmedName,
+    content,
+    category: 'custom',
+    createdAt: now,
+    updatedAt: now,
+  }
+  const store = readCustomStore()
+  store[id] = prompt
+  writeCustomStore(store)
+  logger.info(`Custom prompt created: ${id} (${trimmedName})`)
+  return prompt
+}
+
+export function getAllCustomPrompts(): CustomPrompt[] {
+  const store = readCustomStore()
+  return Object.values(store).sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
+}
+
+export function getCustomPrompt(id: string): CustomPrompt | undefined {
+  return readCustomStore()[id]
+}
+
+export function updateCustomPrompt(id: string, name: string, content: string): { success: boolean; error?: string } {
+  const store = readCustomStore()
+  const existing = store[id]
+  if (!existing) {
+    return { success: false, error: `自定义模板 ${id} 不存在` }
+  }
+  const trimmedName = name.trim()
+  if (!trimmedName) {
+    return { success: false, error: '模板名称不能为空' }
+  }
+  if (!content.trim()) {
+    return { success: false, error: '模板内容不能为空' }
+  }
+  store[id] = {
+    ...existing,
+    name: trimmedName,
+    content,
+    updatedAt: new Date().toISOString(),
+  }
+  writeCustomStore(store)
+  logger.info(`Custom prompt updated: ${id}`)
+  return { success: true }
+}
+
+export function deleteCustomPrompt(id: string): { success: boolean; error?: string } {
+  const store = readCustomStore()
+  if (!store[id]) {
+    return { success: false, error: `自定义模板 ${id} 不存在` }
+  }
+  delete store[id]
+  writeCustomStore(store)
+  logger.info(`Custom prompt deleted: ${id}`)
+  return { success: true }
 }
 
 export function parseIntentKeywords(text: string): Record<string, string[]> | null {

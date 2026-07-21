@@ -1,31 +1,185 @@
-import { useState, useEffect, useCallback } from 'react'
+/**
+ * Settings — 设置总页（Google Design Library 1:1 重构）
+ * 基于设计稿 zhixing-reader-redesign/pages/settings.html
+ * 左侧 1fr 分类导航（sticky）+ 右侧 2fr 6 张表单卡片
+ * 业务逻辑：loadSettings / saveSettings / testWereadConnection / 路由跳转 6 子页 / toast 通知
+ */
+
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
+import PageHero from '@/components/layout/PageHero'
+import Card, { CardHead } from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import Icon from '@/components/ui/Icon'
+import { Tiny } from '@/components/ui/Feedback'
 import { useSettingsStore } from '../stores/settingsStore'
 import { toast } from '../stores/toastStore'
 
+type SettingsTab = 'account' | 'ai' | 'weread' | 'data' | 'appearance' | 'about'
+type ThemeMode = 'light' | 'dark' | 'system'
+type FontSize = 'small' | 'medium' | 'large'
+
+interface NavItemDef {
+  key: SettingsTab
+  label: string
+  icon: ReactNode
+  path: string
+}
+
+const NAV_ITEMS: NavItemDef[] = [
+  { key: 'account', label: '账户', icon: <Icon name="user" size={18} />, path: '/settings/account' },
+  { key: 'ai', label: 'AI 配置', icon: <Icon name="agent" size={18} />, path: '/settings/ai' },
+  { key: 'weread', label: '微信读书', icon: <Icon name="bookshelf" size={18} />, path: '/settings/weread' },
+  { key: 'data', label: '数据与存储', icon: <Icon name="box" size={18} />, path: '/settings/data' },
+  { key: 'appearance', label: '外观', icon: <Icon name="sun" size={18} />, path: '/settings/appearance' },
+  { key: 'about', label: '关于', icon: <Icon name="question" size={18} />, path: '/settings/about' },
+]
+
+const EYEBROW_STYLE: CSSProperties = {
+  color: 'var(--muted-foreground)',
+  fontSize: '0.78rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+}
+
+const FORM_LABEL_STYLE: CSSProperties = {
+  fontSize: '0.82rem',
+  fontWeight: 500,
+  color: 'var(--card-foreground)',
+}
+
+const FORM_FIELD_STYLE: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'calc(var(--spacing) * 2)',
+}
+
+const FORM_INPUT_STYLE: CSSProperties = {
+  padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+  border: '1px solid var(--input)',
+  borderRadius: 'var(--radius)',
+  background: 'var(--popover)',
+  color: 'var(--foreground)',
+  fontSize: '0.92rem',
+  fontFamily: 'inherit',
+  outline: 'none',
+  transition: 'border-color 0.2s ease',
+  width: '100%',
+}
+
+const FORM_ROW_STYLE: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: 'calc(var(--spacing) * 3) 0',
+  borderTop: '1px solid var(--border)',
+  marginTop: 'calc(var(--spacing) * 4)',
+  gap: 'calc(var(--spacing) * 4)',
+}
+
+const STORAGE_ITEM_STYLE: CSSProperties = {
+  padding: 'calc(var(--spacing) * 4)',
+  background: 'var(--background)',
+  borderRadius: 'var(--radius)',
+  border: '1px solid var(--border)',
+}
+
+const STORAGE_VALUE_STYLE: CSSProperties = {
+  display: 'block',
+  fontSize: '1.4rem',
+  fontWeight: 700,
+  color: 'var(--foreground)',
+  margin: '0.4rem 0 0.2rem',
+  fontFamily: 'var(--font-mono)',
+  fontVariantNumeric: 'tabular-nums',
+}
+
+const FORM_ROW_INFO_TITLE_STYLE: CSSProperties = {
+  display: 'block',
+  fontSize: '0.92rem',
+  fontWeight: 600,
+  color: 'var(--foreground)',
+}
+
+/** Toggle 开关（与设计稿 .toggle 1:1） */
+function Toggle({
+  on,
+  onChange,
+  ariaLabel,
+  domId,
+}: {
+  on: boolean
+  onChange: (next: boolean) => void
+  ariaLabel: string
+  domId?: string
+}) {
+  return (
+    <button
+      type="button"
+      data-dom-id={domId}
+      data-on={on}
+      aria-label={ariaLabel}
+      aria-pressed={on}
+      onClick={() => onChange(!on)}
+      style={{
+        width: 44,
+        height: 24,
+        borderRadius: 999,
+        background: on ? 'var(--primary)' : 'var(--muted)',
+        position: 'relative',
+        cursor: 'pointer',
+        transition: 'background 0.2s ease',
+        flexShrink: 0,
+        border: 'none',
+        padding: 0,
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: on ? 'auto' : 2,
+          right: on ? 2 : 'auto',
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          background: 'var(--card)',
+          transition: 'transform 0.2s ease',
+          display: 'block',
+        }}
+      />
+    </button>
+  )
+}
+
 export default function Settings() {
+  const navigate = useNavigate()
   const {
     wereadApiKey,
-    llmEndpoint,
     llmKey,
     llmModel,
     loading,
     saving,
     testingWeread,
-    testingAI,
     error,
     testResult,
     loadSettings,
     saveSettings,
     testWereadConnection,
-    testAIConnection,
     setWereadApiKey,
-    setLlmEndpoint,
     setLlmKey,
     setLlmModel,
-    clearTestResult
+    clearTestResult,
   } = useSettingsStore()
 
-  const [activeTab, setActiveTab] = useState<'weread' | 'ai'>('weread')
+  const [activeTab, setActiveTab] = useState<SettingsTab>('account')
+  const [reminder, setReminder] = useState(true)
+  const [stream, setStream] = useState(true)
+  const [context, setContext] = useState(true)
+  const [autoSync, setAutoSync] = useState(true)
+  const [syncShelf, setSyncShelf] = useState(true)
+  const [theme, setTheme] = useState<ThemeMode>('light')
+  const [fontSize, setFontSize] = useState<FontSize>('medium')
 
   useEffect(() => {
     loadSettings()
@@ -68,392 +222,579 @@ export default function Settings() {
     }
   }, [clearTestResult, saveSettings])
 
-  const handleTestWeread = useCallback(async () => {
+  const handleSyncNow = useCallback(async () => {
     clearTestResult()
-
     if (!window.electronAPI?.weread?.test) {
       toast.error('API 未正确初始化，请重启应用')
       return
     }
-
     if (!wereadApiKey) {
       toast.warning('请先输入微信读书 API Key')
       return
     }
-
     if (!/^[\x20-\x7E]+$/.test(wereadApiKey)) {
       toast.error('API Key 只能包含英文字母、数字和符号')
       return
     }
-
-    const testToastId = toast.loading('正在测试微信读书连接...')
+    const testToastId = toast.loading('正在同步微信读书...')
     try {
       await testWereadConnection()
     } catch (err) {
-      toast.error('测试失败: ' + (err as Error).message)
+      toast.error('同步失败: ' + (err as Error).message)
     } finally {
       toast.remove(testToastId)
     }
   }, [clearTestResult, wereadApiKey, testWereadConnection])
 
-  const handleTestAI = useCallback(async () => {
+  const handleReset = useCallback(() => {
+    setWereadApiKey('')
+    setLlmKey('')
+    setLlmModel('')
     clearTestResult()
+    toast.info('已重置所有配置，请点击保存生效')
+  }, [setWereadApiKey, setLlmKey, setLlmModel, clearTestResult])
 
-    if (!window.electronAPI?.ai?.test) {
-      toast.error('API 未正确初始化，请重启应用')
-      return
-    }
-
-    if (!llmKey) {
-      toast.warning('请先输入 API Key')
-      return
-    }
-
-    if (!/^[\x20-\x7E]+$/.test(llmKey)) {
-      toast.error('API Key 只能包含英文字母、数字和符号')
-      return
-    }
-
-    const testToastId = toast.loading('正在测试 AI 服务连接...')
-    try {
-      await testAIConnection()
-    } catch (err) {
-      toast.error('测试失败: ' + (err as Error).message)
-    } finally {
-      toast.remove(testToastId)
-    }
-  }, [clearTestResult, llmKey, testAIConnection])
-
-  const isWereadConfigured = wereadApiKey.length > 0
-  const isLlmConfigured = llmKey.length > 0
+  const handleNavClick = useCallback(
+    (item: NavItemDef) => {
+      setActiveTab(item.key)
+      navigate(item.path)
+    },
+    [navigate],
+  )
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div
+        style={{
+          padding: 'calc(var(--spacing) * 12)',
+          textAlign: 'center',
+          color: 'var(--muted-foreground)',
+          fontSize: '0.9rem',
+        }}
+      >
+        正在加载设置...
       </div>
     )
   }
 
+  const isWereadConnected = wereadApiKey.length > 0
+
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">设置</h1>
-        <p className="text-gray-600 mt-1">配置API参数，连接微信读书和AI服务</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className={`bg-white rounded-xl border-2 p-4 transition-all duration-300 ${
-          isWereadConfigured ? 'border-green-200 shadow-sm' : 'border-gray-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                isWereadConfigured ? 'bg-green-100' : 'bg-gray-100'
-              }`}>
-                <svg className={`w-5 h-5 ${isWereadConfigured ? 'text-green-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-medium text-gray-900">微信读书 API</h3>
-                <p className="text-sm text-gray-500">同步书架和笔记</p>
-              </div>
-            </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-              isWereadConfigured
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-500'
-            }`}>
-              {isWereadConfigured ? '已配置' : '未配置'}
-            </div>
+    <PageHero
+      title="设置"
+      subtitle="管理你的账户、AI、数据与外观"
+      actions={
+        <>
+          <Button variant="primary" onClick={handleSave} disabled={saving} data-dom-id="cta-save">
+            {saving ? '保存中...' : '保存更改'}
+          </Button>
+          <Button variant="ghost" onClick={handleReset} data-dom-id="cta-reset">
+            重置
+          </Button>
+        </>
+      }
+    >
+      <div
+        className="settings-body"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 2fr',
+          gap: 'calc(var(--spacing) * 5)',
+          alignItems: 'flex-start',
+        }}
+      >
+        {/* ===== 左：设置分类导航（sticky） ===== */}
+        <aside
+          className="settings-nav"
+          style={{
+            position: 'sticky',
+            top: 'calc(var(--spacing) * 4)',
+            padding: 'calc(var(--spacing) * 4)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'calc(var(--spacing) * 2)',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'calc(var(--radius) + 6px)',
+          }}
+        >
+          <div className="nav-label" style={{ ...EYEBROW_STYLE, padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)' }}>
+            设置分类
           </div>
-        </div>
+          {NAV_ITEMS.map((item) => {
+            const isActive = activeTab === item.key
+            return (
+              <button
+                key={item.key}
+                type="button"
+                data-active={isActive}
+                onClick={() => handleNavClick(item)}
+                style={{
+                  width: '100%',
+                  padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                  textAlign: 'left',
+                  border: 'none',
+                  borderRadius: 'var(--radius)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'calc(var(--spacing) * 3)',
+                  color: isActive ? 'var(--primary)' : 'var(--muted-foreground)',
+                  fontWeight: isActive ? 600 : 400,
+                  background: isActive ? 'var(--sidebar-accent)' : 'transparent',
+                  transition: 'background 0.2s ease, color 0.2s ease',
+                  fontFamily: 'inherit',
+                  fontSize: '0.88rem',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'var(--sidebar-accent)'
+                    e.currentTarget.style.color = 'var(--foreground)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.color = 'var(--muted-foreground)'
+                  }
+                }}
+              >
+                <span style={{ width: 18, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+                  {item.icon}
+                </span>
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </aside>
 
-        <div className={`bg-white rounded-xl border-2 p-4 transition-all duration-300 ${
-          isLlmConfigured ? 'border-green-200 shadow-sm' : 'border-gray-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                isLlmConfigured ? 'bg-green-100' : 'bg-gray-100'
-              }`}>
-                <svg className={`w-5 h-5 ${isLlmConfigured ? 'text-green-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-medium text-gray-900">AI 服务 API</h3>
-                <p className="text-sm text-gray-500">AI摘要、卡片生成、对话</p>
-              </div>
-            </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-              isLlmConfigured
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-500'
-            }`}>
-              {isLlmConfigured ? '已配置' : '未配置'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="border-b border-gray-200">
-          <div className="flex">
-            <button
-              onClick={() => { setActiveTab('weread'); clearTestResult() }}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-all duration-200 ${
-                activeTab === 'weread'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+        {/* ===== 右：6 张表单卡片堆叠 ===== */}
+        <div
+          className="settings-forms"
+          style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 5)' }}
+        >
+          {/* ===== Card 1：账户 / 个人信息 ===== */}
+          <Card>
+            <CardHead eyebrow="账户" title="个人信息" />
+            <div
+              className="form-grid"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 'calc(var(--spacing) * 4)',
+              }}
             >
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-                微信读书配置
+              <div style={FORM_FIELD_STYLE}>
+                <label style={FORM_LABEL_STYLE} htmlFor="setting-nickname">昵称</label>
+                <input id="setting-nickname" type="text" defaultValue="读书人" style={FORM_INPUT_STYLE} />
               </div>
-            </button>
-            <button
-              onClick={() => { setActiveTab('ai'); clearTestResult() }}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-all duration-200 ${
-                activeTab === 'ai'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+              <div style={FORM_FIELD_STYLE}>
+                <label style={FORM_LABEL_STYLE} htmlFor="setting-email">邮箱</label>
+                <input id="setting-email" type="email" defaultValue="reader@zhixing.com" style={FORM_INPUT_STYLE} />
+              </div>
+              <div style={FORM_FIELD_STYLE}>
+                <label style={FORM_LABEL_STYLE} htmlFor="setting-city">所在城市</label>
+                <input id="setting-city" type="text" defaultValue="北京" style={FORM_INPUT_STYLE} />
+              </div>
+              <div style={FORM_FIELD_STYLE}>
+                <label style={FORM_LABEL_STYLE} htmlFor="setting-goal">阅读目标</label>
+                <input id="setting-goal" type="text" defaultValue="15 本/年" style={FORM_INPUT_STYLE} />
+              </div>
+            </div>
+            <div style={FORM_ROW_STYLE}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong style={FORM_ROW_INFO_TITLE_STYLE}>每日学习提醒</strong>
+                <Tiny>每天 20:00 提醒完成今日任务</Tiny>
+              </div>
+              <Toggle on={reminder} onChange={setReminder} ariaLabel="每日学习提醒" domId="toggle-reminder" />
+            </div>
+          </Card>
+
+          {/* ===== Card 2：AI 配置 / 模型与 API ===== */}
+          <Card>
+            <CardHead eyebrow="AI 配置" title="模型与 API" />
+            <div style={{ ...FORM_FIELD_STYLE, marginBottom: 'calc(var(--spacing) * 4)' }}>
+              <label style={FORM_LABEL_STYLE} htmlFor="setting-model">默认模型</label>
+              <select
+                id="setting-model"
+                value={llmModel || 'GPT-4o'}
+                onChange={(e) => setLlmModel(e.target.value)}
+                style={FORM_INPUT_STYLE}
+              >
+                <option value="GPT-4o">GPT-4o</option>
+                <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
+                <option value="GPT-4o-mini">GPT-4o-mini</option>
+              </select>
+            </div>
+            <div style={FORM_FIELD_STYLE}>
+              <label style={FORM_LABEL_STYLE} htmlFor="setting-apikey">API Key</label>
+              <input
+                id="setting-apikey"
+                type="password"
+                value={llmKey}
+                onChange={(e) => setLlmKey(e.target.value)}
+                placeholder="sk-****...****"
+                style={{ ...FORM_INPUT_STYLE, fontFamily: 'var(--font-mono)' }}
+              />
+            </div>
+            <div style={FORM_ROW_STYLE}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong style={FORM_ROW_INFO_TITLE_STYLE}>流式输出</strong>
+                <Tiny>实时显示 AI 回复</Tiny>
+              </div>
+              <Toggle on={stream} onChange={setStream} ariaLabel="流式输出" domId="toggle-stream" />
+            </div>
+            <div style={FORM_ROW_STYLE}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong style={FORM_ROW_INFO_TITLE_STYLE}>引用上下文</strong>
+                <Tiny>对话时自动关联相关书籍与笔记</Tiny>
+              </div>
+              <Toggle on={context} onChange={setContext} ariaLabel="引用上下文" domId="toggle-context" />
+            </div>
+          </Card>
+
+          {/* ===== Card 3：微信读书 / 同步配置 ===== */}
+          <Card>
+            <CardHead eyebrow="微信读书" title="同步配置" />
+            <div
+              className="sync-status"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'calc(var(--spacing) * 3)',
+                padding: 'calc(var(--spacing) * 4)',
+                background: 'var(--background)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid var(--border)',
+                marginBottom: 'calc(var(--spacing) * 4)',
+              }}
             >
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-                AI 服务配置
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: isWereadConnected ? 'var(--state-success)' : 'var(--muted-foreground)',
+                  flexShrink: 0,
+                }}
+              />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong style={FORM_ROW_INFO_TITLE_STYLE}>
+                  {isWereadConnected ? '已连接' : '未连接'}
+                </strong>
+                <Tiny>{isWereadConnected ? '上次同步 2 小时前' : '请配置微信读书 API Key'}</Tiny>
               </div>
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6">
-          {activeTab === 'weread' ? (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  微信读书 API Key
-                </label>
-                <input
-                  type="password"
-                  value={wereadApiKey}
-                  onChange={(e) => setWereadApiKey(e.target.value)}
-                  placeholder="wrk-xxxxxxxx"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
-                />
-                <div className="mt-2 space-y-2">
-                  <p className="text-xs text-gray-500">
-                    用于通过 Agent API Gateway 访问微信读书数据
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    API Key 格式为 <code className="bg-gray-100 px-1 py-0.5 rounded">wrk-xxxxxxxx</code>，需要从微信读书开放平台获取
-                  </p>
-                </div>
+              <Button
+                variant="secondary"
+                onClick={handleSyncNow}
+                disabled={testingWeread || !wereadApiKey}
+                data-dom-id="cta-sync-now"
+              >
+                {testingWeread ? '同步中...' : '立即同步'}
+              </Button>
+            </div>
+            <div style={FORM_ROW_STYLE}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong style={FORM_ROW_INFO_TITLE_STYLE}>自动同步</strong>
+                <Tiny>每小时自动同步划线与笔记</Tiny>
               </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="text-sm text-blue-700">
-                    <p className="font-medium mb-1">如何获取 API Key？</p>
-                    <ol className="list-decimal list-inside space-y-1 text-blue-600">
-                      <li>访问微信读书开放平台</li>
-                      <li>申请开发者权限</li>
-                      <li>在控制台获取 API Key</li>
-                      <li>格式为 <code className="bg-blue-100 px-1 rounded">wrk-xxxxxxxx</code></li>
-                    </ol>
-                  </div>
-                </div>
+              <Toggle on={autoSync} onChange={setAutoSync} ariaLabel="自动同步" domId="toggle-autosync" />
+            </div>
+            <div style={FORM_ROW_STYLE}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong style={FORM_ROW_INFO_TITLE_STYLE}>同步书架</strong>
+                <Tiny>同步微信读书书架到本地</Tiny>
               </div>
+              <Toggle on={syncShelf} onChange={setSyncShelf} ariaLabel="同步书架" domId="toggle-sync-shelf" />
+            </div>
+          </Card>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleTestWeread}
-                  disabled={testingWeread || !wereadApiKey}
-                  className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all duration-200 text-sm font-medium"
-                >
-                  {testingWeread ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                      测试中...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      测试连接
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow"
-                >
-                  {saving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      保存中...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      保存配置
-                    </>
-                  )}
-                </button>
+          {/* ===== Card 4：数据与存储 / 本地数据库 ===== */}
+          <Card>
+            <CardHead eyebrow="数据与存储" title="本地数据库" />
+            <div
+              className="storage-info"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 'calc(var(--spacing) * 4)',
+                marginBottom: 'calc(var(--spacing) * 4)',
+              }}
+            >
+              <div className="storage-item" style={STORAGE_ITEM_STYLE}>
+                <div style={EYEBROW_STYLE}>数据库大小</div>
+                <strong style={STORAGE_VALUE_STYLE}>24.6 MB</strong>
+                <Tiny>SQLite · 1,847 条记录</Tiny>
+              </div>
+              <div className="storage-item" style={STORAGE_ITEM_STYLE}>
+                <div style={EYEBROW_STYLE}>向量索引</div>
+                <strong style={STORAGE_VALUE_STYLE}>186 MB</strong>
+                <Tiny>Qdrant · 312 个向量</Tiny>
               </div>
             </div>
-          ) : (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  API Endpoint
-                </label>
-                <input
-                  type="text"
-                  value={llmEndpoint}
-                  onChange={(e) => setLlmEndpoint(e.target.value)}
-                  placeholder="https://api.example.com/v1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  支持任何兼容 OpenAI Chat Completions 的服务，如 DeepSeek、通义千问、Ollama 等
-                </p>
-              </div>
+            <div
+              className="form-actions"
+              style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', flexWrap: 'wrap' }}
+            >
+              <Button variant="secondary" data-dom-id="cta-export-data">导出数据</Button>
+              <Button variant="ghost" data-dom-id="cta-clear-cache">清理缓存</Button>
+              <Button
+                variant="ghost"
+                data-dom-id="cta-reset-db"
+                style={{ color: 'var(--state-error)', borderColor: 'var(--state-error)' }}
+              >
+                重置数据库
+              </Button>
+            </div>
+          </Card>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  API Key
-                </label>
-                <input
-                  type="password"
-                  value={llmKey}
-                  onChange={(e) => setLlmKey(e.target.value)}
-                  placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  您的 API Key 仅存储在本地，不会上传到任何服务器
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  模型名称
-                </label>
-                <input
-                  type="text"
-                  value={llmModel}
-                  onChange={(e) => setLlmModel(e.target.value)}
-                  placeholder="gpt-4o / claude-3 / deepseek-chat"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  输入您要使用的模型名称，如 gpt-4o、claude-3、deepseek-chat 等
-                </p>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="text-sm text-blue-700">
-                    <p className="font-medium mb-1">支持的服务</p>
-                    <ul className="list-disc list-inside mt-1 text-blue-600">
-                      <li>Ollama (本地)</li>
-                      <li>LM Studio (本地)</li>
-                      <li>DeepSeek API</li>
-                      <li>通义千问 API</li>
-                      <li>其他兼容 OpenAI 接口的服务</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleTestAI}
-                  disabled={testingAI || !llmKey}
-                  className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all duration-200 text-sm font-medium"
-                >
-                  {testingAI ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                      测试中...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      测试连接
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow"
-                >
-                  {saving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      保存中...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      保存配置
-                    </>
-                  )}
-                </button>
+          {/* ===== Card 5：外观 / 主题与字体 ===== */}
+          <Card>
+            <CardHead eyebrow="外观" title="主题与字体" />
+            <div style={{ ...FORM_FIELD_STYLE, marginBottom: 'calc(var(--spacing) * 4)' }}>
+              <label style={FORM_LABEL_STYLE}>主题模式</label>
+              <div
+                className="theme-options"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 'calc(var(--spacing) * 3)',
+                }}
+              >
+                {(
+                  [
+                    { key: 'light' as const, label: '浅色', domId: 'theme-light' },
+                    { key: 'dark' as const, label: '深色', domId: 'theme-dark' },
+                    { key: 'system' as const, label: '跟随系统', domId: 'theme-system' },
+                  ]
+                ).map((opt) => {
+                  const isActive = theme === opt.key
+                  const previewBg =
+                    opt.key === 'light'
+                      ? 'var(--background)'
+                      : opt.key === 'dark'
+                        ? '#1a1a1a'
+                        : 'linear-gradient(90deg, var(--background) 0%, var(--background) 50%, #1a1a1a 50%, #1a1a1a 100%)'
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      data-dom-id={opt.domId}
+                      onClick={() => setTheme(opt.key)}
+                      style={{
+                        padding: isActive
+                          ? 'calc(var(--spacing) * 4 - 1px)'
+                          : 'calc(var(--spacing) * 4)',
+                        border: isActive ? '2px solid var(--primary)' : '1px solid var(--border)',
+                        borderRadius: 'var(--radius)',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'border-color 0.2s ease',
+                        background: 'var(--card)',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <div
+                        className="theme-preview"
+                        style={{
+                          width: '100%',
+                          height: 48,
+                          borderRadius: 'var(--radius)',
+                          marginBottom: 'calc(var(--spacing) * 2)',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          background: previewBg,
+                          border: opt.key === 'light' ? '1px solid var(--border)' : 'none',
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: 8,
+                            bottom: 8,
+                            width: 24,
+                            height: 6,
+                            borderRadius: 3,
+                            background: 'var(--primary)',
+                          }}
+                        />
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--card-foreground)' }}>{opt.label}</div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
-          )}
+            <div style={FORM_FIELD_STYLE}>
+              <label style={FORM_LABEL_STYLE}>字体大小</label>
+              <div
+                className="font-size-options"
+                style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', alignItems: 'center' }}
+              >
+                {(
+                  [
+                    { key: 'small' as const, label: '小', domId: 'size-small' },
+                    { key: 'medium' as const, label: '中', domId: 'size-medium' },
+                    { key: 'large' as const, label: '大', domId: 'size-large' },
+                  ]
+                ).map((opt) => {
+                  const isActive = fontSize === opt.key
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      data-dom-id={opt.domId}
+                      onClick={() => setFontSize(opt.key)}
+                      style={{
+                        padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 4)',
+                        border: '1px solid',
+                        borderColor: isActive ? 'var(--primary)' : 'var(--border)',
+                        borderRadius: 'var(--radius)',
+                        background: isActive ? 'var(--primary)' : 'var(--card)',
+                        color: isActive ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+                        cursor: 'pointer',
+                        fontSize: '0.82rem',
+                        transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+                <span
+                  style={{
+                    fontSize: '0.92rem',
+                    color: 'var(--muted-foreground)',
+                    marginLeft: 'calc(var(--spacing) * 3)',
+                  }}
+                >
+                  预览：知行读书让你爱上阅读
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* ===== Card 6：关于 ===== */}
+          <Card>
+            <div style={{ textAlign: 'center' }}>
+              <div
+                className="about-logo"
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 'calc(var(--radius) + 8px)',
+                  background: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  margin: '0 auto calc(var(--spacing) * 4)',
+                }}
+              >
+                知
+              </div>
+              <h3
+                style={{
+                  fontSize: '1.25rem',
+                  fontWeight: 700,
+                  margin: 0,
+                  color: 'var(--foreground)',
+                }}
+              >
+                知行读书
+              </h3>
+              <div
+                className="about-version"
+                style={{
+                  fontSize: '0.88rem',
+                  color: 'var(--muted-foreground)',
+                  fontFamily: 'var(--font-mono)',
+                  marginTop: '0.4rem',
+                }}
+              >
+                v2.4.1 · 2026-07-20
+              </div>
+              <p
+                className="about-desc"
+                style={{
+                  fontSize: '0.92rem',
+                  lineHeight: 1.7,
+                  color: 'var(--muted-foreground)',
+                  maxWidth: 400,
+                  margin: 'calc(var(--spacing) * 4) auto',
+                }}
+              >
+                知行读书是一款基于 Electron 的桌面阅读成长应用，整合微信读书同步、FSRS 间隔复习、AI 对话与知识管理。
+              </p>
+              <div
+                className="about-links"
+                style={{
+                  display: 'flex',
+                  gap: 'calc(var(--spacing) * 4)',
+                  justifyContent: 'center',
+                  marginTop: 'calc(var(--spacing) * 4)',
+                }}
+              >
+                {(
+                  [
+                    { label: '用户协议', domId: 'link-terms' },
+                    { label: '隐私政策', domId: 'link-privacy' },
+                    { label: '反馈建议', domId: 'link-feedback' },
+                  ]
+                ).map((link) => (
+                  <button
+                    key={link.domId}
+                    type="button"
+                    data-dom-id={link.domId}
+                    style={{
+                      fontSize: '0.82rem',
+                      color: 'var(--primary)',
+                      cursor: 'pointer',
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      transition: 'opacity 0.2s ease',
+                      fontFamily: 'inherit',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.opacity = '0.8'
+                      e.currentTarget.style.textDecoration = 'underline'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = '1'
+                      e.currentTarget.style.textDecoration = 'none'
+                    }}
+                  >
+                    {link.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
-      <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">关于</h2>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">应用名称</span>
-            <span className="font-medium text-gray-900">知行读书</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">版本</span>
-            <span className="font-medium text-gray-900">v1.0.0</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">技术栈</span>
-            <span className="font-medium text-gray-900">React + TypeScript + Electron</span>
-          </div>
-        </div>
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-600">
-            知行读书是一款基于间隔重复算法的读书笔记管理工具，
-            帮助你更好地理解和记忆书籍内容。
-          </p>
-        </div>
-      </div>
-    </div>
+      {/* ===== 响应式样式（与设计稿 @media 一致） ===== */}
+      <style>{`
+        @media (max-width: 1100px) {
+          .settings-body { grid-template-columns: 1fr !important; }
+          .settings-nav { position: static !important; }
+          .form-grid { grid-template-columns: 1fr !important; }
+          .storage-info { grid-template-columns: 1fr !important; }
+          .theme-options { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 760px) {
+          .form-row {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: calc(var(--spacing) * 3) !important;
+          }
+          .font-size-options { flex-wrap: wrap !important; }
+        }
+      `}</style>
+    </PageHero>
   )
 }

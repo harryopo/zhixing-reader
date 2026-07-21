@@ -11,6 +11,11 @@ import {
   exportPrompts,
   importPrompts,
   PromptWithOverride,
+  CustomPrompt,
+  createCustomPrompt,
+  getAllCustomPrompts,
+  updateCustomPrompt,
+  deleteCustomPrompt,
 } from './services/prompt-storage'
 
 export function getAdminStats(): Record<string, unknown> {
@@ -176,4 +181,22 @@ export function getDatabaseTableData(
   const data = rowsToObjects(db.exec(`SELECT * FROM "${safeName}" LIMIT ? OFFSET ?`, [limit, offset]))
   const columns = data.length > 0 ? Object.keys(data[0]) : []
   return { columns, rows: data, total }
+}
+
+// ===== 自定义模板管理 =====
+
+export function createAdminCustomPrompt(name: string, content: string): CustomPrompt {
+  return createCustomPrompt(name, content)
+}
+
+export function getAllAdminCustomPrompts(): CustomPrompt[] {
+  return getAllCustomPrompts()
+}
+
+export function updateAdminCustomPrompt(id: string, name: string, content: string): { success: boolean; error?: string } {
+  return updateCustomPrompt(id, name, content)
+}
+
+export function deleteAdminCustomPrompt(id: string): { success: boolean; error?: string } {
+  return deleteCustomPrompt(id)
 }

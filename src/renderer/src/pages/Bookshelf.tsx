@@ -402,20 +402,6 @@ export default function Bookshelf() {
               <Icon name="refresh" size={16} />
               {syncing ? '同步中...' : '同步微信读书'}
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => toast.info('本地 EPUB 导入即将上线')}
-              data-dom-id="cta-import"
-            >
-              <Icon name="file" size={16} /> 导入本地 EPUB
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => toast.info('批量管理模式即将上线')}
-              data-dom-id="cta-manage"
-            >
-              <Icon name="grip" size={16} /> 批量管理
-            </Button>
           </>
         }
       >

@@ -1,0 +1,44 @@
+{
+  "appId": "com.zhixing.reader",
+  "productName": "知行读书",
+  "directories": {
+    "output": "installer-v2"
+  },
+  "asar": true,
+  "asarUnpack": [
+    "dist/**",
+    "node_modules/sql.js/dist/sql-wasm.wasm"
+  ],
+  "files": [
+    "dist/**/*",
+    "package.json",
+    "node_modules/sql.js/**",
+    "node_modules/ts-fsrs/**",
+    "node_modules/@qdrant/**",
+    "node_modules/axios/**",
+    "node_modules/follow-redirects/**",
+    "node_modules/form-data/**",
+    "node_modules/proxy-from-env/**"
+  ],
+  "extraResources": [
+    {
+      "from": "resources/dictionary.json",
+      "to": "dictionary.json"
+    },
+    {
+      "from": "resources/icon.png",
+      "to": "icon.png"
+    }
+  ],
+  "win": {
+    "target": "nsis"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "知行读书"
+  },
+  "artifactName": "知行读书 Setup ${version}.${ext}"
+}

@@ -132,7 +132,7 @@
 ## 七、快速命令
 
 ```bash
-npm run dev           # 开发服务器（renderer 5176）
+npm run dev           # 开发服务器（renderer 5275）
 npm run lint          # ESLint
 npm run lint:fix      # ESLint --fix
 npm run typecheck     # tsc --noEmit

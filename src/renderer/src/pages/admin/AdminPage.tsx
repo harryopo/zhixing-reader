@@ -1,5 +1,5 @@
-import { useState, ReactElement, lazy, Suspense } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, ReactElement, lazy, Suspense, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 const AdminDashboard = lazy(() => import('./AdminDashboard'))
 const PromptCenter = lazy(() => import('./PromptCenter'))
@@ -57,8 +57,20 @@ const tabs: { key: TabKey; label: string; icon: ReactElement }[] = [
   },
 ]
 
+const VALID_TABS = new Set<TabKey>(['dashboard', 'prompts', 'database', 'knowledge', 'sessions'])
+
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
+  const [searchParams] = useSearchParams()
+  const tabFromUrl = searchParams.get('tab')
+  const initialTab: TabKey =
+    tabFromUrl && VALID_TABS.has(tabFromUrl as TabKey) ? (tabFromUrl as TabKey) : 'dashboard'
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab)
+
+  useEffect(() => {
+    if (tabFromUrl && VALID_TABS.has(tabFromUrl as TabKey)) {
+      setActiveTab(tabFromUrl as TabKey)
+    }
+  }, [tabFromUrl])
 
   return (
     <div className="h-full flex flex-col bg-gray-50">

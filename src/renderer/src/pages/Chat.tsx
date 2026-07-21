@@ -14,6 +14,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
@@ -96,6 +97,7 @@ function truncate(s: string, n: number): string {
 
 // ===== 主组件 =====
 export default function Chat() {
+  const [searchParams] = useSearchParams()
   const {
     sessions,
     currentSessionId,
@@ -122,12 +124,24 @@ export default function Chat() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const bookIdFromUrlApplied = useRef(false)
 
   // ===== 初次加载：会话列表 + 书籍/笔记上下文 =====
   useEffect(() => {
     loadSessions()
     loadContextData()
   }, [loadSessions])
+
+  // ===== 从 BookDetail「AI 对话此书」带 bookId 进入：绑定当前书并开新会话 =====
+  useEffect(() => {
+    const bookId = searchParams.get('bookId')
+    if (!bookId || bookIdFromUrlApplied.current) return
+    bookIdFromUrlApplied.current = true
+    setCurrentBook(bookId)
+    void createSession(bookId).catch((err) => {
+      console.warn('按书籍创建会话失败:', err)
+    })
+  }, [searchParams, setCurrentBook, createSession])
 
   // ===== 当切换关联书籍时，刷新该书的笔记 =====
   useEffect(() => {

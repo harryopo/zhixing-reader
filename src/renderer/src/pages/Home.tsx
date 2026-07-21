@@ -207,10 +207,13 @@ export default function Home() {
         subtitle="一屏掌握阅读进度、待办复习与增长趋势"
         actions={
           <>
-            <Button variant="primary" onClick={() => navigate('/bookshelf')} data-dom-id="cta-start-reading">
-              <Icon name="bookshelf" size={16} /> 开始今日阅读
+            <Button variant="primary" onClick={() => navigate('/review')} data-dom-id="cta-start-reading">
+              <Icon name="cards" size={16} /> 开始今日复习
             </Button>
-            <Button variant="secondary" onClick={() => navigate('/settings/weread')} data-dom-id="cta-sync-weread">
+            <Button variant="secondary" onClick={() => navigate('/bookshelf')} data-dom-id="cta-open-bookshelf">
+              <Icon name="bookshelf" size={16} /> 打开书架
+            </Button>
+            <Button variant="ghost" onClick={() => navigate('/settings/weread')} data-dom-id="cta-sync-weread">
               <Icon name="refresh" size={16} /> 同步微信读书
             </Button>
           </>

@@ -114,6 +114,10 @@ export const IPC_CHANNELS = {
     IMPORT_PROMPTS: 'admin:importPrompts',
     GET_DATABASE_SCHEMA: 'admin:getDatabaseSchema',
     GET_TABLE_DATA: 'admin:getTableData',
+    CREATE_CUSTOM_PROMPT: 'admin:createCustomPrompt',
+    UPDATE_CUSTOM_PROMPT: 'admin:updateCustomPrompt',
+    DELETE_CUSTOM_PROMPT: 'admin:deleteCustomPrompt',
+    GET_CUSTOM_PROMPTS: 'admin:getCustomPrompts',
   },
   SETTINGS: {
     GET: 'settings:get',
@@ -198,6 +202,9 @@ export const IPC_CHANNELS = {
   SYSTEM: {
     FORCE_SAVE_DATABASE: 'system:forceSaveDatabase',
     CLEAR_CACHE: 'system:clearCache',
+    OPEN_EXTERNAL: 'system:openExternal',
+    CLEAR_HISTORY: 'system:clearHistory',
+    RESET_DATABASE: 'system:resetDatabase',
   },
   FSRS: {
     SET_PARAMETERS: 'fsrs:setParameters',

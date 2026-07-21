@@ -38,7 +38,7 @@
 | **A4** | 改 `ipc.ts` 657 行而不读全文 | 同上 |
 | **A5** | 使用 React Router 8.x 升级 | 破坏性变更，比赛前禁止 |
 | **A6** | 删 `.learnings/` 任何已有内容 | 团队沉淀的知识资产 |
-| **A7** | 改 AGENTS.md 已写明的硬约束（端口 5176、`@/` 别名、Chinese UI） | 见 AGENTS.md Gotchas |
+| **A7** | 改 AGENTS.md 已写明的硬约束（端口 5275、`@/` 别名、Chinese UI） | 见 AGENTS.md Gotchas |
 | **A8** | 提交时跳过 lint/typecheck/test | pre-commit hook 强制 |
 | **A9** | `git add -A` / `git add .` | 可能误提交 .env / node_modules |
 | **A10** | commit message 用 `WIP`/`fix bug`/`update code` | commitlint 拦截 |

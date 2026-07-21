@@ -180,5 +180,64 @@
 
 ---
 
-*最后更新：2026-07-20 | ai-dev-workflow 第 6 阶段（知识沉淀）完成*
-*下次更新：每完成一个 Sprint 后追加；Phase 1 结束（7/31）后整体重写*
+## 🔁 v2 循环工程（2026-07-21，收尾工程）
+
+### v2 任务表
+
+| 任务 | 描述 | 状态 | 关键产出 |
+|------|------|------|----------|
+| **T1** | Commit 整理（8 个独立 commit，覆盖 Nightly Loop Wave A-E + UI 改造 + 基础设施） | ✅ 完成 | HEAD `b43f607`，领先 origin/master 44 commits |
+| **T2** | Installer 重打 | ✅ 完成 | `installer-v2/知行读书 Setup 1.0.0.exe` 104.65 MB |
+| **T3** | Dogfood 真机走查 | ✅ 完成 | 10/10 路径通过；0 P0 / 3 P1 非阻断 |
+| **T4** | 归档（PROGRESS / LEARNINGS / 报告 / memory 四件套同步） | ✅ 完成 | 本节 + LEARNINGS 5 条 + v2 报告 + memory v2 章节 |
+
+### v2 关键产出
+
+**8 个独立 commit**（HEAD `b43f607`，领先 `origin/master` 44 commits）：
+
+1. `9cb76a7` feat(fsrs): add previewReviewRatings pure function + tests（2 文件，+79/-2）
+2. `fec85b8` feat(stats): feed daily_stats on review + raise due limit + snake_case compat（2 文件，+23/-9）
+3. `fe4555f` fix(router): switch to HashRouter for `file://` protocol compat（1 文件，+4/-3）
+4. `f84a244` fix(review): align getDue limit to 100 matching backend batch size（1 文件，+1/-1）
+5. `672aa17` feat(admin): add Link back to app and session history tab（1 文件，+16/-4）
+6. `fdc56df` feat(chat): align stream contract, settle Promise, real abort, auto FSRS card（7 文件，+259/-40）
+7. `48a0804` feat(ui): Google Design Library 1:1 redesign with tokens, components, and page refresh（37 文件，+16157/-4731）
+8. `b43f607` chore(infra): tsconfig scripts include + demo data + nightly logs + gitignore + package.json（11 文件，+1732/-9）
+
+合计 **62 文件 / +18271/-4799**。
+
+- **Installer v2**：`installer-v2/知行读书 Setup 1.0.0.exe` — 104.65 MB（2026-07-21 12:31 构建，配置文件 `builder-output-override.json` 临时拆出）
+- **Dogfood**：10/10 路径通过（chat / 流式 stop / 导入建卡 / 复习预览间隔 / 统计 / 路由 / Admin SessionHistory / 设置页 / 每日学习 / 知识卡）
+- **测试**：173 passed（Wave F 新增 2 个 previewReviewRatings 测试，从 171 → 173）
+- **门禁**：lint 0e · typecheck 0 · build OK
+
+### v2 关键发现
+
+- 之前 Claude Nightly Loop 5 轮（Wave A-E）已完成 P0/P1 修复，但**没 commit**；v2 T1 把它们整理入库（commit 1-6）
+- 之前 Claude 还做了 **Google Design Library 1:1 UI 改造**（37 文件 / +16K 行），也**没 commit**；v2 T1 合并到 commit 7 (`48a0804`)
+- v1 循环（T1-T8）的演示数据 / installer / 归档产物未跟踪；v2 T1 commit 8 (`b43f607`) 把可跟踪部分入库
+- Stats.tsx 截断 bug 在 T1 拆 commit 时被发现，已随 commit 2 (`fec85b8`) 修复
+- v1 报告 `docs/loop-engineering-report-2026-07-20.md` 在 git 历史中无记录（确实未创建，仅 memory/AGENTS.md 引用）
+
+### v2 P0/P1 状态
+
+| 等级 | 数量 | 详情 | 阻断性 |
+|------|------|------|--------|
+| P0 | 0 | — | — |
+| P1 | 3 | ① dev server 端口 5176 被 Hyper-V 保留（5175-5274 范围）② app.asar 进程占用导致 electron-builder EPERM ③ GPU cache 拒绝访问（`GPUCache/` 目录权限） | 非阻断（均有绕过方案，见 LEARNINGS LRN-20260721-003/005） |
+
+### v2 最终状态
+
+✅ **可提交**（HEAD `b43f607`，working tree 仍有 T2/T3 产生的杂项改动 + `loop-logs/` `installer-v2/` `builder-output-override.json` 未跟踪，均非阻断）
+
+### v2 后续待办
+
+- **v1.0.1**（1-2 周）：修 npm audit 23 个 prod 漏洞 + 治理 124 个 ESLint warnings
+- **v1.0.2**（1 周）：优化包体积（目标 < 80MB）+ 合并 `builder-output-override.json` 回 `package.json` + dev server 端口常量化 + 加 `.gitattributes` 统一行尾
+- **v1.1.0**（1 周）：补 6 个 repository-factory 占位仓库 + 拆 `database.ts`/`ipc.ts`
+- **v1.2.0**（1 周）：拆 `admin-charts.tsx` + 暴露 `previewReviewRatings()` API 给设置页
+
+---
+
+*最后更新：2026-07-21 | v2 循环工程（收尾）完成，HEAD `b43f607` 可提交*
+*下次更新：v1.0.1 漏洞修复后追加；Phase 1 结束（7/31）后整体重写*

@@ -2,7 +2,196 @@
 
 知行读书项目开发过程中的学习记录、错误和改进。
 
-> **最近更新**：2026-07-20 夜 — 追加 LRN-20260720-011 功能契约审查与夜间修复
+> **最近更新**：2026-07-21 — 追加 LRN-20260721-001~005 v2 循环工程收尾经验（commit-organizer / CRLF / app.asar / PowerShell 编码 / Hyper-V 端口预留）
+
+---
+
+## [LRN-20260721-001] best_practice
+
+**Logged**: 2026-07-21T13:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+**Project**: zhixing-reader
+
+### Summary
+commit-organizer 拆 commit 时，跨 commit 的文件（如 chatStore.ts 同时被 commit 6 和 commit 7 改）必须用 `git add -p` 分块暂存
+
+### Details
+v2 T1 把 working tree 中混在一起的 Nightly Loop Wave A-E + UI 改造拆成 8 个语义独立的 commit。`chatStore.ts` 同时承载：
+- commit 6 (`fdc56df` feat(chat))：流式契约对齐 + Promise settle + 真 abort
+- commit 7 (`48a0804` feat(ui))：Google Design Library UI 改造
+
+直接 `git add chatStore.ts` 会把两个 commit 的改动混在一起。必须用 `git add -p chatStore.ts` 按 hunk 交互选择，把 abort 相关 hunk 放 commit 6，把 UI className hunk 放 commit 7。
+
+**经验**：拆 commit 前先跑 `git diff` 全览，列出每个文件归属哪个 commit，再用 `git add -p` 精准暂存。对超长文件（如 Review.tsx 同时被 commit 3 的 HashRouter 影响和 commit 7 UI 改造影响），必要时用 `git add -e` 手动编辑 hunk。
+
+### Suggested Action
+跨 commit 文件用 `git add -p` 按 hunk 拆；拆前先列文件→commit 映射表；超长 diff 用 `git add -e` 手动编辑。
+
+### Metadata
+- Source: v2 T1 commit-organizer
+- Related Files: src/renderer/src/stores/chatStore.ts, src/renderer/src/pages/Review.tsx
+- Tags: git, commit-organizer, git-add-p, hunk-staging
+
+---
+
+## [LRN-20260721-002] correction
+
+**Logged**: 2026-07-21T13:05:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+**Project**: zhixing-reader
+
+### Summary
+CRLF 行尾导致 `git diff --cached` 显示整文件差异，拆 commit 时无法精准选 hunk
+
+### Details
+v2 T1 拆 commit 时，某些文件（如 settings/*.tsx）在 `git diff --cached` 中显示整文件被删除+重写，而不是按行 diff。原因是文件在 working tree 中是 LF，但 git autocrlf=settings 把它们转成了 CRLF，导致每行行尾变化。
+
+**症状**：
+```
+- 旧内容\r
++ 旧内容
+```
+看起来每行都变了，`git add -p` 无法按 hunk 拆分。
+
+**修复**：
+1. 临时禁用 autocrlf：`git config core.autocrlf false`
+2. 用 `git add --renormalize .` 统一行尾
+3. 或者把文件保存回 LF 再 add
+
+**预防**：项目根加 `.gitattributes` 文件指定 `* text=auto eol=lf`，避免 Windows/Linux 混用导致行尾漂移。
+
+### Suggested Action
+拆 commit 前先跑 `git diff --cached --stat` 确认没有整文件重写；遇到整文件 diff 先查 `git config core.autocrlf` 和 `.gitattributes`。
+
+### Metadata
+- Source: v2 T1 commit-organizer
+- Related Files: .gitattributes（建议新增）, src/renderer/src/pages/settings/*.tsx
+- Tags: git, crlf, autocrlf, line-ending, diff
+
+---
+
+## [LRN-20260721-003] correction
+
+**Logged**: 2026-07-21T13:10:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: build
+**Project**: zhixing-reader
+
+### Summary
+app.asar 进程占用导致 electron-builder 失败；绕过方案：关掉所有知行读书进程 + 删 app.asar 锁文件 + 用 builder-output-override.json 拆配置
+
+### Details
+v2 T2 重打 installer 时，`npm run package:win` 报错：
+```
+EPERM: operation not permitted, unlink '...app.asar'
+```
+
+原因：之前运行的 `知行读书.exe`（dev 或 preview）没完全退出，仍持有 `app.asar` 文件锁。
+
+**绕过方案**：
+1. 任务管理器结束所有 `知行读书.exe` / `electron.exe` 进程
+2. 删除 `dist/` 和 `installer-v2/` 重新构建
+3. 把 electron-builder 配置拆到 `builder-output-override.json`，避免 `package.json` 频繁改动触发缓存失效
+4. 用 `--config builder-output-override.json` 指定独立输出目录 `installer-v2/`，与 v1 的 `installer/` 隔离
+
+**根治方案**（v1.0.2 待办）：合并 `builder-output-override.json` 回 `package.json` 的 `build` 字段，并在 build 前加 `prebuild` 脚本 kill 残留进程。
+
+### Suggested Action
+electron-builder 报 EPERM 时先查进程占用；配置拆分只作临时绕过，长期要回归单 package.json。
+
+### Metadata
+- Source: v2 T2 installer rebuild
+- Related Files: builder-output-override.json, package.json
+- Tags: electron-builder, app.asar, eperm, file-lock, process-occupation
+
+---
+
+## [LRN-20260721-004] correction
+
+**Logged**: 2026-07-21T13:15:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tooling
+**Project**: zhixing-reader
+
+### Summary
+PowerShell here-string 中文 commit message 乱码 → 改英文 subject + 中文 body 仍乱码 → 全英文 commit message
+
+### Details
+v2 T1 拆 commit 时尝试用 PowerShell here-string 写中文 commit message：
+```powershell
+git commit -m "$(cat <<'EOF'
+feat(chat): 对齐流式契约
+- settle Promise
+- 真 abort
+EOF
+)"
+```
+
+PowerShell 报 "Missing file specification after redirection operator"（与 LRN-20260720 旧经验一致），改用 `git commit -F msg.txt` 后中文 subject 在 `git log --oneline` 中显示为乱码（`绗?2 鎵?` 之类）。
+
+**根因**：PowerShell 默认编码（GBK）与 git 的 UTF-8 解码不匹配；即使 `Set-Content -Encoding UTF8` 写文件，BOM 也会污染 commit message。
+
+**最终方案**：commit message 全用英文 subject + 英文 body，符合 Conventional Commits 规范且无编码问题。中文细节放到 PR description 或 commit notes 里。
+
+**反例**：commit `8441870` 的 message 在 git log 中显示为 `test: smoke test 绗?2 鎵? - agent / ai-service / dictionary 妯″潡 (+54 tests)`（"第 2 批 - agent / ai-service / dictionary 模块" 的乱码）。
+
+### Suggested Action
+Windows PowerShell 环境下 commit message 全用英文；必须用中文时用 `chcp 65001` 切 UTF-8 + `git commit -F` 配 UTF-8 无 BOM 文件。
+
+### Metadata
+- Source: v2 T1 commit-organizer
+- Related Files: N/A
+- Tags: powershell, encoding, utf8, gbk, commit-message, conventional-commits
+
+---
+
+## [LRN-20260721-005] knowledge_gap
+
+**Logged**: 2026-07-21T13:20:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: config
+**Project**: zhixing-reader
+
+### Summary
+dev server 端口 5176 被 Hyper-V 保留（5175-5274 范围），启动报 EADDRINUSE 但 `netstat -ano | findstr 5176` 无结果
+
+### Details
+v2 T3 dogfood 时重启 dev server 偶发报：
+```
+Error: listen EADDRINUSE: address already in use 0.0.0.0:5176
+```
+
+但 `netstat -ano | findstr :5176` 返回空，`Get-Process` 也找不到占用进程。
+
+**根因**：Windows Hyper-V / WSL2 会预留端口段给虚拟网卡：
+```powershell
+netsh interface ipv4 show excludedportrange protocol=tcp
+# 显示 5175-5274 被 Hyper-V 预留
+```
+
+5176 正好在预留范围内，所以即使没有进程监听，Windows TCP/IP 栈也拒绝 bind。
+
+**绕过方案**：
+1. 改 dev server 端口（如 5180）—— 但 AGENTS.md 警告"port 5176 在 electron.vite.config.ts 和 electron/main.ts 都硬编码，改一处会断"
+2. 重启 Hyper-V 服务释放预留（`Restart-Service -Name "hns" -Force`，需管理员）
+3. 用 `netsh int ipv4 add excludedportrange protocol=tcp startport=5175 numberofports=1` 显式排除冲突段（需管理员）
+
+**长期方案**：v1.0.2 把端口常量化到 `.env` 或 `electron.vite.config.ts` 顶部，便于一键切换。
+
+### Suggested Action
+Windows 上 dev server 报 EADDRINUSE 但 netstat 找不到进程时，先跑 `netsh interface ipv4 show excludedportrange protocol=tcp` 查 Hyper-V 预留段。
+
+### Metadata
+- Source: v2 T3 dogfood
+- Related Files: electron.vite.config.ts, electron/main.ts
+- Tags: windows, hyper-v, port-reservation, eaddrinuse, dev-server, wsl2
 
 ---
 

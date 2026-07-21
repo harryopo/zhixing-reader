@@ -316,6 +316,14 @@ const electronAPI = {
     exportBatch: (methodologyIds: string[]) => invoke(IPC_CHANNELS.SKILL.EXPORT_BATCH, methodologyIds),
   },
 
+  system: {
+    openExternal: (url: string) => invoke(IPC_CHANNELS.SYSTEM.OPEN_EXTERNAL, url),
+    forceSaveDatabase: () => invoke(IPC_CHANNELS.SYSTEM.FORCE_SAVE_DATABASE),
+    clearCache: () => invoke(IPC_CHANNELS.SYSTEM.CLEAR_CACHE),
+    clearHistory: () => invoke(IPC_CHANNELS.SYSTEM.CLEAR_HISTORY),
+    resetDatabase: () => invoke(IPC_CHANNELS.SYSTEM.RESET_DATABASE),
+  },
+
   fsrs: {
     setParameters: (params: Record<string, unknown>) => invoke(IPC_CHANNELS.FSRS.SET_PARAMETERS, params),
     resetParameters: () => invoke(IPC_CHANNELS.FSRS.RESET_PARAMETERS),
@@ -348,6 +356,13 @@ const electronAPI = {
     getDatabaseSchema: () => invoke(IPC_CHANNELS.ADMIN.GET_DATABASE_SCHEMA),
     getTableData: (tableName: string, limit?: number, offset?: number) =>
       invoke(IPC_CHANNELS.ADMIN.GET_TABLE_DATA, tableName, limit, offset),
+    createCustomPrompt: (name: string, content: string) =>
+      invoke(IPC_CHANNELS.ADMIN.CREATE_CUSTOM_PROMPT, name, content),
+    updateCustomPrompt: (id: string, name: string, content: string) =>
+      invoke(IPC_CHANNELS.ADMIN.UPDATE_CUSTOM_PROMPT, id, name, content),
+    deleteCustomPrompt: (id: string) =>
+      invoke(IPC_CHANNELS.ADMIN.DELETE_CUSTOM_PROMPT, id),
+    getCustomPrompts: () => invoke(IPC_CHANNELS.ADMIN.GET_CUSTOM_PROMPTS),
   },
 };
 

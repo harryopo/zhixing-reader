@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -56,6 +57,7 @@ function deriveTitle(content: string): string {
 
 // ===== 主组件 =====
 export default function Notes() {
+  const navigate = useNavigate()
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
   const [books, setBooks] = useState<BookRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -91,6 +93,21 @@ export default function Notes() {
     if (!bookId) return '未知书籍'
     const book = books.find((b) => b.id === bookId)
     return book?.title || '未知书籍'
+  }
+
+  const handleDeleteNote = async (id: string) => {
+    if (!window.electronAPI?.highlight?.delete) {
+      toast.error('当前环境不支持删除笔记')
+      return
+    }
+    if (!window.confirm('确定删除这条笔记？删除后不可恢复。')) return
+    try {
+      await window.electronAPI.highlight.delete(id)
+      setHighlights((prev) => prev.filter((h) => h.id !== id))
+      toast.success('笔记已删除')
+    } catch (error) {
+      toast.error(`删除失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   /** 每本书的笔记数（用于左侧列表 badge 与筛选"有笔记的书"） */
@@ -157,14 +174,15 @@ export default function Notes() {
         <>
           <Button
             variant="primary"
-            onClick={() => toast.info('新建笔记功能即将上线')}
+            onClick={() => navigate('/bookshelf')}
             data-dom-id="cta-new"
+            title="笔记来自微信读书同步，请到书架导入"
           >
-            <Icon name="plus" size={16} /> 新建笔记
+            <Icon name="plus" size={16} /> 去书架导入
           </Button>
           <Button
             variant="secondary"
-            onClick={() => toast.info('导出功能即将上线')}
+            onClick={() => toast.info('导出功能尚未接入，可先用后台数据库浏览导出')}
             data-dom-id="cta-export"
           >
             <Icon name="external-link" size={16} /> 导出全部
@@ -326,8 +344,10 @@ export default function Notes() {
                     key={h.id}
                     highlight={h}
                     bookTitle={getBookTitle(h.bookId)}
-                    onEdit={() => toast.info('编辑笔记功能即将上线')}
-                    onDelete={() => toast.info('删除笔记功能即将上线')}
+                    onEdit={() =>
+                      toast.info('本地编辑原文会破坏微信读书同步一致性，请到微信读书修改后重新导入')
+                    }
+                    onDelete={() => void handleDeleteNote(h.id)}
                   />
                 ))
               )}

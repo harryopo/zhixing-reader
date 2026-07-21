@@ -44,6 +44,7 @@ import {
 type TabKey = 'reading' | 'books'
 type SortColumn = 'title' | 'progress' | 'highlights' | 'cards'
 type SortOrder = 'asc' | 'desc'
+type StatsDateRange = '7d' | '30d' | '90d' | 'all'
 
 interface BookStat {
   id: string
@@ -79,6 +80,41 @@ const DONUT_PALETTE = [
   'var(--chart-4)',
 ]
 
+/** 日期范围选项（4 个按钮） */
+const STATS_DATE_RANGES: { key: StatsDateRange; label: string }[] = [
+  { key: '7d', label: '7天' },
+  { key: '30d', label: '30天' },
+  { key: '90d', label: '90天' },
+  { key: 'all', label: '全部' },
+]
+
+/** 日期范围 → 天数（'all' 用 3650 天近似 10 年，覆盖全量数据） */
+const STATS_RANGE_DAYS: Record<StatsDateRange, number> = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+  all: 3650,
+}
+
+/** 日期范围 → { startDate, endDate } ISO 日期字符串（YYYY-MM-DD） */
+function getStatsRangeDates(range: StatsDateRange): { startDate: string; endDate: string } {
+  const end = new Date()
+  end.setHours(23, 59, 59, 0)
+  const endDate = end.toISOString().split('T')[0]
+  const days = STATS_RANGE_DAYS[range]
+  const start = new Date(end)
+  start.setDate(start.getDate() - days + 1)
+  start.setHours(0, 0, 0, 0)
+  return { startDate: start.toISOString().split('T')[0], endDate }
+}
+
+/** 时间戳格式化：YYYYMMDD-HHmm */
+function formatExportTimestamp(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+}
+
 // ===== 主组件 =====
 export default function Stats() {
   const [bookStats, setBookStats] = useState<BookStat[]>([])
@@ -87,6 +123,12 @@ export default function Stats() {
   const [sortBy, setSortBy] = useState<SortColumn>('progress')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [activeTab, setActiveTab] = useState<TabKey>('reading')
+
+  // 日期范围筛选相关状态（用于"年度书单"section）
+  const [statsDateRange, setStatsDateRange] = useState<StatsDateRange>('30d')
+  const [dailyRangeData, setDailyRangeData] = useState<unknown[]>([])
+  const [rangeLoading, setRangeLoading] = useState(false)
+  const [exportingReport, setExportingReport] = useState(false)
 
   const {
     data: readingData,
@@ -219,6 +261,75 @@ export default function Stats() {
     }
   }
 
+  // 日期范围切换时，重新调用 dailyStats.getRange 获取每日阅读统计
+  useEffect(() => {
+    if (!window.electronAPI?.stats) return
+    setRangeLoading(true)
+    const { startDate, endDate } = getStatsRangeDates(statsDateRange)
+    window.electronAPI.stats
+      .getRange(startDate, endDate)
+      .then((data) => {
+        setDailyRangeData(data || [])
+      })
+      .catch((err) => {
+        console.error('加载每日统计失败:', err)
+        toast.error('加载每日统计失败')
+      })
+      .finally(() => setRangeLoading(false))
+  }, [statsDateRange])
+
+  const handleExportReport = async () => {
+    setExportingReport(true)
+    try {
+      const { startDate, endDate } = getStatsRangeDates(statsDateRange)
+      const [dailyData, reviewStats] = await Promise.all([
+        window.electronAPI.stats.getRange(startDate, endDate),
+        window.electronAPI.card.getStats(),
+      ])
+      const report = {
+        generatedAt: new Date().toISOString(),
+        dateRange: { type: statsDateRange, startDate, endDate },
+        reading: {
+          mode: readingMode,
+          totalTime: readingData?.totalReadTime ?? 0,
+          comparePct: readingData?.compare ?? null,
+          finishedBooks: kpiData.finishedBooks,
+          totalBooks: kpiData.totalBooks,
+          totalHighlights: kpiData.totalHighlights,
+          totalCards: kpiData.totalCards,
+        },
+        review: reviewStats,
+        dailyStats: dailyData,
+        books: bookStats.map((b) => ({
+          title: b.title,
+          author: b.author,
+          category: b.category,
+          progress: b.progress,
+          highlights: b.highlightCount,
+          cards: b.cardCount,
+          lastReadAt: b.lastReadAt,
+          updatedAt: b.updatedAt,
+        })),
+      }
+      const json = JSON.stringify(report, null, 2)
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `stats-report-${formatExportTimestamp()}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('已导出阅读统计报告')
+    } catch (error) {
+      console.error('导出报告失败:', error)
+      toast.error('导出报告失败')
+    } finally {
+      setExportingReport(false)
+    }
+  }
+
   const sortedStats = [...bookStats].sort((a, b) => {
     let comparison = 0
     switch (sortBy) {
@@ -347,9 +458,10 @@ export default function Stats() {
           <Button
             variant="secondary"
             data-dom-id="cta-export"
-            onClick={() => toast.info('报告导出功能开发中')}
+            onClick={handleExportReport}
+            disabled={exportingReport}
           >
-            <Icon name="notes" size={16} /> 导出报告
+            <Icon name="notes" size={16} /> {exportingReport ? '导出中...' : '导出报告'}
           </Button>
           <Button
             variant="primary"
@@ -410,6 +522,10 @@ export default function Stats() {
           bookStats={bookStats}
           kpiData={kpiData}
           onRefresh={handleRefreshReadingData}
+          statsDateRange={statsDateRange}
+          onStatsDateRangeChange={setStatsDateRange}
+          dailyRangeData={dailyRangeData}
+          rangeLoading={rangeLoading}
         />
       ) : (
         <BooksStatsView
@@ -435,6 +551,10 @@ function ReadingStatsView({
   bookStats,
   kpiData,
   onRefresh,
+  statsDateRange,
+  onStatsDateRangeChange,
+  dailyRangeData,
+  rangeLoading,
 }: {
   readingData: ReadingDataResponse | null
   readingMode: ReadingMode
@@ -450,7 +570,27 @@ function ReadingStatsView({
     totalHighlights: number
   }
   onRefresh: () => void
+  statsDateRange: StatsDateRange
+  onStatsDateRangeChange: (range: StatsDateRange) => void
+  dailyRangeData: unknown[]
+  rangeLoading: boolean
 }) {
+  // 汇总所选日期范围内的每日阅读统计
+  const rangeSummary = useMemo(() => {
+    let books = 0
+    let highlights = 0
+    let cards = 0
+    let readingTime = 0
+    for (const row of dailyRangeData) {
+      const r = (row ?? {}) as Record<string, unknown>
+      books += Number(r.books_read ?? 0)
+      highlights += Number(r.highlights_added ?? 0)
+      cards += Number(r.cards_reviewed ?? 0)
+      readingTime += Number(r.reading_time ?? 0)
+    }
+    return { books, highlights, cards, readingTime, days: dailyRangeData.length }
+  }, [dailyRangeData])
+
   return (
     <>
       {/* ===== Layer 1: KPI 4 列网格（设计稿 1:1） ===== */}
@@ -598,15 +738,71 @@ function ReadingStatsView({
           eyebrow="年度书单"
           title={`${new Date().getFullYear()} 已读`}
           action={
-            <Button
-              variant="ghost"
-              data-dom-id="cta-filter"
-              onClick={() => toast.info('筛选功能开发中')}
-            >
-              筛选
-            </Button>
+            <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 1)', flexWrap: 'wrap' }}>
+              {STATS_DATE_RANGES.map((r) => {
+                const isActive = statsDateRange === r.key
+                return (
+                  <button
+                    key={r.key}
+                    type="button"
+                    data-dom-id={`filter-range-${r.key}`}
+                    onClick={() => onStatsDateRangeChange(r.key)}
+                    style={{
+                      padding: 'calc(var(--spacing) * 1.5) calc(var(--spacing) * 2.5)',
+                      border: '1px solid',
+                      borderColor: isActive ? 'var(--primary)' : 'var(--border)',
+                      background: isActive ? 'var(--primary)' : 'transparent',
+                      color: isActive
+                        ? 'var(--primary-foreground)'
+                        : 'var(--muted-foreground)',
+                      borderRadius: 'var(--radius)',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: 500,
+                      fontFamily: 'inherit',
+                      transition:
+                        'background .2s ease, color .2s ease, border-color .2s ease',
+                    }}
+                  >
+                    {r.label}
+                  </button>
+                )
+              })}
+            </div>
           }
         />
+        {/* 日期范围内每日阅读统计摘要 */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 'calc(var(--spacing) * 4)',
+            flexWrap: 'wrap',
+            padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+            background: 'var(--muted)',
+            borderRadius: 'var(--radius)',
+            marginBottom: 'calc(var(--spacing) * 4)',
+            fontSize: '0.82rem',
+            color: 'var(--muted-foreground)',
+          }}
+        >
+          {rangeLoading ? (
+            <span>加载中...</span>
+          ) : (
+            <>
+              <span>
+                近{' '}
+                {statsDateRange === 'all'
+                  ? '全部'
+                  : STATS_RANGE_DAYS[statsDateRange] + ' 天'}
+                {' · '}共 {rangeSummary.days} 天数据
+              </span>
+              <span>读书 {rangeSummary.books} 本</span>
+              <span>笔记 {rangeSummary.highlights} 条</span>
+              <span>复习 {rangeSummary.cards} 张</span>
+              <span>阅读 {formatReadingTime(rangeSummary.readingTime)}</span>
+            </>
+          )}
+        </div>
         <YearlyBookTable bookStats={bookStats} />
       </Card>
 

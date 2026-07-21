@@ -50,6 +50,7 @@ interface BookRow {
   total_chapter?: number
   lastReadAt: string
   createdAt: string
+  source?: string
 }
 
 interface HighlightRow {
@@ -208,6 +209,37 @@ export default function BookDetail() {
     }
   }
 
+  /** 本应用无内置阅读器：外开微信读书，不假装本地可读。
+   *  仅 weread 来源的书籍可在微信读书打开；本地导入书籍 id 非微信读书 bookId，打开会跳到无效页面。
+   *  旧数据 source 为 null/undefined 时按 weread 处理（保持向后兼容）。
+   */
+  const openInWeRead = async () => {
+    if (!id) return
+    if (book?.source && book.source !== 'weread') {
+      toast.warning('本书非微信读书来源，无法在微信读书打开')
+      return
+    }
+    const url = `https://weread.qq.com/web/reader/${encodeURIComponent(id)}`
+    try {
+      if (window.electronAPI?.system?.openExternal) {
+        await window.electronAPI.system.openExternal(url)
+        toast.success('已在浏览器打开微信读书')
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      }
+    } catch (error) {
+      toast.error(`无法打开微信读书: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const goChatWithBook = () => {
+    if (!id) {
+      navigate('/chat')
+      return
+    }
+    navigate(`/chat?bookId=${encodeURIComponent(id)}`)
+  }
+
   // ===== 派生数据 =====
   const progress = safeNum(book?.progress ?? book?.reading_progress)
   const progressPct = Math.round(progress * 100)
@@ -259,17 +291,29 @@ export default function BookDetail() {
       subtitle={bookSubtitle}
       actions={
         <>
-          <Button
-            variant="primary"
-            data-dom-id="cta-read"
-            onClick={() => toast.info('请前往微信读书 App 继续阅读')}
-          >
-            继续阅读
-          </Button>
+          {book?.source === 'weread' || !book?.source ? (
+            <Button
+              variant="primary"
+              data-dom-id="cta-read"
+              onClick={() => void openInWeRead()}
+              title="本应用不同步全书正文，将打开微信读书网页版"
+            >
+              在微信读书打开
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              data-dom-id="cta-read-disabled"
+              disabled
+              title="本书非微信读书来源，无法在微信读书打开"
+            >
+              本地书籍（暂不支持阅读）
+            </Button>
+          )}
           <Button
             variant="secondary"
             data-dom-id="cta-chat-book"
-            onClick={() => navigate('/chat')}
+            onClick={goChatWithBook}
           >
             AI 对话此书
           </Button>
@@ -423,16 +467,22 @@ export default function BookDetail() {
             <Button
               variant="primary"
               data-dom-id="cta-read-2"
-              onClick={() => toast.info('请前往微信读书 App 开始阅读')}
+              onClick={() => void openInWeRead()}
+              disabled={!!book?.source && book.source !== 'weread'}
+              title={
+                book?.source && book.source !== 'weread'
+                  ? '本书非微信读书来源，无法在微信读书打开'
+                  : '本应用不同步全书正文，将打开微信读书网页版'
+              }
             >
-              开始阅读
+              {book?.source && book.source !== 'weread' ? '本地书籍（暂不支持阅读）' : '在微信读书打开'}
             </Button>
             <Button
               variant="secondary"
               data-dom-id="cta-add-review"
               onClick={() => navigate('/review')}
             >
-              加入复习
+              去复习
             </Button>
             <Button
               variant="secondary"
@@ -442,13 +492,6 @@ export default function BookDetail() {
             >
               <Icon name="refresh" size={14} />
               {importing ? '导入中...' : '导入笔记'}
-            </Button>
-            <Button
-              variant="ghost"
-              data-dom-id="cta-edit"
-              onClick={() => toast.info('编辑信息功能即将上线')}
-            >
-              编辑信息
             </Button>
           </div>
         </Card>
