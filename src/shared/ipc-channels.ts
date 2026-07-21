@@ -85,7 +85,6 @@ export const IPC_CHANNELS = {
     SEARCH: 'conversations:search',
   },
   AGENT: {
-    CHAT: 'agent:chat',
     STREAM_CHAT: 'agent:streamChat',
     STREAM_CHAT_WITH_CONTEXT: 'agent:streamChatWithContext',
     CANCEL_STREAM: 'agent:cancelStream',

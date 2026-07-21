@@ -224,14 +224,6 @@ export async function initDatabase(): Promise<void> {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS user_profiles (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-
-  db.run(`
     CREATE TABLE IF NOT EXISTS methodologies (
       id TEXT PRIMARY KEY,
       book_id TEXT NOT NULL,
@@ -501,7 +493,6 @@ export function resetDatabase(): void {
       'book_summaries',
       'daily_stats',
       'token_usage',
-      'user_profiles',
       'methodologies',
       'knowledge_cards',
       'book_architecture',

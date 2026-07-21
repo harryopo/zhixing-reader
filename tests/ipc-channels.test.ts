@@ -42,7 +42,6 @@ const FORBIDDEN_CHANNELS: ReadonlyArray<string> = [
   'fsrs:getParameters',
   'fsrs:resetParameters',
   'fsrs:getOptimalReviewOrder',
-  'agent:chat',
   'agent:streamChat',
   'agent:streamChatWithContext',
   'agent:cancelStream',
