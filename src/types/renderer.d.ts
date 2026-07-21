@@ -119,7 +119,7 @@ export interface ElectronAPI {
     fetchNotes: (bookId: string) => Promise<unknown>
     fetchAllContent: (bookId: string) => Promise<unknown>
     fetchRecommendations: () => Promise<RecommendationItem[]>
-    test: (apiKey: string) => Promise<{ success: boolean; message: string }>
+    test: (apiKey: string) => Promise<{ success: boolean; message: string; firstBookTitle?: string }>
   }
   readingData: {
     fetch: (mode: string, baseTime?: number) => Promise<ReadingDataResponse>

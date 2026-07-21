@@ -63,6 +63,8 @@ export type IconName =
   | 'mouse-click'
   | 'message-circle'
   | 'info'
+  | 'eye'
+  | 'eye-off'
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName
@@ -362,6 +364,20 @@ const PATHS: Record<IconName, ReactElement> = {
       <circle cx="12" cy="12" r="10" />
       <path d="M12 16v-4" />
       <path d="M12 8h.01" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  'eye-off': (
+    <>
+      <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+      <path d="M14.484 14.415A3 3 0 0 1 9.585 9.515" />
+      <path d="M7.5 5.5C4.7 6.7 2.5 9.3 1.7 12.3a1 1 0 0 0 0 .6 10.7 10.7 0 0 0 4.8 5.4" />
+      <line x1="2" x2="22" y1="2" y2="22" />
     </>
   ),
 }

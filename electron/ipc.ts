@@ -13,6 +13,7 @@ import { dictionaryService } from './dictionary-service';
 import * as admin from './admin';
 import { processMessageStream } from './agent/orchestrator';
 import { indexHighlight as indexHighlightRAG } from './services/rag-service';
+import { refreshWereadAutoSyncTimer } from './weread-sync-manager';
 
 function handle(channel: string, handler: (...args: any[]) => Promise<unknown> | unknown): void {
   ipcMain.handle(channel, async (_event: IpcMainInvokeEvent, ...args: unknown[]) => {
@@ -533,7 +534,19 @@ export function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.READING_DATA.FETCH_OVERALL, () => fetchReadingData('overall'));
 
   handle(IPC_CHANNELS.SETTINGS.GET, (key: string) => settingsService.get(key));
-  handle(IPC_CHANNELS.SETTINGS.SET, (key: string, value: unknown) => settingsService.set(key, value));
+  handle(IPC_CHANNELS.SETTINGS.SET, (key: string, value: unknown) => {
+    settingsService.set(key, value);
+    // 微信读书自动同步相关字段变更时，触发 main 进程更新定时器
+    // （wereadApiKey 也可能影响定时器是否启动——未配置时定时器不会运行）
+    if (key === 'wereadAutoSync' || key === 'wereadAutoSyncInterval' || key === 'wereadApiKey') {
+      try {
+        refreshWereadAutoSyncTimer();
+      } catch (e) {
+        logger.warn('refreshWereadAutoSyncTimer failed', { error: String(e) });
+      }
+    }
+    return undefined;
+  });
   handle(IPC_CHANNELS.SETTINGS.GET_ALL, () => settingsService.getAll());
 
   handle(IPC_CHANNELS.SYSTEM.FORCE_SAVE_DATABASE, () => {

@@ -586,7 +586,14 @@ export async function searchBooks(keyword: string, count: number = 10): Promise<
   }
 }
 
-export async function testConnection(key: string): Promise<{ success: boolean; message: string }> {
+export interface TestConnectionResult {
+  success: boolean;
+  message: string;
+  /** 测试 /shelf/sync 拉到的第一本书标题，用于在 UI 反馈"真的拉到了一本书" */
+  firstBookTitle?: string;
+}
+
+export async function testConnection(key: string): Promise<TestConnectionResult> {
   try {
     const testKey = key || apiKey;
     if (!testKey) {
@@ -623,7 +630,7 @@ export async function testConnection(key: string): Promise<{ success: boolean; m
       return { success: false, message: `请求失败: HTTP ${response.status}${errorText ? ` - ${errorText.slice(0, 100)}` : ''}` };
     }
 
-    const data = await response.json() as GatewayResponse;
+    const data = await response.json() as GatewayResponse & { books?: Array<{ title?: string }> };
 
     if (data.errcode !== undefined && data.errcode !== 0) {
       logger.error('WeRead API error:', data);
@@ -631,10 +638,14 @@ export async function testConnection(key: string): Promise<{ success: boolean; m
     }
 
     logger.info('WeRead test connection successful');
-    return {
-      success: true,
-      message: '连接成功！'
-    };
+    const books = Array.isArray(data.books) ? data.books : [];
+    const firstBookTitle = books[0]?.title && books[0].title.trim().length > 0
+      ? books[0].title.trim()
+      : undefined;
+    const message = firstBookTitle
+      ? `连接成功！已拉取到第 1 本书：${firstBookTitle}`
+      : '连接成功！书架为空或暂无可同步书籍';
+    return { success: true, message, firstBookTitle };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('WeRead test connection failed', error);

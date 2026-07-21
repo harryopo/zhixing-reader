@@ -1,13 +1,23 @@
 /**
- * SettingsWeRead — 微信读书设置（Google Design Library 1:1 重构）
- * 基于设计稿 zhixing-reader-redesign/pages/settings-weread.html
- * 4 个卡片：API 配置 / 同步设置 / 书架同步 / 划线与笔记
- * 业务逻辑：复用 settingsStore 的 wereadApiKey + testWereadConnection + saveSettings
- * 新增 UI 字段（Cookie、同步频率、范围、分类、自动化 toggle）为设计稿扩展，使用 local state
+ * SettingsWeRead — 微信读书设置
+ *
+ * T15 修复（2026-07-21 Phase 5）：
+ *   1. 顶部加 cookie/API 双模式说明卡片（cookie 模式标注"预留扩展"避免误导）
+ *   2. 测试连接按钮：调 weread.test 真实拉一本书，结果显示第一本书标题
+ *   3. API Key 输入框右侧图标从"搜索框"改为"小眼睛"（eye / eye-off）
+ *   4. 自动同步开关 + 间隔 select：绑定 settingsStore.wereadAutoSync / wereadAutoSyncInterval，
+ *      变更即写库，main 进程监听 SETTINGS.SET 自动更新定时器
+ *   5. 删除 setTimeout 占位（handleValidateCookie / handleSyncNow / handleResyncShelf）
+ *      → 立即同步调真实 syncBookshelfToDb（与 Topbar/Bookshelf 共用）
+ *   6. useShallow selector 避免无关重渲染
+ *
+ * 业务逻辑：复用 settingsStore 的 wereadApiKey + testWereadConnection + setWereadAutoSync
+ * 书架同步逻辑：复用 utils/sync-bookshelf.ts syncBookshelfToDb
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useShallow } from 'zustand/react/shallow'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -16,6 +26,7 @@ import Icon from '@/components/ui/Icon'
 import { Loading, Tiny } from '@/components/ui/Feedback'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { toast } from '@/stores/toastStore'
+import { syncBookshelfToDb } from '@/utils/sync-bookshelf'
 
 /** 设置导航项 */
 interface NavItem {
@@ -52,38 +63,22 @@ interface CategoryScope {
   other: boolean
 }
 
-/** 同步表格行 */
-interface SyncTableRow {
-  type: string
-  count: number
-  lastSync: string
-  synced: boolean
-}
-
-/** 默认同步表格数据（与设计稿一致） */
-const DEFAULT_SYNC_TABLE: SyncTableRow[] = [
-  { type: '书架', count: 128, lastSync: '09:32:14', synced: true },
-  { type: '划线', count: 1847, lastSync: '09:32:14', synced: true },
-  { type: '笔记', count: 362, lastSync: '09:32:14', synced: true },
-  { type: '书评', count: 48, lastSync: '--:--:--', synced: false },
-  { type: '读后感', count: 12, lastSync: '--:--:--', synced: false },
-]
-
-/** 默认上次同步时间（与设计稿一致） */
-const DEFAULT_LAST_SYNC = '2026-07-21 09:32:14'
-
-/** 同步频率选项 */
-const SYNC_FREQ_OPTIONS = [
-  { value: 'realtime', label: '实时' },
-  { value: 'hourly', label: '每小时' },
-  { value: 'daily', label: '每天' },
-  { value: 'manual', label: '手动' },
+/** 自动同步间隔选项（分钟） */
+const AUTO_SYNC_INTERVAL_OPTIONS = [
+  { value: 15, label: '15 分钟' },
+  { value: 30, label: '30 分钟' },
+  { value: 60, label: '1 小时' },
+  { value: 180, label: '3 小时' },
+  { value: 360, label: '6 小时' },
 ]
 
 export default function SettingsWeRead() {
   const navigate = useNavigate()
+  // 使用 useShallow selector 避免整体订阅导致的无关重渲染
   const {
     wereadApiKey,
+    wereadAutoSync,
+    wereadAutoSyncInterval,
     loading,
     saving,
     testingWeread,
@@ -93,14 +88,31 @@ export default function SettingsWeRead() {
     saveSettings,
     testWereadConnection,
     setWereadApiKey,
+    setWereadAutoSync,
+    setWereadAutoSyncInterval,
     clearTestResult,
-  } = useSettingsStore()
+  } = useSettingsStore(
+    useShallow((s) => ({
+      wereadApiKey: s.wereadApiKey,
+      wereadAutoSync: s.wereadAutoSync,
+      wereadAutoSyncInterval: s.wereadAutoSyncInterval,
+      loading: s.loading,
+      saving: s.saving,
+      testingWeread: s.testingWeread,
+      error: s.error,
+      testResult: s.testResult,
+      loadSettings: s.loadSettings,
+      saveSettings: s.saveSettings,
+      testWereadConnection: s.testWereadConnection,
+      setWereadApiKey: s.setWereadApiKey,
+      setWereadAutoSync: s.setWereadAutoSync,
+      setWereadAutoSyncInterval: s.setWereadAutoSyncInterval,
+      clearTestResult: s.clearTestResult,
+    })),
+  )
 
-  // ===== 本地状态（设计稿扩展字段，无 store/IPC 支持，仅 UI） =====
+  // ===== 本地状态（仅 UI，不持久化） =====
   const [showApiKey, setShowApiKey] = useState(false)
-  const [cookie, setCookie] = useState('wr_vid=example123; wr_skey=example456; wr_rt=example789;')
-  const [autoSync, setAutoSync] = useState(true)
-  const [syncFreq, setSyncFreq] = useState('hourly')
   const [syncScope, setSyncScope] = useState<SyncScope>({
     shelf: true,
     highlight: true,
@@ -118,14 +130,10 @@ export default function SettingsWeRead() {
   const [highlightToNote, setHighlightToNote] = useState(true)
   const [noteToCard, setNoteToCard] = useState(true)
   const [autoTag, setAutoTag] = useState(false)
-  const [lastSync, setLastSync] = useState(DEFAULT_LAST_SYNC)
-  const [bookshelfCount] = useState(128)
-  const [syncTable] = useState<SyncTableRow[]>(DEFAULT_SYNC_TABLE)
   const [syncing, setSyncing] = useState(false)
   const [resyncingShelf, setResyncingShelf] = useState(false)
-  const [validatingCookie, setValidatingCookie] = useState(false)
 
-  // ===== 业务逻辑（保留原 Settings.tsx 行为） =====
+  // ===== 业务逻辑 =====
   useEffect(() => {
     loadSettings()
   }, [loadSettings])
@@ -169,15 +177,11 @@ export default function SettingsWeRead() {
 
   const handleReset = useCallback(() => {
     setWereadApiKey('')
-    setCookie('wr_vid=example123; wr_skey=example456; wr_rt=example789;')
-    setAutoSync(true)
-    setSyncFreq('hourly')
     setSyncScope({ shelf: true, highlight: true, note: true, review: false, essay: false })
     setCategories({ literature: true, tech: true, history: false, philosophy: false, other: true })
     setHighlightToNote(true)
     setNoteToCard(true)
     setAutoTag(false)
-    setLastSync(DEFAULT_LAST_SYNC)
     clearTestResult()
     toast.info('已重置为默认值（未保存）')
   }, [setWereadApiKey, clearTestResult])
@@ -196,7 +200,7 @@ export default function SettingsWeRead() {
       toast.error('API Key 只能包含英文字母、数字和符号')
       return
     }
-    const testToastId = toast.loading('正在测试微信读书连接...')
+    const testToastId = toast.loading('正在测试微信读书连接（拉取书架第一本书）...')
     try {
       await testWereadConnection()
     } catch (err) {
@@ -206,48 +210,61 @@ export default function SettingsWeRead() {
     }
   }, [clearTestResult, wereadApiKey, testWereadConnection])
 
-  const handleValidateCookie = useCallback(() => {
-    if (!cookie.trim()) {
-      toast.warning('请先粘贴 Cookie')
-      return
-    }
-    setValidatingCookie(true)
-    const validateToastId = toast.loading('正在验证 Cookie...')
-    // Cookie 校验为占位逻辑（无 IPC 支持），按设计稿展示状态
-    setTimeout(() => {
-      setValidatingCookie(false)
-      toast.remove(validateToastId)
-      toast.success('Cookie 格式校验通过')
-    }, 800)
-  }, [cookie])
-
-  const handleSyncNow = useCallback(() => {
+  const handleSyncNow = useCallback(async () => {
+    if (syncing) return
     setSyncing(true)
-    const syncToastId = toast.loading('正在同步微信读书数据...')
-    setTimeout(() => {
-      setSyncing(false)
-      const now = new Date()
-      const pad = (n: number) => String(n).padStart(2, '0')
-      const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
-      setLastSync(stamp)
+    const syncToastId = toast.loading('正在同步微信读书书架...')
+    try {
+      const result = await syncBookshelfToDb()
       toast.remove(syncToastId)
-      toast.success('同步完成')
-    }, 1200)
-  }, [])
+      if (result.total === 0) {
+        toast.warning('未获取到书籍，请检查微信读书配置')
+        return
+      }
+      toast.success(
+        result.newCount > 0
+          ? `同步完成，共 ${result.total} 本，新导入 ${result.newCount} 本，更新 ${result.updatedCount} 本`
+          : `同步完成，共 ${result.total} 本，无新增`,
+      )
+    } catch (err) {
+      toast.remove(syncToastId)
+      toast.error(`同步失败: ${(err as Error).message}`)
+    } finally {
+      setSyncing(false)
+    }
+  }, [syncing])
 
-  const handleResyncShelf = useCallback(() => {
+  const handleResyncShelf = useCallback(async () => {
+    if (resyncingShelf) return
     setResyncingShelf(true)
     const resyncToastId = toast.loading('正在重新同步书架...')
-    setTimeout(() => {
-      setResyncingShelf(false)
+    try {
+      // 重新同步 = sortByRecent=true，按最近阅读时间排序后写库
+      const result = await syncBookshelfToDb({ sortByRecent: true })
       toast.remove(resyncToastId)
-      toast.success('书架已重新同步')
-    }, 1200)
-  }, [])
+      if (result.total === 0) {
+        toast.warning('未获取到书籍，请检查微信读书配置')
+        return
+      }
+      toast.success(`书架已重新同步，共 ${result.total} 本，新导入 ${result.newCount} 本`)
+    } catch (err) {
+      toast.remove(resyncToastId)
+      toast.error(`重新同步失败: ${(err as Error).message}`)
+    } finally {
+      setResyncingShelf(false)
+    }
+  }, [resyncingShelf])
+
+  const handleToggleAutoSync = useCallback((enabled: boolean) => {
+    void setWereadAutoSync(enabled)
+  }, [setWereadAutoSync])
+
+  const handleChangeInterval = useCallback((minutes: number) => {
+    void setWereadAutoSyncInterval(minutes)
+  }, [setWereadAutoSyncInterval])
 
   // ===== 派生状态 =====
   const isWereadConfigured = wereadApiKey.length > 0
-  const cookieValid = cookie.trim().length > 0
 
   const navItems = useMemo(
     () =>
@@ -302,6 +319,46 @@ export default function SettingsWeRead() {
 
           {/* ===== 右侧：表单卡片堆叠 ===== */}
           <div className="settings-forms">
+            {/* ===== Card 0: 模式说明（cookie / API 双模式） ===== */}
+            <Card className="mode-info-card">
+              <CardHead eyebrow="接入方式" title="Cookie 与 API 双模式说明" />
+              <div className="mode-grid">
+                <div className="mode-block">
+                  <div className="mode-head">
+                    <span className="mode-tag tag-active" aria-label="当前可用">可用</span>
+                    <strong>API Key 模式</strong>
+                  </div>
+                  <p className="mode-desc">
+                    通过微信读书开放网关的 <code>API Key</code> 鉴权，调用
+                    <code> /shelf/sync </code>等接口拉取书架、划线、笔记。
+                    下方填入 API Key 后点击「测试连接」即可验证。
+                  </p>
+                  <p className="mode-hint">
+                    API Key 通常以 <code>wrk-</code> 开头，从微信读书官方申请后获得。
+                  </p>
+                </div>
+                <div className="mode-block">
+                  <div className="mode-head">
+                    <span className="mode-tag tag-soon" aria-label="预留扩展">预留</span>
+                    <strong>Cookie 模式</strong>
+                  </div>
+                  <p className="mode-desc">
+                    从微信读书网页版浏览器 DevTools 复制完整 Cookie（含
+                    <code> wr_vid / wr_skey / wr_rt </code>等字段），直接调用官方 H5 接口。
+                  </p>
+                  <p className="mode-hint">
+                    Cookie 易过期（一般 1~7 天），且本地保存有泄露风险，当前版本暂未启用。
+                  </p>
+                </div>
+              </div>
+              {!isWereadConfigured && (
+                <div className="mode-guide" role="status" aria-live="polite">
+                  <Icon name="info" size={16} aria-hidden="true" />
+                  <span>尚未配置 API Key，自动同步不会启动。请先填入 API Key 并点击「测试连接」。</span>
+                </div>
+              )}
+            </Card>
+
             {/* ===== Card 1: API 配置 ===== */}
             <Card>
               <CardHead
@@ -329,15 +386,18 @@ export default function SettingsWeRead() {
                       placeholder="wrk-xxxxxxxx"
                       style={{ fontFamily: 'var(--font-mono)', paddingRight: 'calc(var(--spacing) * 10)' }}
                       data-dom-id="input-apikey"
+                      autoComplete="off"
+                      spellCheck={false}
                     />
                     <button
                       type="button"
                       className="input-toggle"
                       onClick={() => setShowApiKey((s) => !s)}
-                      aria-label="显示/隐藏 API Key"
+                      aria-label={showApiKey ? '隐藏 API Key' : '显示 API Key'}
+                      aria-pressed={showApiKey}
                       data-dom-id="toggle-apikey-visibility"
                     >
-                      <Icon name={showApiKey ? 'check' : 'search'} size={18} />
+                      <Icon name={showApiKey ? 'eye' : 'eye-off'} size={18} />
                     </button>
                   </div>
                   <Button
@@ -349,68 +409,47 @@ export default function SettingsWeRead() {
                     {testingWeread ? '测试中...' : '测试连接'}
                   </Button>
                 </div>
-              </div>
-
-              <div className="form-field">
-                <label className="form-label" htmlFor="weread-cookie">
-                  Cookie（微信读书会话）
-                </label>
-                <textarea
-                  id="weread-cookie"
-                  className="form-textarea"
-                  placeholder="粘贴微信读书网页版 Cookie..."
-                  value={cookie}
-                  onChange={(e) => setCookie(e.target.value)}
-                  data-dom-id="input-cookie"
-                />
-                <div className="input-row" style={{ marginTop: 'calc(var(--spacing) * 3)' }}>
-                  <Badge variant={cookieValid ? 'success' : 'error'} data-dom-id="cookie-status">
-                    <span className="dot" aria-hidden="true" />
-                    {cookieValid ? 'Cookie 有效' : 'Cookie 缺失'}
-                  </Badge>
-                  <Button
-                    variant="secondary"
-                    onClick={handleValidateCookie}
-                    disabled={validatingCookie || !cookieValid}
-                    style={{ marginLeft: 'auto' }}
-                    data-dom-id="cta-validate-cookie"
-                  >
-                    {validatingCookie ? '验证中...' : '验证Cookie'}
-                  </Button>
-                </div>
+                {testResult && testResult.type === 'weread' && testResult.firstBookTitle && (
+                  <div className="test-result" role="status" aria-live="polite">
+                    <Icon name="check" size={14} aria-hidden="true" />
+                    <span>已拉取到第 1 本书：<strong>{testResult.firstBookTitle}</strong></span>
+                  </div>
+                )}
               </div>
             </Card>
 
-            {/* ===== Card 2: 同步设置 ===== */}
+            {/* ===== Card 2: 同步设置（自动同步开关 + 间隔 + 同步范围 + 立即同步） ===== */}
             <Card>
               <CardHead eyebrow="同步设置" title="同步策略" />
               <div className="form-row" style={{ borderTop: 'none', paddingTop: 0 }}>
                 <div className="form-row-info">
                   <strong>自动同步</strong>
-                  <Tiny>定期自动同步微信读书数据到本地</Tiny>
+                  <Tiny>开启后由主进程按所选间隔自动拉取书架写入本地数据库</Tiny>
                 </div>
                 <button
                   type="button"
                   className="toggle"
-                  data-on={autoSync ? 'true' : 'false'}
-                  aria-label="自动同步"
-                  aria-pressed={autoSync}
-                  onClick={() => setAutoSync((s) => !s)}
+                  data-on={wereadAutoSync ? 'true' : 'false'}
+                  aria-label="自动同步开关"
+                  aria-pressed={wereadAutoSync}
+                  onClick={() => handleToggleAutoSync(!wereadAutoSync)}
                   data-dom-id="toggle-autosync"
                 />
               </div>
               <div className="select-row">
                 <div className="form-row-info">
                   <strong>同步频率</strong>
-                  <Tiny>设置自动同步的时间间隔</Tiny>
+                  <Tiny>自动同步的时间间隔（最小 5 分钟，避免打爆网关）</Tiny>
                 </div>
                 <select
                   className="form-select"
-                  value={syncFreq}
-                  onChange={(e) => setSyncFreq(e.target.value)}
+                  value={wereadAutoSyncInterval}
+                  onChange={(e) => handleChangeInterval(Number(e.target.value))}
+                  disabled={!wereadAutoSync}
                   data-dom-id="select-sync-freq"
+                  aria-label="自动同步频率"
                 >
-                  {SYNC_FREQ_OPTIONS.map((opt) => (
+                  {AUTO_SYNC_INTERVAL_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -456,12 +495,14 @@ export default function SettingsWeRead() {
                 <span className="status-dot" aria-hidden="true" />
                 <div className="status-text">
                   <strong>同步就绪</strong>
-                  <div className="tiny mono-time">上次同步：{lastSync}</div>
+                  <div className="tiny mono-time">
+                    自动同步：{wereadAutoSync ? `已开启 · 每 ${wereadAutoSyncInterval} 分钟` : '已关闭'}
+                  </div>
                 </div>
                 <Button
                   variant="primary"
                   onClick={handleSyncNow}
-                  disabled={syncing}
+                  disabled={syncing || !isWereadConfigured}
                   data-dom-id="cta-sync-now"
                 >
                   {syncing ? '同步中...' : '立即同步'}
@@ -474,11 +515,6 @@ export default function SettingsWeRead() {
               <CardHead
                 eyebrow="书架同步"
                 title="书籍分类过滤"
-                action={
-                  <span className="count-badge" data-dom-id="bookshelf-count">
-                    {bookshelfCount} 本
-                  </span>
-                }
               />
               <div className="form-field">
                 <label className="form-label">同步分类</label>
@@ -521,12 +557,12 @@ export default function SettingsWeRead() {
               >
                 <div className="form-row-info">
                   <strong>重新同步书架</strong>
-                  <Tiny>清空本地书架缓存并重新拉取全量数据</Tiny>
+                  <Tiny>按最近阅读时间排序后重新拉取全量数据写入本地</Tiny>
                 </div>
                 <Button
                   variant="secondary"
                   onClick={handleResyncShelf}
-                  disabled={resyncingShelf}
+                  disabled={resyncingShelf || !isWereadConfigured}
                   data-dom-id="cta-resync-shelf"
                 >
                   {resyncingShelf ? '同步中...' : '重新同步书架'}
@@ -536,7 +572,7 @@ export default function SettingsWeRead() {
 
             {/* ===== Card 4: 划线与笔记 ===== */}
             <Card>
-              <CardHead eyebrow="划线与笔记" title="自动化与同步状态" />
+              <CardHead eyebrow="划线与笔记" title="自动化开关" />
               <div className="form-row" style={{ borderTop: 'none', paddingTop: 0 }}>
                 <div className="form-row-info">
                   <strong>划线自动生成笔记</strong>
@@ -582,38 +618,11 @@ export default function SettingsWeRead() {
                   data-dom-id="toggle-auto-tag"
                 />
               </div>
-              <div className="sync-table-wrap">
-                <table className="sync-table">
-                  <thead>
-                    <tr>
-                      <th>类型</th>
-                      <th>数量</th>
-                      <th>上次同步</th>
-                      <th>状态</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {syncTable.map((row) => (
-                      <tr key={row.type}>
-                        <td>{row.type}</td>
-                        <td className="num">{row.count.toLocaleString('zh-CN')}</td>
-                        <td className="mono">{row.lastSync}</td>
-                        <td>
-                          <Badge variant={row.synced ? 'success' : 'error'}>
-                            <span className="dot" aria-hidden="true" />
-                            {row.synced ? '已同步' : '未同步'}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </Card>
           </div>
         </div>
 
-        {/* ===== 设计稿专属样式（与 settings-weread.html 1:1） ===== */}
+        {/* ===== 设计稿专属样式 ===== */}
         <style>{`
           .settings-body {
             display: grid;
@@ -674,6 +683,86 @@ export default function SettingsWeRead() {
             flex-direction: column;
             gap: calc(var(--spacing) * 5);
           }
+          .mode-info-card .mode-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: calc(var(--spacing) * 4);
+            padding-top: calc(var(--spacing) * 2);
+          }
+          .mode-info-card .mode-block {
+            display: flex;
+            flex-direction: column;
+            gap: calc(var(--spacing) * 2);
+            padding: calc(var(--spacing) * 4);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--background);
+          }
+          .mode-info-card .mode-head {
+            display: flex;
+            align-items: center;
+            gap: calc(var(--spacing) * 2);
+            font-size: 0.92rem;
+          }
+          .mode-info-card .mode-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            line-height: 1.4;
+          }
+          .mode-info-card .tag-active {
+            background: var(--state-success, var(--primary));
+            color: var(--card);
+          }
+          .mode-info-card .tag-soon {
+            background: var(--muted);
+            color: var(--muted-foreground);
+          }
+          .mode-info-card .mode-desc {
+            font-size: 0.84rem;
+            line-height: 1.55;
+            color: var(--muted-foreground);
+            margin: 0;
+          }
+          .mode-info-card .mode-hint {
+            font-size: 0.78rem;
+            color: var(--muted-foreground);
+            opacity: 0.85;
+            margin: 0;
+          }
+          .mode-info-card code {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            background: var(--secondary);
+            color: var(--secondary-foreground);
+            padding: 0.05rem 0.35rem;
+            border-radius: 4px;
+          }
+          .mode-info-card .mode-guide {
+            display: flex;
+            align-items: center;
+            gap: calc(var(--spacing) * 2);
+            margin-top: calc(var(--spacing) * 3);
+            padding: calc(var(--spacing) * 3);
+            background: var(--secondary);
+            border-radius: var(--radius);
+            color: var(--secondary-foreground);
+            font-size: 0.84rem;
+          }
+          .test-result {
+            display: flex;
+            align-items: center;
+            gap: calc(var(--spacing) * 2);
+            margin-top: calc(var(--spacing) * 2);
+            padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+            background: var(--secondary);
+            border-radius: var(--radius);
+            color: var(--state-success, var(--primary));
+            font-size: 0.84rem;
+          }
           .form-field {
             display: flex;
             flex-direction: column;
@@ -697,13 +786,6 @@ export default function SettingsWeRead() {
             outline: none;
             transition: border-color 0.2s ease;
             width: 100%;
-          }
-          .form-textarea {
-            min-height: 84px;
-            resize: vertical;
-            line-height: 1.5;
-            font-family: var(--font-mono);
-            font-size: 0.84rem;
           }
           .form-input:focus,
           .form-select:focus,
@@ -749,7 +831,6 @@ export default function SettingsWeRead() {
             outline: 2px solid var(--ring);
             outline-offset: 2px;
           }
-          .status-badge .dot,
           .badge .dot {
             width: 6px;
             height: 6px;
@@ -886,59 +967,6 @@ export default function SettingsWeRead() {
             color: var(--muted-foreground);
             font-variant-numeric: tabular-nums;
           }
-          .sync-table-wrap {
-            overflow-x: auto;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            margin-top: calc(var(--spacing) * 3);
-          }
-          .sync-table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          .sync-table th {
-            text-align: left;
-            padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: var(--muted-foreground);
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            border-bottom: 1px solid var(--border);
-            white-space: nowrap;
-          }
-          .sync-table td {
-            padding: calc(var(--spacing) * 4);
-            font-size: 0.88rem;
-            color: var(--foreground);
-            border-bottom: 1px solid var(--border);
-          }
-          .sync-table td.mono {
-            font-family: var(--font-mono);
-            font-size: 0.82rem;
-            color: var(--muted-foreground);
-            font-variant-numeric: tabular-nums;
-          }
-          .sync-table td.num {
-            font-family: var(--font-mono);
-            font-variant-numeric: tabular-nums;
-            font-weight: 600;
-          }
-          .sync-table tr:last-child td {
-            border-bottom: none;
-          }
-          .count-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.2rem 0.6rem;
-            border-radius: 999px;
-            background: var(--secondary);
-            color: var(--secondary-foreground);
-            font-size: 0.78rem;
-            font-weight: 600;
-            font-family: var(--font-mono);
-            font-variant-numeric: tabular-nums;
-          }
           @media (max-width: 1100px) {
             .settings-body {
               grid-template-columns: 1fr;
@@ -951,6 +979,9 @@ export default function SettingsWeRead() {
             }
             .checkbox-group {
               flex-direction: column;
+            }
+            .mode-info-card .mode-grid {
+              grid-template-columns: 1fr;
             }
           }
           @media (max-width: 760px) {

@@ -9,6 +9,7 @@ import { logger } from './logger';
 import { settingsService } from './services/settings-service';
 import { initVectorDb, createCollection } from './services/vector-db';
 import { initFromAIConfig as initEmbedding } from './services/embedding-service';
+import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
 
 const isDev = !app.isPackaged;
 
@@ -194,6 +195,13 @@ app.whenReady().then(async () => {
     initAISettings(settings);
     logger.info('Settings loaded and applied');
 
+    // 启动微信读书自动同步定时器（如 settings.wereadAutoSync=true 且已配置 wereadApiKey）
+    try {
+      startWereadAutoSync();
+    } catch (e) {
+      logger.warn('Failed to start WeRead auto-sync timer', e);
+    }
+
     // 初始化向量数据库（可选，如果Qdrant不可用则跳过）
     try {
       const qdrantUrl = (settings.qdrantUrl as string) || 'http://localhost:6333';
@@ -235,6 +243,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   logger.info('App quitting...');
+  stopWereadAutoSync();
   closeDatabase();
   logger.close();
 });
