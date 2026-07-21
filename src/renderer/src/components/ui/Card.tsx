@@ -1,7 +1,7 @@
 /**
  * Card — 卡片（Google Design Library 风格）
- * 无阴影 / 边框分层 / 圆角 var(--radius)+6px
- * 支持 interactive（hover 上浮 + 边框变色）
+ * 边框分层 / 圆角 var(--radius)+6px / 轻微 shadow
+ * 支持 interactive（hover 上浮 + shadow 加深 + 边框变色）
  */
 
 import { CSSProperties, ReactNode } from 'react'
@@ -25,8 +25,10 @@ export default function Card({ children, interactive, className, style, onClick,
     color: 'var(--card-foreground)',
     ...(interactive
       ? {
-          transition: 'transform 0.16s ease, border-color 0.2s ease',
+          transition:
+            'transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease',
           cursor: 'pointer',
+          boxShadow: 'var(--shadow-xs)',
         }
       : {}),
   }
@@ -34,13 +36,15 @@ export default function Card({ children, interactive, className, style, onClick,
   const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
     if (interactive) {
       e.currentTarget.style.borderColor = 'var(--ring)'
-      e.currentTarget.style.transform = 'translateY(-1px)'
+      e.currentTarget.style.transform = 'translateY(-2px)'
+      e.currentTarget.style.boxShadow = 'var(--shadow-md)'
     }
   }
   const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
     if (interactive) {
       e.currentTarget.style.borderColor = 'var(--border)'
       e.currentTarget.style.transform = 'translateY(0)'
+      e.currentTarget.style.boxShadow = 'var(--shadow-xs)'
     }
   }
 

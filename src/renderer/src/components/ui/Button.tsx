@@ -61,7 +61,7 @@ export default function Button({
         fontSize: '0.88rem',
         lineHeight: 1,
         transition:
-          'background 0.2s ease, color 0.2s ease, transform 0.16s ease, border-color 0.2s ease',
+          'background 0.15s ease, color 0.15s ease, transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease',
         opacity: disabled ? 0.5 : 1,
         ...variantStyle,
         ...style,

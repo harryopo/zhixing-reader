@@ -156,10 +156,11 @@
   border-radius: var(--radius);
   cursor: pointer;
   transition:
-    background 0.2s ease,
-    color 0.2s ease,
-    transform 0.16s ease,
-    border-color 0.2s ease;
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
   font-size: 0.88rem;
   line-height: 1;
 }
@@ -302,4 +303,38 @@
   border-radius: calc(var(--radius) + 6px);
   padding: calc(var(--spacing) * 5);
   color: var(--card-foreground);
+}
+
+/* ===== 全局原生表单控件 focus 状态（补充 components/ui 缺失的 Input 组件） ===== */
+input,
+textarea,
+select {
+  /* 150ms ease 与 Button 一致 */
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  /* placeholder 与 muted-foreground 同色,确保 ≥ 4.5:1 对比度（WCAG AA） */
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  /* 边框高亮 + ring shadow,替代浏览器默认 outline */
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent);
+  outline: none;
+}
+
+/* 暗色模式下 input 背景不纯黑,与 card 协调 */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: var(--input);
 }

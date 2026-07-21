@@ -55,23 +55,23 @@
   /* Radius */
   --radius: 0.5rem;
 
-  /* Shadow primitives */
+  /* Shadow primitives — 修复 opacity 0 bug,实际有阴影 */
   --shadow-x: 0;
-  --shadow-y: 3px;
-  --shadow-blur: 0px;
+  --shadow-y: 1px;
+  --shadow-blur: 2px;
   --shadow-spread: 0px;
-  --shadow-opacity: 0;
+  --shadow-opacity: 0.06;
   --shadow-color: #0e1115;
 
-  /* Elevation */
-  --shadow-2xs: 0 3px 0px 0px rgba(14, 17, 21, 0);
-  --shadow-xs: 0 3px 0px 0px rgba(14, 17, 21, 0);
-  --shadow-sm: 0 3px 0px 0px rgba(14, 17, 21, 0), 0 1px 2px -1px rgba(14, 17, 21, 0);
-  --shadow: 0 3px 0px 0px rgba(14, 17, 21, 0), 0 1px 2px -1px rgba(14, 17, 21, 0);
-  --shadow-md: 0 3px 0px 0px rgba(14, 17, 21, 0), 0 2px 4px -1px rgba(14, 17, 21, 0);
-  --shadow-lg: 0 3px 0px 0px rgba(14, 17, 21, 0), 0 4px 6px -1px rgba(14, 17, 21, 0);
-  --shadow-xl: 0 3px 0px 0px rgba(14, 17, 21, 0), 0 8px 10px -1px rgba(14, 17, 21, 0);
-  --shadow-2xl: 0 3px 0px 0px rgba(14, 17, 21, 0);
+  /* Elevation — blur ≤ 8px 用于有 border 的 Card/Button;更大档用于无 border 浮层 */
+  --shadow-2xs: 0 1px 2px 0px rgba(14, 17, 21, 0.04);
+  --shadow-xs: 0 1px 2px 0px rgba(14, 17, 21, 0.05);
+  --shadow-sm: 0 1px 3px 0px rgba(14, 17, 21, 0.07), 0 1px 2px -1px rgba(14, 17, 21, 0.04);
+  --shadow: 0 2px 4px -1px rgba(14, 17, 21, 0.08), 0 1px 2px -1px rgba(14, 17, 21, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(14, 17, 21, 0.08), 0 2px 4px -2px rgba(14, 17, 21, 0.04);
+  --shadow-lg: 0 6px 12px -3px rgba(14, 17, 21, 0.08), 0 3px 6px -3px rgba(14, 17, 21, 0.04);
+  --shadow-xl: 0 8px 16px -4px rgba(14, 17, 21, 0.1), 0 4px 8px -4px rgba(14, 17, 21, 0.06);
+  --shadow-2xl: 0 12px 24px -6px rgba(14, 17, 21, 0.12), 0 8px 16px -6px rgba(14, 17, 21, 0.08);
 
   /* Rhythm */
   --tracking-normal: 0em;
@@ -88,51 +88,77 @@
   --state-warning: var(--chart-3);
   --state-error: var(--chart-2);
   --state-info: var(--chart-1);
+
+  /* Typography scale — 补充缺失的字号/字重/行高 token */
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-lg: 1.125rem;  /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.4;
+  --line-height-normal: 1.55;
+  --line-height-relaxed: 1.7;
+
+  /* Emerald accent palette — 与 src/renderer/src/design/colors.ts 对齐,可选用作 chart/accent */
+  --emerald-50: #ecfdf5;
+  --emerald-100: #d1fae5;
+  --emerald-200: #a7f3d0;
+  --emerald-300: #6ee7b7;
+  --emerald-400: #34d399;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+  --emerald-700: #047857;
 }
 
 /* Dark mode source tokens */
 .dark {
-  /* Core surface colors */
-  --background: #161616;
-  --foreground: #eff1f4;
-  --card: #1d1d1c;
-  --card-foreground: #eff1f4;
-  --popover: #2e2e2e;
-  --popover-foreground: #e5e5e5;
+  /* Core surface colors — 避免纯黑,card 用 #18181b(zinc-900),border 比 card 亮 */
+  --background: #0f0f10;
+  --foreground: #ededef;
+  --card: #18181b;
+  --card-foreground: #ededef;
+  --popover: #1f1f23;
+  --popover-foreground: #ededef;
 
-  /* Semantic action colors */
-  --primary: #fc2c50;
+  /* Semantic action colors — primary 与浅色 #4285f4 同色系(蓝),白字对比度 5.5:1 */
+  --primary: #2563eb;
   --primary-foreground: #ffffff;
-  --secondary: #383838;
-  --secondary-foreground: #e5e5e5;
-  --muted: #383838;
-  --muted-foreground: #949494;
-  --accent: #4a2026;
-  --accent-foreground: #fc2c50;
-  --destructive: #ef4444;
+  --secondary: #262629;
+  --secondary-foreground: #d4d4d8;
+  --muted: #262629;
+  --muted-foreground: #a1a1aa;
+  --accent: #1e3a5f;
+  --accent-foreground: #93c5fd;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  /* Borders, inputs, focus */
-  --border: #1d1d1c;
-  --input: #000000;
-  --ring: #ffffff;
+  /* Borders, inputs, focus — border #2a2a2e 比 card #18181b 亮 12 单位,边框可见 */
+  --border: #2a2a2e;
+  --input: #0a0a0b;
+  --ring: #2563eb;
 
-  /* Data visualization */
-  --chart-1: #2dccd3;
-  --chart-2: #f1204a;
-  --chart-3: #edbbe8;
-  --chart-4: #fbeb35;
-  --chart-5: #baf6f0;
+  /* Data visualization — 与浅色同色系,亮度提升以适应暗背景 */
+  --chart-1: #60a5fa;
+  --chart-2: #f87171;
+  --chart-3: #fbbf24;
+  --chart-4: #93c5fd;
+  --chart-5: #4ade80;
 
-  /* Sidebar */
-  --sidebar: #171717;
-  --sidebar-foreground: #e5e5e5;
-  --sidebar-primary: #0065fd;
+  /* Sidebar — 与主色系一致 */
+  --sidebar: #131316;
+  --sidebar-foreground: #ededef;
+  --sidebar-primary: #2563eb;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #00266b;
-  --sidebar-accent-foreground: #bfdbfe;
-  --sidebar-border: #404040;
-  --sidebar-ring: #00266b;
+  --sidebar-accent: #1e3a5f;
+  --sidebar-accent-foreground: #93c5fd;
+  --sidebar-border: #2a2a2e;
+  --sidebar-ring: #2563eb;
 }
 
 /* Tailwind v4 @theme inline — exposes tokens as utility classes (bg-primary, text-muted-foreground, etc.) */
@@ -174,11 +200,30 @@
   --color-state-error: var(--state-error);
   --color-state-info: var(--state-info);
 
+  /* Emerald accent — 暴露为 bg-emerald-500 / text-emerald-600 等 */
+  --color-emerald-50: var(--emerald-50);
+  --color-emerald-100: var(--emerald-100);
+  --color-emerald-200: var(--emerald-200);
+  --color-emerald-300: var(--emerald-300);
+  --color-emerald-400: var(--emerald-400);
+  --color-emerald-500: var(--emerald-500);
+  --color-emerald-600: var(--emerald-600);
+  --color-emerald-700: var(--emerald-700);
+
   --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
 
   --radius-sm: var(--google-radius-sm);
   --radius-md: var(--google-radius-md);
   --radius-lg: var(--google-radius-lg);
   --radius-xl: var(--google-radius-xl);
+
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
 }

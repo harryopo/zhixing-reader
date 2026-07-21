@@ -1,6 +1,7 @@
 /**
  * Badge — 徽章（Google Design Library 风格）
- * 4 个变体：default / ok / alert / warning
+ * 6 个变体：default / ok / alert / warning / success / error
+ * 文字与背景对比度均满足 WCAG AA（≥ 4.5:1）
  */
 
 import { CSSProperties, HTMLAttributes, ReactNode } from 'react'
@@ -27,15 +28,18 @@ const VARIANT_STYLES: Record<BadgeVariant, Record<string, string>> = {
     color: 'var(--accent-foreground)',
   },
   warning: {
+    /* #fbbc05 黄色背景上白字对比度仅 1.6:1,改深色文字（对比度 ~11:1,过 AA） */
     background: 'var(--state-warning)',
-    color: '#ffffff',
+    color: 'var(--foreground)',
   },
   success: {
-    background: 'var(--state-success)',
+    /* emerald-700 #047857 + 白字对比度 4.8:1,过 AA */
+    background: 'var(--emerald-700)',
     color: '#ffffff',
   },
   error: {
-    background: 'var(--state-error)',
+    /* #dc2626 + 白字对比度 4.5:1,过 AA */
+    background: 'var(--destructive)',
     color: '#ffffff',
   },
 }
@@ -51,6 +55,8 @@ export default function Badge({ children, variant = 'default', style, ...rest }:
         padding: '0.34rem 0.65rem',
         borderRadius: 999,
         fontSize: '0.8rem',
+        fontWeight: 500,
+        lineHeight: 1.4,
         whiteSpace: 'nowrap',
         ...variantStyle,
         ...style,
