@@ -21,11 +21,15 @@ interface NavItem {
   end?: boolean
   /** 匹配前缀（用于 settings/* 子路由高亮 settings 项） */
   matchPrefix?: string
+  /** 是否作为上一项的子项渲染（视觉缩进，路由不变）。用于将笔记归到书架分组下方 */
+  nested?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
   { key: 'home', path: '/', label: '首页', icon: 'home', domId: 'nav-home', end: true },
   { key: 'bookshelf', path: '/bookshelf', label: '书架', icon: 'bookshelf', domId: 'nav-bookshelf' },
+  // 笔记移至书架下方，作为视觉子项（路由保留 /notes，最小破坏）
+  { key: 'notes', path: '/notes', label: '笔记', icon: 'notes', domId: 'nav-notes', nested: true },
   { key: 'chat', path: '/chat', label: 'AI对话', icon: 'chat', domId: 'nav-chat' },
   { key: 'review', path: '/review', label: '复习', icon: 'review', domId: 'nav-review' },
   { key: 'cards', path: '/knowledge-cards', label: '知识卡片', icon: 'cards', domId: 'nav-cards' },
@@ -33,7 +37,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'methodology', path: '/methodologies', label: '方法论', icon: 'methodology', domId: 'nav-methodology' },
   { key: 'stats', path: '/stats', label: '统计', icon: 'stats', domId: 'nav-stats' },
   { key: 'vocabulary', path: '/vocabulary', label: '生词本', icon: 'vocabulary', domId: 'nav-vocabulary' },
-  { key: 'notes', path: '/notes', label: '笔记', icon: 'notes', domId: 'nav-notes' },
   { key: 'profile', path: '/profile', label: '个人档案', icon: 'profile', domId: 'nav-profile' },
   { key: 'token', path: '/token-usage', label: 'Token用量', icon: 'token', domId: 'nav-token' },
   { key: 'settings', path: '/settings', label: '设置', icon: 'settings', domId: 'nav-settings', matchPrefix: '/settings/' },
@@ -159,7 +162,9 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
                 width: '100%',
                 padding: collapsed
                   ? 'calc(var(--spacing) * 3.5)'
-                  : 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
+                  : item.nested
+                    ? 'calc(var(--spacing) * 3) calc(var(--spacing) * 4) calc(var(--spacing) * 3) calc(var(--spacing) * 8)'
+                    : 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
                 textAlign: 'left',
                 border: 'none',
                 background: active ? 'var(--sidebar-primary)' : 'transparent',
@@ -169,6 +174,8 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
                 transition: 'background 0.2s ease, color 0.2s ease, transform 0.16s ease',
                 textDecoration: 'none',
                 justifyContent: collapsed ? 'center' : 'flex-start',
+                fontSize: item.nested && !collapsed ? '0.86rem' : undefined,
+                opacity: item.nested && !active ? 0.88 : 1,
               }}
               onMouseEnter={(e) => {
                 if (!active) {

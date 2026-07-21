@@ -5,13 +5,15 @@
  * 所有数据通过 IPC 真实加载（profileStore + vocabulary + settings + stats + book）
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import { Loading, Trend } from '@/components/ui/Feedback'
 import { useProfileStore } from '../stores/profileStore'
+import { useSettingsStore } from '../stores/settingsStore'
+import { toast } from '../stores/toastStore'
 import { safeNum, safeStr } from '../utils/db-mapper'
 
 /** 图表色板（与设计稿 chart-1/5/3/2 对齐） */
@@ -74,11 +76,28 @@ interface TypeSlice {
 export default function Profile() {
   const { stats, achievements, loading, error, fetchStats } = useProfileStore()
 
+  // 成绩勋章显示开关（settingsStore 持久化）
+  const profileBadgesEnabled = useSettingsStore((s) => s.profileBadgesEnabled)
+  const setProfileBadgesEnabled = useSettingsStore((s) => s.setProfileBadgesEnabled)
+  const loadSettings = useSettingsStore((s) => s.loadSettings)
+
   // 扩展数据源：生词数 / 用户设置 / 半年热力数据 / 类型分布
   const [vocabCount, setVocabCount] = useState(0)
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE)
   const [heatLevels, setHeatLevels] = useState<number[]>(() => Array(HEAT_WEEKS * HEAT_DAYS).fill(0))
   const [typeDist, setTypeDist] = useState<TypeSlice[]>([])
+
+  // 编辑资料 Modal 状态
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editForm, setEditForm] = useState<UserProfile>(DEFAULT_PROFILE)
+  const [editSaving, setEditSaving] = useState(false)
+  const editModalRef = useRef<HTMLDivElement>(null)
+  const editFirstInputRef = useRef<HTMLInputElement>(null)
+
+  // 确保全局设置（含 profileBadgesEnabled）已加载
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
 
   useEffect(() => {
     fetchStats()
@@ -212,6 +231,104 @@ export default function Profile() {
     return `conic-gradient(${stops.join(', ')})`
   }, [typeDist])
 
+  // ===== 编辑资料 Modal =====
+  const openEditModal = () => {
+    // 打开时把当前 profile 复制到 editForm，避免编辑过程中污染展示数据
+    setEditForm({ ...profile })
+    setEditModalOpen(true)
+  }
+
+  const closeEditModal = () => {
+    setEditModalOpen(false)
+  }
+
+  const handleSaveEdit = async () => {
+    setEditSaving(true)
+    try {
+      const api = window.electronAPI
+      if (api) {
+        await Promise.all([
+          api.settings.set('userNickname', editForm.nickname),
+          api.settings.set('userJoinedAt', editForm.joinedAt),
+          api.settings.set('userLocation', editForm.location),
+          api.settings.set('userBio', editForm.bio),
+        ])
+      }
+      setProfile({ ...editForm })
+      toast.success('资料已保存')
+      setEditModalOpen(false)
+    } catch (err) {
+      toast.error(`保存失败: ${(err as Error).message}`)
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  // ESC 关闭 Modal + 焦点 trap
+  useEffect(() => {
+    if (!editModalOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setEditModalOpen(false)
+        return
+      }
+      if (e.key !== 'Tab') return
+      const panel = editModalRef.current
+      if (!panel) return
+      const focusables = panel.querySelectorAll<HTMLElement>(
+        'button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      )
+      if (focusables.length === 0) return
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    // 进入时聚焦第一个输入框；退出时由调用方恢复焦点
+    const t = window.setTimeout(() => editFirstInputRef.current?.focus(), 0)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.clearTimeout(t)
+    }
+  }, [editModalOpen])
+
+  // ===== 分享按钮：生成分享文本并复制到剪贴板 =====
+  const handleShare = async () => {
+    const lines = [
+      `「${profile.nickname}」的知行读书档案`,
+      `加入 ${joinedDateStr} · 已坚持 ${stats.currentStreak} 天`,
+      `藏书 ${stats.totalBooks} 本 · 完成 ${stats.finishedBooks} 本 · 笔记 ${stats.totalHighlights} 条`,
+      `复习 ${stats.totalReviews} 次 · 卡片 ${stats.totalCards} 张 · 生词 ${vocabCount} 个`,
+      `年度阅读 ${yearlyReadingHours} 小时 · 日均 ${avgDailyMinutes} 分钟`,
+      '— 来自「知行读书」阅读成长工作台',
+    ]
+    const text = lines.join('\n')
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        // 回退方案：临时 textarea + execCommand
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      toast.success('分享文本已复制到剪贴板')
+    } catch (err) {
+      toast.error(`复制失败: ${(err as Error).message}`)
+    }
+  }
+
   // ===== 加载与错误状态 =====
   if (loading) {
     return <Loading hint="正在加载个人档案..." />
@@ -243,8 +360,8 @@ export default function Profile() {
         subtitle={`知行读书 · 加入 ${joinedDays} 天`}
         actions={
           <>
-            <Button variant="secondary" data-dom-id="cta-edit">编辑资料</Button>
-            <Button variant="ghost" data-dom-id="cta-share">分享</Button>
+            <Button variant="secondary" data-dom-id="cta-edit" onClick={openEditModal}>编辑资料</Button>
+            <Button variant="ghost" data-dom-id="cta-share" onClick={handleShare}>分享</Button>
           </>
         }
       >
@@ -656,12 +773,25 @@ export default function Profile() {
           </Card>
         </div>
 
-        {/* ===== Layer 4: Achievement badges ===== */}
+        {/* ===== Layer 4: Achievement badges（可关闭） ===== */}
+        {profileBadgesEnabled && (
         <Card padding="calc(var(--spacing) * 5)">
           <CardHead
             eyebrow="成就徽章"
             title={`已获得 ${unlockedAchievements.length} / ${achievements.length}`}
-            action={<Button variant="ghost" data-dom-id="cta-all-badges">查看全部</Button>}
+            action={
+              <>
+                <Button variant="ghost" data-dom-id="cta-all-badges">查看全部</Button>
+                <Button
+                  variant="ghost"
+                  data-dom-id="cta-toggle-badges"
+                  onClick={() => void setProfileBadgesEnabled(false)}
+                  title="隐藏成绩勋章区域"
+                >
+                  隐藏
+                </Button>
+              </>
+            }
           />
           {unlockedAchievements.length === 0 ? (
             <div
@@ -707,14 +837,15 @@ export default function Profile() {
                       borderRadius: '50%',
                       display: 'grid',
                       placeItems: 'center',
-                      fontSize: '1.5rem',
+                      fontSize: '1.4rem',
                       fontWeight: 700,
                       background: color,
                       color: 'var(--primary-foreground)',
                     }}
-                    aria-label={`成就图标：${achievement.name}`}
+                    aria-label={`成就：${achievement.name}`}
                   >
-                    {achievement.icon}
+                    {/* 移除 emoji（achievement.icon），改用成就名称首字符，避免不同平台 emoji 渲染差异 */}
+                    {achievement.name.charAt(0)}
                   </div>
                   <div
                     style={{
@@ -740,6 +871,36 @@ export default function Profile() {
             </div>
           )}
         </Card>
+        )}
+        {!profileBadgesEnabled && (
+          <Card padding="calc(var(--spacing) * 4)">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 'calc(var(--spacing) * 4)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  成就徽章
+                </div>
+                <div style={{ fontSize: '0.92rem', color: 'var(--foreground)', marginTop: '0.3rem' }}>
+                  成绩勋章已隐藏
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                data-dom-id="cta-show-badges"
+                onClick={() => void setProfileBadgesEnabled(true)}
+              >
+                显示勋章
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* ===== 设计稿专属样式：热力图色阶 ===== */}
         <style>{`
@@ -766,6 +927,158 @@ export default function Profile() {
           }
         `}</style>
       </PageHero>
+
+      {/* ===== 编辑资料 Modal ===== */}
+      {editModalOpen && (
+        <>
+          {/* 遮罩层：点击关闭 */}
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 50,
+            }}
+            onClick={closeEditModal}
+            aria-hidden="true"
+          />
+          <div
+            ref={editModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="编辑资料"
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 'min(92vw, 480px)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: 'var(--card)',
+              color: 'var(--card-foreground)',
+              border: '1px solid var(--border)',
+              borderRadius: 'calc(var(--radius) + 4px)',
+              boxShadow: 'var(--shadow-lg, 0 10px 30px rgba(0,0,0,0.18))',
+              zIndex: 60,
+              padding: 'calc(var(--spacing) * 5)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'calc(var(--spacing) * 4)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'calc(var(--spacing) * 3)' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--foreground)' }}>
+                编辑资料
+              </h3>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                aria-label="关闭"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--muted-foreground)',
+                  cursor: 'pointer',
+                  padding: '0.34rem',
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'grid',
+                  placeItems: 'center',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 昵称 */}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--foreground)' }}>
+              <span>昵称</span>
+              <input
+                ref={editFirstInputRef}
+                type="text"
+                value={editForm.nickname}
+                onChange={(e) => setEditForm((f) => ({ ...f, nickname: e.target.value }))}
+                maxLength={24}
+                style={{
+                  padding: '0.55rem 0.7rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--background)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.92rem',
+                }}
+              />
+            </label>
+
+            {/* 加入日期 */}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--foreground)' }}>
+              <span>加入日期（YYYY-MM-DD 或 ISO）</span>
+              <input
+                type="text"
+                value={editForm.joinedAt}
+                onChange={(e) => setEditForm((f) => ({ ...f, joinedAt: e.target.value }))}
+                placeholder="2024-01-01"
+                style={{
+                  padding: '0.55rem 0.7rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--background)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.92rem',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              />
+            </label>
+
+            {/* 城市 */}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--foreground)' }}>
+              <span>城市</span>
+              <input
+                type="text"
+                value={editForm.location}
+                onChange={(e) => setEditForm((f) => ({ ...f, location: e.target.value }))}
+                maxLength={32}
+                style={{
+                  padding: '0.55rem 0.7rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--background)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.92rem',
+                }}
+              />
+            </label>
+
+            {/* 简介 */}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--foreground)' }}>
+              <span>简介</span>
+              <textarea
+                value={editForm.bio}
+                onChange={(e) => setEditForm((f) => ({ ...f, bio: e.target.value }))}
+                maxLength={200}
+                rows={3}
+                style={{
+                  padding: '0.55rem 0.7rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--background)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.92rem',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </label>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 2)' }}>
+              <Button variant="ghost" onClick={closeEditModal} disabled={editSaving}>取消</Button>
+              <Button variant="primary" onClick={handleSaveEdit} disabled={editSaving}>
+                {editSaving ? '保存中...' : '保存'}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

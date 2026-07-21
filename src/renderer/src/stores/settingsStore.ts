@@ -11,6 +11,8 @@ interface SettingsState {
   wereadAutoSync: boolean
   /** 微信读书自动同步间隔（分钟，默认 30）。常用值：15 / 30 / 60 / 180 / 360 */
   wereadAutoSyncInterval: number
+  /** 个人档案成绩勋章显示开关（默认 true）。关闭后 Profile 页面隐藏成就徽章区域 */
+  profileBadgesEnabled: boolean
 
   loading: boolean
   saving: boolean
@@ -33,8 +35,10 @@ interface SettingsState {
   setReviewEnabled: (enabled: boolean) => Promise<void>
   /** 切换微信读书自动同步开关并持久化（main 进程会监听 settings.set 自动更新定时器） */
   setWereadAutoSync: (enabled: boolean) => Promise<void>
-  /** 设置微信读书自动同步间隔（分钟）并持久化 */
+  /** 切换微信读书自动同步间隔（分钟）并持久化 */
   setWereadAutoSyncInterval: (minutes: number) => Promise<void>
+  /** 切换个人档案成绩勋章显示开关并持久化 */
+  setProfileBadgesEnabled: (enabled: boolean) => Promise<void>
   clearTestResult: () => void
   clearError: () => void
 }
@@ -48,6 +52,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // 默认 false：用户必须显式开启自动同步，避免无 API Key 时空跑定时器
   wereadAutoSync: false,
   wereadAutoSyncInterval: 30,
+  // 默认 true：成绩勋章默认显示，用户可在 Profile 页面关闭
+  profileBadgesEnabled: true,
   loading: false,
   saving: false,
   testingWeread: false,
@@ -72,6 +78,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           && settings.wereadAutoSyncInterval > 0
           ? settings.wereadAutoSyncInterval
           : 30,
+        // profileBadgesEnabled 默认 true；仅当显式存储为 false 时才视为关闭
+        profileBadgesEnabled: settings.profileBadgesEnabled !== false,
         loading: false
       })
     } catch (error) {
@@ -212,6 +220,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await window.electronAPI?.settings?.set('wereadAutoSyncInterval', safe)
     } catch (error) {
       set({ wereadAutoSyncInterval: prev, error: (error as Error).message })
+    }
+  },
+  setProfileBadgesEnabled: async (enabled: boolean) => {
+    // 乐观更新：先改 state，再持久化；失败时回滚
+    const prev = get().profileBadgesEnabled
+    set({ profileBadgesEnabled: enabled })
+    try {
+      await window.electronAPI?.settings?.set('profileBadgesEnabled', enabled)
+    } catch (error) {
+      set({ profileBadgesEnabled: prev, error: (error as Error).message })
     }
   },
   clearTestResult: () => set({ testResult: null }),
