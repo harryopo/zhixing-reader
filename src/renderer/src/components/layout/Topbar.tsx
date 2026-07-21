@@ -10,12 +10,19 @@
  *   - 同步成功/失败：toast 提示
  *   - 通知按钮实现下拉面板：未读笔记数 + 今日复习数 + 同步状态
  *   - 面板外点击关闭
+ *
+ * T2 P0+P1 fix（phase5）：
+ *   - P0-1: 未读笔记数用 mapHighlights 映射 created_at → createdAt,修复永远 0 的 bug
+ *   - P1-2: handleSync 重复逻辑提取到 utils/sync-bookshelf.ts,与 Bookshelf 共用
+ *   - P1-3: 通知按钮加 aria-expanded/aria-haspopup/aria-controls,面板加 id/aria-modal
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon, { IconName } from '@/components/ui/Icon'
 import { toast } from '../../stores/toastStore'
+import { mapHighlights } from '../../utils/db-mapper'
+import { syncBookshelfToDb } from '../../utils/sync-bookshelf'
 
 interface TopbarProps {
   onToggleSidebar?: () => void
@@ -33,6 +40,12 @@ interface IconButtonProps {
   spinning?: boolean
   /** 是否激活（用于通知按钮 toggle 状态） */
   active?: boolean
+  /** 无障碍：按钮控制的元素是否展开（用于 toggle 按钮） */
+  'aria-expanded'?: boolean
+  /** 无障碍：按钮控制的元素 id（用于 toggle 按钮） */
+  'aria-controls'?: string
+  /** 无障碍：按钮控制的元素类型（dialog/menu/listbox 等） */
+  'aria-haspopup'?: boolean | 'dialog' | 'menu' | 'listbox' | 'true' | 'false'
 }
 
 /** localStorage 中存"上次查看笔记时间"的 key（用于未读笔记计数） */
@@ -40,7 +53,18 @@ const LAST_VIEW_NOTES_AT_KEY = 'zhixing-lastViewNotesAt'
 /** localStorage 中存"上次同步时间/状态"的 key */
 const LAST_SYNC_KEY = 'zhixing-lastSync'
 
-function IconButton({ domId, icon, label, onClick, disabled, spinning, active }: IconButtonProps) {
+function IconButton({
+  domId,
+  icon,
+  label,
+  onClick,
+  disabled,
+  spinning,
+  active,
+  'aria-expanded': ariaExpanded,
+  'aria-controls': ariaControls,
+  'aria-haspopup': ariaHasPopup,
+}: IconButtonProps) {
   return (
     <button
       type="button"
@@ -49,6 +73,9 @@ function IconButton({ domId, icon, label, onClick, disabled, spinning, active }:
       title={label}
       onClick={onClick}
       disabled={disabled}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
+      aria-haspopup={ariaHasPopup}
       style={{
         width: 40,
         height: 40,
@@ -157,8 +184,12 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
       ])
 
       const lastViewAt = Number(localStorage.getItem(LAST_VIEW_NOTES_AT_KEY) || 0)
-      const unreadNotes = (highlights as Array<{ createdAt?: string | Date }>).filter((h) => {
-        const t = h.createdAt ? new Date(h.createdAt).getTime() : 0
+      // P0-1 修复：highlight.getAll() 返回 snake_case 字段（created_at），
+      // 需用 mapHighlights 映射为 camelCase（createdAt）后再过滤,否则 unreadNotes 永远 0
+      const mappedHighlights = mapHighlights(highlights as unknown[])
+      const unreadNotes = mappedHighlights.filter((h) => {
+        const createdAt = h.createdAt as string | undefined
+        const t = createdAt ? new Date(createdAt).getTime() : 0
         return t > lastViewAt
       }).length
 
@@ -220,21 +251,10 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     setSyncing(true)
     const syncToastId = toast.loading('正在同步微信读书书架...')
     try {
-      const wereadBooks = (await window.electronAPI.weread.getBookshelf()) as Array<{
-        bookId: string
-        title: string
-        author?: string
-        cover?: string
-        isbn?: string
-        publisher?: string
-        progress?: number
-        totalChapter?: number
-        lastReadTime?: number
-        readUpdateTime?: number
-        finishReading?: number
-      }>
+      // P1-2 修复：提取重复逻辑到 syncBookshelfToDb,Topbar 只负责 toast/localStorage/刷新
+      const result = await syncBookshelfToDb()
 
-      if (!wereadBooks || wereadBooks.length === 0) {
+      if (result.total === 0) {
         toast.remove(syncToastId)
         toast.warning('未获取到书籍，请检查微信读书配置')
         localStorage.setItem(
@@ -244,58 +264,15 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
         return
       }
 
-      let importedCount = 0
-      let updatedCount = 0
-      for (const wb of wereadBooks) {
-        try {
-          const existingBooks = (await window.electronAPI.book.search(wb.title)) as unknown as Array<{
-            id: string
-            title: string
-          }>
-          const exists = existingBooks.some((b) => b.title === wb.title)
-          const readTime = wb.readUpdateTime || wb.lastReadTime || 0
-          const lastReadTimeStr = readTime > 0 ? new Date(readTime * 1000).toISOString() : null
-
-          if (!exists) {
-            await window.electronAPI.book.create({
-              id: wb.bookId,
-              title: wb.title,
-              author: wb.author,
-              cover: wb.cover,
-              isbn: wb.isbn,
-              publisher: wb.publisher,
-              reading_progress: wb.progress || 0,
-              total_chapter: wb.totalChapter || 0,
-              last_read_time: lastReadTimeStr,
-              is_finished: wb.finishReading || 0,
-              source: 'weread',
-            })
-            importedCount++
-          } else {
-            const existing = existingBooks.find((b) => b.title === wb.title)
-            if (existing && existing.id) {
-              await window.electronAPI.book.update(existing.id, {
-                reading_progress: wb.progress || 0,
-                last_read_time: lastReadTimeStr,
-                is_finished: wb.finishReading || 0,
-              })
-              updatedCount++
-            }
-          }
-        } catch {
-          // 单本失败不影响整体
-        }
-      }
-
       toast.remove(syncToastId)
       toast.success(
-        importedCount > 0
-          ? `同步完成，共 ${wereadBooks.length} 本书，新导入 ${importedCount} 本，更新 ${updatedCount} 本`
-          : `书架已是最新，共 ${wereadBooks.length} 本书`,
+        result.newCount > 0
+          ? `同步完成，共 ${result.total} 本书，新导入 ${result.newCount} 本，更新 ${result.updatedCount} 本`
+          : `书架已是最新，共 ${result.total} 本书`,
       )
       localStorage.setItem(
         LAST_SYNC_KEY,
-        JSON.stringify({ at: Date.now(), ok: true, count: wereadBooks.length }),
+        JSON.stringify({ at: Date.now(), ok: true, count: result.total }),
       )
     } catch (error) {
       toast.remove(syncToastId)
@@ -427,6 +404,9 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
             label="通知"
             onClick={handleToggleNotify}
             active={notifyOpen}
+            aria-expanded={notifyOpen}
+            aria-haspopup="dialog"
+            aria-controls="notif-panel"
           />
           {/* 未读/复习数 > 0 时显示红点徽标 */}
           {(notif.unreadNotes > 0 || notif.dueCards > 0) && !notifyOpen && (
@@ -447,8 +427,10 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
           )}
           {notifyOpen && (
             <div
+              id="notif-panel"
               role="dialog"
               aria-label="通知"
+              aria-modal="false"
               style={{
                 position: 'absolute',
                 top: 'calc(100% + 8px)',

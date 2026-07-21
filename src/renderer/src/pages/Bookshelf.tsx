@@ -19,7 +19,8 @@ import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 import { mapBooks, mapHighlights, mapCards, safeNum, formatTimeAgo } from '../utils/db-mapper'
-import { Book, RecommendationItem } from '../../../shared/types'
+import { syncBookshelfToDb } from '../utils/sync-bookshelf'
+import { RecommendationItem } from '../../../shared/types'
 
 // ===== 类型 =====
 interface BookRow {
@@ -163,79 +164,24 @@ export default function Bookshelf() {
     setSyncing(true)
     const syncToastId = toast.loading('正在同步微信读书书架...')
     try {
-      const wereadBooks = (await window.electronAPI.weread.getBookshelf()) as Array<{
-        bookId: string
-        title: string
-        author: string
-        cover: string
-        isbn: string
-        publisher: string
-        progress: number
-        totalChapter: number
-        lastReadTime: number
-        readUpdateTime: number
-        finishReading: number
-        isTop: number
-        secret: number
-        updateTime: number
-      }>
+      // P1-2 修复：提取重复逻辑到 syncBookshelfToDb,Bookshelf 保留排序 + loadData 行为
+      const result = await syncBookshelfToDb({
+        sortByRecent: true,
+        onItemError: (title, err) => console.error(`同步书籍失败: ${title}`, err),
+      })
 
-      if (!wereadBooks || wereadBooks.length === 0) {
+      if (result.total === 0) {
         toast.remove(syncToastId)
         toast.warning('未获取到书籍，请检查微信读书配置')
         return
       }
 
-      const sortedWereadBooks = [...wereadBooks].sort((a, b) => {
-        return (b.readUpdateTime || b.lastReadTime || 0) - (a.readUpdateTime || a.lastReadTime || 0)
-      })
-
-      let importedCount = 0
-      let updatedCount = 0
-      for (const wb of sortedWereadBooks) {
-        try {
-          const existingBooks = (await window.electronAPI.book.search(wb.title)) as unknown as Book[]
-          const exists = existingBooks.some((b) => b.title === wb.title)
-          const readTime = wb.readUpdateTime || wb.lastReadTime || 0
-          const lastReadTimeStr = readTime > 0 ? new Date(readTime * 1000).toISOString() : null
-
-          if (!exists) {
-            await window.electronAPI.book.create({
-              id: wb.bookId,
-              title: wb.title,
-              author: wb.author,
-              cover: wb.cover,
-              isbn: wb.isbn,
-              publisher: wb.publisher,
-              reading_progress: wb.progress || 0,
-              total_chapter: wb.totalChapter || 0,
-              last_read_time: lastReadTimeStr,
-              is_finished: wb.finishReading || 0,
-              source: 'weread',
-            })
-            importedCount++
-          } else {
-            const existing = existingBooks.find((b) => b.title === wb.title)
-            if (existing && existing.id) {
-              await window.electronAPI.book.update(existing.id as string, {
-                reading_progress: wb.progress || 0,
-                last_read_time: lastReadTimeStr,
-                is_finished: wb.finishReading || 0,
-              })
-              updatedCount++
-            }
-          }
-        } catch (error) {
-          console.error(`同步书籍失败: ${wb.title}`, error)
-        }
-      }
-
       await loadData()
       toast.remove(syncToastId)
       toast.success(
-        importedCount > 0
-          ? `同步成功！共 ${wereadBooks.length} 本书籍，新导入 ${importedCount} 本，更新 ${updatedCount} 本`
-          : `书架已是最新，共 ${wereadBooks.length} 本书籍`,
+        result.newCount > 0
+          ? `同步成功！共 ${result.total} 本书籍，新导入 ${result.newCount} 本，更新 ${result.updatedCount} 本`
+          : `书架已是最新，共 ${result.total} 本书籍`,
       )
     } catch (error) {
       toast.remove(syncToastId)
