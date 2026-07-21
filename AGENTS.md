@@ -193,10 +193,64 @@ npm run verify
 
 ---
 
-## 九、变更记录
+## 九、死代码治理经验（2026-07-21 循环工程沉淀）
+
+### 9.1 死代码治理决策树
+
+新增功能 / 修改按钮前必走：
+
+```
+死代码识别
+├── 有微信读书 skill 能力支撑吗？
+│   ├── 是 → 补齐真实功能（IPC + handler + preload + UI 全链路）
+│   └── 否 → 砍掉按钮（直接删除，不要 disabled + tooltip 占位）
+└── 是真实功能但 UX 差？
+    └── 保留 + 优化（不在本循环处理）
+```
+
+**原则**：能砍则砍 / 能补则补 / 按钮要真。详见 `.learnings/LEARNINGS.md` LRN-20260721-010。
+
+### 9.2 2026-07-21 死代码治理新增 IPC 通道
+
+| 通道 | 用途 | 文件 |
+|------|------|------|
+| `WEREAD:FETCH_RECOMMENDATIONS` | 微信读书推荐好书（gateway 优先 + 衍生降级）| `weread-api.ts` `fetchRecommendations` |
+| `SYSTEM:CLEAR_HISTORY` | 清理所有对话历史（runTransaction 包裹）| `database.ts` `clearConversationsAndMessages` |
+| `SYSTEM:RESET_DATABASE` | 重置数据库 16 张表 + `app.relaunch` | `database.ts` `resetDatabase` |
+| `ADMIN:CREATE_CUSTOM_PROMPT` | 新建自定义 AI 模板 | `services/prompt-storage.ts` |
+| `ADMIN:UPDATE_CUSTOM_PROMPT` | 更新自定义 AI 模板 | 同上 |
+| `ADMIN:DELETE_CUSTOM_PROMPT` | 删除自定义 AI 模板 | 同上 |
+| `ADMIN:GET_CUSTOM_PROMPTS` | 拉取自定义 AI 模板列表 | 同上 |
+
+### 9.3 死代码治理 7 维质量评分基准
+
+verifier subagent 7 维审查标准（来自 dead-code-governance verify-report）：
+
+| 维度 | 重点检查 |
+|------|---------|
+| 安全 | CSV 公式注入防御 / DB 重置多次确认 / `runTransaction` 包裹批量 DELETE / Modal `aria-modal` |
+| 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
+| 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
+| 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
+| 测试 | 项目无测试框架（AGENTS.md 已说明），新增功能需手动走查 |
+| 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
+| 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
+
+### 9.4 相关文件
+
+- spec：`.trae/specs/dead-code-governance/spec.md`
+- 任务清单：`.trae/specs/dead-code-governance/tasks.md`
+- 验收 checklist：`.trae/specs/dead-code-governance/checklist.md`
+- 最终 verify report：`.trae/specs/dead-code-governance/verify-report.md`
+- 经验沉淀：`.learnings/LEARNINGS.md` LRN-20260721-006~010
+
+---
+
+## 十、变更记录
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
 | 2026-07-20 | 初始化（v1）— 加入 .claude/、CI、Vitest、AGENTS.md | AI Agent |
+| 2026-07-21 | 死代码治理循环工程收尾 — 新增第九章"死代码治理经验" + 7 个 IPC 通道清单 + 7 维质量评分基准 | dead-code-governance verifier-subagent |
 | 待补 | husky pre-commit hook 安装 | — |
 | 待补 | CONTRIBUTING.md | — |

@@ -42,6 +42,8 @@
 | **A8** | 提交时跳过 lint/typecheck/test | pre-commit hook 强制 |
 | **A9** | `git add -A` / `git add .` | 可能误提交 .env / node_modules |
 | **A10** | commit message 用 `WIP`/`fix bug`/`update code` | commitlint 拦截 |
+| **A11** | 留死代码占位按钮（onClick 弹 toast.info "即将上线" / navigate 到不存在的页面） | 用户硬约束"按钮必须真实可用"；见 LRN-20260721-010 决策树 |
+| **A12** | 把 installer 产物（installer/、installer-v2/、out/、release/）提交到 git | `.gitignore` 已排除；CI 重新打包 |
 
 ---
 
@@ -59,6 +61,11 @@
 | **B8** | API Key 输入必须 ASCII 校验 | `/^[\x20-\x7E]+$/`（已有，参见 ERR-20260529-004） |
 | **B9** | 错误处理分类：cancelled/timeout/network/empty/import/parse/config | 已定义，preload 层抛出 |
 | **B10** | commit message 必填 type（feat/fix/chore/docs/test/refactor/perf/build/ci/style/revert） | commitlint 强校验 |
+| **B11** | 新增功能前先走死代码决策树：有 skill 能力 → 补齐；无 skill 能力 → 不做（不放占位）；已有占位 → 砍或补二选一 | 见 LRN-20260721-010 |
+| **B12** | 批量 DB 写操作（DELETE/UPDATE/INSERT 多条）必须用 `runTransaction(fn)` 包裹 | 见 LRN-20260721-008 |
+| **B13** | CSV 导出必须防御公式注入：`= + - @` 开头的值前置单引号 + UTF-8 BOM | 见 LRN-20260721-007 |
+| **B14** | SQLite schema 加列走 `CREATE TABLE IF NOT EXISTS + migrateXxxTable()` 双轨幂等模式 | 见 LRN-20260721-006 |
+| **B15** | 微信读书 skill 第三方 API 调用走"gateway 优先 + 衍生降级"模式 | 见 LRN-20260721-009 |
 
 ---
 
@@ -153,5 +160,5 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-*最后更新：2026-07-20 | 由 ai-dev-workflow skill 自动生成*
+*最后更新：2026-07-21 | 死代码治理循环工程收尾（A11/A12 + B11-B15 新增）*
 *与 AGENTS.md 不一致时，以本文件 + .claude/rules/* 为准（Claude 专属）*

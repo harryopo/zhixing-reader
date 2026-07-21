@@ -888,3 +888,277 @@ const db = new SQL.Database(new Uint8Array(fs.readFileSync('resources/demo.db'))
 - Tags: powershell, mjs-script, sql.js, top-level-await, debugging-tool
 
 ---
+
+## [LRN-20260721-006] best_practice
+
+**Logged**: 2026-07-21T19:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+**Project**: zhixing-reader
+
+### Summary
+给已有 SQLite 表加列时，用 `PRAGMA table_info` 检查 + `ALTER TABLE ADD COLUMN` 幂等迁移，配合 schema `DEFAULT` 兜底旧数据
+
+### Details
+死代码治理 Task 1 需要给 books 表加 `source` 字段区分微信读书书/本地书。直接改 CREATE TABLE 只对新建数据库有效，老用户的 zhixing.db 已存在 books 表不会重建。
+
+**幂等迁移模式**：
+```typescript
+function migrateBooksTable(): void {
+  try {
+    const database = getDatabase();
+    const cols = database.exec("PRAGMA table_info(books)");
+    const colNames = rowsToObjects(cols).map(c => c.name as string);
+    if (!colNames.includes('source')) {
+      database.run("ALTER TABLE books ADD COLUMN source TEXT DEFAULT 'weread'");
+      logger.info('Migration: added source column to books table');
+    }
+  } catch (error) {
+    logger.error('Migration failed for books table', { error: String(error) });
+  }
+}
+```
+
+**关键点**：
+1. `PRAGMA table_info` 先检查列是否存在，避免重复 ALTER 报错
+2. schema 中 `source TEXT DEFAULT 'weread'` 保证旧数据自动归为 weread 来源（向后兼容）
+3. 迁移函数在 `initDatabase()` 末尾调用，每次启动都跑（幂等）
+4. try/catch 包裹避免迁移失败导致整个 DB 初始化失败
+
+**业务层使用**：
+```typescript
+// BookDetail.tsx openInWeRead
+if (book?.source && book.source !== 'weread') {
+  toast.warning('本书非微信读书来源，无法在微信读书打开')
+  return
+}
+```
+旧数据 source 为 null/undefined 时按 weread 处理（`book?.source` 短路）。
+
+### Suggested Action
+所有 schema 变更走"CREATE TABLE IF NOT EXISTS + migrateXxxTable 幂等函数"双轨模式；新列必须带 DEFAULT；业务层用 `?.` 短路兼容旧数据。
+
+### Metadata
+- Source: dead-code-governance Task 1
+- Related Files: electron/database.ts (migrateBooksTable L450-463), src/renderer/src/pages/BookDetail.tsx (openInWeRead L216-233)
+- Tags: sqlite, migration, pragma, alter-table, idempotent, backward-compat
+
+---
+
+## [LRN-20260721-007] security
+
+**Logged**: 2026-07-21T19:05:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: security
+**Project**: zhixing-reader
+
+### Summary
+CSV 导出必须防御公式注入：以 `=` `+` `-` `@` 开头的值前置单引号（OWASP CSV Injection）
+
+### Details
+死代码治理 Task 3 实现 TokenUsage CSV 导出时，初版 `escapeCsv` 只处理 `,` `"` `\n` `\r`，未防御公式注入。攻击者若在 token_usage 表的 provider/model/feature 字段插入 `=CMD()` 或 `+HYPERLINK()`，导出的 CSV 在 Excel 中打开会执行公式，可能导致 RCE 或数据泄露。
+
+**OWASP CSV Injection 防御**：
+```typescript
+function escapeCsv(value: unknown): string {
+  let s = String(value ?? '')
+  // 防御 CSV 公式注入：以 = + - @ 开头的值前置单引号
+  if (/^[=+\-@]/.test(s)) {
+    s = "'" + s
+  }
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`
+  }
+  return s
+}
+```
+
+**关键点**：
+1. `let s` 而非 `const s`（需要重新赋值）
+2. 先检测危险前缀再处理引号转义（顺序不能反）
+3. UTF-8 BOM `'\ufeff'` 前缀保证 Excel 中文不乱码
+4. 同模式适用于所有 CSV 导出（TokenUsage / Stats / 任何用户数据导出）
+
+**检测工具**：verifier subagent 7 维 code review 的"安全性"维度会主动检查这个。
+
+### Suggested Action
+所有 CSV 导出函数必须：1) 检测 `= + - @` 前缀并前置单引号；2) 字段含 `, " \n \r` 用双引号包裹并转义内部 `"`；3) 文件头加 UTF-8 BOM。
+
+### Metadata
+- Source: dead-code-governance Task 3 + verifier P1
+- Related Files: src/renderer/src/pages/TokenUsage.tsx (escapeCsv L133-145)
+- Tags: csv-injection, owasp, security, export, formula-injection
+
+---
+
+## [LRN-20260721-008] best_practice
+
+**Logged**: 2026-07-21T19:10:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+**Project**: zhixing-reader
+
+### Summary
+批量 DELETE 必须用 runTransaction 包裹，避免中途失败导致数据不一致
+
+### Details
+死代码治理 Task 4 实现"清理对话历史"和"重置数据库"时，初版直接连续调用 `database.run('DELETE FROM xxx')`，未用事务包裹。
+
+**风险**：16 张表 DELETE 中第 7 张失败，前 6 张已删除数据无法回滚，导致数据库处于半清理状态（books 还在但 highlights 没了，FK 约束可能报错）。
+
+**正确做法**：
+```typescript
+export function clearConversationsAndMessages(): void {
+  runTransaction((database) => {
+    database.run('DELETE FROM chat_messages')
+    database.run('DELETE FROM conversations')
+  })
+}
+
+export function resetDatabase(): void {
+  const tables = [
+    'chat_messages', 'conversations', 'reviews', 'cards', 'highlights',
+    'book_summaries', 'daily_stats', 'token_usage', 'user_profiles',
+    'methodologies', 'knowledge_cards', 'book_architecture', 'articles',
+    'vocabulary', 'memories', 'books'
+  ]
+  runTransaction((db) => {
+    for (const table of tables) {
+      db.run(`DELETE FROM ${table}`)
+    }
+  })
+}
+```
+
+`runTransaction` 内部：BEGIN TRANSACTION + COMMIT + saveDatabase；失败 ROLLBACK。
+
+**关键点**：
+1. 批量 DELETE 必须事务包裹（原子性）
+2. 不要在事务内调 `forceSaveDatabase()`（事务 COMMIT 后 runTransaction 自动 saveDatabase）
+3. 16 张表顺序无关（DELETE 不依赖 FK 约束）
+4. 重置后 `app.relaunch() + app.exit(0)` 500ms 延迟确保 db 落盘
+
+### Suggested Action
+所有批量写操作（DELETE/UPDATE/INSERT 多条）必须用 `runTransaction(fn)` 包裹；单条写操作可依赖 markDirty 自动延迟保存。
+
+### Metadata
+- Source: dead-code-governance Task 4 + verifier P1
+- Related Files: electron/database.ts (runTransaction L58-70, clearConversationsAndMessages L478-484, resetDatabase L490-522)
+- Tags: sqlite, transaction, atomicity, rollback, batch-delete
+
+---
+
+## [LRN-20260721-009] best_practice
+
+**Logged**: 2026-07-21T19:15:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+**Project**: zhixing-reader
+
+### Summary
+微信读书 skill 第三方 API 调用走"gateway 优先 + 衍生降级"模式，避免单点失败
+
+### Details
+死代码治理 Task 5 实现"推荐好书"功能时，微信读书 skill 官方文档列了 `/book/recommend` 接口，但实际 gateway 可能未上线/返回空/超时。直接依赖 gateway 会导致 UI 显示"暂无推荐"。
+
+**降级策略**：
+```typescript
+export async function fetchRecommendations(): Promise<RecommendationItem[]> {
+  try {
+    const data = await gatewayRequest<{books?: GatewayRecommendBook[]}>(
+      { api_name: '/book/recommend', count: 20 }, false
+    )
+    if (data.books && data.books.length > 0) {
+      return data.books.map(b => ({...}))
+    }
+    return await generateDerivedRecommendations()  // 降级
+  } catch (error) {
+    logger.warn('Gateway recommend API failed, falling back', {error: String(error)})
+    return await generateDerivedRecommendations()  // 降级
+  }
+}
+```
+
+**衍生推荐逻辑**（generateDerivedRecommendations）：
+1. 调 `fetchReadingData` 拿用户 preferCategory + preferAuthor
+2. 对每个偏好分类调 `searchBooks` 拉同类书
+3. 对每个偏好作者调 `searchBooks` 拉同作者书
+4. 用 Map 去重（key = bookId）
+5. 过滤掉已在书架的书
+6. 取 top 20 返回
+
+**关键点**：
+1. `useCache: false` 对 gateway 推荐请求（推荐内容应实时）
+2. 衍生推荐用 Map 去重避免重复
+3. 衍生推荐的 `reason` 字段告知用户"基于你喜欢的《XXX》分类推荐"
+4. UI 端 loading/empty/list 三态：gateway 失败 + 衍生也空时显示 empty + 同步按钮
+
+### Suggested Action
+所有第三方 API 调用必须有降级策略：1) gateway 优先；2) 衍生数据降级（基于已有数据计算）；3) 空数据兜底 UI（不能白屏）。
+
+### Metadata
+- Source: dead-code-governance Task 5
+- Related Files: electron/weread-api.ts (fetchRecommendations L695-720, generateDerivedRecommendations L734-823)
+- Tags: weread-skill, gateway, fallback, derived-data, recommendation
+
+---
+
+## [LRN-20260721-010] best_practice
+
+**Logged**: 2026-07-21T19:20:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: process
+**Project**: zhixing-reader
+
+### Summary
+死代码治理决策树：砍掉（无 skill 能力支撑）/ 补齐（有 skill 能力但未接）/ 保留（真实功能但 UX 差）
+
+### Details
+死代码治理循环工程识别出 19 处问题，按"决策树"分类处理：
+
+```
+死代码识别
+├── 有微信读书 skill 能力支撑吗？
+│   ├── 是 → 补齐真实功能（Task 3/4/5）
+│   │       - TokenUsage CSV 导出 + 筛选（本地数据，无 skill 依赖）
+│   │       - Stats JSON 报告 + 日期范围（本地数据）
+│   │       - SettingsAI 自定义模板 CRUD（本地 settings.json）
+│   │       - SettingsData 清理/重置（本地 DB）
+│   │       - Bookshelf 推荐好书（weread skill /book/recommend）
+│   └── 否 → 砍掉按钮（Task 2）
+│           - Bookshelf 本地 EPUB 导入（无 EPUB 解析能力）
+│           - Bookshelf 批量管理（无批量操作后端）
+│           - BookDetail 编辑信息（无书籍元数据编辑后端）
+│           - DailyLearning 编辑计划（无计划编辑后端）
+│           - Methodologies 编辑方法论（无方法论编辑后端）
+│           - SettingsAbout 5 处链接（无对应页面）
+└── 是真实功能但 UX 差？
+    └── 保留 + 优化（不在本循环处理）
+        - SettingsAbout 用户反馈 toast.info（可改 mailto:）
+```
+
+**判定原则**：
+1. **能砍则砍**：无后端支撑的占位按钮直接删除，比"disabled + tooltip"更诚实
+2. **能补则补**：有 skill 能力但前端没接的，必须补齐真实功能（不能只接一半）
+3. **降级要闭环**：gateway 失败时衍生数据降级，UI 不能显示空状态
+4. **按钮要真**：每个可点击按钮必须有真实功能（"在微信读书打开"必须打开，"查看详情"必须跳转）
+
+**验证手段**：
+- verifier subagent 7 维 code review 主动检查每个按钮的 onClick 是否有真实实现
+- spec-reviewer 检查是否有 over-engineer（砍多了）或漏砍（留了死代码）
+- 手动走查覆盖 spec Task 6 列出的 6 个场景
+
+### Suggested Action
+新增功能前先走决策树：有 skill 能力 → 补齐；无 skill 能力 → 不做（不要先放占位按钮）；已有占位按钮 → 砍掉或补齐二选一。
+
+### Metadata
+- Source: dead-code-governance 全循环（Task 1-6）
+- Related Files: .trae/specs/dead-code-governance/spec.md, verify-report.md
+- Tags: dead-code, decision-tree, governance, button-ux, honesty
+
+---

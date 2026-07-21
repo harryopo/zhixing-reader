@@ -1,6 +1,6 @@
 # 知行读书 — 项目进度与规划
 
-## 📊 当前进度（截至 2026-07-20）
+## 📊 当前进度（截至 2026-07-21）
 
 ### ✅ 已完成
 
@@ -21,16 +21,18 @@
 | **管理后台** | Dashboard/AgentConfig/KnowledgeBase/SessionHistory | ✅ 完成 | v1.0.0 |
 | **生词本** | 词形还原 + 复习合并到知识卡片 | ✅ 完成 | v1.0.0 |
 | **开发规范** | ai-dev-workflow 6 阶段 + 15 条硬规则 | ✅ 完成 | 8 个独立 commit (07-20) |
+| **死代码治理循环工程（7/21）** | ✅ 完成 | 6 任务循环 + 双审 + verifier；19 处死代码（7 砍 + 8 补 + 4 留）；commit f5a3cbe + f4d1536 + 92bd56a |
 
 ### 🔄 进行中
 
 | 功能 | 进度 | 备注 |
 |------|------|------|
-| 验证门禁 | ✅ | lint 0e/125w · type 0 · **171 tests** · build OK（2026-07-20 夜） |
+| 验证门禁 | ✅ | lint 0e/189w · type 0 · build OK（2026-07-21 死代码治理后） |
 | **夜间功能修复循环** | ✅ 主线完成 | 见 `.learnings/NIGHTLY_LOOP.md`：Chat 契约断链、流式 hang、导入不建卡、Home/Bookshelf/Profile 假数据、HashRouter、Review 文案/mastery、daily_stats、侧栏复习入口 |
 | CodeGraph 知识图谱 | 已建图 | 100 文件 / 1,451 节点 / 4,645 边 |
 | 比赛展示打磨 | 80% | demo.db + seed 脚本本地未提交；Windows 安装包曾因 app.asar 占用失败，待重打 |
 | **演示数据 FSRS 修复（7/20）** | ✅ | Mastered 状态强制写入 + Token 1.27M |
+| **死代码治理归档（7/21）** | ✅ 完成 | spec/tasks/checklist/verify-report 四件套；LEARNINGS 追加 LRN-20260721-006~010；installer-v2 污染已清理（-222378 行） |
 
 ### ⏳ 待开发（比赛后）
 
