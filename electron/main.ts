@@ -202,23 +202,25 @@ app.whenReady().then(async () => {
       logger.warn('Failed to start WeRead auto-sync timer', e);
     }
 
-    // 初始化向量数据库（可选，如果Qdrant不可用则跳过）
+    // 初始化本地向量数据库（Vectra，打包后可用）+ Embedding 服务
+    // Vectra 是纯 TS 文件存储，不依赖外部服务，永远可用
     try {
-      const qdrantUrl = (settings.qdrantUrl as string) || 'http://localhost:6333';
-      initVectorDb(qdrantUrl);
+      await initVectorDb();
       await createCollection();
-      logger.info('Vector DB initialized');
-      
-      // 初始化Embedding服务
+      logger.info('Vectra local index initialized');
+
+      // 初始化 Embedding 服务（仍用 OpenAI API；用户已配 llmKey）
       if (settings.llmKey) {
         initEmbedding({
           apiKey: settings.llmKey as string,
           baseUrl: (settings.llmEndpoint as string) || undefined,
         });
         logger.info('Embedding service initialized');
+      } else {
+        logger.warn('llmKey not configured, semantic search will be unavailable');
       }
     } catch (vectorErr) {
-      logger.warn('Vector DB not available, RAG features disabled', vectorErr);
+      logger.warn('Vectra initialization failed, RAG features disabled', vectorErr);
     }
 
     createMenu();

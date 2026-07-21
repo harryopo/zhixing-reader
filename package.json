@@ -25,7 +25,6 @@
     "loop:detect:gates": "node scripts/loop-detect.mjs --gates"
   },
   "dependencies": {
-    "@qdrant/js-client-rest": "^1.18.0",
     "@tailwindcss/postcss": "^4.3.0",
     "axios": "^1.7.0",
     "echarts": "^5.5.1",
@@ -39,6 +38,7 @@
     "remark-gfm": "^4.0.1",
     "sql.js": "^1.14.1",
     "ts-fsrs": "^5.4.1",
+    "vectra": "^0.15.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
@@ -79,11 +79,35 @@
       "package.json",
       "node_modules/sql.js/**",
       "node_modules/ts-fsrs/**",
-      "node_modules/@qdrant/**",
       "node_modules/axios/**",
       "node_modules/follow-redirects/**",
       "node_modules/form-data/**",
-      "node_modules/proxy-from-env/**"
+      "node_modules/proxy-from-env/**",
+      "node_modules/vectra/**",
+      "node_modules/uuid/**",
+      "node_modules/wink-bm25-text-search/**",
+      "node_modules/wink-nlp/**",
+      "node_modules/wink-eng-lite-web-model/**",
+      "node_modules/gpt-tokenizer/**",
+      "node_modules/cheerio/**",
+      "node_modules/cheerio-select/**",
+      "node_modules/dom-serializer/**",
+      "node_modules/domhandler/**",
+      "node_modules/domutils/**",
+      "node_modules/domelementtype/**",
+      "node_modules/entities/**",
+      "node_modules/encoding-sniffer/**",
+      "node_modules/htmlparser2/**",
+      "node_modules/parse5/**",
+      "node_modules/parse5-htmlparser2-tree-adapter/**",
+      "node_modules/parse5-parser-stream/**",
+      "node_modules/whatwg-mimetype/**",
+      "node_modules/turndown/**",
+      "node_modules/@mixmark-io/**",
+      "node_modules/boolbase/**",
+      "node_modules/css-select/**",
+      "node_modules/css-what/**",
+      "node_modules/nth-check/**"
     ],
     "extraResources": [
       {

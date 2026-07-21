@@ -24,7 +24,6 @@ const DEFAULTS = {
   llmModel: 'gpt-4o',
   llmMaxTokens: 4096,
   llmTemperature: 0.7,
-  qdrantEndpoint: 'http://localhost:6333',
   ragCollection: 'zhixing_books',
   embeddingModel: 'text-embedding-3-small',
 }
@@ -116,7 +115,6 @@ export default function SettingsAI() {
   // ===== 扩展字段（本地 state，挂载时通过 settings.get 加载） =====
   const [maxTokens, setMaxTokens] = useState<number>(DEFAULTS.llmMaxTokens)
   const [temperature, setTemperature] = useState<number>(DEFAULTS.llmTemperature)
-  const [qdrantEndpoint, setQdrantEndpoint] = useState<string>(DEFAULTS.qdrantEndpoint)
   const [collection, setCollection] = useState<string>(DEFAULTS.ragCollection)
   const [embeddingModel, setEmbeddingModel] = useState<string>(DEFAULTS.embeddingModel)
   const [templates, setTemplates] = useState<TemplateRow[]>(DEFAULT_TEMPLATES)
@@ -146,12 +144,11 @@ export default function SettingsAI() {
       if (!api?.settings?.get) return
       try {
         const [
-          mt, tp, qe, col, em,
+          mt, tp, col, em,
           tg, tk, tp2, td,
         ] = await Promise.all([
           api.settings.get('llmMaxTokens'),
           api.settings.get('llmTemperature'),
-          api.settings.get('qdrantEndpoint'),
           api.settings.get('ragCollection'),
           api.settings.get('embeddingModel'),
           api.settings.get('promptTemplateGeneralEnabled'),
@@ -161,7 +158,6 @@ export default function SettingsAI() {
         ])
         setMaxTokens(asNumber(mt, DEFAULTS.llmMaxTokens))
         setTemperature(asNumber(tp, DEFAULTS.llmTemperature))
-        setQdrantEndpoint(asString(qe, DEFAULTS.qdrantEndpoint))
         setCollection(asString(col, DEFAULTS.ragCollection))
         setEmbeddingModel(asString(em, DEFAULTS.embeddingModel))
         setTemplates((prev) =>
@@ -234,7 +230,6 @@ export default function SettingsAI() {
       await Promise.all([
         window.electronAPI.settings.set('llmMaxTokens', maxTokens),
         window.electronAPI.settings.set('llmTemperature', temperature),
-        window.electronAPI.settings.set('qdrantEndpoint', qdrantEndpoint),
         window.electronAPI.settings.set('ragCollection', collection),
         window.electronAPI.settings.set('embeddingModel', embeddingModel),
         window.electronAPI.settings.set('promptTemplateGeneralEnabled', templates[0].enabled),
@@ -253,7 +248,6 @@ export default function SettingsAI() {
   }, [
     maxTokens,
     temperature,
-    qdrantEndpoint,
     collection,
     embeddingModel,
     templates,
@@ -267,7 +261,6 @@ export default function SettingsAI() {
     setLlmModel(DEFAULTS.llmModel)
     setMaxTokens(DEFAULTS.llmMaxTokens)
     setTemperature(DEFAULTS.llmTemperature)
-    setQdrantEndpoint(DEFAULTS.qdrantEndpoint)
     setCollection(DEFAULTS.ragCollection)
     setEmbeddingModel(DEFAULTS.embeddingModel)
     setTemplates(DEFAULT_TEMPLATES)
@@ -281,7 +274,7 @@ export default function SettingsAI() {
     setLlmModel,
   ])
 
-  // ===== 初始化向量库：跳转到管理面板手动配置 Qdrant =====
+  // ===== 初始化向量库：本地 Vectra 索引，跳转管理面板查看 =====
   const handleInitVectorDb = useCallback(() => {
     navigate('/admin')
   }, [navigate])
@@ -713,7 +706,7 @@ export default function SettingsAI() {
 
             {/* ===== Card 2: RAG 配置 ===== */}
             <Card>
-              <CardHead eyebrow="RAG 配置" title="向量检索服务" />
+              <CardHead eyebrow="RAG 配置" title="本地向量检索（Vectra）" />
               <div
                 className="form-grid"
                 style={{
@@ -723,15 +716,15 @@ export default function SettingsAI() {
                 }}
               >
                 <div className="form-field form-field-full">
-                  <label className="form-label" htmlFor="rag-qdrant-endpoint">Qdrant Endpoint</label>
+                  <label className="form-label" htmlFor="rag-vector-backend">向量库后端</label>
                   <input
                     className="form-input"
-                    id="rag-qdrant-endpoint"
+                    id="rag-vector-backend"
                     type="text"
-                    placeholder="http://localhost:6333"
-                    value={qdrantEndpoint}
-                    onChange={(e) => setQdrantEndpoint(e.target.value)}
-                    style={{ fontFamily: 'var(--font-mono)' }}
+                    value="Vectra 本地索引（打包可用）"
+                    readOnly
+                    aria-readonly="true"
+                    style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted-foreground)' }}
                   />
                 </div>
                 <div className="form-field">
@@ -776,7 +769,7 @@ export default function SettingsAI() {
                   onClick={handleInitVectorDb}
                   data-dom-id="cta-init-vector-db"
                 >
-                  前往管理面板配置 Qdrant
+                  前往管理面板查看索引
                 </Button>
                 <span className="badge badge-warning" id="rag-init-status">
                   <span className={`badge-dot ${ragBadge.dotClass}`} aria-hidden="true"></span>

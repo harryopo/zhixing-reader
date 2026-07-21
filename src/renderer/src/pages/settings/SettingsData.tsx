@@ -537,7 +537,7 @@ export default function SettingsData() {
     }
   }, [])
 
-  // ===== 清理向量索引：跳转到管理面板手动配置 Qdrant =====
+  // ===== 清理向量索引：跳转到管理面板手动操作 =====
   const handleClearVector = useCallback(() => {
     navigate('/admin')
   }, [navigate])
@@ -755,7 +755,7 @@ export default function SettingsData() {
                 <span>
                   <strong>用途说明：</strong>
                   展示本地存储的三类占用：<strong>SQLite 数据库</strong>（书籍/笔记/卡片/对话等业务数据，运行于 sql.js WASM）/
-                  <strong>缓存</strong>（微信读书 API 内存缓存与图片/网页临时文件）/<strong>向量库</strong>（Qdrant 索引，可选）。
+                  <strong>缓存</strong>（微信读书 API 内存缓存与图片/网页临时文件）/<strong>向量库</strong>（Vectra 本地索引）。
                   KPI 计数通过 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>admin.getStats</code> 实时拉取；
                   容量上限为设计稿默认值 512MB，仅作可视化参考，无硬性配额。
                 </span>
@@ -794,7 +794,7 @@ export default function SettingsData() {
                     {MOCK_VECTOR_MB.toFixed(1)}
                     <span className="unit">MB</span>
                   </span>
-                  <div className="tiny">Qdrant · 索引尚未统计</div>
+                  <div className="tiny">Vectra · 索引尚未统计</div>
                 </div>
               </div>
               <div className="usage-bar-wrap" style={{ marginTop: 'calc(var(--spacing) * 3)' }}>
@@ -878,7 +878,7 @@ export default function SettingsData() {
                   <strong>用途说明：</strong>
                   三类清理操作的差异化用途：<strong>清理缓存</strong>仅清除微信读书 API 内存缓存（请求结果），不删除本地数据，安全可常用；
                   <strong>清理历史记录</strong>删除全部对话记录（conversations + chat_messages 表），影响 AI 对话上下文，需二次确认；
-                  <strong>清理向量索引</strong>跳转至管理面板手动操作 Qdrant，重建索引将临时影响 AI 检索能力。
+                  <strong>清理向量索引</strong>跳转至管理面板手动操作本地 Vectra 索引，重建索引将临时影响 AI 检索能力。
                 </span>
               </div>
               <div
@@ -906,7 +906,7 @@ export default function SettingsData() {
                 <div className="cache-row">
                   <div className="cache-row-info">
                     <strong>清理向量索引</strong>
-                    <Tiny>重建 Qdrant 索引将影响 AI 检索</Tiny>
+                    <Tiny>重建 Vectra 索引将影响 AI 检索</Tiny>
                   </div>
                   <div
                     style={{
