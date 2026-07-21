@@ -23,6 +23,16 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, CSSProperties } from 'react'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -329,6 +339,17 @@ export default function TokenUsagePage() {
       isPeak: d.total_tokens > avg * 1.5 && d.total_tokens > 0,
     }))
   }, [chartDailyStats])
+
+  // T9: 折线图数据（input/output 双线），复用 chartDailyStats 的 0 填充日历
+  const chartLineData = useMemo(
+    () =>
+      chartDailyStats.map((d) => ({
+        date: d.date,
+        input: d.total_input_tokens,
+        output: d.total_output_tokens,
+      })),
+    [chartDailyStats],
+  )
 
   // 可选 provider 列表（从 providerStats 提取去重）
   const providerOptions = useMemo(() => {
@@ -811,6 +832,103 @@ export default function TokenUsagePage() {
             )}
           </Card>
         </div>
+
+        {/* ===== Layer 2.5: 用量趋势折线图（T9 新增，input/output 双线） ===== */}
+        <Card>
+          <CardHead
+            eyebrow="用量趋势折线"
+            title={`Input / Output · 近 ${DAYS_MAP[timeRange]} 日`}
+            action={<Badge variant="ok">折线图</Badge>}
+          />
+          {kpi.totalTokens === 0 ? (
+            <EmptyState
+              icon={<Icon name="stats" size={24} />}
+              title="暂无趋势数据"
+              description="使用 AI 功能后将自动记录每日消耗"
+            />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: 320,
+                marginTop: 'calc(var(--spacing) * 4)',
+              }}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={chartLineData}
+                  margin={{ top: 16, right: 24, left: 8, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={formatDateFull}
+                    stroke="var(--muted-foreground)"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={{ stroke: 'var(--border)' }}
+                  />
+                  <YAxis
+                    tickFormatter={formatTokens}
+                    stroke="var(--muted-foreground)"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={{ stroke: 'var(--border)' }}
+                    width={56}
+                  />
+                  <Tooltip
+                    formatter={(value, name) => {
+                      const v = Number(value) || 0
+                      return [
+                        formatTokensFull(v),
+                        name === 'input' ? '输入 tokens' : '输出 tokens',
+                      ]
+                    }}
+                    labelFormatter={(label) =>
+                      `日期: ${formatDateFull(String(label))}`
+                    }
+                    contentStyle={{
+                      background: 'var(--card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.85rem',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    }}
+                    labelStyle={{ color: 'var(--muted-foreground)', marginBottom: 4 }}
+                  />
+                  <Legend
+                    formatter={(value) =>
+                      value === 'input' ? '输入 tokens' : '输出 tokens'
+                    }
+                    iconType="line"
+                    wrapperStyle={{ fontSize: '0.82rem', paddingTop: 8 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="input"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    name="输入"
+                    dot={{ r: 3, fill: '#3b82f6' }}
+                    activeDot={{ r: 5 }}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="output"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    name="输出"
+                    dot={{ r: 3, fill: '#10b981' }}
+                    activeDot={{ r: 5 }}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
 
         {/* ===== Layer 3: 用量明细 card + tab 切换（保留原 logs/providers/features 业务） ===== */}
         <Card>
