@@ -23,6 +23,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -32,6 +33,7 @@ import { Loading, EmptyState, Metric, Trend, Muted, Tiny } from '@/components/ui
 import { toast } from '../stores/toastStore'
 import { mapBooks, mapHighlights, mapCards, safeNum } from '../utils/db-mapper'
 import { useReadingDataStore, formatReadingTime } from '../stores/readingDataStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import {
   ReadingMode,
   ReadingDataResponse,
@@ -117,6 +119,7 @@ function formatExportTimestamp(): string {
 
 // ===== 主组件 =====
 export default function Stats() {
+  const navigate = useNavigate()
   const [bookStats, setBookStats] = useState<BookStat[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -137,6 +140,11 @@ export default function Stats() {
     fetchReadingData,
     setMode,
   } = useReadingDataStore()
+
+  // 微信读书配置状态：用独立 selector 避免整体订阅 store（Zustand v5 规范）
+  const wereadApiKey = useSettingsStore((s) => s.wereadApiKey)
+  const loadSettings = useSettingsStore((s) => s.loadSettings)
+  const isWereadConfigured = wereadApiKey.length > 0
 
   const loadData = useCallback(async () => {
     if (!window.electronAPI?.book || !window.electronAPI?.highlight || !window.electronAPI?.card) {
@@ -202,11 +210,18 @@ export default function Stats() {
     loadData()
   }, [loadData])
 
+  // 挂载时加载设置，确保 wereadApiKey 从 DB 同步到 store（Stats 不在设置页加载链路上）
   useEffect(() => {
-    fetchReadingData(readingMode).catch(() => {
+    loadSettings()
+  }, [loadSettings])
+
+  // 初次挂载拉取阅读数据；fetchReadingData 不传参时使用 store 内当前 mode
+  // 注意：不依赖 readingMode，避免 setMode 触发 store 自动 fetch 后重复请求
+  useEffect(() => {
+    fetchReadingData().catch(() => {
       // 静默处理，store 内部已记录 error
     })
-  }, [])
+  }, [fetchReadingData])
 
   const handleSync = async () => {
     setRefreshing(true)
@@ -262,20 +277,33 @@ export default function Stats() {
   }
 
   // 日期范围切换时，重新调用 dailyStats.getRange 获取每日阅读统计
+  // 加 isCancelled cleanup 防止快速切换时旧请求覆盖新数据
   useEffect(() => {
     if (!window.electronAPI?.stats) return
+    let isCancelled = false
     setRangeLoading(true)
     const { startDate, endDate } = getStatsRangeDates(statsDateRange)
     window.electronAPI.stats
       .getRange(startDate, endDate)
       .then((data) => {
-        setDailyRangeData(data || [])
+        if (!isCancelled) {
+          setDailyRangeData(data || [])
+        }
       })
       .catch((err) => {
-        console.error('加载每日统计失败:', err)
-        toast.error('加载每日统计失败')
+        if (!isCancelled) {
+          console.error('加载每日统计失败:', err)
+          toast.error('加载每日统计失败')
+        }
       })
-      .finally(() => setRangeLoading(false))
+      .finally(() => {
+        if (!isCancelled) {
+          setRangeLoading(false)
+        }
+      })
+    return () => {
+      isCancelled = true
+    }
   }, [statsDateRange])
 
   const handleExportReport = async () => {
@@ -418,8 +446,9 @@ export default function Stats() {
                   type="button"
                   data-dom-id={chip.domId}
                   onClick={() => {
+                    // setMode 内部已触发 fetchReadingData(mode)，无需重复调用
+                    // 之前同时调 handleRefreshReadingData() 会用旧闭包 readingMode 再发一次请求，造成竞态
                     setMode(chip.key)
-                    handleRefreshReadingData()
                   }}
                   style={{
                     display: 'inline-flex',
@@ -526,6 +555,8 @@ export default function Stats() {
           onStatsDateRangeChange={setStatsDateRange}
           dailyRangeData={dailyRangeData}
           rangeLoading={rangeLoading}
+          isWereadConfigured={isWereadConfigured}
+          onConfigureWeread={() => navigate('/settings/weread')}
         />
       ) : (
         <BooksStatsView
@@ -555,6 +586,8 @@ function ReadingStatsView({
   onStatsDateRangeChange,
   dailyRangeData,
   rangeLoading,
+  isWereadConfigured,
+  onConfigureWeread,
 }: {
   readingData: ReadingDataResponse | null
   readingMode: ReadingMode
@@ -574,6 +607,8 @@ function ReadingStatsView({
   onStatsDateRangeChange: (range: StatsDateRange) => void
   dailyRangeData: unknown[]
   rangeLoading: boolean
+  isWereadConfigured: boolean
+  onConfigureWeread: () => void
 }) {
   // 汇总所选日期范围内的每日阅读统计
   const rangeSummary = useMemo(() => {
@@ -591,8 +626,38 @@ function ReadingStatsView({
     return { books, highlights, cards, readingTime, days: dailyRangeData.length }
   }, [dailyRangeData])
 
+  // 按所选日期范围过滤年度书单：以 updatedAt（最后更新时间）作为完成时间近似
+  // 'all' 用 3650 天近似 10 年，覆盖全量数据
+  const rangeFilteredBookStats = useMemo(() => {
+    const { startDate, endDate } = getStatsRangeDates(statsDateRange)
+    const startTime = new Date(startDate).getTime()
+    // endDate 为当日 23:59:59，加一天减 1 毫秒以包含当日全部时间
+    const endTime = new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1
+    return bookStats.filter((b) => {
+      if (!b.updatedAt) return false
+      const t = new Date(b.updatedAt).getTime()
+      if (isNaN(t)) return false
+      return t >= startTime && t <= endTime
+    })
+  }, [bookStats, statsDateRange])
+
   return (
     <>
+      {/* ===== 微信读书未配置引导 ===== */}
+      {!isWereadConfigured && (
+        <Card>
+          <EmptyState
+            icon={<Icon name="bookshelf" size={24} />}
+            title="未配置微信读书"
+            description="阅读趋势、书籍分布、本周节奏等数据需要连接微信读书后才能显示。请前往「设置 > 微信读书」配置 API Key。"
+            action={
+              <Button variant="primary" onClick={onConfigureWeread} data-dom-id="cta-config-weread">
+                <Icon name="settings" size={16} /> 前往配置
+              </Button>
+            }
+          />
+        </Card>
+      )}
       {/* ===== Layer 1: KPI 4 列网格（设计稿 1:1） ===== */}
       <div
         className="grid stats"
@@ -803,7 +868,7 @@ function ReadingStatsView({
             </>
           )}
         </div>
-        <YearlyBookTable bookStats={bookStats} />
+        <YearlyBookTable bookStats={rangeFilteredBookStats} />
       </Card>
 
       {/* ===== 附录：详细阅读数据（保留原有 ReadingDataSection 内容） ===== */}
