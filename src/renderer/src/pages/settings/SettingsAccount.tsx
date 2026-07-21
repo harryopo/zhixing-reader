@@ -1,8 +1,14 @@
 /**
  * SettingsAccount — 账户设置（Google Design Library 1:1 重构）
  * 基于设计稿 zhixing-reader-redesign/pages/settings-account.html
- * 4 张卡片：个人信息 / 会员状态 / 登录管理 / 数据同步
+ * 3 张卡片：个人信息 / 功能模块 / 数据同步
  * 业务逻辑：通过 window.electronAPI.settings 读写账户信息、同步开关、备份频率
+ *
+ * T10 重构说明：
+ *   - Card「会员状态」已删除（续费/升级按钮无真实 IPC，属占位死代码，违反用户原话 #10）
+ *   - Card「登录管理」已删除（设备表格 logoutDomId 无真实 IPC，属占位死代码，违反用户原话 #10）
+ *   - Card「个人信息」新增「继承微信读书信息」开关：开启后禁用本地输入并提示已继承（用户原话 #5）
+ *     后端 weread-api 暂无 user profile API，开关仅作 UI 状态持久化（settings.inheritWereadProfile）
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -45,37 +51,6 @@ const BACKUP_FREQ_OPTIONS = [
 
 type BackupFreq = (typeof BACKUP_FREQ_OPTIONS)[number]['value']
 
-/** 设备记录（设计稿静态数据；后端暂无对应 API） */
-interface DeviceRecord {
-  name: string
-  lastLogin: string
-  location: string
-  isCurrent?: boolean
-  logoutDomId?: string
-}
-
-const DEFAULT_DEVICES: DeviceRecord[] = [
-  { name: 'Windows 11 PC', lastLogin: '2026-07-21 09:15', location: '北京', isCurrent: true },
-  { name: 'iPhone 15 Pro', lastLogin: '2026-07-20 22:30', location: '上海', logoutDomId: 'logout-iphone' },
-  { name: 'iPad Air', lastLogin: '2026-07-18 14:20', location: '杭州', logoutDomId: 'logout-ipad' },
-]
-
-/** 会员权益列表 */
-const MEMBERSHIP_BENEFITS = ['无限 AI 对话', '全部知识卡片', '优先客服']
-
-/** 默认会员到期日（与设计稿一致） */
-const DEFAULT_MEMBERSHIP_EXPIRY = '2026-12-31'
-
-/** 计算剩余天数 */
-function daysUntil(dateStr: string): number {
-  const target = new Date(dateStr)
-  if (isNaN(target.getTime())) return 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  target.setHours(0, 0, 0, 0)
-  return Math.max(0, Math.floor((target.getTime() - today.getTime()) / 86400000))
-}
-
 /** 格式化备份时间：YYYY-MM-DD HH:mm */
 function formatBackupTime(iso: string): string {
   if (!iso) return '—'
@@ -112,8 +87,8 @@ export default function SettingsAccount() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
 
-  // 会员信息
-  const [membershipExpiry, setMembershipExpiry] = useState(DEFAULT_MEMBERSHIP_EXPIRY)
+  // 继承微信读书信息开关（默认开启：继承微信读书的官方信息，本地信息无需展示）
+  const [inheritWereadProfile, setInheritWereadProfile] = useState(true)
 
   // 同步设置
   const [cloudSync, setCloudSync] = useState(true)
@@ -130,11 +105,11 @@ export default function SettingsAccount() {
         return
       }
       try {
-        const [nick, mail, tel, expiry, sync, backup, freq, lastBackup] = await Promise.all([
+        const [nick, mail, tel, inherit, sync, backup, freq, lastBackup] = await Promise.all([
           api.settings.get('userNickname'),
           api.settings.get('userEmail'),
           api.settings.get('userPhone'),
-          api.settings.get('membershipExpiry'),
+          api.settings.get('inheritWereadProfile'),
           api.settings.get('cloudSync'),
           api.settings.get('autoBackup'),
           api.settings.get('backupFreq'),
@@ -143,7 +118,8 @@ export default function SettingsAccount() {
         if (safeStr(nick)) setNickname(safeStr(nick))
         if (safeStr(mail)) setEmail(safeStr(mail))
         if (safeStr(tel)) setPhone(safeStr(tel))
-        if (safeStr(expiry)) setMembershipExpiry(safeStr(expiry))
+        // inheritWereadProfile 默认 true；仅当显式存储为 false 时才视为关闭
+        setInheritWereadProfile(inherit !== false)
         if (typeof sync === 'boolean') setCloudSync(sync)
         if (typeof backup === 'boolean') setAutoBackup(backup)
         if (typeof freq === 'string' && BACKUP_FREQ_OPTIONS.some((o) => o.value === freq)) {
@@ -162,8 +138,19 @@ export default function SettingsAccount() {
   }, [loadSettings])
 
   // ===== 派生值 =====
-  const remainingDays = useMemo(() => daysUntil(membershipExpiry), [membershipExpiry])
   const avatarInitial = useMemo(() => (nickname || '知').charAt(0), [nickname])
+
+  // ===== 切换「继承微信读书信息」开关 =====
+  const handleToggleInherit = async () => {
+    const next = !inheritWereadProfile
+    setInheritWereadProfile(next)
+    try {
+      await window.electronAPI?.settings?.set('inheritWereadProfile', next)
+    } catch {
+      /* 非致命：回滚状态 */
+      setInheritWereadProfile(!next)
+    }
+  }
 
   // ===== 事件处理 =====
   const handleSaveProfile = async () => {
@@ -176,6 +163,7 @@ export default function SettingsAccount() {
         api.settings.set('userNickname', nickname),
         api.settings.set('userEmail', email),
         api.settings.set('userPhone', phone),
+        api.settings.set('inheritWereadProfile', inheritWereadProfile),
       ])
       setSavedFlash(true)
       setTimeout(() => setSavedFlash(false), 3000)
@@ -224,24 +212,6 @@ export default function SettingsAccount() {
       await window.electronAPI?.settings?.set('lastBackupAt', now)
     } catch {
       /* 非致命：保留前端状态 */
-    }
-  }
-
-  const handleLogoutDevice = async (domId?: string) => {
-    // 业务占位：当前后端无登出 IPC，仅记录最后一次退出时间
-    if (!domId) return
-    try {
-      await window.electronAPI?.settings?.set('lastLogoutAt', new Date().toISOString())
-    } catch {
-      /* 非致命 */
-    }
-  }
-
-  const handleLogoutAll = async () => {
-    try {
-      await window.electronAPI?.settings?.set('lastLogoutAt', new Date().toISOString())
-    } catch {
-      /* 非致命 */
     }
   }
 
@@ -362,434 +332,257 @@ export default function SettingsAccount() {
             <Card>
               <CardHead eyebrow="账户" title="个人信息" />
 
+              {/* 继承微信读书信息开关 */}
               <div
-                className="profile-avatar-row"
+                className="form-row inherit-toggle-row"
                 style={{
                   display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  gap: 'calc(var(--spacing) * 4)',
-                  marginBottom: 'calc(var(--spacing) * 5)',
-                }}
-              >
-                <div
-                  className="profile-avatar"
-                  aria-label="用户头像"
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    background: 'var(--primary)',
-                    color: 'var(--primary-foreground)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontWeight: 700,
-                    fontSize: '0.95rem',
-                    flexShrink: 0,
-                  }}
-                >
-                  {avatarInitial}
-                </div>
-                <Button variant="ghost" data-dom-id="cta-change-avatar">更换头像</Button>
-              </div>
-
-              <div
-                className="form-grid"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 'calc(var(--spacing) * 4)',
-                }}
-              >
-                <div className="form-field" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
-                  <label className="form-label" htmlFor="account-nickname" style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--card-foreground)' }}>
-                    昵称
-                  </label>
-                  <input
-                    id="account-nickname"
-                    type="text"
-                    className="form-input"
-                    value={nickname}
-                    placeholder="请输入昵称"
-                    onChange={(e) => setNickname(e.target.value)}
-                    style={{
-                      padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                      border: '1px solid var(--input)',
-                      borderRadius: 'var(--radius)',
-                      background: 'var(--popover)',
-                      color: 'var(--foreground)',
-                      fontSize: '0.92rem',
-                      fontFamily: 'var(--font-sans)',
-                      outline: 'none',
-                      transition: 'border-color 0.2s ease',
-                      width: '100%',
-                    }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--ring)' }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--input)' }}
-                  />
-                </div>
-                <div className="form-field" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
-                  <label className="form-label" htmlFor="account-email" style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--card-foreground)' }}>
-                    邮箱
-                  </label>
-                  <input
-                    id="account-email"
-                    type="email"
-                    className="form-input"
-                    value={email}
-                    placeholder="reader@zhixing.com"
-                    onChange={(e) => setEmail(e.target.value)}
-                    style={{
-                      padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                      border: '1px solid var(--input)',
-                      borderRadius: 'var(--radius)',
-                      background: 'var(--popover)',
-                      color: 'var(--foreground)',
-                      fontSize: '0.92rem',
-                      fontFamily: 'var(--font-sans)',
-                      outline: 'none',
-                      transition: 'border-color 0.2s ease',
-                      width: '100%',
-                    }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--ring)' }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--input)' }}
-                  />
-                </div>
-                <div
-                  className="form-field form-field-full"
-                  style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}
-                >
-                  <label className="form-label" htmlFor="account-phone" style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--card-foreground)' }}>
-                    手机
-                  </label>
-                  <input
-                    id="account-phone"
-                    type="text"
-                    className="form-input"
-                    value={phone}
-                    placeholder="138****8888"
-                    onChange={(e) => setPhone(e.target.value)}
-                    style={{
-                      padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                      border: '1px solid var(--input)',
-                      borderRadius: 'var(--radius)',
-                      background: 'var(--popover)',
-                      color: 'var(--foreground)',
-                      fontSize: '0.92rem',
-                      fontFamily: 'var(--font-sans)',
-                      outline: 'none',
-                      transition: 'border-color 0.2s ease',
-                      width: '100%',
-                    }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--ring)' }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--input)' }}
-                  />
-                </div>
-              </div>
-
-              {error && (
-                <div
-                  style={{
-                    marginTop: 'calc(var(--spacing) * 4)',
-                    padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                    border: '1px solid var(--destructive)',
-                    borderRadius: 'var(--radius)',
-                    background: 'var(--background)',
-                    color: 'var(--destructive)',
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-
-              <div
-                className="form-actions"
-                style={{ marginTop: 'calc(var(--spacing) * 5)', display: 'flex', gap: 'calc(var(--spacing) * 3)', flexWrap: 'wrap' }}
-              >
-                <Button
-                  variant="primary"
-                  data-dom-id="cta-save-profile"
-                  disabled={saving}
-                  onClick={handleSaveProfile}
-                >
-                  {saving ? '保存中...' : '保存修改'}
-                </Button>
-              </div>
-            </Card>
-
-            {/* ===== Card 2: 会员状态 ===== */}
-            <Card>
-              <CardHead
-                eyebrow="会员"
-                title="会员状态"
-                action={
-                  <Badge
-                    variant="warning"
-                    style={{ background: 'var(--state-warning)', color: 'var(--foreground)', fontWeight: 600 }}
-                  >
-                    高级会员
-                  </Badge>
-                }
-              />
-
-              <div
-                className="membership-info"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'calc(var(--spacing) * 5)',
                   padding: 'calc(var(--spacing) * 4)',
                   background: 'var(--background)',
                   borderRadius: 'var(--radius)',
                   border: '1px solid var(--border)',
-                  marginBottom: 'calc(var(--spacing) * 4)',
+                  marginBottom: 'calc(var(--spacing) * 5)',
+                  gap: 'calc(var(--spacing) * 4)',
                 }}
               >
-                <div className="membership-info-block" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                  <span
-                    className="tiny"
-                    style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
-                  >
-                    到期时间
-                  </span>
-                  <strong
-                    className="mono"
-                    style={{
-                      fontSize: '1.1rem',
-                      fontWeight: 700,
-                      color: 'var(--foreground)',
-                      fontFamily: 'var(--font-mono)',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {membershipExpiry}
+                <div className="form-row-info" style={{ minWidth: 0, flex: 1 }}>
+                  <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
+                    继承微信读书信息
                   </strong>
-                </div>
-                <div className="membership-info-block" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                  <span
+                  <div
                     className="tiny"
-                    style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
+                    style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
                   >
-                    剩余天数
-                  </span>
-                  <strong
-                    className="mono"
-                    style={{
-                      fontSize: '1.1rem',
-                      fontWeight: 700,
-                      color: 'var(--foreground)',
-                      fontFamily: 'var(--font-mono)',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {remainingDays} 天
-                  </strong>
+                    开启后使用微信读书官方账户信息（昵称/头像），本地信息无需填写
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  className="toggle"
+                  data-dom-id="toggle-inherit-weread-profile"
+                  data-on={inheritWereadProfile ? 'true' : 'false'}
+                  aria-label="继承微信读书信息"
+                  aria-pressed={inheritWereadProfile}
+                  onClick={handleToggleInherit}
+                  style={{
+                    width: 44,
+                    height: 24,
+                    borderRadius: 999,
+                    background: inheritWereadProfile ? 'var(--primary)' : 'var(--muted)',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease',
+                    flexShrink: 0,
+                    border: 'none',
+                    padding: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      left: inheritWereadProfile ? 'auto' : 2,
+                      right: inheritWereadProfile ? 2 : 'auto',
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: 'var(--card)',
+                      transition: 'transform 0.2s ease',
+                    }}
+                  />
+                </button>
               </div>
 
-              <ul
-                className="benefit-list"
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: '0 0 calc(var(--spacing) * 5)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'calc(var(--spacing) * 3)',
-                }}
-              >
-                {MEMBERSHIP_BENEFITS.map((benefit) => (
-                  <li
-                    key={benefit}
-                    className="benefit-item"
+              {inheritWereadProfile ? (
+                /* 继承模式：提示信息已从微信读书同步 */
+                <div
+                  className="inherit-notice"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'calc(var(--spacing) * 3)',
+                    padding: 'calc(var(--spacing) * 4)',
+                    background: 'var(--background)',
+                    borderRadius: 'var(--radius)',
+                    border: '1px dashed var(--border)',
+                    color: 'var(--muted-foreground)',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  <span
+                    className="inherit-notice-icon"
+                    aria-hidden="true"
+                    style={{ display: 'grid', placeItems: 'center', color: 'var(--primary)' }}
+                  >
+                    <Icon name="check" size={18} />
+                  </span>
+                  <span>
+                    已开启继承：个人信息将从微信读书官方账户同步，本地无需填写。
+                  </span>
+                </div>
+              ) : (
+                /* 手动模式：显示头像 + 表单 */
+                <>
+                  <div
+                    className="profile-avatar-row"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 'calc(var(--spacing) * 3)',
-                      fontSize: '0.92rem',
-                      color: 'var(--foreground)',
+                      gap: 'calc(var(--spacing) * 4)',
+                      marginBottom: 'calc(var(--spacing) * 5)',
                     }}
                   >
-                    <span
-                      className="benefit-check"
-                      aria-hidden="true"
+                    <div
+                      className="profile-avatar"
+                      aria-label="用户头像"
                       style={{
-                        width: 20,
-                        height: 20,
-                        flexShrink: 0,
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        background: 'var(--primary)',
+                        color: 'var(--primary-foreground)',
                         display: 'grid',
                         placeItems: 'center',
-                        color: 'var(--state-success)',
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                        flexShrink: 0,
                       }}
                     >
-                      <Icon name="check" size={16} />
-                    </span>
-                    {benefit}
-                  </li>
-                ))}
-              </ul>
+                      {avatarInitial}
+                    </div>
+                    <Button variant="ghost" data-dom-id="cta-change-avatar">更换头像</Button>
+                  </div>
 
-              <div
-                className="form-actions"
-                style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', flexWrap: 'wrap' }}
-              >
-                <Button variant="primary" data-dom-id="cta-renew">续费</Button>
-                <Button variant="secondary" data-dom-id="cta-upgrade">升级</Button>
-              </div>
+                  <div
+                    className="form-grid"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 'calc(var(--spacing) * 4)',
+                    }}
+                  >
+                    <div className="form-field" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
+                      <label className="form-label" htmlFor="account-nickname" style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--card-foreground)' }}>
+                        昵称
+                      </label>
+                      <input
+                        id="account-nickname"
+                        type="text"
+                        className="form-input"
+                        value={nickname}
+                        placeholder="请输入昵称"
+                        onChange={(e) => setNickname(e.target.value)}
+                        style={{
+                          padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                          border: '1px solid var(--input)',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--popover)',
+                          color: 'var(--foreground)',
+                          fontSize: '0.92rem',
+                          fontFamily: 'var(--font-sans)',
+                          outline: 'none',
+                          transition: 'border-color 0.2s ease',
+                          width: '100%',
+                        }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--ring)' }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--input)' }}
+                      />
+                    </div>
+                    <div className="form-field" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
+                      <label className="form-label" htmlFor="account-email" style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--card-foreground)' }}>
+                        邮箱
+                      </label>
+                      <input
+                        id="account-email"
+                        type="email"
+                        className="form-input"
+                        value={email}
+                        placeholder="reader@zhixing.com"
+                        onChange={(e) => setEmail(e.target.value)}
+                        style={{
+                          padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                          border: '1px solid var(--input)',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--popover)',
+                          color: 'var(--foreground)',
+                          fontSize: '0.92rem',
+                          fontFamily: 'var(--font-sans)',
+                          outline: 'none',
+                          transition: 'border-color 0.2s ease',
+                          width: '100%',
+                        }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--ring)' }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--input)' }}
+                      />
+                    </div>
+                    <div
+                      className="form-field form-field-full"
+                      style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}
+                    >
+                      <label className="form-label" htmlFor="account-phone" style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--card-foreground)' }}>
+                        手机
+                      </label>
+                      <input
+                        id="account-phone"
+                        type="text"
+                        className="form-input"
+                        value={phone}
+                        placeholder="138****8888"
+                        onChange={(e) => setPhone(e.target.value)}
+                        style={{
+                          padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                          border: '1px solid var(--input)',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--popover)',
+                          color: 'var(--foreground)',
+                          fontSize: '0.92rem',
+                          fontFamily: 'var(--font-sans)',
+                          outline: 'none',
+                          transition: 'border-color 0.2s ease',
+                          width: '100%',
+                        }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--ring)' }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--input)' }}
+                      />
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div
+                      style={{
+                        marginTop: 'calc(var(--spacing) * 4)',
+                        padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                        border: '1px solid var(--destructive)',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--background)',
+                        color: 'var(--destructive)',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      {error}
+                    </div>
+                  )}
+
+                  <div
+                    className="form-actions"
+                    style={{ marginTop: 'calc(var(--spacing) * 5)', display: 'flex', gap: 'calc(var(--spacing) * 3)', flexWrap: 'wrap' }}
+                  >
+                    <Button
+                      variant="primary"
+                      data-dom-id="cta-save-profile"
+                      disabled={saving}
+                      onClick={handleSaveProfile}
+                    >
+                      {saving ? '保存中...' : '保存修改'}
+                    </Button>
+                  </div>
+                </>
+              )}
             </Card>
 
-            {/* ===== Card 3: 登录管理 ===== */}
-            <Card>
-              <CardHead eyebrow="安全" title="登录管理" />
-
-              <div
-                className="device-table-wrap"
-                style={{
-                  overflowX: 'auto',
-                  marginBottom: 'calc(var(--spacing) * 4)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                }}
-              >
-                <table
-                  className="device-table"
-                  style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    minWidth: 560,
-                  }}
-                >
-                  <thead>
-                    <tr>
-                      {['设备', '最近登录', '位置', '操作'].map((th) => (
-                        <th
-                          key={th}
-                          style={{
-                            padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                            textAlign: 'left',
-                            fontSize: '0.78rem',
-                            fontWeight: 600,
-                            color: 'var(--muted-foreground)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.06em',
-                            borderBottom: '1px solid var(--border)',
-                            background: 'var(--muted)',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {th}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {DEFAULT_DEVICES.map((device) => (
-                      <tr key={device.name}>
-                        <td
-                          style={{
-                            padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                            fontSize: '0.9rem',
-                            color: 'var(--foreground)',
-                            borderBottom: '1px solid var(--border)',
-                            verticalAlign: 'middle',
-                          }}
-                        >
-                          <div className="device-name" style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)', whiteSpace: 'nowrap' }}>
-                            <span>{device.name}</span>
-                            {device.isCurrent && (
-                              <span
-                                className="this-device-badge"
-                                style={{
-                                  background: 'var(--secondary)',
-                                  color: 'var(--primary)',
-                                  fontSize: '0.72rem',
-                                  padding: '0.15rem 0.5rem',
-                                  borderRadius: 999,
-                                  whiteSpace: 'nowrap',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                本机
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td
-                          style={{
-                            padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                            fontSize: '0.9rem',
-                            color: 'var(--foreground)',
-                            borderBottom: '1px solid var(--border)',
-                            verticalAlign: 'middle',
-                          }}
-                        >
-                          <span
-                            className="device-time"
-                            style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontVariantNumeric: 'tabular-nums',
-                              fontSize: '0.84rem',
-                              color: 'var(--muted-foreground)',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {device.lastLogin}
-                          </span>
-                        </td>
-                        <td
-                          style={{
-                            padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                            fontSize: '0.9rem',
-                            color: 'var(--foreground)',
-                            borderBottom: '1px solid var(--border)',
-                            verticalAlign: 'middle',
-                          }}
-                        >
-                          {device.location}
-                        </td>
-                        <td
-                          style={{
-                            padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                            fontSize: '0.9rem',
-                            color: 'var(--foreground)',
-                            borderBottom: '1px solid var(--border)',
-                            verticalAlign: 'middle',
-                          }}
-                        >
-                          {device.isCurrent ? (
-                            <span
-                              className="tiny"
-                              style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
-                            >
-                              当前设备
-                            </span>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              data-dom-id={device.logoutDomId}
-                              onClick={() => handleLogoutDevice(device.logoutDomId)}
-                            >
-                              退出
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div
-                className="form-actions"
-                style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', flexWrap: 'wrap' }}
-              >
-                <Button variant="danger" data-dom-id="cta-logout-all" onClick={handleLogoutAll}>
-                  退出所有设备
-                </Button>
-              </div>
-            </Card>
-
-            {/* ===== Card 4: 功能模块 ===== */}
+            {/* ===== Card 2: 功能模块 ===== */}
             <Card>
               <CardHead eyebrow="功能" title="功能模块" />
 
@@ -855,7 +648,7 @@ export default function SettingsAccount() {
               </div>
             </Card>
 
-            {/* ===== Card 5: 数据同步 ===== */}
+            {/* ===== Card 3: 数据同步 ===== */}
             <Card>
               <CardHead eyebrow="同步" title="数据同步" />
 
@@ -1096,7 +889,7 @@ export default function SettingsAccount() {
             align-items: flex-start !important;
             gap: calc(var(--spacing) * 3) !important;
           }
-          .membership-info {
+          .inherit-toggle-row {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: calc(var(--spacing) * 3) !important;

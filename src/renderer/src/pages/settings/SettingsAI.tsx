@@ -1,9 +1,10 @@
 /**
  * SettingsAI — AI 配置（Google Design Library 1:1 重构）
  * 基于设计稿 zhixing-reader-redesign/pages/settings-ai.html
- * 4 张卡片：LLM 服务配置 / RAG 配置 / Agent 参数 / 提示词模板管理
+ * 3 张卡片：LLM 服务配置 / RAG 配置 / 提示词模板管理
  * 业务逻辑：复用 settingsStore（llmEndpoint/llmKey/llmModel + testAIConnection），
- *           扩展字段（maxTokens/temperature/rag/agent/templates）通过 settings.set 持久化。
+ *           扩展字段（maxTokens/temperature/rag/templates）通过 settings.set 持久化。
+ * 注：智能体编排已独立为 /agent-orchestration，相关参数由该页面管理（T10/T12）。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -26,10 +27,6 @@ const DEFAULTS = {
   qdrantEndpoint: 'http://localhost:6333',
   ragCollection: 'zhixing_books',
   embeddingModel: 'text-embedding-3-small',
-  intentThreshold: 0.75,
-  teachingStrategy: 'socratic',
-  bloomLevel: '2',
-  contextBudget: 4000,
 }
 
 const MODEL_OPTIONS = [
@@ -44,22 +41,6 @@ const EMBEDDING_OPTIONS = [
   { value: 'text-embedding-3-large', label: 'text-embedding-3-large' },
   { value: 'bge-large-zh', label: 'bge-large-zh' },
   { value: 'custom', label: '自定义' },
-]
-
-const STRATEGY_OPTIONS = [
-  { value: 'direct_answer', label: '直接回答' },
-  { value: 'socratic', label: '苏格拉底式' },
-  { value: 'feynman', label: '费曼教学法' },
-  { value: 'assessment', label: '评估式' },
-]
-
-const BLOOM_OPTIONS = [
-  { value: '1', label: '1 - 记忆' },
-  { value: '2', label: '2 - 理解' },
-  { value: '3', label: '3 - 应用' },
-  { value: '4', label: '4 - 分析' },
-  { value: '5', label: '5 - 评价' },
-  { value: '6', label: '6 - 创造' },
 ]
 
 interface TemplateRow {
@@ -137,10 +118,6 @@ export default function SettingsAI() {
   const [qdrantEndpoint, setQdrantEndpoint] = useState<string>(DEFAULTS.qdrantEndpoint)
   const [collection, setCollection] = useState<string>(DEFAULTS.ragCollection)
   const [embeddingModel, setEmbeddingModel] = useState<string>(DEFAULTS.embeddingModel)
-  const [intentThreshold, setIntentThreshold] = useState<number>(DEFAULTS.intentThreshold)
-  const [teachingStrategy, setTeachingStrategy] = useState<string>(DEFAULTS.teachingStrategy)
-  const [bloomLevel, setBloomLevel] = useState<string>(DEFAULTS.bloomLevel)
-  const [contextBudget, setContextBudget] = useState<number>(DEFAULTS.contextBudget)
   const [templates, setTemplates] = useState<TemplateRow[]>(DEFAULT_TEMPLATES)
 
   // ===== UI 状态 =====
@@ -168,7 +145,7 @@ export default function SettingsAI() {
       if (!api?.settings?.get) return
       try {
         const [
-          mt, tp, qe, col, em, it, ts, bl, cb,
+          mt, tp, qe, col, em,
           tg, tk, tp2, td,
         ] = await Promise.all([
           api.settings.get('llmMaxTokens'),
@@ -176,10 +153,6 @@ export default function SettingsAI() {
           api.settings.get('qdrantEndpoint'),
           api.settings.get('ragCollection'),
           api.settings.get('embeddingModel'),
-          api.settings.get('agentIntentThreshold'),
-          api.settings.get('agentTeachingStrategy'),
-          api.settings.get('agentBloomLevel'),
-          api.settings.get('agentContextBudget'),
           api.settings.get('promptTemplateGeneralEnabled'),
           api.settings.get('promptTemplateKnowledgeEnabled'),
           api.settings.get('promptTemplatePracticeEnabled'),
@@ -190,10 +163,6 @@ export default function SettingsAI() {
         setQdrantEndpoint(asString(qe, DEFAULTS.qdrantEndpoint))
         setCollection(asString(col, DEFAULTS.ragCollection))
         setEmbeddingModel(asString(em, DEFAULTS.embeddingModel))
-        setIntentThreshold(asNumber(it, DEFAULTS.intentThreshold))
-        setTeachingStrategy(asString(ts, DEFAULTS.teachingStrategy))
-        setBloomLevel(asString(bl, DEFAULTS.bloomLevel))
-        setContextBudget(asNumber(cb, DEFAULTS.contextBudget))
         setTemplates((prev) =>
           prev.map((t) => {
             const flagMap: Record<string, unknown> = {
@@ -267,10 +236,6 @@ export default function SettingsAI() {
         window.electronAPI.settings.set('qdrantEndpoint', qdrantEndpoint),
         window.electronAPI.settings.set('ragCollection', collection),
         window.electronAPI.settings.set('embeddingModel', embeddingModel),
-        window.electronAPI.settings.set('agentIntentThreshold', intentThreshold),
-        window.electronAPI.settings.set('agentTeachingStrategy', teachingStrategy),
-        window.electronAPI.settings.set('agentBloomLevel', bloomLevel),
-        window.electronAPI.settings.set('agentContextBudget', contextBudget),
         window.electronAPI.settings.set('promptTemplateGeneralEnabled', templates[0].enabled),
         window.electronAPI.settings.set('promptTemplateKnowledgeEnabled', templates[1].enabled),
         window.electronAPI.settings.set('promptTemplatePracticeEnabled', templates[2].enabled),
@@ -290,10 +255,6 @@ export default function SettingsAI() {
     qdrantEndpoint,
     collection,
     embeddingModel,
-    intentThreshold,
-    teachingStrategy,
-    bloomLevel,
-    contextBudget,
     templates,
     saveSettings,
   ])
@@ -308,10 +269,6 @@ export default function SettingsAI() {
     setQdrantEndpoint(DEFAULTS.qdrantEndpoint)
     setCollection(DEFAULTS.ragCollection)
     setEmbeddingModel(DEFAULTS.embeddingModel)
-    setIntentThreshold(DEFAULTS.intentThreshold)
-    setTeachingStrategy(DEFAULTS.teachingStrategy)
-    setBloomLevel(DEFAULTS.bloomLevel)
-    setContextBudget(DEFAULTS.contextBudget)
     setTemplates(DEFAULT_TEMPLATES)
     setConnStatus('idle')
     setRagStatus('idle')
@@ -826,133 +783,9 @@ export default function SettingsAI() {
               </div>
             </Card>
 
-            {/* ===== Card 3: Agent 参数 ===== */}
-            <Card>
-              <CardHead eyebrow="Agent 参数" title="智能体编排配置" />
-              <div
-                className="form-grid"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 'calc(var(--spacing) * 4)',
-                }}
-              >
-                <div className="form-field form-field-full">
-                  <label className="form-label" htmlFor="agent-intent-threshold">意图分类阈值</label>
-                  <div
-                    className="slider-row"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'calc(var(--spacing) * 4)',
-                      width: '100%',
-                    }}
-                  >
-                    <input
-                      className="slider"
-                      id="agent-intent-threshold"
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={intentThreshold}
-                      onChange={(e) => setIntentThreshold(Number(e.target.value))}
-                      aria-label="意图分类阈值滑块"
-                    />
-                    <span
-                      className="slider-value"
-                      style={{
-                        minWidth: 52,
-                        textAlign: 'right',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '0.88rem',
-                        color: 'var(--foreground)',
-                        fontVariantNumeric: 'tabular-nums',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {intentThreshold.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="form-hint">高于此阈值时直接执行匹配意图，低于则进入澄清流程（范围 0.0 - 1.0）</div>
-                </div>
-                <div className="form-field">
-                  <label className="form-label" htmlFor="agent-teaching-strategy">默认教学策略</label>
-                  <select
-                    className="form-select"
-                    id="agent-teaching-strategy"
-                    value={teachingStrategy}
-                    onChange={(e) => setTeachingStrategy(e.target.value)}
-                  >
-                    {STRATEGY_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-field">
-                  <label className="form-label" htmlFor="agent-bloom-level">Bloom 初始级别</label>
-                  <select
-                    className="form-select"
-                    id="agent-bloom-level"
-                    value={bloomLevel}
-                    onChange={(e) => setBloomLevel(e.target.value)}
-                  >
-                    {BLOOM_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-field form-field-full">
-                  <label className="form-label" htmlFor="agent-context-budget">上下文 Token 预算</label>
-                  <input
-                    className="form-input"
-                    id="agent-context-budget"
-                    type="number"
-                    min={500}
-                    max={32000}
-                    step={500}
-                    value={contextBudget}
-                    onChange={(e) => setContextBudget(Number(e.target.value) || 0)}
-                    style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}
-                  />
-                  <div className="form-hint">每次对话注入的最大上下文 Token 数量，影响检索深度与成本</div>
-                </div>
-              </div>
-              {/* Agent 编排入口 */}
-              <div
-                className="agent-link-row"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: 'calc(var(--spacing) * 4)',
-                  background: 'var(--background)',
-                  borderRadius: 'var(--radius)',
-                  border: '1px solid var(--border)',
-                  marginTop: 'calc(var(--spacing) * 4)',
-                  gap: 'calc(var(--spacing) * 3)',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div className="agent-link-info" style={{ minWidth: 0, flex: 1 }}>
-                  <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                    智能体编排
-                  </strong>
-                  <Tiny>配置意图分类器、策略路由与工具链编排</Tiny>
-                </div>
-                <button
-                  className="link-btn"
-                  type="button"
-                  onClick={() => navigate('/agent-orchestration')}
-                  data-dom-id="cta-agent-config"
-                >
-                  前往编排
-                  <Icon name="arrow-right" size={16} />
-                </button>
-              </div>
-            </Card>
-
-            {/* ===== Card 4: 提示词模板管理 ===== */}
+            {/* ===== Card 3: 提示词模板管理 =====
+                 注：原 Card 3「Agent 参数」已迁移至 /agent-orchestration（独立智能体编排分类，T10/T12）。
+                  */}
             <Card>
               <CardHead
                 eyebrow="提示词模板"
@@ -1189,7 +1022,7 @@ export default function SettingsAI() {
         </div>
       )}
 
-      {/* ===== 设计稿专属样式（form / slider / toggle / icon-btn-sm / link-btn / settings-nav） ===== */}
+      {/* ===== 设计稿专属样式（form / slider / toggle / icon-btn-sm / settings-nav） ===== */}
       <style>{`
         .form-field { display: flex; flex-direction: column; gap: calc(var(--spacing) * 2); }
         .form-field-full { grid-column: 1 / -1; }
@@ -1358,28 +1191,7 @@ export default function SettingsAI() {
           outline-offset: 2px;
         }
 
-        /* Link button (agent config CTA) */
-        .link-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: calc(var(--spacing) * 2);
-          background: none;
-          border: none;
-          color: var(--primary);
-          cursor: pointer;
-          font-size: 0.88rem;
-          font-weight: 500;
-          padding: 0;
-          transition: opacity 0.2s ease;
-          text-decoration: none;
-          font-family: inherit;
-        }
-        .link-btn:hover { opacity: 0.8; text-decoration: underline; }
-        .link-btn:focus-visible {
-          outline: 2px solid var(--ring);
-          outline-offset: 2px;
-          border-radius: var(--radius);
-        }
+        /* Link button removed: agent config CTA 已迁移到设置导航（T10） */
 
         /* Settings nav items */
         .settings-nav-item {
@@ -1420,7 +1232,6 @@ export default function SettingsAI() {
         }
         @media (max-width: 760px) {
           .test-row { flex-direction: column; align-items: flex-start; gap: calc(var(--spacing) * 3); }
-          .agent-link-row { flex-direction: column; align-items: flex-start; gap: calc(var(--spacing) * 3); }
           .template-row { flex-direction: column; align-items: flex-start; gap: calc(var(--spacing) * 3); }
           .template-actions { width: 100%; justify-content: space-between; }
         }
