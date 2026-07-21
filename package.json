@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "知行读书 - AI阅读成长助手",
   "main": "dist/main/main.js",
+  "author": "张子涵",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -16,7 +17,12 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "build-dict": "node scripts/extract-dictionary.js"
+    "build-dict": "node scripts/extract-dictionary.js",
+    "seed:demo": "npx tsx scripts/seed-demo-data.ts",
+    "seed:demo:watch": "npx tsx watch scripts/seed-demo-data.ts",
+    "loop:log": "node scripts/loop-log.mjs",
+    "loop:detect": "node scripts/loop-detect.mjs",
+    "loop:detect:gates": "node scripts/loop-detect.mjs --gates"
   },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.18.0",
@@ -60,14 +66,23 @@
     "appId": "com.zhixing.reader",
     "productName": "知行读书",
     "directories": {
-      "output": "release"
+      "output": "installer"
     },
     "asar": true,
     "asarUnpack": [
-      "dist/**"
+      "dist/**",
+      "node_modules/sql.js/dist/sql-wasm.wasm"
     ],
     "files": [
-      "dist/**/*"
+      "dist/**/*",
+      "package.json",
+      "node_modules/sql.js/**",
+      "node_modules/ts-fsrs/**",
+      "node_modules/@qdrant/**",
+      "node_modules/axios/**",
+      "node_modules/follow-redirects/**",
+      "node_modules/form-data/**",
+      "node_modules/proxy-from-env/**"
     ],
     "extraResources": [
       {

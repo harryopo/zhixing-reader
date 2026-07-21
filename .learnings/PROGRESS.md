@@ -26,9 +26,11 @@
 
 | 功能 | 进度 | 备注 |
 |------|------|------|
-| 验证门禁持续运行 | 持续 | verify = lint + typecheck + test + build，0 errors / 124 warns / 171 tests pass（FSRS 38 + http-client 11 + prompt-registry 42 + template-engine 18 + admin-charts 6 + ipc 2 + intent-classifier 19 + strategy-selector 13 + dictionary-service 16 + ai-service-config 6）|
-| CodeGraph 知识图谱 | 已建图 | 100 文件 / 1,451 节点 / 4,645 边，1.3s 增量同步 |
-| 比赛展示打磨 | 35% | 7/20-7/31：smoke test 第 1+2 批完成（template-engine / prompt-registry / http-client / electron-mock-setup / intent-classifier / strategy-selector / dictionary-service / ai-service-config），+125 tests。第 3 批（renderer stores）+ 演示数据待办 |
+| 验证门禁 | ✅ | lint 0e/125w · type 0 · **171 tests** · build OK（2026-07-20 夜） |
+| **夜间功能修复循环** | ✅ 主线完成 | 见 `.learnings/NIGHTLY_LOOP.md`：Chat 契约断链、流式 hang、导入不建卡、Home/Bookshelf/Profile 假数据、HashRouter、Review 文案/mastery、daily_stats、侧栏复习入口 |
+| CodeGraph 知识图谱 | 已建图 | 100 文件 / 1,451 节点 / 4,645 边 |
+| 比赛展示打磨 | 80% | demo.db + seed 脚本本地未提交；Windows 安装包曾因 app.asar 占用失败，待重打 |
+| **演示数据 FSRS 修复（7/20）** | ✅ | Mastered 状态强制写入 + Token 1.27M |
 
 ### ⏳ 待开发（比赛后）
 

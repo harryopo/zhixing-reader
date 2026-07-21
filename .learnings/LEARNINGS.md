@@ -2,7 +2,36 @@
 
 知行读书项目开发过程中的学习记录、错误和改进。
 
-> **最近更新**：2026-07-20 — 追加 8 条 ai-dev-workflow 落地教训（LRN-20260720-001 ~ 008）
+> **最近更新**：2026-07-20 夜 — 追加 LRN-20260720-011 功能契约审查与夜间修复
+
+---
+
+## [LRN-20260720-011] correction
+
+**Logged**: 2026-07-20T22:25:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+AI 对话 / 统计 / 导入建卡等多处「功能看起来有、运行时断」来自契约漂移，不是算法本身坏了。
+
+### Details
+1. **chatStore** 用 `conversationId/question/context`，preload/ipc 要 `sessionId/userMessage/conversationHistory` → 主功能空转。
+2. 流式 `onStreamError` 不 settle Promise → 发送流程挂死。
+3. `highlight.create` 单条路径不建 FSRS 卡，只有 batch 建 → 导入后复习空。
+4. Home/Bookshelf 用 `getDue()` 当「总卡片」；Profile 读不存在的 `totalCards/masteredCards` 与 camelCase daily_stats。
+5. 生产 `file://` + BrowserRouter 风险；Review 写死间隔 + 把 rating 当 mastery。
+
+### Suggested Action
+- 改 API 时同步：ipc-channels / preload / renderer.d.ts / store 调用四处。
+- 统计字段以 `database.ts` 返回值为 SSOT，前端不要猜字段名。
+- 导入路径与 batch 路径行为对齐（建卡、daily_stats）。
+
+### Metadata
+- Source: conversation
+- Related Files: chatStore.ts, preload.ts, ipc.ts, Home.tsx, profileStore.ts, Review.tsx
+- Tags: ipc, contract, fsrs, stats
 > **历史归档**：2026-05-29 ~ 2026-06-14 共 7 条原始教训（LRN-20260529-001 ~ LRN-20260614-004）
 > **归档策略**：同类型问题出现 ≥3 次时升级到 `.learnings/STANDARDS.md` 硬规则
 
@@ -575,5 +604,98 @@ CodeGraph 知识图谱 auto-sync：文件改动 2s 防抖后增量更新
 - Source: ai-dev-workflow 第 1 阶段（需求调研）
 - Related Files: .codegraph/
 - Tags: codegraph, knowledge-graph, auto-sync, subagent
+
+---
+
+## [LRN-20260720-009] correction
+
+**Logged**: 2026-07-20T22:10:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+**Project**: zhixing-reader
+
+### Summary
+ts-fsrs 没有 Mastered 状态，STATE_DISTRIBUTION 数组的 state=4 会被 ts-fsrs 真实算法覆盖
+
+### Details
+`scripts/seed-demo-data.ts` 中演示数据生成脚本设计了 `STATE_DISTRIBUTION` 数组，希望把 45 张卡片设置为 Mastered（state=4）。但调用 `simulateMatureCard()` 模拟 6 次连续 Good 后，`card.state` 仍返回 `FsrsState.Review=2`（ts-fsrs 库没有 Mastered 状态，最稳定的卡也是 Review=2）。
+
+**症状**：
+```sql
+SELECT state, COUNT(*) FROM cards GROUP BY state;
+-- state=0: 3 (New)
+-- state=1: 5 (Learning)
+-- state=2: 57 (Review)  ← 应该是 12，剩下 45 张是 Mastered
+-- state=3: 3 (Relearning)
+-- state=4: 0 (Mastered)  ← 实际为 0
+```
+
+**修复**：
+```typescript
+// scripts/seed-demo-data.ts insertHighlight() 末尾
+const row = fsrsCardToRow(fsrsCard, h.id, cardId, DEMO_TODAY_ISO);
+const finalState = targetState; // 覆盖 row.state，使用 STATE_DISTRIBUTION
+db.run(`INSERT OR REPLACE INTO cards (id, ..., state, ...) VALUES (?, ..., ?, ...)`,
+       [..., finalState, ...]);  // ← 用 finalState 而非 row.state
+```
+
+**附加优化**：Mastered 卡附 `stability≥90, difficulty≤4.5, scheduled_days≥30` 三参数微调，让 FSRS UI 显示更真实。
+
+### Suggested Action
+**当 ts-fsrs 缺少业务层状态时，必须在 `fsrsCardToRow` 之后强制覆盖 state 字段写入 DB**。不要相信 ts-fsrs 默认返回的状态符合业务需求。
+
+### Metadata
+- Source: demo.db 验证
+- Related Files: zhixing-reader/scripts/seed-demo-data.ts (行 960-983)
+- Tags: ts-fsrs, fsrs-engine, state-override, demo-data, idempotent-seed
+
+---
+
+## [LRN-20260720-010] best_practice
+
+**Logged**: 2026-07-20T22:20:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+**Project**: zhixing-reader
+
+### Summary
+PowerShell 环境调 Node 参数：用 mjs 脚本避免命令行转义问题
+
+### Details
+调试 `seed-demo-data.ts` Token 参数时，需要快速查询数据库验证。直接用 `node -e "..."` 内嵌代码在 PowerShell 中常遇到：
+- 反引号（`）转义错误
+- 中文 Unicode 字符处理异常
+- 多行字符串语法错
+
+**正确做法**：用 `node scripts/analyze-states.mjs` 独立脚本：
+```javascript
+// scripts/analyze-states.mjs
+import initSqlJs from 'sql.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const wasmDir = path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist');
+const SQL = await initSqlJs({ locateFile: (f) => path.join(wasmDir, f) });
+const db = new SQL.Database(new Uint8Array(fs.readFileSync('resources/demo.db')));
+// ... SQL 查询
+```
+
+**好处**：
+- 用 `await initSqlJs(...)` top-level await，避免回调地狱
+- 中文模板字符串可正常输出
+- 可重复运行、版本控制
+- 与 verify-demo-data.mjs 风格一致
+
+### Suggested Action
+调试 sql.js / 数据库 / AI 集成时，**优先写独立 .mjs 脚本**，避免 PowerShell 命令行内嵌代码的转义陷阱。
+
+### Metadata
+- Source: demo.db 验证
+- Related Files: zhixing-reader/scripts/analyze-states.mjs, verify-demo-data.mjs
+- Tags: powershell, mjs-script, sql.js, top-level-await, debugging-tool
 
 ---
