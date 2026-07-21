@@ -11,6 +11,7 @@ import {
   createCard,
   reviewCard,
   reviewCardBatch,
+  previewReviewRatings,
   cardFromDb,
   cardToRow,
   getParameters,
@@ -497,6 +498,40 @@ describe('FSRS Engine — ts-fsrs Adapter Integration', () => {
       // reset 后 customW 清除，应回到 ts-fsrs 默认前 17 个
       expect(getParameters().w).not.toEqual(customW)
       expect(getParameters().w.length).toBe(17)
+    })
+  })
+
+  describe('previewReviewRatings', () => {
+    it('返回 4 种评分预览且不修改原卡', () => {
+      const card = createCard('h_preview')
+      const before = { ...card }
+      const previews = previewReviewRatings(card, new Date('2026-07-20T00:00:00.000Z'))
+      expect(previews).toHaveLength(4)
+      expect(previews.map((p) => p.rating)).toEqual([
+        Rating.Again,
+        Rating.Hard,
+        Rating.Good,
+        Rating.Easy,
+      ])
+      for (const p of previews) {
+        expect(p.due).toBeTruthy()
+        expect(typeof p.intervalLabel).toBe('string')
+        expect(p.intervalLabel.length).toBeGreaterThan(0)
+        expect(p.stability).toBeGreaterThanOrEqual(0)
+      }
+      // 原卡不变
+      expect(card.state).toBe(before.state)
+      expect(card.due).toBe(before.due)
+      expect(card.reps).toBe(before.reps)
+    })
+
+    it('Easy 的 due 不早于 Again', () => {
+      const card = createCard('h_order')
+      const now = new Date('2026-07-20T00:00:00.000Z')
+      const previews = previewReviewRatings(card, now)
+      const again = previews.find((p) => p.rating === Rating.Again)!
+      const easy = previews.find((p) => p.rating === Rating.Easy)!
+      expect(new Date(easy.due).getTime()).toBeGreaterThanOrEqual(new Date(again.due).getTime())
     })
   })
 })

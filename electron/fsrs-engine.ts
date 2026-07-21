@@ -8,8 +8,8 @@
  * - types: Card, FSRSParameters, FSRSCardStats, VocabReviewResult
  * - enums: CardState, Rating
  * - functions: setCustomParameters, getParameters, resetParameters, cardFromDb, cardToRow,
- *   createCard, reviewCard, reviewCardBatch, getNextReviewTime, isDue, getCardInterval,
- *   getCardDaysUntilDue, getCardRetentionRate, calculateStats, getForecast,
+ *   createCard, reviewCard, reviewCardBatch, previewReviewRatings, getNextReviewTime, isDue,
+ *   getCardInterval, getCardDaysUntilDue, getCardRetentionRate, calculateStats, getForecast,
  *   getOptimalReviewOrder, reviewVocabulary
  *
  * **内部实现**：
@@ -345,6 +345,48 @@ export function reviewCardBatch(
   now: Date = new Date(),
 ): Card[] {
   return cards.map(({ card, rating }) => reviewCard(card, rating, now));
+}
+
+/** 四种评分对应的下次复习预览（不落库） */
+export interface ReviewPreview {
+  rating: Rating
+  due: string
+  scheduledDays: number
+  state: CardState
+  stability: number
+  /** 人类可读间隔，如 "10 分钟" / "3 天" */
+  intervalLabel: string
+}
+
+function formatIntervalLabel(dueIso: string, now: Date, scheduledDays: number): string {
+  const dueMs = new Date(dueIso).getTime() - now.getTime()
+  if (dueMs <= 0) return '立即'
+  const minutes = Math.round(dueMs / 60_000)
+  if (minutes < 60) return `${Math.max(1, minutes)} 分钟`
+  const hours = Math.round(minutes / 60)
+  if (hours < 48) return `${hours} 小时`
+  if (scheduledDays > 0) return `${scheduledDays} 天`
+  const days = Math.max(1, Math.round(hours / 24))
+  return `${days} 天`
+}
+
+/**
+ * 预览当前卡片在 Again/Hard/Good/Easy 四种评分下的下次 due。
+ * README 4.6 / 循环工程 P2-5 承诺 API；纯函数，不改卡片状态。
+ */
+export function previewReviewRatings(card: Card, now: Date = new Date()): ReviewPreview[] {
+  const ratings: Rating[] = [Rating.Again, Rating.Hard, Rating.Good, Rating.Easy]
+  return ratings.map((rating) => {
+    const next = reviewCard(card, rating, now)
+    return {
+      rating,
+      due: next.due,
+      scheduledDays: next.scheduledDays,
+      state: next.state,
+      stability: next.stability,
+      intervalLabel: formatIntervalLabel(next.due, now, next.scheduledDays),
+    }
+  })
 }
 
 // ============================================================================
