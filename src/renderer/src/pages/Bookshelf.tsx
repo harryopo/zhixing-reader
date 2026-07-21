@@ -982,7 +982,13 @@ export default function Bookshelf() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/bookshelf/${rec.bookId}`)}
+                        onClick={() => {
+                          // 推荐书不在本地 books 表，直接外开微信读书书籍详情页
+                          // 避免 navigate('/bookshelf/:id') 后 BookDetail 显示"书籍未找到"空状态
+                          window.electronAPI.system.openExternal(
+                            `https://weread.qq.com/web/book/${encodeURIComponent(rec.bookId)}`,
+                          )
+                        }}
                         style={{
                           flex: 1,
                           padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)',

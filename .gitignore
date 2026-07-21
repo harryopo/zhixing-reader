@@ -36,7 +36,12 @@ temp/
 
 # Build installer artifacts (electron-builder output now points here)
 installer/
+installer-v2/
 dist-installer/
+builder-output-override.json
+
+# Loop engineering auto logs
+.learnings/loop-logs/
 
 # Temp analysis outputs
 audit-output.json
