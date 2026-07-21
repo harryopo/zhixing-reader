@@ -29,6 +29,7 @@ interface SettingsNavItem {
 const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', domId: 'settings-tab-account' },
   { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
+  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/agent-orchestration', domId: 'settings-tab-agent' },
   { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
   { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
   { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', active: true },
@@ -170,6 +171,7 @@ export default function SettingsAppearance() {
                 className="settings-nav-item"
                 data-dom-id={item.domId}
                 data-active={item.active ? 'true' : undefined}
+                aria-current={item.active ? 'page' : undefined}
                 onClick={() => handleNavigate(item.path)}
                 style={{
                   width: '100%',

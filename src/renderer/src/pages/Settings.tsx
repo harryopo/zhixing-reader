@@ -38,7 +38,7 @@ const NAV_ITEMS: NavItemDef[] = [
   {
     key: 'account',
     label: '账户',
-    desc: '个人信息、继承微信读书、功能模块、数据同步',
+    desc: '个人信息、继承微信读书、功能模块',
     icon: <Icon name="user" size={18} />,
     path: '/settings/account',
   },
@@ -141,6 +141,7 @@ export default function Settings() {
                 key={item.key}
                 type="button"
                 data-active={isActive}
+                aria-current={isActive ? 'page' : undefined}
                 data-dom-id={`settings-tab-${item.key}`}
                 onClick={() => handleNavClick(item)}
                 style={{
@@ -305,7 +306,7 @@ export default function Settings() {
               }}
             >
               {[
-                '账户：开启「继承微信读书信息」后无需本地填写昵称/头像，账户信息自动同步。',
+                '账户：开启「继承微信读书信息」后无需本地填写昵称/头像（同步功能将在后续版本上线）。',
                 'AI 配置：仅配置 LLM 服务与提示词模板；与智能体编排完全解耦。',
                 '智能体编排：独立页面，配置意图识别阈值、教学策略与上下文预算。',
                 '微信读书：配置 API Key 并开启同步后，划线与笔记将自动同步到本地。',

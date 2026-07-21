@@ -1,14 +1,16 @@
 /**
  * SettingsAccount — 账户设置（Google Design Library 1:1 重构）
  * 基于设计稿 zhixing-reader-redesign/pages/settings-account.html
- * 3 张卡片：个人信息 / 功能模块 / 数据同步
- * 业务逻辑：通过 window.electronAPI.settings 读写账户信息、同步开关、备份频率
+ * 2 张卡片：个人信息 / 功能模块
+ * 业务逻辑：通过 window.electronAPI.settings 读写账户信息与功能开关
  *
  * T10 重构说明：
  *   - Card「会员状态」已删除（续费/升级按钮无真实 IPC，属占位死代码，违反用户原话 #10）
  *   - Card「登录管理」已删除（设备表格 logoutDomId 无真实 IPC，属占位死代码，违反用户原话 #10）
+ *   - Card「数据同步」已删除（云同步/自动备份/备份频率/立即备份均无对应 IPC 实现，属占位死代码，违反用户原话 #10）
  *   - Card「个人信息」新增「继承微信读书信息」开关：开启后禁用本地输入并提示已继承（用户原话 #5）
- *     后端 weread-api 暂无 user profile API，开关仅作 UI 状态持久化（settings.inheritWereadProfile）
+ *     后端 weread-api 暂无 user profile API，开关仅作 UI 状态持久化（settings.inheritWereadProfile），
+ *     文案已诚实化（标注「当前版本暂未实现」）
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -36,33 +38,12 @@ interface SettingsNavItem {
 const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', active: true },
   { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
+  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/agent-orchestration', domId: 'settings-tab-agent' },
   { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
   { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
   { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
   { key: 'about', label: '关于', icon: 'question', path: '/settings/about', domId: 'settings-tab-about' },
 ]
-
-/** 备份频率选项 */
-const BACKUP_FREQ_OPTIONS = [
-  { value: 'daily', label: '每日' },
-  { value: 'weekly', label: '每周' },
-  { value: 'manual', label: '手动' },
-] as const
-
-type BackupFreq = (typeof BACKUP_FREQ_OPTIONS)[number]['value']
-
-/** 格式化备份时间：YYYY-MM-DD HH:mm */
-function formatBackupTime(iso: string): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '—'
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mi = String(d.getMinutes()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
-}
 
 export default function SettingsAccount() {
   const navigate = useNavigate()
@@ -90,12 +71,6 @@ export default function SettingsAccount() {
   // 继承微信读书信息开关（默认开启：继承微信读书的官方信息，本地信息无需展示）
   const [inheritWereadProfile, setInheritWereadProfile] = useState(true)
 
-  // 同步设置
-  const [cloudSync, setCloudSync] = useState(true)
-  const [autoBackup, setAutoBackup] = useState(true)
-  const [backupFreq, setBackupFreq] = useState<BackupFreq>('daily')
-  const [lastBackupAt, setLastBackupAt] = useState<string>('')
-
   // ===== 加载账户设置 =====
   useEffect(() => {
     const load = async () => {
@@ -105,27 +80,17 @@ export default function SettingsAccount() {
         return
       }
       try {
-        const [nick, mail, tel, inherit, sync, backup, freq, lastBackup] = await Promise.all([
+        const [nick, mail, tel, inherit] = await Promise.all([
           api.settings.get('userNickname'),
           api.settings.get('userEmail'),
           api.settings.get('userPhone'),
           api.settings.get('inheritWereadProfile'),
-          api.settings.get('cloudSync'),
-          api.settings.get('autoBackup'),
-          api.settings.get('backupFreq'),
-          api.settings.get('lastBackupAt'),
         ])
         if (safeStr(nick)) setNickname(safeStr(nick))
         if (safeStr(mail)) setEmail(safeStr(mail))
         if (safeStr(tel)) setPhone(safeStr(tel))
         // inheritWereadProfile 默认 true；仅当显式存储为 false 时才视为关闭
         setInheritWereadProfile(inherit !== false)
-        if (typeof sync === 'boolean') setCloudSync(sync)
-        if (typeof backup === 'boolean') setAutoBackup(backup)
-        if (typeof freq === 'string' && BACKUP_FREQ_OPTIONS.some((o) => o.value === freq)) {
-          setBackupFreq(freq as BackupFreq)
-        }
-        if (safeStr(lastBackup)) setLastBackupAt(safeStr(lastBackup))
       } catch (err) {
         setError((err as Error).message)
       } finally {
@@ -171,47 +136,6 @@ export default function SettingsAccount() {
       setError((err as Error).message)
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleToggleCloudSync = async () => {
-    const next = !cloudSync
-    setCloudSync(next)
-    try {
-      await window.electronAPI?.settings?.set('cloudSync', next)
-    } catch {
-      /* 非致命：回滚状态 */
-      setCloudSync(!next)
-    }
-  }
-
-  const handleToggleAutoBackup = async () => {
-    const next = !autoBackup
-    setAutoBackup(next)
-    try {
-      await window.electronAPI?.settings?.set('autoBackup', next)
-    } catch {
-      /* 非致命：回滚状态 */
-      setAutoBackup(!next)
-    }
-  }
-
-  const handleBackupFreqChange = async (value: BackupFreq) => {
-    setBackupFreq(value)
-    try {
-      await window.electronAPI?.settings?.set('backupFreq', value)
-    } catch {
-      /* 非致命：保留前端状态 */
-    }
-  }
-
-  const handleBackupNow = async () => {
-    const now = new Date().toISOString()
-    setLastBackupAt(now)
-    try {
-      await window.electronAPI?.settings?.set('lastBackupAt', now)
-    } catch {
-      /* 非致命：保留前端状态 */
     }
   }
 
@@ -280,6 +204,7 @@ export default function SettingsAccount() {
                 className="settings-nav-item"
                 data-dom-id={item.domId}
                 data-active={item.active ? 'true' : undefined}
+                aria-current={item.active ? 'page' : undefined}
                 onClick={() => handleNavigate(item.path)}
                 style={{
                   width: '100%',
@@ -355,7 +280,7 @@ export default function SettingsAccount() {
                     className="tiny"
                     style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
                   >
-                    开启后使用微信读书官方账户信息（昵称/头像），本地信息无需填写
+                    开启后将在后续版本中自动从微信读书同步个人信息（当前版本暂未实现）
                   </div>
                 </div>
                 <button
@@ -419,7 +344,7 @@ export default function SettingsAccount() {
                     <Icon name="check" size={18} />
                   </span>
                   <span>
-                    已开启继承：个人信息将从微信读书官方账户同步，本地无需填写。
+                    已开启继承：将在后续版本中自动从微信读书同步个人信息（当前版本暂未实现）。
                   </span>
                 </div>
               ) : (
@@ -647,225 +572,6 @@ export default function SettingsAccount() {
                 </button>
               </div>
             </Card>
-
-            {/* ===== Card 3: 数据同步 ===== */}
-            <Card>
-              <CardHead eyebrow="同步" title="数据同步" />
-
-              {/* 云同步 */}
-              <div
-                className="form-row"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: 'calc(var(--spacing) * 3) 0',
-                  borderTop: '1px solid var(--border)',
-                  marginTop: 'calc(var(--spacing) * 4)',
-                  gap: 'calc(var(--spacing) * 4)',
-                }}
-              >
-                <div className="form-row-info" style={{ minWidth: 0, flex: 1 }}>
-                  <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                    云同步
-                  </strong>
-                  <div
-                    className="tiny"
-                    style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
-                  >
-                    将阅读数据同步到云端，多设备共享
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="toggle"
-                  data-dom-id="toggle-cloud-sync"
-                  data-on={cloudSync ? 'true' : 'false'}
-                  aria-label="云同步"
-                  aria-pressed={cloudSync}
-                  onClick={handleToggleCloudSync}
-                  style={{
-                    width: 44,
-                    height: 24,
-                    borderRadius: 999,
-                    background: cloudSync ? 'var(--primary)' : 'var(--muted)',
-                    position: 'relative',
-                    cursor: 'pointer',
-                    transition: 'background 0.2s ease',
-                    flexShrink: 0,
-                    border: 'none',
-                    padding: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: 2,
-                      left: cloudSync ? 'auto' : 2,
-                      right: cloudSync ? 2 : 'auto',
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      background: 'var(--card)',
-                      transition: 'transform 0.2s ease',
-                    }}
-                  />
-                </button>
-              </div>
-
-              {/* 自动备份 */}
-              <div
-                className="form-row"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: 'calc(var(--spacing) * 3) 0',
-                  borderTop: '1px solid var(--border)',
-                  marginTop: 'calc(var(--spacing) * 4)',
-                  gap: 'calc(var(--spacing) * 4)',
-                }}
-              >
-                <div className="form-row-info" style={{ minWidth: 0, flex: 1 }}>
-                  <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                    自动备份
-                  </strong>
-                  <div
-                    className="tiny"
-                    style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
-                  >
-                    定期备份本地数据库，防止数据丢失
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="toggle"
-                  data-dom-id="toggle-auto-backup"
-                  data-on={autoBackup ? 'true' : 'false'}
-                  aria-label="自动备份"
-                  aria-pressed={autoBackup}
-                  onClick={handleToggleAutoBackup}
-                  style={{
-                    width: 44,
-                    height: 24,
-                    borderRadius: 999,
-                    background: autoBackup ? 'var(--primary)' : 'var(--muted)',
-                    position: 'relative',
-                    cursor: 'pointer',
-                    transition: 'background 0.2s ease',
-                    flexShrink: 0,
-                    border: 'none',
-                    padding: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: 2,
-                      left: autoBackup ? 'auto' : 2,
-                      right: autoBackup ? 2 : 'auto',
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      background: 'var(--card)',
-                      transition: 'transform 0.2s ease',
-                    }}
-                  />
-                </button>
-              </div>
-
-              {/* 备份频率 */}
-              <div
-                className="form-field"
-                style={{
-                  marginTop: 'calc(var(--spacing) * 5)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'calc(var(--spacing) * 2)',
-                }}
-              >
-                <label
-                  className="form-label"
-                  htmlFor="backup-freq"
-                  style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--card-foreground)' }}
-                >
-                  备份频率
-                </label>
-                <select
-                  id="backup-freq"
-                  className="form-select"
-                  data-dom-id="select-backup-freq"
-                  value={backupFreq}
-                  onChange={(e) => handleBackupFreqChange(e.target.value as BackupFreq)}
-                  style={{
-                    padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                    border: '1px solid var(--input)',
-                    borderRadius: 'var(--radius)',
-                    background: 'var(--popover)',
-                    color: 'var(--foreground)',
-                    fontSize: '0.92rem',
-                    fontFamily: 'var(--font-sans)',
-                    outline: 'none',
-                    transition: 'border-color 0.2s ease',
-                    width: '100%',
-                    cursor: 'pointer',
-                  }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--ring)' }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--input)' }}
-                >
-                  {BACKUP_FREQ_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 上次备份状态 */}
-              <div
-                className="sync-status"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'calc(var(--spacing) * 3)',
-                  padding: 'calc(var(--spacing) * 4)',
-                  background: 'var(--background)',
-                  borderRadius: 'var(--radius)',
-                  border: '1px solid var(--border)',
-                  marginTop: 'calc(var(--spacing) * 4)',
-                }}
-              >
-                <span
-                  className="status-dot"
-                  aria-hidden="true"
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: '50%',
-                    background: 'var(--state-success)',
-                    flexShrink: 0,
-                  }}
-                />
-                <div className="status-text" style={{ minWidth: 0, flex: 1 }}>
-                  <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                    上次备份
-                  </strong>
-                  <div
-                    className="tiny"
-                    style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
-                  >
-                    {lastBackupAt
-                      ? `${formatBackupTime(lastBackupAt)} ${backupFreq === 'daily' ? '自动备份' : backupFreq === 'weekly' ? '自动备份' : '手动备份'}`
-                      : '尚未备份'}
-                  </div>
-                </div>
-                <Button
-                  variant="secondary"
-                  data-dom-id="cta-backup-now"
-                  onClick={handleBackupNow}
-                >
-                  立即备份
-                </Button>
-              </div>
-            </Card>
           </div>
         </div>
       </PageHero>
@@ -890,11 +596,6 @@ export default function SettingsAccount() {
             gap: calc(var(--spacing) * 3) !important;
           }
           .inherit-toggle-row {
-            flex-direction: column !important;
-            align-items: flex-start !important;
-            gap: calc(var(--spacing) * 3) !important;
-          }
-          .sync-status {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: calc(var(--spacing) * 3) !important;
