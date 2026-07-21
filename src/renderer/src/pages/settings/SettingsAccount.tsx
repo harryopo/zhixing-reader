@@ -14,6 +14,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
 import { safeStr } from '@/utils/db-mapper'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 /** 设置分类导航项 */
 interface SettingsNavItem {
@@ -90,6 +91,9 @@ function formatBackupTime(iso: string): string {
 export default function SettingsAccount() {
   const navigate = useNavigate()
 
+  // 复习模块开关（来自 settingsStore，与 Sidebar/App 共享状态）
+  const { reviewEnabled, loadSettings, setReviewEnabled } = useSettingsStore()
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
@@ -145,7 +149,9 @@ export default function SettingsAccount() {
       }
     }
     load()
-  }, [])
+    // 同步加载全局设置（含 reviewEnabled），供侧栏与路由共享
+    void loadSettings()
+  }, [loadSettings])
 
   // ===== 派生值 =====
   const remainingDays = useMemo(() => daysUntil(membershipExpiry), [membershipExpiry])
@@ -775,7 +781,73 @@ export default function SettingsAccount() {
               </div>
             </Card>
 
-            {/* ===== Card 4: 数据同步 ===== */}
+            {/* ===== Card 4: 功能模块 ===== */}
+            <Card>
+              <CardHead eyebrow="功能" title="功能模块" />
+
+              {/* 复习模块开关 */}
+              <div
+                className="form-row"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: 'calc(var(--spacing) * 3) 0',
+                  borderTop: '1px solid var(--border)',
+                  marginTop: 'calc(var(--spacing) * 4)',
+                  gap: 'calc(var(--spacing) * 4)',
+                }}
+              >
+                <div className="form-row-info" style={{ minWidth: 0, flex: 1 }}>
+                  <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
+                    复习模块
+                  </strong>
+                  <div
+                    className="tiny"
+                    style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
+                  >
+                    关闭后侧栏隐藏复习入口，/review 路由重定向到首页（FSRS 卡片数据保留）
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="toggle"
+                  data-dom-id="toggle-review-enabled"
+                  data-on={reviewEnabled ? 'true' : 'false'}
+                  aria-label="复习模块开关"
+                  aria-pressed={reviewEnabled}
+                  onClick={() => void setReviewEnabled(!reviewEnabled)}
+                  style={{
+                    width: 44,
+                    height: 24,
+                    borderRadius: 999,
+                    background: reviewEnabled ? 'var(--primary)' : 'var(--muted)',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease',
+                    flexShrink: 0,
+                    border: 'none',
+                    padding: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      left: reviewEnabled ? 'auto' : 2,
+                      right: reviewEnabled ? 2 : 'auto',
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: 'var(--card)',
+                      transition: 'transform 0.2s ease',
+                    }}
+                  />
+                </button>
+              </div>
+            </Card>
+
+            {/* ===== Card 5: 数据同步 ===== */}
             <Card>
               <CardHead eyebrow="同步" title="数据同步" />
 

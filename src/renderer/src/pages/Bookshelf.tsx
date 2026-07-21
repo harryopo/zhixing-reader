@@ -70,6 +70,20 @@ const SORTS: { key: SortKey; label: string }[] = [
 
 // ===== 工具函数 =====
 
+/**
+ * 标准化进度到 0-1 范围。
+ * 兼容微信读书 API 返回的 0-1 小数与历史数据中可能存在的 0-100 百分比：
+ *   - 大于 1 的值视为百分比，除以 100 归一化
+ *   - 负数或 NaN 视为 0
+ * 修复历史 bug：筛选「在读」时 progress>0 && progress<1 永远为 false（数据是 0-100 时），
+ * 导致用户点击筛选按钮"无反应"。
+ */
+function normalizeProgress(raw: number): number {
+  if (!Number.isFinite(raw) || raw < 0) return 0
+  if (raw > 1) return raw / 100
+  return raw
+}
+
 function sortByReadTime(books: BookRow[]): BookRow[] {
   return [...books].sort((a, b) => {
     const timeA = a.lastReadAt ? new Date(a.lastReadAt).getTime() : 0
@@ -79,7 +93,7 @@ function sortByReadTime(books: BookRow[]): BookRow[] {
 }
 
 function getReadingStatus(book: BookRow): { label: string; variant: 'ok' | 'alert' | 'default' } {
-  const progress = safeNum(book.progress ?? book.reading_progress)
+  const progress = normalizeProgress(safeNum(book.progress ?? book.reading_progress))
   const isFinished = safeNum(book.isFinished ?? book.is_finished)
   if (isFinished === 1 || progress >= 1) return { label: '已读完', variant: 'ok' }
   if (progress > 0) return { label: '在读', variant: 'ok' }
@@ -343,7 +357,8 @@ export default function Bookshelf() {
     // 筛选
     if (filter !== 'all') {
       list = list.filter((b) => {
-        const progress = safeNum(b.progress ?? b.reading_progress)
+        // 使用 normalizeProgress 兼容 0-1 与 0-100 两种进度格式
+        const progress = normalizeProgress(safeNum(b.progress ?? b.reading_progress))
         const isFinished = safeNum(b.isFinished ?? b.is_finished)
         const bookCards = cards.filter(
           (c) => (c.bookId as string) === b.id,
@@ -356,12 +371,16 @@ export default function Bookshelf() {
 
         switch (filter) {
           case 'reading':
+            // 在读：未读完 + 进度 > 0 + 进度 < 1
             return isFinished !== 1 && progress > 0 && progress < 1
           case 'due':
+            // 待复习：存在到期卡片
             return hasDueCard
           case 'finished':
+            // 已读：标记已读完 或 进度 >= 1
             return isFinished === 1 || progress >= 1
           case 'wanted':
+            // 想读：未开始 + 未标记读完
             return progress === 0 && isFinished !== 1
           default:
             return true
@@ -395,8 +414,8 @@ export default function Bookshelf() {
       case 'progress':
         list.sort(
           (a, b) =>
-            safeNum(b.progress ?? b.reading_progress) -
-            safeNum(a.progress ?? a.reading_progress),
+            normalizeProgress(safeNum(b.progress ?? b.reading_progress)) -
+            normalizeProgress(safeNum(a.progress ?? a.reading_progress)),
         )
         break
     }
@@ -485,7 +504,8 @@ export default function Bookshelf() {
             }}
           >
             {filteredBooks.map((book, i) => {
-              const progress = safeNum(book.progress ?? book.reading_progress)
+              // 标准化进度到 0-1，确保 pct 显示与筛选逻辑一致
+              const progress = normalizeProgress(safeNum(book.progress ?? book.reading_progress))
               const status = getReadingStatus(book)
               const bookCards = getBookCards(book.id)
               const hasDueCard = bookCards.some((c) => {

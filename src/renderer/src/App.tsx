@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import ToastContainer from './components/Toast'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -18,6 +18,7 @@ import KnowledgeCards from './pages/KnowledgeCards'
 import DailyLearning from './pages/DailyLearning'
 import VocabularyPage from './pages/VocabularyPage'
 import AgentOrchestration from './pages/AgentOrchestration'
+import { useSettingsStore } from './stores/settingsStore'
 
 // 设置子页（懒加载，阶段2-P3 将填充实际内容）
 const SettingsAccount = lazy(() => import('./pages/settings/SettingsAccount'))
@@ -48,6 +49,9 @@ function Loading() {
 }
 
 function App() {
+  // 复习模块开关：关闭时 /review 路由重定向到首页
+  const reviewEnabled = useSettingsStore((s) => s.reviewEnabled)
+
   return (
     <>
       <ToastContainer />
@@ -60,7 +64,10 @@ function App() {
               <Route path="/bookshelf" element={<Bookshelf />} />
               <Route path="/bookshelf/:id" element={<BookDetail />} />
               <Route path="/notes" element={<Notes />} />
-              <Route path="/review" element={<Review />} />
+              <Route
+                path="/review"
+                element={reviewEnabled ? <Review /> : <Navigate to="/" replace />}
+              />
               <Route path="/chat" element={<Chat />} />
               <Route path="/stats" element={<Stats />} />
               <Route path="/token-usage" element={<TokenUsage />} />

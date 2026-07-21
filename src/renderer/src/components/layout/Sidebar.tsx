@@ -9,6 +9,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Icon, { IconName } from '@/components/ui/Icon'
 import type { TokenSummary } from 'src/types/renderer'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 interface NavItem {
   key: string
@@ -51,6 +52,9 @@ interface SidebarProps {
 export default function Sidebar({ collapsed = false }: SidebarProps) {
   const location = useLocation()
   const [tokenSummary, setTokenSummary] = useState<TokenSummary | null>(null)
+  // 复习模块开关：用于条件渲染复习导航项
+  const reviewEnabled = useSettingsStore((s) => s.reviewEnabled)
+  const loadSettings = useSettingsStore((s) => s.loadSettings)
 
   useEffect(() => {
     let active = true
@@ -64,12 +68,14 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       }
     }
     loadTokenData()
+    // 加载全局设置（含 reviewEnabled），与 SettingsAccount 共享状态
+    void loadSettings()
     const interval = setInterval(loadTokenData, 30000)
     return () => {
       active = false
       clearInterval(interval)
     }
-  }, [])
+  }, [loadSettings])
 
   /** 判断导航项是否高亮（end 严格匹配 / matchPrefix 前缀匹配 / 默认前缀匹配） */
   const isActive = (item: NavItem): boolean => {
@@ -131,7 +137,11 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
 
       {/* ===== Nav ===== */}
       <nav className="nav" aria-label="主导航" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => {
+          // 复习模块关闭时隐藏复习导航项
+          if (item.key === 'review' && !reviewEnabled) return false
+          return true
+        }).map((item) => {
           const active = isActive(item)
           return (
             <NavLink

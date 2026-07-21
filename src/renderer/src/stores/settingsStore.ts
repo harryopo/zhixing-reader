@@ -5,6 +5,8 @@ interface SettingsState {
   llmEndpoint: string
   llmKey: string
   llmModel: string
+  /** 复习模块开关（默认 true）。关闭后侧栏隐藏复习入口、/review 路由重定向 /home */
+  reviewEnabled: boolean
 
   loading: boolean
   saving: boolean
@@ -23,6 +25,8 @@ interface SettingsState {
   setLlmEndpoint: (endpoint: string) => void
   setLlmKey: (key: string) => void
   setLlmModel: (model: string) => void
+  /** 切换复习模块开关并持久化到 settings 表 */
+  setReviewEnabled: (enabled: boolean) => Promise<void>
   clearTestResult: () => void
   clearError: () => void
 }
@@ -32,6 +36,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   llmEndpoint: '',
   llmKey: '',
   llmModel: '',
+  reviewEnabled: true,
   loading: false,
   saving: false,
   testingWeread: false,
@@ -49,6 +54,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         llmEndpoint: (settings.llmEndpoint as string) || '',
         llmKey: (settings.llmKey as string) || '',
         llmModel: (settings.llmModel as string) || '',
+        // reviewEnabled 默认 true；仅当显式存储为 false 时才视为关闭
+        reviewEnabled: settings.reviewEnabled !== false,
         loading: false
       })
     } catch (error) {
@@ -150,6 +157,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setLlmEndpoint: (endpoint: string) => set({ llmEndpoint: endpoint }),
   setLlmKey: (key: string) => set({ llmKey: key }),
   setLlmModel: (model: string) => set({ llmModel: model }),
+  setReviewEnabled: async (enabled: boolean) => {
+    // 乐观更新：先改 state，再持久化；失败时回滚
+    const prev = get().reviewEnabled
+    set({ reviewEnabled: enabled })
+    try {
+      await window.electronAPI?.settings?.set('reviewEnabled', enabled)
+    } catch (error) {
+      set({ reviewEnabled: prev, error: (error as Error).message })
+    }
+  },
   clearTestResult: () => set({ testResult: null }),
   clearError: () => set({ error: null })
 }))

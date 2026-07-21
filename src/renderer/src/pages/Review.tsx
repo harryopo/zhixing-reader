@@ -809,7 +809,7 @@ export default function Review() {
           className="review-stats"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
             gap: 'calc(var(--spacing) * 4)',
             marginTop: 'calc(var(--spacing) * 6)',
           }}
@@ -831,12 +831,6 @@ export default function Review() {
             metric={`${avgDuration || 18}s`}
             trend="每题"
             trendKind="default"
-          />
-          <StatCard
-            eyebrow="连续打卡"
-            metric={`${Math.min(17, reviewedCount + 1)} 天`}
-            trend="↑"
-            trendKind="up"
           />
         </div>
       </PageHero>
