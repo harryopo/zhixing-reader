@@ -179,6 +179,7 @@ export const IPC_CHANNELS = {
     DELETE: 'articles:delete',
     GET_STATS: 'articles:getStats',
     FETCH_RSS: 'articles:fetchRss',
+    TRANSLATE: 'articles:translate',
   },
   VOCABULARY: {
     GET_ALL: 'vocabulary:getAll',

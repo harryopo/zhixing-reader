@@ -95,6 +95,7 @@ const electronAPI = {
     delete: (id: string) => invoke(IPC_CHANNELS.ARTICLES.DELETE, id),
     getStats: () => invoke(IPC_CHANNELS.ARTICLES.GET_STATS),
     fetchRss: () => invoke(IPC_CHANNELS.ARTICLES.FETCH_RSS),
+    translate: (id: string) => invoke(IPC_CHANNELS.ARTICLES.TRANSLATE, id),
   },
 
   vocabulary: {

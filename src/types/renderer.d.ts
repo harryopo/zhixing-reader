@@ -69,6 +69,7 @@ export interface ElectronAPI {
     delete: (id: string) => Promise<void>
     getStats: () => Promise<{ total: number; today: number }>
     fetchRss: () => Promise<Record<string, unknown>[]>
+    translate: (id: string) => Promise<{ title_zh: string; summary_zh: string; content_zh: string }>
   }
   vocabulary: {
     getAll: (limit?: number) => Promise<Record<string, unknown>[]>

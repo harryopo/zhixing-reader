@@ -180,6 +180,33 @@ export function registerIpcHandlers(): void {
     return savedArticles;
   });
 
+  // 按需翻译单篇文章（用户点击触发，避免 RSS 拉取时 silent fail 导致无中文）
+  handle(IPC_CHANNELS.ARTICLES.TRANSLATE, async (id: string) => {
+    const article = articlesDb.getById(id);
+    if (!article) throw new Error('文章不存在');
+    const titleEn = String(article.title_en || '');
+    const contentEn = String(article.content_en || '');
+    if (!titleEn || !contentEn) throw new Error('文章内容为空，无法翻译');
+
+    try {
+      const { title_zh, summary_zh, content_zh } = await translateArticle(titleEn, contentEn);
+      const db = getDatabase();
+      db.run(
+        'UPDATE articles SET title_zh = ?, summary_zh = ?, content_zh = ? WHERE id = ?',
+        [title_zh, summary_zh, content_zh, id]
+      );
+      forceSaveDatabase();
+      logger.info('Article translated on demand', { id });
+      return { title_zh, summary_zh, content_zh };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('not configured') || msg.includes('AI service')) {
+        throw new Error('AI 服务未配置，请前往「设置 > AI 模型」配置 API Key 后重试');
+      }
+      throw error;
+    }
+  });
+
   // 生词本
   handle(IPC_CHANNELS.VOCABULARY.GET_ALL, (limit?: number) => vocabularyDb.getAll(limit));
   handle(IPC_CHANNELS.VOCABULARY.GET_BY_ID, (id: string) => vocabularyDb.getById(id));

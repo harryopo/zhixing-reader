@@ -185,6 +185,9 @@ export default function DailyLearning() {
   // ===== Dashboard 新增状态 =====
   const [view, setView] = useState<'dashboard' | 'article'>('dashboard')
   const [taskOverrides, setTaskOverrides] = useState<Record<string, boolean>>({})
+  // 翻译与文章选择状态
+  const [translating, setTranslating] = useState(false)
+  const [showArticleList, setShowArticleList] = useState(false)
 
   // ===== 数据加载（全部保留） =====
 
@@ -681,6 +684,37 @@ export default function DailyLearning() {
 
   const handleBackToDashboard = () => {
     setView('dashboard')
+    setShowArticleList(false)
+  }
+
+  // 按需翻译当前文章（content_zh 为空或用户主动触发重新翻译）
+  const handleTranslateArticle = async () => {
+    const article = articles[currentIndex]
+    if (!article || translating) return
+    try {
+      setTranslating(true)
+      const { title_zh, summary_zh, content_zh } = await window.electronAPI.article.translate(article.id)
+      setArticles(prev => prev.map((a, i) =>
+        i === currentIndex ? { ...a, title_zh, summary_zh, content_zh } : a
+      ))
+      toast.success('翻译完成')
+    } catch (error) {
+      console.error('翻译失败:', error)
+      const msg = error instanceof Error ? error.message : String(error)
+      toast.error('翻译失败：' + msg)
+    } finally {
+      setTranslating(false)
+    }
+  }
+
+  // 从文章列表选择一篇切换
+  const handleSelectArticle = (articleId: string) => {
+    const idx = articles.findIndex(a => a.id === articleId)
+    if (idx < 0) return
+    setCurrentIndex(idx)
+    setVisibleTranslations(new Set())
+    preloadWordCache(articles[idx])
+    setShowArticleList(false)
   }
 
   // ===== 渲染：加载中 =====
@@ -726,10 +760,26 @@ export default function DailyLearning() {
               <Button variant="ghost" onClick={handleBackToDashboard} data-dom-id="cta-back-dashboard">
                 <Icon name="arrow-left" size={16} /> 返回今日学习
               </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setShowArticleList(!showArticleList)}
+                data-dom-id="cta-toggle-article-list"
+                aria-expanded={showArticleList}
+              >
+                <Icon name="menu" size={16} /> 文章列表
+              </Button>
               <Button variant="secondary" onClick={() => setShowVocabPanel(!showVocabPanel)} data-dom-id="cta-toggle-vocab">
                 <Icon name="vocabulary" size={16} /> 生词本
               </Button>
-              <Button variant="primary" onClick={handleFetchRss} data-dom-id="cta-fetch-rss-article">
+              <Button
+                variant="primary"
+                onClick={handleTranslateArticle}
+                disabled={translating}
+                data-dom-id="cta-translate-article"
+              >
+                <Icon name="refresh" size={16} /> {translating ? '翻译中...' : (currentArticle.content_zh ? '重新翻译' : '翻译此文')}
+              </Button>
+              <Button variant="ghost" onClick={handleFetchRss} data-dom-id="cta-fetch-rss-article">
                 <Icon name="refresh" size={16} /> 获取新文章
               </Button>
             </>
@@ -804,7 +854,7 @@ export default function DailyLearning() {
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.3 }}>
-                  {currentArticle.title_zh || '翻译加载中...'}
+                  {currentArticle.title_zh || '（未翻译，点击右上角「翻译此文」）'}
                 </h3>
                 {currentArticle.summary_zh && (
                   <p style={{ margin: '0.5rem 0 0', fontSize: '0.82rem', color: 'var(--muted-foreground)' }}>
@@ -859,13 +909,19 @@ export default function DailyLearning() {
                     )}
                   </div>
                   <div style={{ padding: 'calc(var(--spacing) * 5)' }}>
-                    {isTranslationVisible && zhParagraphs[index] ? (
-                      <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--foreground)' }}>
-                        {zhParagraphs[index]}
-                      </p>
+                    {currentArticle.content_zh ? (
+                      isTranslationVisible && zhParagraphs[index] ? (
+                        <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--foreground)' }}>
+                          {zhParagraphs[index]}
+                        </p>
+                      ) : (
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
+                          点击左侧英文查看翻译
+                        </p>
+                      )
                     ) : (
-                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
-                        点击左侧英文查看翻译
+                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--state-warning)', fontStyle: 'italic' }}>
+                        本文尚未翻译，请点击右上角「翻译此文」
                       </p>
                     )}
                   </div>
@@ -939,6 +995,16 @@ export default function DailyLearning() {
               e.preventDefault()
               setContextMenu({ x: e.clientX, y: e.clientY, word })
             }}
+          />
+        )}
+
+        {/* 文章列表面板（左侧抽屉，类似 VocabPanel） */}
+        {showArticleList && (
+          <ArticleListPanel
+            articles={articles}
+            currentArticleId={currentArticle.id}
+            onSelect={handleSelectArticle}
+            onClose={() => setShowArticleList(false)}
           />
         )}
 
@@ -1867,6 +1933,144 @@ function VocabPanel({
               ))}
             </div>
           )
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ===== 子组件：文章列表面板（左侧抽屉，便于切换文章） =====
+interface ArticleListPanelProps {
+  articles: Article[]
+  currentArticleId: string
+  onSelect: (articleId: string) => void
+  onClose: () => void
+}
+
+function ArticleListPanel({ articles, currentArticleId, onSelect, onClose }: ArticleListPanelProps) {
+  // ESC 关闭
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  const currentIdx = articles.findIndex(a => a.id === currentArticleId)
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="文章列表"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: 360,
+        background: 'var(--card)',
+        borderRight: '1px solid var(--border)',
+        boxShadow: 'var(--shadow-xl)',
+        zIndex: 40,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* 面板头部 */}
+      <div style={{ padding: 'calc(var(--spacing) * 4)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)' }}>文章列表</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--muted-foreground)',
+              cursor: 'pointer',
+              padding: '0.34rem',
+              borderRadius: 'var(--radius-sm)',
+              display: 'grid',
+              placeItems: 'center',
+            }}
+            aria-label="关闭"
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+        <div style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', marginTop: '0.5rem' }}>
+          共 {articles.length} 篇 · 当前第 {currentIdx + 1} 篇
+        </div>
+      </div>
+
+      {/* 列表 */}
+      <div style={{ flex: 1, overflow: 'auto', padding: 'calc(var(--spacing) * 3)' }}>
+        {articles.length === 0 ? (
+          <p style={{ color: 'var(--muted-foreground)', fontSize: '0.85rem', textAlign: 'center', padding: 'calc(var(--spacing) * 6) 0' }}>
+            暂无文章，请点击右上角「获取新文章」
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
+            {articles.map((article, idx) => {
+              const isCurrent = article.id === currentArticleId
+              const isTranslated = Boolean(article.content_zh)
+              return (
+                <button
+                  key={article.id}
+                  type="button"
+                  onClick={() => onSelect(article.id)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.34rem',
+                    padding: 'calc(var(--spacing) * 3)',
+                    border: '1px solid',
+                    borderColor: isCurrent ? 'var(--primary)' : 'var(--border)',
+                    borderRadius: 'var(--radius)',
+                    background: isCurrent ? 'var(--secondary)' : 'var(--background)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    font: 'inherit',
+                    color: 'inherit',
+                  }}
+                  onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.borderColor = 'var(--ring)' }}
+                  onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)' }}>#{idx + 1}</span>
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      {article.is_favorite && (
+                        <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', borderRadius: 999, background: 'var(--state-warning)', color: '#ffffff' }}>
+                          收藏
+                        </span>
+                      )}
+                      {article.is_read && (
+                        <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', borderRadius: 999, background: 'var(--state-success)', color: '#ffffff' }}>
+                          已读
+                        </span>
+                      )}
+                      <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', borderRadius: 999, background: isTranslated ? 'var(--state-success)' : 'var(--muted)', color: '#ffffff' }}>
+                        {isTranslated ? '已译' : '未译'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {article.title_en}
+                  </div>
+                  {article.title_zh && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
+                      {article.title_zh}
+                    </div>
+                  )}
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)' }}>
+                    {article.source} · {DIFFICULTY_LABELS[article.difficulty as DifficultyFilter] ?? article.difficulty}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>
