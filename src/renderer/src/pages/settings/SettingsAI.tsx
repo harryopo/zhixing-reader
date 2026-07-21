@@ -28,13 +28,6 @@ const DEFAULTS = {
   embeddingModel: 'text-embedding-3-small',
 }
 
-const MODEL_OPTIONS = [
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o-mini' },
-  { value: 'deepseek-chat', label: 'DeepSeek Chat' },
-  { value: 'custom', label: '自定义' },
-]
-
 const EMBEDDING_OPTIONS = [
   { value: 'text-embedding-3-small', label: 'text-embedding-3-small' },
   { value: 'text-embedding-3-large', label: 'text-embedding-3-large' },
@@ -610,16 +603,24 @@ export default function SettingsAI() {
                 {/* 模型 */}
                 <div className="form-field">
                   <label className="form-label" htmlFor="llm-model">模型</label>
-                  <select
-                    className="form-select"
+                  <input
+                    className="form-input"
                     id="llm-model"
+                    type="text"
+                    list="llm-model-suggestions"
+                    placeholder="如 deepseek-chat / deepseek-reasoner / gpt-4o"
                     value={llmModel}
                     onChange={(e) => setLlmModel(e.target.value)}
-                  >
-                    {MODEL_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  />
+                  <datalist id="llm-model-suggestions">
+                    <option value="gpt-4o" />
+                    <option value="gpt-4o-mini" />
+                    <option value="deepseek-chat" />
+                    <option value="deepseek-reasoner" />
+                    <option value="claude-sonnet-4-20250514" />
+                  </datalist>
+                  <div className="form-hint">支持自定义输入模型名，需与 API 厂商文档一致</div>
                 </div>
                 {/* Max Tokens */}
                 <div className="form-field">
