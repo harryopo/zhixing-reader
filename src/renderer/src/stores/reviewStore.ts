@@ -24,7 +24,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
   fetchDueCards: async () => {
     set({ loading: true, error: null })
     try {
-      const dueCards = await window.electronAPI.card.getDue()
+      const dueCards = await window.electronAPI.card.getDue(100)
       set({ dueCards, currentIndex: 0, showAnswer: false, completed: 0, loading: false })
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
