@@ -3,8 +3,7 @@
  * 基于设计稿 zhixing-reader-redesign/pages/daily-learning.html
  *
  * Dashboard 视图（默认）：
- *   Layer 1. 三栏看板：进度环 + 任务清单 + 连续打卡
- *   Layer 2. 本周概览（7 天日历卡片）
+ *   Layer 1. 两栏看板：进度环 + 任务清单
  *
  * Article 视图（点击阅读任务时切换）：
  *   - 保留原有文章阅读器全部功能（左右对照、悬停查词、翻译切换、收藏/标记已读）
@@ -85,8 +84,6 @@ interface DailyTask {
 
 const STAGE_LABELS: Record<number, string> = { 0: '新词', 1: '学习中', 2: '复习中' }
 
-const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-
 const TASK_TAG_STYLES: Record<TaskTag, { background: string; color: string; label: string }> = {
   read: { background: 'var(--chart-1)', color: 'var(--primary-foreground)', label: '阅读' },
   review: { background: 'var(--chart-2)', color: 'var(--primary-foreground)', label: '复习' },
@@ -123,28 +120,6 @@ function formatRelativeTime(dateStr: string | undefined): string {
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}小时后`
   return `${Math.floor(hours / 24)}天后`
-}
-
-/** 计算今天是本月第几天 */
-function getTodayDay(): number {
-  return new Date().getDate()
-}
-
-/** 计算本周一日期 */
-function getMondayOfThisWeek(): Date {
-  const today = new Date()
-  const dayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - dayOfWeek)
-  return monday
-}
-
-/** 格式化日期范围（如 "7 月 14-20 日"） */
-function formatWeekRange(): string {
-  const monday = getMondayOfThisWeek()
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-  return `${monday.getMonth() + 1} 月 ${monday.getDate()}-${sunday.getDate()} 日`
 }
 
 /** 截断长标题（用于任务标题） */
@@ -584,7 +559,7 @@ export default function DailyLearning() {
     list.push({ id: `task-${idx++}`, title: '整理今日笔记', duration: 10, category: '笔记', tag: 'note', done: false })
     list.push({ id: `task-${idx++}`, title: 'AI 对话：深度工作习惯', duration: 20, category: '对话', tag: 'chat', done: false })
     list.push({ id: `task-${idx++}`, title: '写卡片笔记 2 张', duration: 10, category: '卡片', tag: 'card', done: false })
-    list.push({ id: `task-${idx++}`, title: '打卡总结今日', duration: 5, category: '反思', tag: 'reflect', done: false })
+    list.push({ id: `task-${idx++}`, title: '总结反思今日', duration: 5, category: '反思', tag: 'reflect', done: false })
 
     return list
   }, [articles, dueWords, vocabulary])
@@ -601,42 +576,10 @@ export default function DailyLearning() {
   const elapsedMin = tasksView.filter(t => t.done).reduce((sum, t) => sum + t.duration, 0)
   const remainingMin = tasksView.filter(t => !t.done).reduce((sum, t) => sum + t.duration, 0)
 
-  // 今日日期与打卡天数
+  // 今日日期（中文星期名内联计算）
   const today = new Date()
-  const weekdayIdx = today.getDay() === 0 ? 6 : today.getDay() - 1
-  const subtitleDate = `${today.getFullYear()} 年 ${today.getMonth() + 1} 月 ${today.getDate()} 日 · ${WEEKDAY_LABELS[weekdayIdx]} · 连续 17 天`
-
-  // 本月打卡日历：1~今天 全部完成（设计稿 1:1）
-  const calendarCells = useMemo(() => {
-    const cells: { day: number; done: boolean }[] = []
-    const todayDay = getTodayDay()
-    for (let d = 1; d <= todayDay; d++) {
-      cells.push({ day: d, done: true })
-    }
-    return cells
-  }, [])
-
-  // 本周概览（设计稿示例数据，今日为"进行中"）
-  const weekSummary = useMemo(() => {
-    const monday = getMondayOfThisWeek()
-    const todayDate = today.toDateString()
-    return WEEKDAY_LABELS.map((name, i) => {
-      const date = new Date(monday)
-      date.setDate(monday.getDate() + i)
-      const isToday = date.toDateString() === todayDate
-      // 设计稿示例：周一 5/8 / 周二 8/8 / 周三 6/8 / 周四 7/8 / 周五 8/8 / 周六 4/6 / 周日 5/8
-      const sample = [
-        { done: 5, total: 8, status: '部分' },
-        { done: 8, total: 8, status: '完成' },
-        { done: 6, total: 8, status: '部分' },
-        { done: 7, total: 8, status: '部分' },
-        { done: 8, total: 8, status: '完成' },
-        { done: 4, total: 6, status: '部分' },
-        { done: 5, total: 8, status: '进行中' },
-      ][i]
-      return { name, ...sample, isToday }
-    })
-  }, [today])
+  const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const subtitleDate = `${today.getFullYear()} 年 ${today.getMonth() + 1} 月 ${today.getDate()} 日 · ${weekdayNames[today.getDay()]}`
 
   // ===== Dashboard 任务交互 =====
 
@@ -665,7 +608,7 @@ export default function DailyLearning() {
       navigate('/knowledge-cards')
     } else if (task.tag === 'reflect') {
       setTaskOverrides(prev => ({ ...prev, [task.id]: true }))
-      toast.success('已打卡总结今日')
+      toast.success('已总结反思今日')
     }
   }
 
@@ -1255,12 +1198,12 @@ export default function DailyLearning() {
           </>
         }
       >
-        {/* ===== 第一层：三栏看板（进度环 + 任务清单 + 连续打卡） ===== */}
+        {/* ===== 第一层：两栏看板（进度环 + 任务清单） ===== */}
         <div
           className="grid daily"
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1.5fr 1fr',
+            gridTemplateColumns: '1fr 2fr',
             gap: 'calc(var(--spacing) * 5)',
             alignItems: 'stretch',
           }}
@@ -1407,85 +1350,7 @@ export default function DailyLearning() {
               })}
             </div>
           </Card>
-
-          {/* 右栏：连续打卡卡片 */}
-          <Card aria-label="连续打卡统计">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', marginBottom: 'calc(var(--spacing) * 4)' }}>
-              <div>
-                <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>连续打卡</span>
-                <strong style={{ display: 'block', marginTop: '0.3rem', fontSize: '1rem', color: 'var(--card-foreground)' }}>17 天</strong>
-              </div>
-            </div>
-            <div style={{ fontSize: '1.875rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)', textAlign: 'center', margin: 'calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>17</div>
-            <div style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--muted-foreground)', lineHeight: 1.5 }}>历史最长 23 天 · 距破纪录 6 天</div>
-            <div style={{ marginTop: 'calc(var(--spacing) * 5)' }}>
-              <div style={{ marginBottom: 'calc(var(--spacing) * 3)' }}>
-                <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>本月打卡</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 'calc(var(--spacing) * 1.5)' }}>
-                {calendarCells.map((cell) => (
-                  <span
-                    key={cell.day}
-                    style={{
-                      aspectRatio: '1',
-                      borderRadius: 4,
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontSize: '0.72rem',
-                      fontFamily: 'var(--font-mono)',
-                      fontVariantNumeric: 'tabular-nums',
-                      fontWeight: 600,
-                      background: 'var(--state-success)',
-                      color: 'var(--card)',
-                    }}
-                  >
-                    {cell.day}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </Card>
         </div>
-
-        {/* ===== 第二层：本周概览 ===== */}
-        <Card aria-label="本周学习概览">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', marginBottom: 'calc(var(--spacing) * 4)' }}>
-            <div>
-              <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>本周概览</span>
-              <strong style={{ display: 'block', marginTop: '0.3rem', fontSize: '1rem', color: 'var(--card-foreground)' }}>{formatWeekRange()}</strong>
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 'calc(var(--spacing) * 3)' }}>
-            {weekSummary.map((day, i) => (
-              <div
-                key={i}
-                style={{
-                  padding: 'calc(var(--spacing) * 4)',
-                  border: '1px solid',
-                  borderColor: day.isToday ? 'var(--primary)' : 'var(--border)',
-                  borderRadius: 'var(--radius)',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'calc(var(--spacing) * 2)',
-                  background: day.isToday ? 'var(--popover)' : 'var(--background)',
-                }}
-              >
-                <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{day.name}</span>
-                <span style={{ fontSize: '1.1rem', fontWeight: 700, fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--foreground)' }}>{day.done}/{day.total}</span>
-                <span style={{ alignSelf: 'center' }}>
-                  {day.status === '完成' ? (
-                    <Badge variant="success">完成</Badge>
-                  ) : day.status === '进行中' ? (
-                    <Badge variant="alert">进行中</Badge>
-                  ) : (
-                    <Badge>部分</Badge>
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
       </PageHero>
 
       {/* 生词本侧边面板（dashboard 视图也可访问） */}
