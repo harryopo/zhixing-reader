@@ -1,11 +1,13 @@
 import { useState, ReactElement, lazy, Suspense } from 'react'
+import { Link } from 'react-router-dom'
 
 const AdminDashboard = lazy(() => import('./AdminDashboard'))
 const PromptCenter = lazy(() => import('./PromptCenter'))
 const DatabaseBrowser = lazy(() => import('./DatabaseBrowser'))
 const KnowledgeBase = lazy(() => import('./KnowledgeBase'))
+const SessionHistory = lazy(() => import('./SessionHistory'))
 
-type TabKey = 'dashboard' | 'prompts' | 'database' | 'knowledge'
+type TabKey = 'dashboard' | 'prompts' | 'database' | 'knowledge' | 'sessions'
 
 const tabs: { key: TabKey; label: string; icon: ReactElement }[] = [
   {
@@ -23,6 +25,15 @@ const tabs: { key: TabKey; label: string; icon: ReactElement }[] = [
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'sessions',
+    label: '会话历史',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
@@ -57,12 +68,12 @@ export default function AdminPage() {
             <h1 className="text-sm font-semibold text-gray-800">智能体管理后台</h1>
             <span className="text-[11px] text-gray-400">数据 · 提示词 · 数据库</span>
           </div>
-          <a
-            href="#/"
+          <Link
+            to="/"
             className="px-3 py-1.5 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium"
           >
             返回应用
-          </a>
+          </Link>
         </div>
         <div className="max-w-6xl mx-auto px-5 flex gap-1 overflow-x-auto">
           {tabs.map(tab => (
@@ -87,6 +98,7 @@ export default function AdminPage() {
           <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div></div>}>
             {activeTab === 'dashboard' && <AdminDashboard />}
             {activeTab === 'prompts' && <PromptCenter />}
+            {activeTab === 'sessions' && <SessionHistory />}
             {activeTab === 'database' && <DatabaseBrowser />}
             {activeTab === 'knowledge' && <KnowledgeBase />}
           </Suspense>
