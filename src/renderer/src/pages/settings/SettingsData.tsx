@@ -733,6 +733,34 @@ export default function SettingsData() {
                 }
               />
               <div
+                className="usage-note"
+                role="note"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 'calc(var(--spacing) * 2.5)',
+                  padding: 'calc(var(--spacing) * 3.5)',
+                  background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                  borderRadius: 'var(--radius)',
+                  marginBottom: 'calc(var(--spacing) * 4)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.6,
+                }}
+              >
+                <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                  <Icon name="info" size={16} />
+                </span>
+                <span>
+                  <strong>用途说明：</strong>
+                  展示本地存储的三类占用：<strong>SQLite 数据库</strong>（书籍/笔记/卡片/对话等业务数据，运行于 sql.js WASM）/
+                  <strong>缓存</strong>（微信读书 API 内存缓存与图片/网页临时文件）/<strong>向量库</strong>（Qdrant 索引，可选）。
+                  KPI 计数通过 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>admin.getStats</code> 实时拉取；
+                  容量上限为设计稿默认值 512MB，仅作可视化参考，无硬性配额。
+                </span>
+              </div>
+              <div
                 className="kpi-grid"
                 style={{
                   display: 'grid',
@@ -827,6 +855,33 @@ export default function SettingsData() {
             <Card>
               <CardHead eyebrow="数据与存储" title="缓存管理" />
               <div
+                className="usage-note"
+                role="note"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 'calc(var(--spacing) * 2.5)',
+                  padding: 'calc(var(--spacing) * 3.5)',
+                  background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                  borderRadius: 'var(--radius)',
+                  marginBottom: 'calc(var(--spacing) * 4)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.6,
+                }}
+              >
+                <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                  <Icon name="info" size={16} />
+                </span>
+                <span>
+                  <strong>用途说明：</strong>
+                  三类清理操作的差异化用途：<strong>清理缓存</strong>仅清除微信读书 API 内存缓存（请求结果），不删除本地数据，安全可常用；
+                  <strong>清理历史记录</strong>删除全部对话记录（conversations + chat_messages 表），影响 AI 对话上下文，需二次确认；
+                  <strong>清理向量索引</strong>跳转至管理面板手动操作 Qdrant，重建索引将临时影响 AI 检索能力。
+                </span>
+              </div>
+              <div
                 className="cache-rows"
                 style={{ display: 'flex', flexDirection: 'column' }}
               >
@@ -882,6 +937,34 @@ export default function SettingsData() {
                 }
               />
               <div
+                className="usage-note"
+                role="note"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 'calc(var(--spacing) * 2.5)',
+                  padding: 'calc(var(--spacing) * 3.5)',
+                  background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                  borderRadius: 'var(--radius)',
+                  marginBottom: 'calc(var(--spacing) * 4)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.6,
+                }}
+              >
+                <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                  <Icon name="info" size={16} />
+                </span>
+                <span>
+                  <strong>用途说明：</strong>
+                  四种导入导出格式的差异化用途：<strong>导出全部数据</strong>（JSON）= 完整备份书架/笔记/卡片，可用于跨设备迁移或归档；
+                  <strong>导出笔记</strong>（Markdown）= 兼容 Obsidian/Logseq 等双链笔记软件，仅划线+笔记不含卡片；
+                  <strong>导出复习数据</strong>（CSV）= FSRS 调度记录，可用 Excel/Numbers 做复习行为分析；
+                  <strong>导入数据</strong>（JSON）= 从备份恢复，自动合并（冲突记录跳过，不覆盖现有数据）。
+                </span>
+              </div>
+              <div
                 className="io-grid"
                 style={{
                   display: 'grid',
@@ -924,6 +1007,36 @@ export default function SettingsData() {
                   </Button>
                 }
               />
+              <div
+                className="usage-note"
+                role="note"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 'calc(var(--spacing) * 2.5)',
+                  padding: 'calc(var(--spacing) * 3.5)',
+                  background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                  borderRadius: 'var(--radius)',
+                  marginBottom: 'calc(var(--spacing) * 4)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.6,
+                }}
+              >
+                <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                  <Icon name="info" size={16} />
+                </span>
+                <span>
+                  <strong>用途说明：</strong>
+                  FSRS（Free Spaced Repetition Scheduler）是间隔重复算法，决定每张卡片的下次复习时间。
+                  三个参数的用途：<strong>请求级别</strong>（1-10）越高复习越频繁，默认 3 适合多数读者；
+                  <strong>难度衰减</strong>（0-1）控制记忆衰减速度，默认 0.2；
+                  <strong>最大间隔</strong>（天）限制单张卡片最长复习周期，默认 365 天。
+                  参数保存路径：<code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>settings.set</code> 持久化 UI 值 +
+                  <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>fsrs.setParameters</code> 同步到引擎，立即影响后续复习调度。
+                </span>
+              </div>
               <div
                 className="form-grid"
                 style={{
@@ -1036,6 +1149,35 @@ export default function SettingsData() {
                 eyebrow="危险操作"
                 title="重置数据库"
               />
+              <div
+                className="usage-note"
+                role="note"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 'calc(var(--spacing) * 2.5)',
+                  padding: 'calc(var(--spacing) * 3.5)',
+                  background: 'color-mix(in srgb, var(--state-error) 10%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--state-error) 30%, transparent)',
+                  borderRadius: 'var(--radius)',
+                  marginBottom: 'calc(var(--spacing) * 4)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.6,
+                }}
+              >
+                <span aria-hidden="true" style={{ color: 'var(--state-error)', flexShrink: 0, marginTop: 2 }}>
+                  <Icon name="alert" size={16} />
+                </span>
+                <span>
+                  <strong>用途说明：</strong>
+                  本操作将清空本地 SQLite 数据库的全部业务表（书籍、笔记、卡片、对话、记忆、复习记录等）并重启应用。
+                  调用 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>system.resetDatabase</code>，主进程 500ms 后
+                  <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>app.relaunch()</code> + <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>app.exit(0)</code>。
+                  <strong style={{ color: 'var(--state-error)' }}>不可撤销</strong>，请务必先在「数据导入导出」卡片中导出 JSON 备份。
+                  三次确认机制：第 1 次警告数据丢失 → 第 2 次确认已备份 → 第 3 次最终确认。
+                </span>
+              </div>
               <div
                 className="danger-body"
                 style={{

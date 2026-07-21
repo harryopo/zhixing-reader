@@ -2,25 +2,27 @@
  * AgentOrchestration — 智能体编排页（Google Design Library 1:1 重构）
  * 基于设计稿 zhixing-reader-redesign/pages/agent-orchestration.html
  *
+ * T12 核查与重构说明（2026-07-21）：
+ *   - 6 步流水线后端全部真实可用（intent-classifier / strategy-selector / state-tracker /
+ *     context-manager / system-prompt / orchestrator），UI 改为「展示 + 真实可交互控件」
+ *   - 删除无效控件：意图 toggle/阈值 slider/关键词保存按钮（UI 保存到 settings.admin_intent_keywords，
+ *     后端 intent-classifier 实际读 prompt-storage.agent.intentKeywords，二者不通）
+ *   - 删除无效控件：bloomAuto toggle / builder toggle / maxMemories input（后端无对应配置入口）
+ *   - 保留真实可用控件：系统提示词 textarea + 保存/重置（admin.savePrompt('agent.system')）
+ *   - 保留真实可用控件：测试运行（ai.streamChatWithContext + 流式监听）
+ *   - trace 改为运行时占位（不再误导用户为「真实追踪」）
+ *   - 每张卡片加用途说明，明确「参数由后端 X 控制」
+ *
  * 结构：
  *   - hero: 标题 + 副标题 + 2 actions（测试运行 / 提示词管理）
  *   - pipeline-card: 6 步流水线（意图分类 → 策略选择 → 难度调整 → 上下文构建 → 系统提示 → 流式响应）
  *   - config-grid (2 列 × 3 卡片):
- *       左列：意图分类器（4 意图 toggle + slider + chips）/ 策略选择器（4×6 热力矩阵）/ 难度调整（3 规则 + 3 掌握度 + Bloom toggle）
- *       右列：上下文构建器（5 builder + 总预算 4000）/ 系统提示词（textarea + 6 var-chips）/ 记忆提取（3 规则 + max memories）
- *   - test-run-card: 测试问题输入 + 流水线 trace + 流式响应预览
+ *       左列：意图分类器（4 意图 chips + 阈值只读）/ 策略选择器（4×6 热力矩阵）/ 难度调整（3 规则 + 示例掌握度）
+ *       右列：上下文构建器（5 builder 预算只读）/ 系统提示词（textarea + 6 var-chips + 保存）/ 记忆提取（3 规则只读）
+ *   - test-run-card: 测试问题输入 + 流水线 trace 占位 + 流式响应预览
  *
- * 业务逻辑全部对接 electron/agent/* 后端：
- *   - intent-classifier.ts: 4 意图 + 关键词 + 阈值
- *   - strategy-selector.ts: INTENT_STRATEGY_MAP + Bloom L1-L6
- *   - state-tracker.ts: 升降级规则（3 对 / 2 错 / 5 对 mastered）
- *   - context-manager.ts: MAX_CONTEXT_TOKENS = 4000，5 个 builder 优先级排序
- *   - system-prompt.ts: agent.system 模板
- *   - orchestrator.ts: processMessageStream 全流程
- *
- * IPC 接口：
- *   - admin.getAgentConfig() → { systemPrompt, intentKeywords }
- *   - admin.saveAgentConfig(key, value) / resetAgentConfig(key)
+ * IPC 接口（真实可用）：
+ *   - admin.getAgentConfig() → { systemPrompt }
  *   - admin.savePrompt('agent.system', template) / resetPrompt('agent.system')
  *   - ai.streamChatWithContext({ sessionId, userMessage, conversationHistory })
  *   - ai.onStreamChunk / onStreamComplete / onStreamError / cancelStream
@@ -159,7 +161,7 @@ const DIFFICULTY_RULES: {
   },
 ]
 
-/** 概念掌握度示例（与设计稿一致，运行时可由 state-tracker 概念映射提供） */
+/** 概念掌握度示例数据（仅用于展示难度调整规则的输出形态；运行时由 state-tracker.ts 在内存中维护，无 UI 可读接口） */
 const CONCEPT_MASTERY: { name: string; level: string; pct: number; color: string }[] = [
   { name: '认知偏差', level: 'L4', pct: 78, color: 'var(--chart-1)' },
   { name: '边际效用', level: 'L3', pct: 64, color: 'var(--chart-3)' },
@@ -244,7 +246,7 @@ const MEMORY_RULES: { title: string; desc: string; icon: 'globe' | 'camera' | 'f
   },
 ]
 
-/** 6 步流水线（对应 electron/agent/orchestrator.ts processMessageStream 全流程） */
+/** 6 步流水线（对应 electron/agent/orchestrator.ts processMessageStream 全流程，全部真实在线） */
 const PIPELINE_STEPS: PipelineStep[] = [
   {
     no: '01',
@@ -253,7 +255,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
     status: 'active',
     iconName: 'question',
     badgeTone: 'info',
-    badgeLabel: '激活',
+    badgeLabel: '在线',
   },
   {
     no: '02',
@@ -262,16 +264,16 @@ const PIPELINE_STEPS: PipelineStep[] = [
     status: 'active',
     iconName: 'box',
     badgeTone: 'info',
-    badgeLabel: '激活',
+    badgeLabel: '在线',
   },
   {
     no: '03',
     title: '难度调整',
     desc: 'Bloom L1-L6 自动升降级',
-    status: 'idle',
+    status: 'active',
     iconName: 'arrow-up',
-    badgeTone: 'muted',
-    badgeLabel: '待命',
+    badgeTone: 'info',
+    badgeLabel: '在线',
   },
   {
     no: '04',
@@ -280,7 +282,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
     status: 'active',
     iconName: 'box',
     badgeTone: 'info',
-    badgeLabel: '激活',
+    badgeLabel: '在线',
   },
   {
     no: '05',
@@ -289,16 +291,16 @@ const PIPELINE_STEPS: PipelineStep[] = [
     status: 'active',
     iconName: 'edit',
     badgeTone: 'info',
-    badgeLabel: '激活',
+    badgeLabel: '在线',
   },
   {
     no: '06',
     title: '流式响应',
     desc: 'LLM 流式输出与 Token 追踪',
-    status: 'idle',
+    status: 'active',
     iconName: 'play',
-    badgeTone: 'muted',
-    badgeLabel: '待命',
+    badgeTone: 'info',
+    badgeLabel: '在线',
   },
 ]
 
@@ -331,14 +333,18 @@ const PROMPT_VARIABLES: { name: string; domId: string }[] = [
   { name: '{knowledge_card}', domId: 'var-knowledge-card' },
 ]
 
-/** 测试运行的默认 trace（与设计稿示例一致；流式响应到达后会更新「响应」行） */
+/**
+ * 测试运行 trace 占位（运行时由 onStreamComplete 更新「响应」行；其他行需后端 trace 事件支持，当前为占位）。
+ * 历史版本使用硬编码假数据（knowledge_query / direct_answer / L2 / 3700 / 412 tokens）会误导用户为真实追踪，
+ * 现统一改为「—」占位，仅当后端发送对应事件时才更新。
+ */
 const DEFAULT_TRACE: TraceRow[] = [
-  { label: '意图', value: 'knowledge_query', conf: '0.92' },
-  { label: '策略', value: 'direct_answer', conf: 'L2' },
-  { label: '难度', value: 'L2 理解', conf: '稳定' },
-  { label: '上下文', value: 'book + card + memory', conf: '3700' },
-  { label: '提示', value: 'template_v3 assembled', conf: '6/6' },
-  { label: '响应', value: 'streaming · 412 tokens', conf: 'live' },
+  { label: '意图', value: '—', conf: '运行时' },
+  { label: '策略', value: '—', conf: '运行时' },
+  { label: '难度', value: '—', conf: '运行时' },
+  { label: '上下文', value: '—', conf: '运行时' },
+  { label: '提示', value: '—', conf: '运行时' },
+  { label: '响应', value: '点击「运行测试」查看流式响应', conf: '就绪' },
 ]
 
 /** 测试问题输入框默认值（设计稿示例） */
@@ -523,65 +529,17 @@ function StatusBadge({
   )
 }
 
-/** 开关 toggle — 与设计稿 .toggle 一致 */
-function Toggle({
-  on,
-  onClick,
-  domId,
-  ariaLabel,
-}: {
-  on: boolean
-  onClick: () => void
-  domId?: string
-  ariaLabel: string
-}) {
-  return (
-    <button
-      type="button"
-      data-dom-id={domId}
-      aria-label={ariaLabel}
-      aria-pressed={on}
-      onClick={onClick}
-      style={{
-        width: 36,
-        height: 20,
-        borderRadius: 999,
-        background: on ? 'var(--primary)' : 'var(--muted)',
-        position: 'relative',
-        cursor: 'pointer',
-        transition: 'background 0.2s ease',
-        flexShrink: 0,
-        border: 'none',
-        padding: 0,
-      }}
-    >
-      <span
-        style={{
-          position: 'absolute',
-          top: 2,
-          left: on ? 'auto' : 2,
-          right: on ? 2 : 'auto',
-          width: 16,
-          height: 16,
-          borderRadius: '50%',
-          background: 'var(--card)',
-          transition: 'transform 0.2s ease',
-          display: 'block',
-        }}
-      />
-    </button>
-  )
-}
-
 // ===== 主组件 =====
 export default function AgentOrchestration() {
   const navigate = useNavigate()
 
   // 配置状态
-  const [intents, setIntents] = useState<IntentConfig[]>(DEFAULT_INTENTS)
-  const [builders, setBuilders] = useState<ContextBuilderConfig[]>(DEFAULT_BUILDERS)
-  const [bloomAuto, setBloomAuto] = useState(true)
-  const [maxMemories, setMaxMemories] = useState(5)
+  // 注：intents / builders 仅作只读展示（DEFAULT_INTENTS / DEFAULT_BUILDERS）。
+  // T12 核查发现：UI 的 toggle/slider/保存按钮保存到 settings.admin_intent_keywords，
+  // 但后端 intent-classifier 实际读 prompt-storage.agent.intentKeywords，二者不通；
+  // builder toggle / bloomAuto / maxMemories 后端无对应配置入口。因此全部改为只读展示。
+  const [intents] = useState<IntentConfig[]>(DEFAULT_INTENTS)
+  const [builders] = useState<ContextBuilderConfig[]>(DEFAULT_BUILDERS)
   const [promptTemplate, setPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -595,6 +553,9 @@ export default function AgentOrchestration() {
   const streamCleanupRef = useRef<Array<() => void>>([])
 
   // ===== 加载配置 =====
+  // 仅加载 systemPrompt（后端 admin.getAgentConfig 返回 { systemPrompt, intentKeywords }，
+  // 但 intentKeywords 字段为 UI 历史遗留，后端 intent-classifier 不读此字段，故不加载）。
+  // 系统提示词真实生效路径：admin.savePrompt('agent.system') → prompt-storage → system-prompt.ts。
   useEffect(() => {
     const loadConfig = async () => {
       if (!window.electronAPI?.admin?.getAgentConfig) {
@@ -604,21 +565,9 @@ export default function AgentOrchestration() {
       try {
         const config = (await window.electronAPI.admin.getAgentConfig()) as {
           systemPrompt?: string | null
-          intentKeywords?: Record<string, string[]> | null
         }
         if (config?.systemPrompt) {
           setPromptTemplate(config.systemPrompt)
-        }
-        if (config?.intentKeywords && typeof config.intentKeywords === 'object') {
-          setIntents((prev) =>
-            prev.map((it) => {
-              const kw = config.intentKeywords![it.key]
-              if (Array.isArray(kw) && kw.length > 0) {
-                return { ...it, keywords: kw }
-              }
-              return it
-            }),
-          )
         }
       } catch (err) {
         console.error('加载智能体配置失败:', err)
@@ -641,27 +590,7 @@ export default function AgentOrchestration() {
     }
   }, [])
 
-  // ===== 保存配置 =====
-  const handleSaveIntentKeywords = useCallback(
-    async (next: IntentConfig[]) => {
-      if (!window.electronAPI?.admin?.saveAgentConfig) return
-      setSaving(true)
-      try {
-        const payload: Record<string, string[]> = {}
-        next.forEach((it) => {
-          payload[it.key] = it.keywords
-        })
-        await window.electronAPI.admin.saveAgentConfig('admin_intent_keywords', payload)
-        toast.success('意图关键词已保存')
-      } catch (err) {
-        toast.error(`保存失败: ${err instanceof Error ? err.message : String(err)}`)
-      } finally {
-        setSaving(false)
-      }
-    },
-    [],
-  )
-
+  // ===== 保存系统提示词（真实可用：admin.savePrompt('agent.system') → prompt-storage） =====
   const handleSavePrompt = useCallback(async () => {
     if (!window.electronAPI?.admin?.savePrompt) {
       toast.error('当前环境不支持保存提示词')
@@ -697,22 +626,6 @@ export default function AgentOrchestration() {
     } finally {
       setSaving(false)
     }
-  }, [])
-
-  // ===== 意图 toggle / slider / 关键词编辑 =====
-  const toggleIntent = useCallback((key: IntentConfig['key']) => {
-    setIntents((prev) => prev.map((it) => (it.key === key ? { ...it, enabled: !it.enabled } : it)))
-  }, [])
-
-  const setIntentThreshold = useCallback((key: IntentConfig['key'], value: number) => {
-    setIntents((prev) => prev.map((it) => (it.key === key ? { ...it, threshold: value } : it)))
-  }, [])
-
-  // ===== Builder toggle =====
-  const toggleBuilder = useCallback((name: string) => {
-    setBuilders((prev) =>
-      prev.map((b) => (b.name === name ? { ...b, enabled: !b.enabled } : b)),
-    )
   }, [])
 
   // ===== 测试运行 =====
@@ -1071,15 +984,13 @@ export default function AgentOrchestration() {
                     <span
                       className="intent-conf"
                       style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--muted-foreground)', minWidth: 44, textAlign: 'right' }}
+                      title={`默认置信阈值 ${intent.threshold.toFixed(2)}（只读展示，由后端 intent-classifier 内部使用）`}
                     >
                       {intent.threshold.toFixed(2)}
                     </span>
-                    <Toggle
-                      on={intent.enabled}
-                      onClick={() => toggleIntent(intent.key)}
-                      domId={intent.domIdToggle}
-                      ariaLabel={`启用 ${intent.name} 意图`}
-                    />
+                    <StatusBadge tone={intent.enabled ? 'success' : 'muted'}>
+                      {intent.enabled ? '已启用' : '已禁用'}
+                    </StatusBadge>
                   </div>
                 </div>
                 <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 'calc(var(--spacing) * 2)' }}>
@@ -1104,45 +1015,35 @@ export default function AgentOrchestration() {
                     </span>
                   ))}
                 </div>
-                <div className="slider-row" style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)' }}>
-                  <input
-                    type="range"
-                    className="slider"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={intent.threshold}
-                    onChange={(e) => setIntentThreshold(intent.key, parseFloat(e.target.value))}
-                    data-dom-id={intent.domIdSlider}
-                    aria-label={`${intent.name} 置信阈值`}
-                    style={{
-                      flex: 1,
-                      WebkitAppearance: 'none',
-                      appearance: 'none',
-                      height: 4,
-                      borderRadius: 999,
-                      background: 'var(--muted)',
-                      outline: 'none',
-                      cursor: 'pointer',
-                    }}
-                  />
-                  <span
-                    className="slider-value"
-                    style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--foreground)', minWidth: 42, textAlign: 'right' }}
-                  >
-                    {intent.threshold.toFixed(2)}
-                  </span>
-                </div>
               </div>
             ))}
 
-            <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 4)' }}>
-              <Button variant="primary" onClick={() => handleSaveIntentKeywords(intents)} disabled={saving} data-dom-id="cta-save-intents">
-                <Icon name="check" size={15} /> 保存意图配置
-              </Button>
-              <Button variant="ghost" onClick={() => setIntents(DEFAULT_INTENTS)} disabled={saving}>
-                <Icon name="refresh" size={15} /> 恢复默认
-              </Button>
+            <div
+              className="usage-note"
+              role="note"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 'calc(var(--spacing) * 2.5)',
+                padding: 'calc(var(--spacing) * 3.5)',
+                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                borderRadius: 'var(--radius)',
+                marginTop: 'calc(var(--spacing) * 4)',
+                color: 'var(--foreground)',
+                fontSize: '0.82rem',
+                lineHeight: 1.6,
+              }}
+            >
+              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                <Icon name="info" size={16} />
+              </span>
+              <span>
+                <strong>用途说明：</strong>
+                本卡片为只读展示。意图关键词由后端 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/intent-classifier.ts</code> 从
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>prompt-storage.agent.intentKeywords</code> 读取，置信阈值为内部常量。
+                如需修改关键词，请前往「设置 → AI 模型配置 → 提示词模板 → 意图识别关键词」编辑保存，下次对话即生效。
+              </span>
             </div>
           </Card>
 
@@ -1257,6 +1158,34 @@ export default function AgentOrchestration() {
                   </span>
                 )
               })}
+            </div>
+
+            <div
+              className="usage-note"
+              role="note"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 'calc(var(--spacing) * 2.5)',
+                padding: 'calc(var(--spacing) * 3.5)',
+                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                borderRadius: 'var(--radius)',
+                marginTop: 'calc(var(--spacing) * 4)',
+                color: 'var(--foreground)',
+                fontSize: '0.82rem',
+                lineHeight: 1.6,
+              }}
+            >
+              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                <Icon name="info" size={16} />
+              </span>
+              <span>
+                <strong>用途说明：</strong>
+                本矩阵为只读展示，反映 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/strategy-selector.ts</code> 中
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>INTENT_STRATEGY_MAP</code> 与 Bloom L1-L6 等级的匹配关系。
+                矩阵频次为设计稿示例数据，运行时策略由意图分类结果 + 当前 Bloom 等级自动决定，无需用户配置。
+              </span>
             </div>
           </Card>
 
@@ -1382,18 +1311,32 @@ export default function AgentOrchestration() {
             </div>
 
             <div
-              className="mem-field"
-              style={{ borderTop: '1px solid var(--border)', marginTop: 'calc(var(--spacing) * 5)', paddingTop: 'calc(var(--spacing) * 4)', display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)' }}
+              className="usage-note"
+              role="note"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 'calc(var(--spacing) * 2.5)',
+                padding: 'calc(var(--spacing) * 3.5)',
+                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                borderRadius: 'var(--radius)',
+                marginTop: 'calc(var(--spacing) * 5)',
+                color: 'var(--foreground)',
+                fontSize: '0.82rem',
+                lineHeight: 1.6,
+              }}
             >
-              <span className="mem-field-label" style={{ fontSize: '0.86rem', color: 'var(--muted-foreground)', flex: 1 }}>
-                自动难度调整
+              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                <Icon name="info" size={16} />
               </span>
-              <Toggle
-                on={bloomAuto}
-                onClick={() => setBloomAuto((v) => !v)}
-                domId="toggle-bloom-auto"
-                ariaLabel="启用 Bloom 自动调整"
-              />
+              <span>
+                <strong>用途说明：</strong>
+                本卡片为只读展示。难度调整规则对应 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/state-tracker.ts</code> 的
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>adjustDifficulty</code> 逻辑，概念掌握度在内存中维护，无 UI 可读接口。
+                概念掌握度示例数据仅用于展示进度条形态。难度调整提示词可在「设置 → 提示词模板」的
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>agent.difficultyHint.*</code> 中编辑。
+              </span>
             </div>
           </Card>
         </div>
@@ -1482,12 +1425,9 @@ export default function AgentOrchestration() {
                   >
                     {b.budget}
                   </span>
-                  <Toggle
-                    on={b.enabled}
-                    onClick={() => toggleBuilder(b.name)}
-                    domId={b.domId}
-                    ariaLabel={`启用 ${b.name} 构建器`}
-                  />
+                  <StatusBadge tone={b.enabled ? 'success' : 'muted'}>
+                    {b.enabled ? '启用' : '禁用'}
+                  </StatusBadge>
                 </div>
                 <div
                   className="alloc-bar"
@@ -1528,6 +1468,34 @@ export default function AgentOrchestration() {
               <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)', fontWeight: 600 }}>
                 {budgetSummary.used} / {budgetSummary.total}
               </strong>
+            </div>
+
+            <div
+              className="usage-note"
+              role="note"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 'calc(var(--spacing) * 2.5)',
+                padding: 'calc(var(--spacing) * 3.5)',
+                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                borderRadius: 'var(--radius)',
+                marginTop: 'calc(var(--spacing) * 4)',
+                color: 'var(--foreground)',
+                fontSize: '0.82rem',
+                lineHeight: 1.6,
+              }}
+            >
+              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                <Icon name="info" size={16} />
+              </span>
+              <span>
+                <strong>用途说明：</strong>
+                本卡片为只读展示。构建器优先级与预算由 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/context-manager.ts</code> 与
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/builders/*</code> 内部常量决定，总预算上限
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>MAX_CONTEXT_TOKENS = 4000</code>。运行时按优先级组装上下文，超出预算自动截断。
+              </span>
             </div>
           </Card>
 
@@ -1626,6 +1594,35 @@ export default function AgentOrchestration() {
                 <Icon name="refresh" size={15} /> 重置默认
               </Button>
             </div>
+
+            <div
+              className="usage-note"
+              role="note"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 'calc(var(--spacing) * 2.5)',
+                padding: 'calc(var(--spacing) * 3.5)',
+                background: 'color-mix(in srgb, var(--state-success) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--state-success) 30%, transparent)',
+                borderRadius: 'var(--radius)',
+                marginTop: 'calc(var(--spacing) * 4)',
+                color: 'var(--foreground)',
+                fontSize: '0.82rem',
+                lineHeight: 1.6,
+              }}
+            >
+              <span aria-hidden="true" style={{ color: 'var(--state-success)', flexShrink: 0, marginTop: 2 }}>
+                <Icon name="check" size={16} />
+              </span>
+              <span>
+                <strong>用途说明：</strong>
+                本卡片为<strong>真实可交互</strong>控件。保存路径：<code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>admin.savePrompt('agent.system', template)</code> →
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>prompt-storage</code> →
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/system-prompt.ts</code> 读取生效。
+                点击变量 chip 可将 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{'{花括号}'}</code> 占位符插入到光标位置，运行时由各 builder 自动填充。
+              </span>
+            </div>
           </Card>
 
           {/* Card f: 记忆提取 */}
@@ -1704,34 +1701,31 @@ export default function AgentOrchestration() {
             </div>
 
             <div
-              className="mem-field"
-              style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 4)', paddingTop: 'calc(var(--spacing) * 4)', borderTop: '1px solid var(--border)' }}
+              className="usage-note"
+              role="note"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 'calc(var(--spacing) * 2.5)',
+                padding: 'calc(var(--spacing) * 3.5)',
+                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                borderRadius: 'var(--radius)',
+                marginTop: 'calc(var(--spacing) * 5)',
+                color: 'var(--foreground)',
+                fontSize: '0.82rem',
+                lineHeight: 1.6,
+              }}
             >
-              <span className="mem-field-label" style={{ fontSize: '0.86rem', color: 'var(--muted-foreground)', flex: 1 }}>
-                单次对话最大记忆条目
+              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                <Icon name="info" size={16} />
               </span>
-              <input
-                type="number"
-                className="mem-input"
-                value={maxMemories}
-                min={0}
-                max={20}
-                onChange={(e) => setMaxMemories(Math.max(0, Math.min(20, Number(e.target.value) || 0)))}
-                data-dom-id="input-max-memories"
-                aria-label="单次对话最大记忆条目"
-                style={{
-                  width: 84,
-                  padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
-                  border: '1px solid var(--input)',
-                  borderRadius: 'var(--radius)',
-                  background: 'var(--popover)',
-                  color: 'var(--foreground)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.82rem',
-                  textAlign: 'center',
-                  outline: 'none',
-                }}
-              />
+              <span>
+                <strong>用途说明：</strong>
+                本卡片为只读展示。记忆提取规则对应 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/services/memory-service.ts</code> 的
+                preference / fact / feedback 三类记忆写入逻辑，由 orchestrator 在每轮对话后自动调用。
+                记忆条目数与抽取策略为后端内部常量，运行时无需用户配置；如需清理历史记忆，请前往「设置 → 数据存储 → 重置数据」。
+              </span>
             </div>
           </Card>
         </div>

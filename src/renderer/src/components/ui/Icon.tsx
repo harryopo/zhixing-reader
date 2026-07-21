@@ -62,6 +62,7 @@ export type IconName =
   | 'box'
   | 'mouse-click'
   | 'message-circle'
+  | 'info'
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName
@@ -356,6 +357,13 @@ const PATHS: Record<IconName, ReactElement> = {
     </>
   ),
   'message-circle': <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />,
+  info: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </>
+  ),
 }
 
 export default function Icon({ name, size = 18, ...rest }: IconProps) {

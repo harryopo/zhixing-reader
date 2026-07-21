@@ -803,10 +803,43 @@ export default function SettingsAI() {
                   </Button>
                 }
               />
+              <div
+                className="usage-note"
+                role="note"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 'calc(var(--spacing) * 2.5)',
+                  padding: 'calc(var(--spacing) * 3.5)',
+                  background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
+                  borderRadius: 'var(--radius)',
+                  marginBottom: 'calc(var(--spacing) * 4)',
+                  color: 'var(--foreground)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.6,
+                }}
+              >
+                <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
+                  <Icon name="info" size={16} />
+                </span>
+                <span>
+                  <strong>用途说明：</strong>
+                  提示词模板（Prompt Template）控制 AI 在不同场景下的回复风格与教学策略。4 个内置模板对应「意图分类」的 4 种意图：
+                  <strong>通用对话</strong>（默认）/<strong>知识查询</strong>（RAG 检索）/<strong>教学练习</strong>（苏格拉底+费曼）/<strong>深度讨论</strong>（批判性思辨）。
+                  点击「编辑」跳转至管理面板修改具体提示词内容（持久化到 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>prompt-storage</code>，对应
+                  <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>agent.system</code> /
+                  <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>agent.intentKeywords</code> /
+                  <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>agent.strategy.*</code> 等 prompt id）。
+                  点击「新建模板」可创建自定义提示词，保存到本地 settings.json，便于在管理面板中复用。
+                  开关仅控制该模板是否在当前场景下生效，不影响模板内容。
+                </span>
+              </div>
               {templates.map((t, idx) => (
                 <div
                   key={t.id}
                   className="template-row"
+                  title={`【${t.name}】${t.desc}。点击编辑修改模板内容，点击开关启用/禁用该模板。`}
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -833,6 +866,7 @@ export default function SettingsAI() {
                       onClick={() => handleEditTemplate(t.id)}
                       data-dom-id={`edit-template-${t.id}`}
                       aria-label={`编辑${t.name}模板`}
+                      title="编辑模板内容（跳转至管理面板）"
                     >
                       <Icon name="edit" size={16} />
                     </button>
@@ -844,6 +878,7 @@ export default function SettingsAI() {
                       data-dom-id={`toggle-template-${t.id}`}
                       aria-label={`启用${t.name}模板`}
                       aria-pressed={t.enabled}
+                      title={t.enabled ? `当前已启用，点击禁用「${t.name}」` : `当前已禁用，点击启用「${t.name}」`}
                     />
                   </div>
                 </div>
