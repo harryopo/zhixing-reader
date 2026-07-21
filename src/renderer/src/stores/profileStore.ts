@@ -147,10 +147,16 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       )
 
       const totalBooks = books.length
-      const finishedBooks = books.filter((b: Book) => (b as unknown as Record<string, unknown>).reading_progress as number >= 1).length
+      const finishedBooks = books.filter((b: Book) => {
+        const row = b as unknown as Record<string, unknown>
+        return (row.reading_progress as number) >= 1 || (row.is_finished as number) === 1
+      }).length
       const totalHighlights = highlights.length
-      const totalCards = cards.totalCards
-      const masteredCards = cards.masteredCards
+      // Backend getReviewStats: { total, due, new, learning, review } — not totalCards/masteredCards
+      const cardStats = cards as unknown as Record<string, number>
+      const totalCards = cardStats.total ?? cardStats.totalCards ?? 0
+      // Approximate mastered as review-state cards (state=2); no separate mastered field
+      const masteredCards = cardStats.review ?? cardStats.masteredCards ?? 0
       const totalReviews = reviews.length
 
       let totalReadingTime = 0
@@ -158,11 +164,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const monthlyReadingData: DailyReadingData[] = []
 
       for (const stat of dailyStats) {
-        const date = stat.date
-        const readingTime = stat.readingTime || 0
-        const highlightsCount = stat.highlightsCount || 0
-        const reviewsCount = stat.reviewsCount || 0
-        const booksRead = 0
+        const row = stat as unknown as Record<string, unknown>
+        const date = String(row.date ?? '')
+        // daily_stats columns are snake_case from sql.js rowsToObjects
+        const readingTime = Number(row.reading_time ?? row.readingTime ?? 0)
+        const highlightsCount = Number(row.highlights_added ?? row.highlightsCount ?? 0)
+        const reviewsCount = Number(row.cards_reviewed ?? row.reviewsCount ?? 0)
+        const booksRead = Number(row.books_read ?? 0)
 
         totalReadingTime += readingTime
 

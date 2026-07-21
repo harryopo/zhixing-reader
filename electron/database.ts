@@ -929,7 +929,7 @@ export const cardsDb = {
     return { created: cards.length, skipped: rows.length - cards.length };
   },
 
-  getDueCards(limit: number = 20): Card[] {
+  getDueCards(limit: number = 100): Card[] {
     const now = new Date().toISOString();
     const result = getDatabase().exec(
       'SELECT * FROM cards WHERE due <= ? ORDER BY due ASC LIMIT ?',
@@ -1330,6 +1330,12 @@ export const reviewsDb = {
        VALUES (?, ?, ?, ?, ?)`,
       [reviewId, cardId, rating, newCard.elapsedDays, newCard.scheduledDays]
     );
+    // Feed daily_stats so streak / profile reading data is not empty
+    try {
+      dailyStatsDb.incrementCardsReviewed(1);
+    } catch {
+      // ignore if daily_stats unavailable
+    }
     saveDatabase();
 
     return { reviewId, card: newCard };
