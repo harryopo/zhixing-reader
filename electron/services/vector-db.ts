@@ -8,10 +8,11 @@ import { logger } from '../logger'
  *
  * 设计说明：
  * - 替换原 Qdrant localhost 实现（打包后失效问题）
- * - Vectra 是纯 TypeScript 文件存储，零 native 依赖，Electron 打包零风险
+ * - 注意：vectra 0.15 有 13 个直接依赖 + ~50 个传递依赖（含 @grpc/grpc-js / @grpc/proto-loader），
+ *   非"零 native 依赖"；Electron 打包时必须在 package.json build.files 中追加白名单，详见 P0 修复 commit e8d68c5
  * - 索引文件落盘到 userData/vectra-index/
  * - embedding 仍由 embedding-service.ts 生成（OpenAI API）
- * - Vectra LocalIndex 内置 BM25 混合搜索（queryItems 第 5 参数 isBm25=true）
+ * - Vectra LocalIndex 支持 BM25 混合搜索（queryItems 第 5 参数 isBm25），但本实现关闭 BM25（仅用向量相似度）
  */
 
 const INDEX_FOLDER_NAME = 'vectra-index'
@@ -132,16 +133,21 @@ export async function searchSimilar(
     ? { bookId: { $eq: bookId } }
     : undefined
 
-  // 第 5 参数 isBm25=true 启用 BM25 混合搜索
+  // BM25 hybrid 模式已关闭（第 5 参数 false），仅用向量相似度
   // 注意：Vectra queryItems 需要 query 字符串做 BM25，但 BM25 需要 docReader 或 metadata.content
   // 这里 query 留空，关闭 BM25（避免依赖额外配置），仅用 cosine 相似度
-  const results = await localIndex.queryItems(queryVector, '', limit, filter, false)
+  try {
+    const results = await localIndex.queryItems(queryVector, '', limit, filter, false)
 
-  return results.map(r => ({
-    id: r.item.id,
-    score: r.score,
-    payload: r.item.metadata as VectorPoint['payload'],
-  }))
+    return results.map(r => ({
+      id: r.item.id,
+      score: r.score,
+      payload: r.item.metadata as VectorPoint['payload'],
+    }))
+  } catch (error) {
+    logger.error('Vectra searchSimilar failed', { error, bookId, limit })
+    return [] // 降级返回空数组，不阻塞 RAG 流程
+  }
 }
 
 /**
