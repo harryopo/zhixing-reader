@@ -673,5 +673,67 @@ describe('streamChat — 流式聊天测试', () => {
       expect(onError.mock.calls[0][0].message).toContain('network failure')
       expect(onComplete).not.toHaveBeenCalled()
     })
+
+    it('29. response.body 为 null 时触发 onError（No response body）', async () => {
+      mockedFetchWithTimeout.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: null,
+        text: async () => '',
+      } as unknown as Response)
+
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, vi.fn(), onComplete, onError)
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0][0].message).toContain('No response body')
+      expect(onComplete).not.toHaveBeenCalled()
+    })
+
+    it('30. SSE 行包含无效 JSON 时 catch 块吞掉错误并继续', async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const encoder = new TextEncoder()
+          controller.enqueue(encoder.encode('data: {invalid json\n'))
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n'))
+          controller.close()
+        },
+      })
+
+      mockedFetchWithTimeout.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: stream,
+        text: async () => '',
+      } as unknown as Response)
+
+      const onChunk = vi.fn()
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, onChunk, onComplete, onError)
+
+      expect(onChunk).toHaveBeenCalledWith('ok')
+      expect(onComplete).toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('31. streamOpenAI 抛出非 Error 对象时触发 onError', async () => {
+      mockedFetchWithTimeout.mockRejectedValueOnce('string error')
+
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, vi.fn(), onComplete, onError)
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0][0]).toBeInstanceOf(Error)
+      expect(onError.mock.calls[0][0].message).toContain('string error')
+      expect(onComplete).not.toHaveBeenCalled()
+    })
   })
 })
