@@ -72,19 +72,19 @@ export default defineConfig({
         '**/index.ts',
       ],
       thresholds: {
-        // Phase 10 基线阈值（2026-07-22）
+        // Phase 12 阈值提升（2026-07-22）
         // 目标：lines/funcs/statements ≥ 85%，branches ≥ 80%
-        // 当前：Phase 10 补全 ai-service.ts 函数测试后，
-        //       整体覆盖率 85.98% lines / 78.67% branches / 76.38% functions。
-        // 策略：基线从 Phase 9 的 60/55/78/60 提升到 80/70/75/80，留 5-6% 缓冲防 flaky。
-        //   - lines/statements: 60→80（当前 85.98%，留 6% 缓冲）
-        //   - functions: 55→70（当前 76.38%，留 6.38% 缓冲）
-        //   - branches: 78→75（当前 78.67%，留 3.67% 缓冲）
-        //   - 目标 85% lines / 80% branches（已接近目标）
-        lines: 80,
-        functions: 70,
-        branches: 75,
-        statements: 80,
+        // 当前：Phase 12 T2 补全 MessageBubble.tsx 内部 component 函数测试后，
+        //       整体覆盖率 88.78% lines / 80.44% branches / 94.44% functions / 88.78% statements。
+        // 策略：基线从 Phase 10 的 80/70/75/80 提升到目标 85/80/80/85。
+        //   - lines/statements: 80→85（当前 88.78%，留 3.78% 缓冲）
+        //   - functions: 70→80（当前 94.44%，留 14.44% 缓冲）
+        //   - branches: 75→80（当前 80.44%，留 0.44% 缓冲）
+        //   - branches 缓冲较紧，后续若 ai-service.ts 改动导致 flaky，需补分支测试或微调
+        lines: 85,
+        functions: 80,
+        branches: 80,
+        statements: 85,
       },
     },
     setupFiles: ['./tests/setup.ts', './tests/electron-mock-setup.ts'],
