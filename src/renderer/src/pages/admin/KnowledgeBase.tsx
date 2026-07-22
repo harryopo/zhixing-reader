@@ -127,7 +127,7 @@ export default function KnowledgeBase() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="搜索书籍或笔记..."
-          className="w-full pl-9 pr-4 py-2 text-[13px] bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
+          className="w-full pl-9 pr-4 py-2 text-[13px] bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all"
         />
       </div>
 
@@ -158,7 +158,7 @@ export default function KnowledgeBase() {
                   {book.author || '未知作者'}
                 </p>
               </div>
-              <span className="text-[11px] text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md font-medium">
+              <span className="text-[11px] text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-md font-medium">
                 {book.highlight_count} 条笔记
               </span>
               <svg
@@ -201,7 +201,7 @@ export default function KnowledgeBase() {
                                   : hl.content}
                               </p>
                               {hl.note && (
-                                <p className="text-[11px] text-indigo-500 mt-1">
+                                <p className="text-[11px] text-emerald-500 mt-1">
                                   📝 {hl.note}
                                 </p>
                               )}
@@ -222,9 +222,9 @@ export default function KnowledgeBase() {
                           {cards.slice(0, 10).map((card) => (
                             <div
                               key={card.id}
-                              className="p-2 bg-indigo-50/50 rounded-lg border border-indigo-100"
+                              className="p-2 bg-emerald-50/50 rounded-lg border border-emerald-100"
                             >
-                              <p className="text-[12px] text-indigo-700 font-medium">
+                              <p className="text-[12px] text-emerald-700 font-medium">
                                 Q: {card.question}
                               </p>
                               <p className="text-[12px] text-gray-600 mt-0.5">

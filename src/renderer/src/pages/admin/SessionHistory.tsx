@@ -90,7 +90,7 @@ export default function SessionHistory() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="搜索会话..."
-          className="w-full pl-9 pr-4 py-2 text-[13px] bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
+          className="w-full pl-9 pr-4 py-2 text-[13px] bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all"
         />
       </div>
 
@@ -145,7 +145,7 @@ export default function SessionHistory() {
                         <div
                           className={`max-w-[80%] px-3 py-2 rounded-lg text-[12px] leading-relaxed ${
                             msg.role === 'user'
-                              ? 'bg-indigo-600 text-white rounded-br-sm'
+                              ? 'bg-emerald-600 text-white rounded-br-sm'
                               : 'bg-gray-100 text-gray-700 rounded-bl-sm'
                           }`}
                         >
@@ -155,7 +155,7 @@ export default function SessionHistory() {
                           <p
                             className={`text-[10px] mt-1 ${
                               msg.role === 'user'
-                                ? 'text-indigo-200'
+                                ? 'text-emerald-200'
                                 : 'text-gray-300'
                             }`}
                           >

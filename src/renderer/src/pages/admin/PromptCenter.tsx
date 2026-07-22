@@ -10,7 +10,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 const CATEGORY_COLORS: Record<string, string> = {
   agent: 'bg-violet-50 text-violet-600 border-violet-200',
   intent: 'bg-amber-50 text-amber-600 border-amber-200',
-  ai: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+  ai: 'bg-emerald-50 text-emerald-600 border-emerald-200',
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -230,7 +230,7 @@ export default function PromptCenter() {
               placeholder="搜索提示词..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-[12px] bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none"
+              className="w-full px-2.5 py-1.5 text-[12px] bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 outline-none"
             />
             <div className="flex gap-1">
               {['all', 'agent', 'intent', 'ai'].map(cat => (
@@ -239,7 +239,7 @@ export default function PromptCenter() {
                   onClick={() => setActiveCategory(cat)}
                   className={`px-2 py-0.5 text-[11px] rounded-md transition-colors ${
                     activeCategory === cat
-                      ? 'bg-indigo-100 text-indigo-700'
+                      ? 'bg-emerald-100 text-emerald-700'
                       : 'text-gray-500 hover:bg-gray-100'
                   }`}
                 >
@@ -257,7 +257,7 @@ export default function PromptCenter() {
                   key={p.id}
                   onClick={() => setSelectedId(p.id)}
                   className={`w-full text-left px-3 py-2.5 border-b border-gray-50 transition-colors ${
-                    selectedId === p.id ? 'bg-indigo-50/60' : 'hover:bg-gray-50'
+                    selectedId === p.id ? 'bg-emerald-50/60' : 'hover:bg-gray-50'
                   }`}
                 >
                   <div className="flex items-start gap-2">
@@ -313,7 +313,7 @@ export default function PromptCenter() {
                     <button
                       onClick={handleSave}
                       disabled={saving || draft === selected.currentTemplate}
-                      className="px-3 py-1 text-[11px] text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1 text-[11px] text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {saving ? '保存中...' : '保存'}
                     </button>
@@ -343,7 +343,7 @@ export default function PromptCenter() {
                 <textarea
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
-                  className="w-full h-64 px-3 py-2 text-[12px] text-gray-700 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-none font-mono leading-relaxed"
+                  className="w-full h-64 px-3 py-2 text-[12px] text-gray-700 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 resize-none font-mono leading-relaxed"
                   placeholder="输入提示词模板..."
                 />
                 <p className="text-[10px] text-gray-400 mt-1">
@@ -358,14 +358,14 @@ export default function PromptCenter() {
                     {selected.variables.map((v: PromptVariable) => (
                       <div key={v.name}>
                         <label className="text-[10px] text-gray-500 block mb-0.5">
-                          <code className="text-indigo-600">{`{{${v.name}}}`}</code> · {v.description}
+                          <code className="text-emerald-600">{`{{${v.name}}}`}</code> · {v.description}
                         </label>
                         <input
                           type="text"
                           value={vars[v.name] || ''}
                           onChange={e => setVars(prev => ({ ...prev, [v.name]: e.target.value }))}
                           placeholder={v.sample}
-                          className="w-full px-2 py-1 text-[11px] bg-gray-50 border border-gray-200 rounded outline-none focus:border-indigo-400"
+                          className="w-full px-2 py-1 text-[11px] bg-gray-50 border border-gray-200 rounded outline-none focus:border-emerald-400"
                         />
                       </div>
                     ))}
@@ -375,7 +375,7 @@ export default function PromptCenter() {
 
               <div className="bg-white rounded-xl border border-gray-100 p-4">
                 <h4 className="text-[12px] font-semibold text-gray-700 mb-2">渲染预览</h4>
-                <div className="px-3 py-2 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 border border-indigo-100 rounded-lg text-[12px] text-gray-700 leading-relaxed whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
+                <div className="px-3 py-2 bg-gradient-to-br from-emerald-50/50 to-emerald-50/30 border border-emerald-100 rounded-lg text-[12px] text-gray-700 leading-relaxed whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
                   {previewParts.map((part, i) => (
                     <span
                       key={i}

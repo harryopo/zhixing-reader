@@ -105,7 +105,7 @@ export default function DatabaseBrowser() {
               onClick={() => { setSelectedTable(t.name); setPage(0) }}
               className={`w-full text-left px-2.5 py-1.5 text-[12px] rounded-md transition-colors ${
                 selectedTable === t.name
-                  ? 'bg-indigo-50 text-indigo-700 font-medium'
+                  ? 'bg-emerald-50 text-emerald-700 font-medium'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
@@ -139,7 +139,7 @@ export default function DatabaseBrowser() {
                 placeholder="筛选..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="px-2.5 py-1 text-[11px] bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-indigo-400 w-40"
+                className="px-2.5 py-1 text-[11px] bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-emerald-400 w-40"
               />
             </div>
 

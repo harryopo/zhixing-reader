@@ -25,7 +25,7 @@ interface DashboardData {
 
 const StatCard = ({ label, value, color, icon }: { label: string; value: string | number; color: string; icon?: string }) => {
   const colorMap: Record<string, string> = {
-    indigo: 'from-indigo-50 to-indigo-100/50 text-indigo-600 border-indigo-100',
+    indigo: 'from-emerald-50 to-emerald-100/50 text-emerald-600 border-emerald-100',
     violet: 'from-violet-50 to-violet-100/50 text-violet-600 border-violet-100',
     amber: 'from-amber-50 to-amber-100/50 text-amber-600 border-amber-100',
     emerald: 'from-emerald-50 to-emerald-100/50 text-emerald-600 border-emerald-100',
@@ -155,7 +155,7 @@ export default function AdminDashboard() {
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
       </div>
     )
   }
@@ -212,7 +212,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => loadData(true)}
             disabled={refreshing}
-            className="px-2.5 py-1 text-[11px] text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 disabled:opacity-50"
+            className="px-2.5 py-1 text-[11px] text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-50"
           >
             {refreshing ? '刷新中...' : '↻ 刷新'}
           </button>
