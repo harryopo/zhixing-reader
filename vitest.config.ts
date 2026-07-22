@@ -72,18 +72,19 @@ export default defineConfig({
         '**/index.ts',
       ],
       thresholds: {
-        // Phase 9 基线阈值（2026-07-22）
+        // Phase 10 基线阈值（2026-07-22）
         // 目标：lines/funcs/statements ≥ 85%，branches ≥ 80%
-        // 当前：Phase 8 补全 ai-service.ts (31.52%) + admin-charts.tsx (97.27%) 测试后，
-        //       整体覆盖率 67.54% lines / 79.3% branches / 59.72% functions。
-        // 策略：基线从阶段 5 的 48/77 提升到 60/55/78/60，留 5% 缓冲防 flaky。
-        //   - functions 阈值设 55（当前 59.72%），因 ai-service.ts 大量函数未测
-        //   - 后续每补一个文件的测试，提升对应阈值 5-10%
-        //   - 目标 85% lines / 80% branches
-        lines: 60,
-        functions: 55,
-        branches: 78,
-        statements: 60,
+        // 当前：Phase 10 补全 ai-service.ts 函数测试后，
+        //       整体覆盖率 85.98% lines / 78.67% branches / 76.38% functions。
+        // 策略：基线从 Phase 9 的 60/55/78/60 提升到 80/70/75/80，留 5-6% 缓冲防 flaky。
+        //   - lines/statements: 60→80（当前 85.98%，留 6% 缓冲）
+        //   - functions: 55→70（当前 76.38%，留 6.38% 缓冲）
+        //   - branches: 78→75（当前 78.67%，留 3.67% 缓冲）
+        //   - 目标 85% lines / 80% branches（已接近目标）
+        lines: 80,
+        functions: 70,
+        branches: 75,
+        statements: 80,
       },
     },
     setupFiles: ['./tests/setup.ts', './tests/electron-mock-setup.ts'],
