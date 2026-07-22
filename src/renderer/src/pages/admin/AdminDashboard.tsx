@@ -25,7 +25,7 @@ interface DashboardData {
 
 const StatCard = ({ label, value, color, icon }: { label: string; value: string | number; color: string; icon?: string }) => {
   const colorMap: Record<string, string> = {
-    indigo: 'from-emerald-50 to-emerald-100/50 text-emerald-600 border-emerald-100',
+    teal: 'from-teal-50 to-teal-100/50 text-teal-600 border-teal-100',
     violet: 'from-violet-50 to-violet-100/50 text-violet-600 border-violet-100',
     amber: 'from-amber-50 to-amber-100/50 text-amber-600 border-amber-100',
     emerald: 'from-emerald-50 to-emerald-100/50 text-emerald-600 border-emerald-100',
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
   const { stats, providers, features } = data
 
   const cards = [
-    { label: '总对话数', value: stats.totalConversations, color: 'indigo', icon: '💬' },
+    { label: '总对话数', value: stats.totalConversations, color: 'teal', icon: '💬' },
     { label: '总消息数', value: stats.totalMessages, color: 'violet', icon: '✉️' },
     { label: '总 Token', value: formatTokens(stats.totalTokens), color: 'amber', icon: '⚡' },
     { label: '总书籍数', value: stats.totalBooks, color: 'emerald', icon: '📚' },
