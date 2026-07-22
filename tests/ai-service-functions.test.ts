@@ -312,6 +312,46 @@ describe('generateSummary', () => {
   })
 })
 
+describe('callAnthropic 基本路径', () => {
+  it('13a. Anthropic provider 返回有效响应被正确解析', async () => {
+    setAIConfig({
+      provider: 'anthropic',
+      apiKey: 'sk-ant',
+      model: 'claude-3-5-sonnet-20241022',
+      baseUrl: 'https://test.anthropic.example/v1',
+      maxTokens: 100,
+      temperature: 0.5,
+    })
+
+    const summaryPayload = JSON.stringify({
+      summary: 'Anthropic 摘要',
+      keyPoints: ['要点 A', '要点 B'],
+    })
+
+    mockedFetchWithRetry.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      body: null,
+      json: async () => ({
+        content: [{ type: 'text', text: summaryPayload }],
+        usage: { input_tokens: 10, output_tokens: 20 },
+        stop_reason: 'end_turn',
+      }),
+      text: async () => '',
+    } as unknown as Response)
+
+    const result = await generateSummary(
+      [{ content: 'highlight' }],
+      'test-book-anthropic-summary'
+    )
+
+    expect(result.summary).toBe('Anthropic 摘要')
+    expect(result.keyPoints).toEqual(['要点 A', '要点 B'])
+    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateSummary')
+  })
+})
+
 describe('chatWithContext', () => {
   it('13. 正常返回 AI 回答内容', async () => {
     mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('这是AI回答'))
