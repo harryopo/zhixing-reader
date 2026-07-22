@@ -350,6 +350,33 @@ describe('callAnthropic 基本路径', () => {
     expect(result.keyPoints).toEqual(['要点 A', '要点 B'])
     expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateSummary')
   })
+
+  it('13b. Anthropic 返回空 content 数组时抛错', async () => {
+    setAIConfig({
+      provider: 'anthropic',
+      apiKey: 'sk-ant',
+      model: 'claude-3-5-sonnet-20241022',
+      baseUrl: 'https://test.anthropic.example/v1',
+      maxTokens: 100,
+      temperature: 0.5,
+    })
+
+    mockedFetchWithRetry.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      body: null,
+      json: async () => ({
+        content: [],
+        usage: { input_tokens: 10, output_tokens: 20 },
+      }),
+      text: async () => '',
+    } as unknown as Response)
+
+    await expect(
+      generateSummary([{ content: 'highlight' }], 'test-book-anthropic-empty')
+    ).rejects.toThrow('Invalid response from Anthropic API: no content returned')
+  })
 })
 
 describe('chatWithContext', () => {
