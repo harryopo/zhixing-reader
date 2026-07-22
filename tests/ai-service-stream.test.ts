@@ -92,6 +92,13 @@ function setCustomConfig(): void {
   })
 }
 
+function setMinimalOpenAIConfig(): void {
+  setAIConfig({
+    provider: 'openai',
+    apiKey: 'sk-test',
+  })
+}
+
 const SAMPLE_MESSAGES = [{ role: 'user' as const, content: 'hi' }]
 
 // ============ 测试用例 ============
@@ -600,6 +607,71 @@ describe('streamChat — 流式聊天测试', () => {
 
       expect(onComplete).toHaveBeenCalledWith(undefined)
       expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('25. 已有 active stream 时再次调用会 abort 前一个 controller', async () => {
+      const response = createSSEResponse(['data: {"choices":[{"delta":{"content":"hi"}}]}\n'])
+      mockedFetchWithTimeout.mockResolvedValueOnce(response)
+
+      const onComplete1 = vi.fn()
+      const onError1 = vi.fn()
+
+      const promise1 = streamChat(SAMPLE_MESSAGES, vi.fn(), onComplete1, onError1)
+      const promise2 = streamChat(SAMPLE_MESSAGES, vi.fn(), vi.fn(), vi.fn())
+
+      await Promise.all([promise1, promise2])
+
+      expect(onComplete1).toHaveBeenCalled()
+      expect(onError1).not.toHaveBeenCalled()
+    })
+
+    it('26. safeComplete 被调用两次时只触发一次 onComplete', async () => {
+      const response = createSSEResponse(['data: {"choices":[{"delta":{"content":"hi"}}]}\n'])
+      mockedFetchWithTimeout.mockResolvedValueOnce(response)
+
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, vi.fn(), onComplete, onError)
+
+      expect(onComplete).toHaveBeenCalledTimes(1)
+      expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('27. 缺少 baseUrl/model/maxTokens/temperature 时使用 fallback 值', async () => {
+      setMinimalOpenAIConfig()
+
+      const response = createSSEResponse(['data: {"choices":[{"delta":{"content":"hi"}}]}\n'])
+      mockedFetchWithTimeout.mockResolvedValueOnce(response)
+
+      const onChunk = vi.fn()
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, onChunk, onComplete, onError)
+
+      const url = mockedFetchWithTimeout.mock.calls[0][0] as string
+      expect(url).toBe('https://api.openai.com/v1/chat/completions')
+
+      const opts = mockedFetchWithTimeout.mock.calls[0][1] as RequestInit
+      const body = JSON.parse(opts.body as string)
+      expect(body.model).toBe('gpt-4o-mini')
+      expect(body.max_tokens).toBe(2000)
+      expect(body.temperature).toBe(0.7)
+    })
+
+    it('28. fetch 返回非取消错误时触发 onError', async () => {
+      const err = new Error('network failure')
+      mockedFetchWithTimeout.mockRejectedValueOnce(err)
+
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, vi.fn(), onComplete, onError)
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0][0].message).toContain('network failure')
+      expect(onComplete).not.toHaveBeenCalled()
     })
   })
 })
