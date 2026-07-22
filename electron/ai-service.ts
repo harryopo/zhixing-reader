@@ -1430,7 +1430,12 @@ export async function translateArticle(
   }
 
   const content_zh = contentParagraphs.join('\n\n');
-  const summary_zh = contentParagraphs[0]?.slice(0, 100) + '...' || '';
+  // 修复：原代码 `contentParagraphs[0]?.slice(0, 100) + '...' || ''` 有运算符优先级 bug
+  //   `+` 优先于 `||`，解析为 `(undefined + '...') || ''` = `'undefined...'`
+  //   当 contentParagraphs 为空时 summary_zh 应为空字符串
+  const summary_zh = contentParagraphs[0]
+    ? contentParagraphs[0].slice(0, 100) + '...'
+    : '';
 
   return { title_zh, summary_zh, content_zh };
 }

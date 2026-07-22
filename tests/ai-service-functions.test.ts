@@ -590,21 +590,17 @@ describe('translateArticle', () => {
     expect(result.summary_zh).toBe('段落1翻译...')
   })
 
-  it('36. 空 content 时只翻译标题（content_zh 为空字符串）', async () => {
+  it('36. 空 content 时只翻译标题（content_zh + summary_zh 均为空字符串）', async () => {
     mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('标题'))
 
     const result = await translateArticle('Article-36', '')
 
     expect(result.title_zh).toBe('标题')
     expect(result.content_zh).toBe('')
-    // BUG（源码 ai-service.ts:1433 运算符优先级问题）:
-    //   原代码: const summary_zh = contentParagraphs[0]?.slice(0, 100) + '...' || ''
-    //   解析为: (undefined?.slice(0,100) + '...') || ''
-    //   即:    (undefined + '...') || '' = 'undefined...' || '' = 'undefined...'
-    //   期望行为: summary_zh 应为空字符串（contentParagraphs 为空时）
-    //   实际行为: summary_zh = 'undefined...'（字符串拼接结果）
-    // 此处断言实际行为（不修复源码），标注 bug 待后续修复
-    expect(result.summary_zh).toBe('undefined...')
+    // 修复后（Phase 11 T1）：原 ai-service.ts:1433 运算符优先级 bug 已修
+    //   修复前: `contentParagraphs[0]?.slice(0, 100) + '...' || ''` → 'undefined...'
+    //   修复后: `contentParagraphs[0] ? contentParagraphs[0].slice(0,100) + '...' : ''` → ''
+    expect(result.summary_zh).toBe('')
   })
 })
 
