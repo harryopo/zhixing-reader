@@ -754,3 +754,54 @@ describe('cancelActiveStream', () => {
     await streamPromise
   })
 })
+
+describe('callAI 错误处理', () => {
+  it('39. unsupported provider 抛错', async () => {
+    setAIConfig({
+      provider: 'unsupported',
+      apiKey: 'sk-test',
+      model: 'unknown',
+      baseUrl: 'https://example.com',
+    })
+
+    await expect(
+      generateCards([{ content: 'highlight' }], 'test-book-unsupported')
+    ).rejects.toThrow('Unsupported AI provider: unsupported')
+  })
+})
+
+describe('repairJSON 边界', () => {
+  it('40. repairJSON 完全无法修复时抛错', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('[{front: \'Q\'}]'))
+
+    await expect(
+      generateCards([{ content: 'highlight' }], 'test-book-repair-fail')
+    ).rejects.toThrow('JSON解析失败')
+  })
+
+  it('41. repairJSON 处理字符串内换行/tab/反斜杠', async () => {
+    const content = '[{ "front": "Q\nA", "back": "B\tC" }]'
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(content))
+
+    const result = await generateCards(
+      [{ content: 'highlight' }],
+      'test-book-repair-special'
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].front).toBe('Q\nA')
+  })
+
+  it('42. repairJSON 补全缺失的方括号/花括号', async () => {
+    const content = '[{ "front": "Q", "back": "A" },]'
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(content))
+
+    const result = await generateCards(
+      [{ content: 'highlight' }],
+      'test-book-repair-brackets'
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].front).toBe('Q')
+  })
+})
