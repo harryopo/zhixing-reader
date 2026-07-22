@@ -260,6 +260,15 @@ describe('generateCards', () => {
     expect(result[0].front).toBe('Q')
     expect(result[0].back).toBe('A')
   })
+
+  it('9b. repairJSON 处理字符串内反斜杠', async () => {
+    const malformedJson = '[{front: "Q\\\\A", back: "B"}]'
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(malformedJson))
+
+    await expect(
+      generateCards([{ content: 'repair test' }], 'test-book-cards-repair-backslash')
+    ).rejects.toThrow('JSON解析失败')
+  })
 })
 
 describe('generateSummary', () => {
@@ -310,6 +319,21 @@ describe('generateSummary', () => {
 
     expect(result.summary).toBe('摘要内容')
     expect(result.keyPoints).toEqual(['有效要点', '另一个有效'])
+  })
+
+  it('12c. highlight 无 chapterTitle 时仍正常生成摘要', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify({
+      summary: '无章节标题的摘要',
+      keyPoints: ['要点'],
+    })))
+
+    const result = await generateSummary(
+      [{ content: 'highlight without chapter' }],
+      'test-book-summary-no-chapter'
+    )
+
+    expect(result.summary).toBe('无章节标题的摘要')
+    expect(result.keyPoints).toEqual(['要点'])
   })
 })
 
@@ -474,6 +498,14 @@ describe('extractMethodologies', () => {
   it('19. 空 highlights 抛错', async () => {
     await expect(extractMethodologies([], 'empty')).rejects.toThrow('No highlights')
   })
+
+  it('20. fetch 失败时抛错', async () => {
+    mockedFetchWithRetry.mockRejectedValueOnce(new Error('Network failure'))
+
+    await expect(
+      extractMethodologies([{ content: 'highlight' }], 'test-book-methods-error')
+    ).rejects.toThrow('Network failure')
+  })
 })
 
 describe('analyzeBookArchitecture', () => {
@@ -598,6 +630,39 @@ describe('distillKnowledgeCards', () => {
     expect(result).toHaveLength(2)
     expect(result[0].type).toBe('concept') // 无效 type 回退
     expect(result[1].type).toBe('methodology')
+  })
+
+  it('24. highlight 无 chapterTitle/note 时仍正常蒸馏', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(
+      JSON.stringify([{ type: 'concept', title: 'c', content: 'c' }])
+    ))
+
+    const result = await distillKnowledgeCards(
+      [{ content: 'highlight without chapter' }],
+      'test-book-distill-no-chapter'
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].title).toBe('c')
+  })
+
+  it('25. AI 返回非数组 JSON 时抛错', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('{"notAnArray": true}'))
+
+    await expect(
+      distillKnowledgeCards([{ content: 'highlight' }], 'test-book-distill-not-array')
+    ).rejects.toThrow('AI响应中未找到有效的JSON格式')
+  })
+
+  it('26. AI 返回空卡片数组时返回空数组', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('[]'))
+
+    const result = await distillKnowledgeCards(
+      [{ content: 'highlight' }],
+      'test-book-distill-empty'
+    )
+
+    expect(result).toHaveLength(0)
   })
 })
 
@@ -826,6 +891,48 @@ describe('callAI 错误处理', () => {
     expect(body.max_tokens).toBe(4000)
     expect(body.model).toBe('gpt-4o-mini')
     expect(mockedFetchWithRetry.mock.calls[0][0]).toBe('https://api.openai.com/v1/chat/completions')
+  })
+
+  it('48. testConnection HTTP 错误时返回错误消息', async () => {
+    setAIConfig({
+      provider: 'openai',
+      apiKey: 'sk-test',
+      model: 'gpt-4o-mini',
+      baseUrl: 'https://example.com',
+    })
+
+    mockedFetchWithTimeout.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: async () => 'Invalid API key',
+    } as unknown as Response)
+
+    const result = await testConnection({
+      provider: 'openai',
+      apiKey: 'sk-test',
+      model: 'gpt-4o-mini',
+      baseUrl: 'https://example.com',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('API错误')
+    expect(result.message).toContain('401')
+    expect(result.message).toContain('Invalid API key')
+  })
+
+  it('49. 相同输入调用两次时第二次命中缓存', async () => {
+    setOpenAIConfig()
+
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('cached response'))
+
+    const result1 = await chatWithContext('q', [{ content: 'ctx', bookTitle: 'book' }])
+    expect(result1).toBe('cached response')
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1)
+
+    const result2 = await chatWithContext('q', [{ content: 'ctx', bookTitle: 'book' }])
+    expect(result2).toBe('cached response')
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1)
   })
 })
 
