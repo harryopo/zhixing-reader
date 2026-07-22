@@ -735,5 +735,118 @@ describe('streamChat — 流式聊天测试', () => {
       expect(onError.mock.calls[0][0].message).toContain('string error')
       expect(onComplete).not.toHaveBeenCalled()
     })
+
+    it('32. Anthropic provider fallback baseUrl/model/maxTokens', async () => {
+      setAIConfig({
+        provider: 'anthropic',
+        apiKey: 'sk-ant',
+      })
+
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const encoder = new TextEncoder()
+          controller.enqueue(encoder.encode('data: {"type":"message_start","message":{"usage":{"input_tokens":1,"output_tokens":1}}}\n'))
+          controller.enqueue(encoder.encode('data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n'))
+          controller.enqueue(encoder.encode('data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}\n'))
+          controller.close()
+        },
+      })
+
+      mockedFetchWithTimeout.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: stream,
+        text: async () => '',
+      } as unknown as Response)
+
+      const onChunk = vi.fn()
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, onChunk, onComplete, onError)
+
+      const url = mockedFetchWithTimeout.mock.calls[0][0] as string
+      expect(url).toBe('https://api.anthropic.com/v1/messages')
+
+      const opts = mockedFetchWithTimeout.mock.calls[0][1] as RequestInit
+      const body = JSON.parse(opts.body as string)
+      expect(body.model).toBe('claude-3-5-sonnet-20241022')
+      expect(body.max_tokens).toBe(2000)
+
+      expect(onChunk).toHaveBeenCalledWith('hi')
+      expect(onComplete).toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('33. Anthropic response.body 为 null 时触发 onError', async () => {
+      setAnthropicConfig()
+
+      mockedFetchWithTimeout.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: null,
+        text: async () => '',
+      } as unknown as Response)
+
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, vi.fn(), onComplete, onError)
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0][0].message).toContain('No response body')
+      expect(onComplete).not.toHaveBeenCalled()
+    })
+
+    it('34. Anthropic fetch 返回非 Error 对象时触发 onError', async () => {
+      setAnthropicConfig()
+
+      mockedFetchWithTimeout.mockRejectedValueOnce('string error')
+
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, vi.fn(), onComplete, onError)
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0][0]).toBeInstanceOf(Error)
+      expect(onError.mock.calls[0][0].message).toContain('string error')
+      expect(onComplete).not.toHaveBeenCalled()
+    })
+
+    it('35. streamOpenAI reader.cancel() 抛错时仍正常完成', async () => {
+      setOpenAIConfig()
+
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const encoder = new TextEncoder()
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"hi"}}]}\n'))
+          controller.close()
+        },
+        cancel() {
+          throw new Error('cancel failed')
+        },
+      })
+
+      mockedFetchWithTimeout.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: stream,
+        text: async () => '',
+      } as unknown as Response)
+
+      const onChunk = vi.fn()
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat(SAMPLE_MESSAGES, onChunk, onComplete, onError)
+
+      expect(onChunk).toHaveBeenCalledWith('hi')
+      expect(onComplete).toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+    })
   })
 })
