@@ -664,6 +664,14 @@ describe('distillKnowledgeCards', () => {
 
     expect(result).toHaveLength(0)
   })
+
+  it('27. fetch 失败时抛错', async () => {
+    mockedFetchWithRetry.mockRejectedValueOnce(new Error('Network failure'))
+
+    await expect(
+      distillKnowledgeCards([{ content: 'highlight' }], 'test-book-distill-error')
+    ).rejects.toThrow('Network failure')
+  })
 })
 
 describe('generateCardInterpretation', () => {

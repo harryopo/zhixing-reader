@@ -1162,3 +1162,220 @@ export async function fetchRecommendations(): Promise<RecommendationItem[]> {
 - Tags: dead-code, decision-tree, governance, button-ux, honesty
 
 ---
+
+## [LRN-20260721-011] best_practice
+
+**Logged**: 2026-07-21T23:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: packaging
+**Project**: zhixing-reader
+
+### Summary
+Vectra 0.15 文档宣称"纯 TS 零依赖"，实际有 13 个直接依赖 + ~50 个传递依赖（含 @grpc/grpc-js / @grpc/proto-loader），Electron 打包白名单必须完整覆盖
+
+### Details
+T16 RAG 本地集成用 Vectra 0.15 替换 Qdrant。spec-reviewer 第一轮审查不通过（P0 阻塞）：打包后 asar 中没有 @grpc/grpc-js 等传递依赖，main 进程 `require("vectra")` 抛 `Cannot find module`。
+
+修复：追加 37 个传递依赖到 `package.json` build.files 白名单，asar 实测验证 63/63 包覆盖。
+
+### Suggested Action
+任何新增 native 或近 native 依赖，必须 `npm ls --all` 查看完整依赖树，打包白名单不能只看顶层包名。Vectra 0.15 依赖树：`@grpc/grpc-js` / `@grpc/proto-loader` / `cheerio` / `wink-nlp` / `gpt-tokenizer` / `turndown` / `openai` / `protobufjs` / `yargs` / `long` / `lodash.camelcase` / `uuid` 等。
+
+### Metadata
+- Source: Phase 5 T16 RAG 本地集成
+- Related Files: electron/services/vector-db.ts, package.json build.files
+- Tags: vectra, electron-builder, packaging, dependencies
+
+---
+
+## [LRN-20260721-012] best_practice
+
+**Logged**: 2026-07-21T23:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: process
+**Project**: zhixing-reader
+
+### Summary
+spec 与代码不符时，implementer 应停止并报告，由主 agent 仲裁；不要凭印象强行实施
+
+### Details
+T6b 任务描述说"Chat/Stats/TokenUsage 三页面输出格式按钮加 tooltip"，但实际 grep 三个文件都没有"输出格式"按钮，"输出格式"只在 Methodologies.tsx 出现。
+
+implementer 没有强行找最接近的控件加 tooltip（会误导用户），而是停止并报告 spec 与代码不符，提交主 agent 仲裁。主 agent 仲裁后派 fix-implementer 在 Methodologies.tsx 加 tooltip。
+
+### Suggested Action
+spec 与代码不符时：1) grep 确认事实；2) 停止实施；3) 报告差异；4) 主 agent 仲裁；5) 派 fix-implementer 按仲裁结果实施。不要凭印象强行实施，会误导用户。
+
+### Metadata
+- Source: Phase 5 T6b 输出格式 tooltip
+- Related Files: .trae/specs/phase5-optimization/T6b-self-review.md
+- Tags: spec, arbitration, honesty
+
+---
+
+## [LRN-20260721-013] best_practice
+
+**Logged**: 2026-07-21T23:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: ui
+**Project**: zhixing-reader
+
+### Summary
+暗色模式不能只改背景色，必须检查 shadow opacity / 边框对比度 / 文字对比度（WCAG AA 4.5:1）/ 跨主题一致性
+
+### Details
+T17 整体视觉优化发现 5 个暗色模式 bug：
+1. shadow primitives 全 opacity 0（实际无阴影）
+2. 暗色 border == card 颜色（边框不可见）
+3. 暗色 primary 跨主题不一致（浅色蓝 #4285f4 vs 暗色粉红 #fc2c50）
+4. 暗色 input 纯黑（#000000）
+5. Badge 三 variant 对比度不足 WCAG AA（warning 1.6:1 / success 3.1:1 / error 3.4:1）
+
+修复：逐一修复，统一蓝色系 primary，边框比 card 亮 12 单位，shadow opacity 修复，Badge 对比度全部 ≥ 4.5:1。
+
+### Suggested Action
+暗色模式 checklist：1) shadow opacity 非 0；2) border 比 card 亮 12+ 单位；3) 文字对比度 ≥ 4.5:1（WCAG AA）；4) primary 跨主题一致；5) input 背景非纯黑（用 #0a0a0b）；6) Badge 文字对比度 ≥ 4.5:1。
+
+### Metadata
+- Source: Phase 5 T17 整体视觉优化
+- Related Files: src/renderer/src/styles/design-tokens.css, src/renderer/src/components/ui/Badge.tsx
+- Tags: dark-mode, wcag, accessibility, contrast
+
+---
+
+## [LRN-20260721-014] best_practice
+
+**Logged**: 2026-07-21T23:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: process
+**Project**: zhixing-reader
+
+### Summary
+循环工程子 agent 模式可一天跑通 18 任务，关键是主 agent 把握依赖关系，独立任务并行，简单任务合并审查
+
+### Details
+Phase 5 优化循环工程 18 个任务在一天内全部跑通，verifier 总分 8.5/10，无 P0 阻塞。
+
+关键实践：
+- 独立任务并行派 implementer（T3+T5+T11 / T8+T9+T14 / T17+T6b）
+- 简单任务合并双审（T3+T5+T11 一个 spec-reviewer + 一个 code-quality-reviewer）
+- P1 修复与下一批次并行（T16 P1 fix + T3/T5/T11 implementer）
+- spec 与代码不符时立即仲裁，不浪费 implementer 时间
+
+### Suggested Action
+循环工程不是死板的串行。主 agent 职责：1) 识别任务依赖关系；2) 独立任务并行派；3) 简单任务合并双审；4) P1 修复与下一批次并行；5) spec 冲突时立即仲裁。
+
+### Metadata
+- Source: Phase 5 优化循环工程全流程
+- Related Files: .trae/specs/phase5-optimization/verify-report.md
+- Tags: loop-engineering, parallel, subagent, efficiency
+
+---
+
+## [LRN-20260721-015] best_practice
+
+**Logged**: 2026-07-21T23:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: ai
+**Project**: zhixing-reader
+
+### Summary
+深度思考模式需兼容三种流式格式：DeepSeek R1 reasoning_content + OpenAI reasoning.summary + Anthropic thinking_delta
+
+### Details
+T13 AI 对话重构新增深度思考模式。不同 LLM 厂商的思考过程流式格式不同：
+- DeepSeek R1：`reasoning_content` 字段
+- OpenAI o1/o3：`reasoning.summary` 字段
+- Anthropic Claude：`thinking_delta` 事件
+
+ai-service.ts 解析三种格式，通过 `reasoning:chunk` IPC 通道推送到渲染进程，Reasoning.tsx 组件展示为可折叠面板（自动展开 → 1s 后折叠 → 显示耗时）。
+
+### Suggested Action
+新增 LLM 功能时，必须考虑多厂商兼容。深度思考模式 checklist：1) DeepSeek reasoning_content；2) OpenAI reasoning.summary；3) Anthropic thinking_delta；4) 统一 IPC 通道转发；5) UI 可折叠面板。
+
+### Metadata
+- Source: Phase 5 T13 AI 对话重构
+- Related Files: electron/ai-service.ts, src/renderer/src/components/chat/Reasoning.tsx
+- Tags: ai, reasoning, deepseek, openai, anthropic, streaming
+
+---
+
+## [LRN-20260722-001] best_practice
+
+**Logged**: 2026-07-22T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: testing
+**Project**: zhixing-reader
+
+### Summary
+提升单元测试覆盖率时，优先识别并补充"低成本高收益"分支
+
+### Details
+Phase 16 提升 ai-service.ts 测试覆盖率，采用以下识别方法：
+1. **看 coverage HTML 报告**：`cbranch-no` / `cline-no` 标记的红色分支
+2. **优先补"外部依赖失败"分支**：mock `fetch` reject / HTTP error response
+3. **其次补"输入边界"分支**：空数组、null 字段、无效枚举值
+4. **最后考虑"时间/缓存"分支**：需要 mock 时间，成本较高
+
+本次补充 12 个边界测试用例，覆盖：
+- `testConnection` fetch 抛非 Error 对象（`String(error)` fallback）
+- `callAI` provider 空字符串 fallback
+- `callAI` 配置缺失时使用默认值
+- `testConnection` HTTP 错误响应
+- `callAI` 缓存命中
+- `extractMethodologies` fetch 失败
+- `generateSummary` highlight 无 chapterTitle
+- `distillKnowledgeCards` highlight 无 chapterTitle/note
+- `distillKnowledgeCards` AI 返回非数组 JSON
+- `distillKnowledgeCards` AI 返回空数组
+- `distillKnowledgeCards` fetch 失败
+- `generateCards` repairJSON 处理字符串内反斜杠
+
+覆盖率变化：lines 91.16% → 91.99%，branches 83.24% → 84.48%，functions 95.13% → 95.83%
+
+### Suggested Action
+提升覆盖率时遵循"低成本高收益"原则：外部依赖失败 > 输入边界 > 时间/缓存。避免为了覆盖而覆盖，优先保证核心路径有测试。
+
+### Metadata
+- Source: Phase 16 T1 测试覆盖率提升
+- Related Files: tests/ai-service-functions.test.ts, electron/ai-service.ts
+- Tags: testing, coverage, branch, boundary
+
+---
+
+## [LRN-20260722-002] best_practice
+
+**Logged**: 2026-07-22T00:30:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: review
+**Project**: zhixing-reader
+
+### Summary
+建立审查 Agent 规范，沉淀提示词模板、审查类目和反馈表达规范
+
+### Details
+跳出项目进行批判性审视后，发现项目存在"用过度规范的流程掩盖架构腐烂"的问题。为系统性提升代码审查质量，建立审查 Agent 规范：
+
+1. **提示词模板**：Role + 硬性约束 + 三维输出（问题/风险/代码）
+2. **审查类目**：基础质量层 → 设计架构层 → 安全合规层 → 性能运维层 → 技术债务层
+3. **反馈表达**：具体问题 + 业务影响 + 可操作建议，采用 Conventional Comments 规范
+4. **批判性框架**：静态规则层 + 语义分析层 + 架构决策层
+
+规范文档：`.claude/rules/review-agent.md`
+
+### Suggested Action
+所有 PR / MR / 功能实现必须经过 AI 审查 Agent 初审。审查 Agent 按 `.claude/rules/review-agent.md` 执行，输出结构化报告。人工复核架构决策层。
+
+### Metadata
+- Source: Phase 16 批判性审视
+- Related Files: .claude/rules/review-agent.md, AGENTS.md
+- Tags: review, agent, prompt, checklist, feedback
+
+---

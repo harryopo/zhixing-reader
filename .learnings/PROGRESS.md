@@ -33,6 +33,8 @@
 | 比赛展示打磨 | 80% | demo.db + seed 脚本本地未提交；Windows 安装包曾因 app.asar 占用失败，待重打 |
 | **演示数据 FSRS 修复（7/20）** | ✅ | Mastered 状态强制写入 + Token 1.27M |
 | **死代码治理归档（7/21）** | ✅ 完成 | spec/tasks/checklist/verify-report 四件套；LEARNINGS 追加 LRN-20260721-006~010；installer-v2 污染已清理（-222378 行） |
+| **测试覆盖率提升 Phase 16（7/22）** | ✅ 完成 | lines 91.99% / branches 84.48% / functions 95.83%；详见 `.learnings/PHASE_16_REPORT.md` |
+| **审查 Agent 规范沉淀（7/22）** | ✅ 完成 | `.claude/rules/review-agent.md` — 提示词模板 + 审查类目 + 反馈表达规范 |
 
 ### ⏳ 待开发（比赛后）
 
@@ -44,7 +46,11 @@
 | 拆 rag-service.ts | 低 | 1-2 天 |
 | 升级 React Router 7 → 8 | 低 | 1 天（含破坏性变更） |
 | macOS/Linux 打包配置 | 低 | 1 天 |
-| 单元测试覆盖率提升（当前仅 FSRS 18 个测试） | 高 | 持续 |
+| 建立 sql.js 集成测试套件 | 高 | 2-3 天 |
+| 建立 IPC 全链路冒烟测试 | 高 | 1-2 天 |
+| 统一数据映射层 | 中 | 2 天 |
+| 消除模块级可变全局状态 | 中 | 1-2 天 |
+| 建立 service layer 封装 IPC | 中 | 2 天 |
 
 ---
 

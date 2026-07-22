@@ -113,6 +113,8 @@ npm run build-dict       # 从 ecdict.db 重新提取 dictionary.json
 ### 4.3 Sub-agent 模板
 
 - **code-reviewer** — 7 维度审查（安全/性能/正确性/可维护性/测试/可访问性/文档）
+  - 详细规范：`.claude/rules/review-agent.md`
+  - 提示词模板、审查类目、反馈表达规范
 - **test-writer** — Vitest 用例生成（红绿循环）
 
 详见 [.claude/agents/](.claude/agents/)。
