@@ -805,3 +805,27 @@ describe('repairJSON 边界', () => {
     expect(result[0].front).toBe('Q')
   })
 })
+
+describe('generateCards 边界', () => {
+  it('43. AI 返回不含 [ ] 的 JSON 时抛错（extractAndParseJSON 找不到 [ ]）', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('{"notAnArray": true}'))
+
+    await expect(
+      generateCards([{ content: 'highlight' }], 'test-book-not-array')
+    ).rejects.toThrow('AI响应中未找到有效的JSON格式')
+  })
+
+  it('44. 所有卡片均无效时抛错', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(
+      JSON.stringify([
+        { front: null as unknown as string, back: '空' },
+        { front: '问题', back: undefined as unknown as string },
+        { front: 123 as unknown as string, back: '数字' },
+      ])
+    ))
+
+    await expect(
+      generateCards([{ content: 'highlight' }], 'test-book-all-invalid')
+    ).rejects.toThrow('AI生成的卡片均无效')
+  })
+})
