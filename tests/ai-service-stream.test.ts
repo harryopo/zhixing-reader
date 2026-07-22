@@ -412,7 +412,7 @@ describe('streamChat — 流式聊天测试', () => {
       expect(contentChunks).toEqual(['答案'])
     })
 
-    it('15. message_start + message_delta 解析 usage（暴露 promptTokens 覆盖 bug）', async () => {
+    it('15. message_start + message_delta 解析 usage（message_delta 保留 message_start 的 promptTokens）', async () => {
       setAnthropicConfig()
       mockedFetchWithTimeout.mockResolvedValueOnce(
         createSSEResponse([
@@ -428,10 +428,8 @@ describe('streamChat — 流式聊天测试', () => {
 
       expect(onComplete).toHaveBeenCalledTimes(1)
       const usage = onComplete.mock.calls[0][0]
-      // 注意：源码 streamAnthropic 的 message_delta 会用 { promptTokens: 0, completionTokens }
-      // 覆盖整个 usageData 对象，导致 message_start 设的 promptTokens 丢失。
-      // 这是源码 bug（按任务要求"报告但不修"），测试断言实际行为。
-      expect(usage).toEqual({ promptTokens: 0, completionTokens: 5 })
+      // message_delta 只更新 completionTokens，保留 message_start 设的 promptTokens
+      expect(usage).toEqual({ promptTokens: 10, completionTokens: 5 })
     })
   })
 

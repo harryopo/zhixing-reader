@@ -1354,10 +1354,16 @@ async function streamAnthropic(
               }
             }
             if (parsed.type === 'message_delta' && parsed.usage) {
-              usageData = {
-                promptTokens: 0,
-                completionTokens: parsed.usage.output_tokens,
-              };
+              if (usageData) {
+                // message_start 已设置 promptTokens，只更新 completionTokens
+                usageData.completionTokens = parsed.usage.output_tokens;
+              } else {
+                // 异常顺序：message_delta 先于 message_start（不应发生但容错）
+                usageData = {
+                  promptTokens: 0,
+                  completionTokens: parsed.usage.output_tokens,
+                };
+              }
             }
             if (parsed.type === 'message_start' && parsed.message?.usage) {
               if (usageData) {
