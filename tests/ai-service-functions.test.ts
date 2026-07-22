@@ -137,8 +137,43 @@ describe('配置管理', () => {
   })
 })
 
+describe('callOpenAI 错误处理', () => {
+  it('4a. OpenAI 返回空 choices 数组时抛错', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      body: null,
+      json: async () => ({ choices: [], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
+      text: async () => '',
+    } as unknown as Response)
+
+    await expect(
+      generateCards([{ content: 'highlight' }], 'test-book-callai-empty')
+    ).rejects.toThrow('Invalid response from OpenAI API: no choices returned')
+  })
+
+  it('4b. OpenAI 返回 choices 但 message 为空时抛错', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      body: null,
+      json: async () => ({
+        choices: [{ finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }),
+      text: async () => '',
+    } as unknown as Response)
+
+    await expect(
+      generateCards([{ content: 'highlight' }], 'test-book-callai-no-message')
+    ).rejects.toThrow('Invalid response from OpenAI API: no choices returned')
+  })
+})
+
 describe('generateCards', () => {
-  it('4. 正常 JSON 数组返回有效卡片', async () => {
+  it('5. 正常 JSON 数组返回有效卡片', async () => {
     const cards = [
       { front: '问题1', back: '答案1', tags: ['tag1', 'tag2'] },
       { front: '问题2', back: '答案2', tags: [] },
