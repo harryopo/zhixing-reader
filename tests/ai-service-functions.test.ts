@@ -791,6 +791,19 @@ describe('callAI 错误处理', () => {
     expect(result.message).toContain('连接失败')
     expect(result.message).toContain('string error')
   })
+
+  it('46. provider 为空字符串时 fallback 到 unknown 并抛错', async () => {
+    setAIConfig({
+      provider: '' as AIProvider,
+      apiKey: 'sk-test',
+      model: 'unknown',
+      baseUrl: 'https://example.com',
+    })
+
+    await expect(
+      generateCards([{ content: 'highlight' }], 'test-book-empty-provider')
+    ).rejects.toThrow('Unsupported AI provider: ')
+  })
 })
 
 describe('repairJSON 边界', () => {
