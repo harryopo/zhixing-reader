@@ -28,20 +28,25 @@ import { render } from '@testing-library/react'
 import type { ProviderStats, FeatureStats } from '../../../types/renderer'
 
 // 必须在 import 被测组件前 mock（vitest 提升）
+// lastRawOption 保存最近一次 render 的 raw option（含 formatter 函数），供 formatter 测试读取
+const lastRawOption: { current: Record<string, unknown> | null } = { current: null }
 vi.mock('echarts-for-react', () => ({
   default: (props: {
     option?: unknown
     style?: unknown
     'aria-label'?: string
     'aria-role'?: string
-  }) => (
-    <div
-      data-testid="echarts-mock"
-      data-option={JSON.stringify(props.option)}
-      data-aria-label={props['aria-label'] ?? ''}
-      data-aria-role={props['aria-role'] ?? ''}
-    />
-  ),
+  }) => {
+    lastRawOption.current = (props.option as Record<string, unknown>) ?? null
+    return (
+      <div
+        data-testid="echarts-mock"
+        data-option={JSON.stringify(props.option)}
+        data-aria-label={props['aria-label'] ?? ''}
+        data-aria-role={props['aria-role'] ?? ''}
+      />
+    )
+  },
 }))
 
 import {
@@ -417,5 +422,190 @@ describe('registerTailwindTheme', () => {
     expect(tailwindTheme.color.length).toBeGreaterThanOrEqual(8)
     // 第一个颜色应为 emerald-500（#10b981）
     expect(tailwindTheme.color[0]).toBe('#10b981')
+  })
+})
+
+// ============================================================================
+// 9. tooltip.formatter — Phase 12 T1 函数覆盖补全
+//    目标：覆盖各组件 tooltip formatter 回调（v8 coverage 将其计为独立函数）
+//    策略：render 后从 lastRawOption.current 读取 raw option，直接调用 formatter
+// ============================================================================
+
+/** 从最近一次 render 读取 raw option（保留函数引用） */
+function readRawOption(): Record<string, unknown> {
+  if (!lastRawOption.current) {
+    throw new Error('lastRawOption.current is null — 请先 render 组件')
+  }
+  return lastRawOption.current
+}
+
+/** 从 raw option 中读取 tooltip.formatter 函数 */
+function getTooltipFormatter(option: Record<string, unknown>): (...args: unknown[]) => unknown {
+  const tooltip = option.tooltip as { formatter?: (...args: unknown[]) => unknown } | undefined
+  if (!tooltip || typeof tooltip.formatter !== 'function') {
+    throw new Error('tooltip.formatter is not a function')
+  }
+  return tooltip.formatter
+}
+
+describe('ProviderPieChart tooltip.formatter', () => {
+  it('formats single item with name + formatTokens + percent', () => {
+    render(<ProviderPieChart providers={[makeProvider({ total_tokens: 1500 })]} />)
+    const option = readRawOption()
+    const formatter = getTooltipFormatter(option)
+    // 源码：`${p.name}<br/>${formatTokens(p.value)} (${p.percent.toFixed(1)}%)`
+    const result = formatter({ name: 'openai', value: 1500, percent: 50 }) as string
+    expect(result).toBe('openai<br/>1.5k (50.0%)')
+  })
+
+  it('formats 0 tokens as "0"', () => {
+    render(<ProviderPieChart providers={[makeProvider({ total_tokens: 0 })]} />)
+    const formatter = getTooltipFormatter(readRawOption())
+    expect(formatter({ name: 'test', value: 0, percent: 0 })).toBe('test<br/>0 (0.0%)')
+  })
+})
+
+describe('ModelBarChart tooltip.formatter', () => {
+  it('formats item with name + formatTokens', () => {
+    render(<ModelBarChart providers={[makeProvider({ model: 'gpt-4o', total_tokens: 2000 })]} />)
+    const option = readRawOption()
+    const formatter = getTooltipFormatter(option)
+    // 源码：`${p.name}<br/>${formatTokens(p.value)}`
+    expect(formatter({ name: 'gpt-4o', value: 2000 })).toBe('gpt-4o<br/>2.0k')
+  })
+})
+
+describe('FeatureBarChart tooltip.formatter', () => {
+  it('formats axis params with Token series using formatTokens', () => {
+    render(
+      <FeatureBarChart
+        features={[
+          makeFeature({ feature: 'chat', total_tokens: 1500, request_count: 10 }),
+        ]}
+      />,
+    )
+    const option = readRawOption()
+    const formatter = getTooltipFormatter(option)
+    // 源码：params.map(p => `${p.seriesName}: ${p.seriesName === 'Token' ? formatTokens(p.value) : p.value}`)
+    //   然后 `${params[0]?.name ?? ''}<br/>${lines.join('<br/>')}`
+    const params = [
+      { name: 'chat', seriesName: 'Token', value: 1500 },
+      { name: 'chat', seriesName: '请求数', value: 10 },
+    ]
+    const result = formatter(params) as string
+    expect(result).toBe('chat<br/>Token: 1.5k<br/>请求数: 10')
+  })
+
+  it('handles empty params array (params[0]?.name ?? "")', () => {
+    render(<FeatureBarChart features={[makeFeature()]} />)
+    const formatter = getTooltipFormatter(readRawOption())
+    // 空数组：params[0]?.name ?? '' → ''
+    expect(formatter([])).toBe('<br/>')
+  })
+})
+
+describe('RequestPieChart tooltip.formatter', () => {
+  it('formats item with name + value + percent (不经过 formatTokens)', () => {
+    render(<RequestPieChart features={[makeFeature({ request_count: 80 })]} />)
+    const option = readRawOption()
+    const formatter = getTooltipFormatter(option)
+    // 源码：`${p.name}<br/>${p.value} 次 (${p.percent.toFixed(1)}%)`
+    expect(formatter({ name: 'chat', value: 80, percent: 80 })).toBe('chat<br/>80 次 (80.0%)')
+  })
+})
+
+describe('ProviderTokenBarChart tooltip.formatter', () => {
+  it('formats axis params with all series using formatTokens', () => {
+    render(
+      <ProviderTokenBarChart
+        providers={[
+          makeProvider({ provider: 'openai', total_input_tokens: 1500, total_output_tokens: 500 }),
+        ]}
+      />,
+    )
+    const option = readRawOption()
+    const formatter = getTooltipFormatter(option)
+    // 源码：params.map(p => `${p.seriesName}: ${formatTokens(p.value)}`)
+    //   然后 `${params[0]?.name ?? ''}<br/>${lines.join('<br/>')}`
+    // formatTokens(1500) = '1.5k'（>= 1000 转 k）
+    // formatTokens(500) = '500'（< 1000 不转）
+    const params = [
+      { name: 'openai', seriesName: '输入 Token', value: 1500 },
+      { name: 'openai', seriesName: '输出 Token', value: 500 },
+    ]
+    const result = formatter(params) as string
+    expect(result).toBe('openai<br/>输入 Token: 1.5k<br/>输出 Token: 500')
+  })
+
+  it('handles empty params array', () => {
+    render(<ProviderTokenBarChart providers={[makeProvider()]} />)
+    const formatter = getTooltipFormatter(readRawOption())
+    expect(formatter([])).toBe('<br/>')
+  })
+})
+
+// ============================================================================
+// 10. TokensGauge detail.formatter — 仪表盘中心数值显示函数
+// ============================================================================
+
+describe('TokensGauge detail.formatter', () => {
+  it('returns formatTokens(totalTokens) for current totalTokens', () => {
+    render(<TokensGauge totalTokens={2500} />)
+    const option = readRawOption()
+    const series = option.series as Array<{ detail?: { formatter?: () => unknown } }>
+    const detail = series[0]?.detail
+    if (!detail || typeof detail.formatter !== 'function') {
+      throw new Error('series[0].detail.formatter is not a function')
+    }
+    // 源码：formatter: () => formatTokens(totalTokens)
+    // totalTokens = 2500 → formatTokens(2500) = '2.5k'
+    expect(detail.formatter()).toBe('2.5k')
+  })
+
+  it('returns "0" for totalTokens = 0', () => {
+    render(<TokensGauge totalTokens={0} />)
+    const option = readRawOption()
+    const series = option.series as Array<{ detail?: { formatter?: () => unknown } }>
+    expect(series[0]?.detail?.formatter?.()).toBe('0')
+  })
+
+  it('returns "1.0M" for totalTokens = 1_000_000', () => {
+    render(<TokensGauge totalTokens={1_000_000} />)
+    const option = readRawOption()
+    const series = option.series as Array<{ detail?: { formatter?: () => unknown } }>
+    expect(series[0]?.detail?.formatter?.()).toBe('1.0M')
+  })
+})
+
+// ============================================================================
+// 11. EmptyState + ChartFigure 直接测试 — 内部组件显式覆盖
+// ============================================================================
+
+describe('EmptyState', () => {
+  it('renders "暂无数据" with given height', () => {
+    // EmptyState 是内部函数，通过组件 empty data 间接渲染
+    const { container } = render(<ProviderPieChart providers={[]} />)
+    const emptyDiv = container.querySelector('div')
+    expect(emptyDiv).toBeTruthy()
+    expect(emptyDiv?.textContent).toBe('暂无数据')
+    expect(emptyDiv?.style.height).toBe('240px') // HEIGHT = 240
+  })
+})
+
+describe('ChartFigure', () => {
+  it('builds aria-label with subtitle when provided', () => {
+    // ChartFigure 是内部函数，通过 ProviderPieChart 渲染
+    // 源码：subtitle ? `${title}：${subtitle}。共 ${dataCount} 项数据` : `${title}。共 ${dataCount} 项数据`
+    // ProviderPieChart 传了 subtitle="按 Token 用量"
+    const { container } = render(<ProviderPieChart providers={[makeProvider()]} />)
+    const figure = container.querySelector('[role="img"]')
+    expect(figure?.getAttribute('aria-label')).toBe('Provider 占比：按 Token 用量。共 1 项数据')
+  })
+
+  it('builds aria-label with subtitle for ModelBarChart', () => {
+    // ModelBarChart 传了 subtitle="按 Token 用量"
+    const { container } = render(<ModelBarChart providers={[makeProvider()]} />)
+    const figure = container.querySelector('[role="img"]')
+    expect(figure?.getAttribute('aria-label')).toBe('Model 用量 Top 10：按 Token 用量。共 1 项数据')
   })
 })
