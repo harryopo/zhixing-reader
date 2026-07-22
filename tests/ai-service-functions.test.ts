@@ -258,6 +258,23 @@ describe('generateSummary', () => {
       generateSummary([{ content: 'bad' }], 'test-book-summary-2')
     ).rejects.toThrow('摘要格式无效')
   })
+
+  it('12b. keyPoints 包含空字符串/纯空白/非字符串时过滤掉', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(
+      createOpenAIResponse(JSON.stringify({
+        summary: '摘要内容',
+        keyPoints: ['有效要点', '', '   ', 123, null, '另一个有效'],
+      }))
+    )
+
+    const result = await generateSummary(
+      [{ content: 'highlight' }],
+      'test-book-summary-filter'
+    )
+
+    expect(result.summary).toBe('摘要内容')
+    expect(result.keyPoints).toEqual(['有效要点', '另一个有效'])
+  })
 })
 
 describe('chatWithContext', () => {

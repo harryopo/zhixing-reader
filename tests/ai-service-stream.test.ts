@@ -587,5 +587,19 @@ describe('streamChat — 流式聊天测试', () => {
       const body = JSON.parse(opts.body as string)
       expect(body.model).toBe('gpt-4o-mini')
     })
+
+    it('24. fetch 返回 AbortError（name === "AbortError"）触发 onComplete', async () => {
+      const err = new Error('aborted')
+      err.name = 'AbortError'
+      mockedFetchWithTimeout.mockRejectedValueOnce(err)
+
+      const onComplete = vi.fn()
+      const onError = vi.fn()
+
+      await streamChat([{ role: 'user', content: 'test' }], vi.fn(), onComplete, onError)
+
+      expect(onComplete).toHaveBeenCalledWith(undefined)
+      expect(onError).not.toHaveBeenCalled()
+    })
   })
 })
