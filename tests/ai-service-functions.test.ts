@@ -54,6 +54,7 @@ import {
   translateArticle,
   cancelActiveStream,
   streamChat,
+  testConnection,
 } from '../electron/ai-service'
 import { fetchWithTimeout, fetchWithRetry, HttpAbortError } from '../electron/http-client'
 import { tokenUsageDb } from '../electron/database'
@@ -767,6 +768,28 @@ describe('callAI 错误处理', () => {
     await expect(
       generateCards([{ content: 'highlight' }], 'test-book-unsupported')
     ).rejects.toThrow('Unsupported AI provider: unsupported')
+  })
+
+  it('45. testConnection fetch 抛出非 Error 对象时返回字符串化错误', async () => {
+    setAIConfig({
+      provider: 'openai',
+      apiKey: 'sk-test',
+      model: 'gpt-4o-mini',
+      baseUrl: 'https://example.com',
+    })
+
+    mockedFetchWithTimeout.mockRejectedValueOnce('string error')
+
+    const result = await testConnection({
+      provider: 'openai',
+      apiKey: 'sk-test',
+      model: 'gpt-4o-mini',
+      baseUrl: 'https://example.com',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('连接失败')
+    expect(result.message).toContain('string error')
   })
 })
 
