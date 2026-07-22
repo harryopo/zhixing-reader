@@ -804,6 +804,29 @@ describe('callAI 错误处理', () => {
       generateCards([{ content: 'highlight' }], 'test-book-empty-provider')
     ).rejects.toThrow('Unsupported AI provider: ')
   })
+
+  it('47. temperature/maxTokens/model/baseUrl 缺失时使用 fallback', async () => {
+    setAIConfig({
+      provider: 'openai',
+      apiKey: 'sk-test',
+    })
+
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(
+      JSON.stringify([{ front: 'Q', back: 'A' }])
+    ))
+
+    const result = await generateCards(
+      [{ content: 'highlight' }],
+      'test-book-fallback'
+    )
+
+    expect(result).toHaveLength(1)
+    const body = JSON.parse(mockedFetchWithRetry.mock.calls[0][1].body as string)
+    expect(body.temperature).toBe(0.7)
+    expect(body.max_tokens).toBe(4000)
+    expect(body.model).toBe('gpt-4o-mini')
+    expect(mockedFetchWithRetry.mock.calls[0][0]).toBe('https://api.openai.com/v1/chat/completions')
+  })
 })
 
 describe('repairJSON 边界', () => {
