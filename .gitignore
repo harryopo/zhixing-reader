@@ -38,6 +38,7 @@ temp/
 installer/
 installer-v2/
 installer-test/
+installer-final/
 dist-installer/
 builder-output-override.json
 
