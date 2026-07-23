@@ -58,6 +58,7 @@ export default defineConfig({
         'electron/agent/intent-classifier.ts',
         'electron/agent/strategy-selector.ts',
         'electron/ai-service.ts',
+        'electron/ai-sdk-service.ts',
         'electron/database.ts',
         'electron/services/http-client.ts',
         'electron/services/prompt-registry.ts',
@@ -75,20 +76,20 @@ export default defineConfig({
         '**/index.ts',
       ],
       thresholds: {
-        // Phase 17 阈值重设（2026-07-23）
-        // Phase 16 基线：lines 91.99% / branches 84.48% / functions 95.83%（10 文件，无 database.ts）
-        // Phase 17 新增 database.ts 到 include 后：
-        //   database.ts 覆盖率 59.37% lines / 73.52% branches / 52.05% functions
-        //   （CRUD 已测，但 IPC 处理函数 + 磁盘持久化函数需要 E2E 测试，留 Phase 18）
-        //   整体降至：lines 81.54% / branches 82.3% / functions 73.79%
-        // 策略：阈值重设为当前基线 + 缓冲，Phase 18 补 IPC/持久化测试后恢复 85/80/80/85
-        //   - lines/statements: 85→80（当前 81.54%，留 1.54% 缓冲）
-        //   - functions: 80→70（当前 73.79%，留 3.79% 缓冲）
-        //   - branches: 80→80（当前 82.3%，留 2.3% 缓冲，维持不变）
-        lines: 80,
-        functions: 70,
+        // Phase 18 阈值提升（2026-07-23）
+        // Phase 17 基线：lines 81.54% / branches 82.3% / functions 73.79%（11 文件）
+        // Phase 18 新增 ai-sdk-service.ts + database.ts 持久化/迁移/init 测试后：
+        //   ai-sdk-service.ts: 92.85% lines / 100% functions（新增，mock ai 模块）
+        //   database.ts: 59.37%→69.24% lines / 52.05%→57.53% functions（+10% lines）
+        //   整体提升至：lines 84.86% / branches 81.38% / functions 77.1%
+        // 策略：阈值提升到当前基线 - 2% 缓冲
+        //   - lines/statements: 80→83（当前 84.86%，留 1.86% 缓冲）
+        //   - functions: 70→75（当前 77.1%，留 2.1% 缓冲）
+        //   - branches: 80→80（当前 81.38%，留 1.38% 缓冲，维持）
+        lines: 83,
+        functions: 75,
         branches: 80,
-        statements: 80,
+        statements: 83,
       },
     },
     setupFiles: ['./tests/setup.ts', './tests/electron-mock-setup.ts'],
