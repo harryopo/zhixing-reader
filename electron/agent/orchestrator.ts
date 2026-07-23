@@ -1,4 +1,4 @@
-import { streamChat } from '../ai-service'
+import { sdkStreamChat } from '../ai-sdk-service'
 import { logger } from '../logger'
 import { classifyIntent } from './intent-classifier'
 import { selectStrategy, strategyToPromptHint, BloomLevel } from './strategy-selector'
@@ -268,7 +268,7 @@ export async function processMessageStream(
     originalOnComplete(usage)
   }
 
-  await streamChat(messages, wrappedOnChunk, wrappedOnComplete, onError, {
+  await sdkStreamChat(messages, wrappedOnChunk, wrappedOnComplete, onError, {
     enableReasoning: options?.enableReasoning,
     onReasoningChunk: options?.onReasoningChunk,
   })

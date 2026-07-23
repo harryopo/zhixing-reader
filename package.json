@@ -25,7 +25,9 @@
     "loop:detect:gates": "node scripts/loop-detect.mjs --gates"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.14",
     "@tailwindcss/postcss": "^4.3.0",
+    "ai": "^7.0.35",
     "axios": "^1.7.0",
     "echarts": "^5.5.1",
     "echarts-for-react": "^3.0.2",
@@ -44,6 +46,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.61.0",
