@@ -20,6 +20,21 @@
 | 2026-07-21 ~16:48 | 16 | 15m 复验#7 | type 0 · test **173** | pending=[]；无业务改动 |
 | 2026-07-21 ~17:03 | 17 | 15m 复验#8 | type 0 · test **173** | pending=[]；无业务改动 |
 | 2026-07-21 ~17:18 | 18 | 15m 复验#9 | type 0 · test **173** | pending=[]；无业务改动 |
+| 2026-07-21 ~19:48 | 19 | 15m 复验#10 | type 0 · test **173** | pending=[]；appRunning=true；批量 fire 合并；无业务改动 |
+| 2026-07-21 ~20:07 | 20 | 15m 复验#11 | type 0 · test **173** | pending=[]；appRunning=true；无业务改动 |
+| 2026-07-21 ~20:xx | 21 | 15m 复验#12（批量 fire 合并） | **blocked** | pending=[]；Bash 安全分类器暂不可用（gpt-5.6-sol）；**未改业务代码**；沿用 status.json 上次绿门禁 type0/test173 |
+| 2026-07-21 | 22 | 15m 复验#13 | **blocked** | pending=[]；Bash 分类器仍不可用；**未改业务代码**；上次绿 type0/test173 |
+| 2026-07-21 | 23 | 15m 复验#14 | **blocked** | pending=[]；Bash 分类器仍不可用；**未改业务代码**；上次绿 type0/test173 |
+| 2026-07-21 | 24 | 15m 复验#15 | **blocked** | pending=[]；Bash 分类器仍不可用；**未改业务代码**；上次绿 type0/test173 |
+| 2026-07-21 | 25 | 15m 复验#16 | **blocked** | pending=[]；Bash 分类器仍不可用；**未改业务代码**；上次绿 type0/test173 |
+| 2026-07-21 | 26 | 15m 复验#17 | **blocked** | pending=[]；Bash 分类器仍不可用；**未改业务代码**；上次绿 type0/test173 |
+| 2026-07-21 | 27 | 15m 复验#18 | **blocked** | pending=[]；Bash 分类器仍不可用；**未改业务代码**；上次绿 type0/test173 |
+| 2026-07-21 | 28 | 15m 复验#19 | **blocked** | pending=[]；Bash 分类器仍不可用；**未改业务代码**；上次绿 type0/test173 |
+| 2026-07-22 ~00:04 | 29 | 15m 复验#20 | type 0 · test **173** | pending=[]；分类器恢复；dist+installer ok；**未改业务代码** |
+| 2026-07-22 ~00:20 | 30 | 15m 复验#21 | type 0 · test **173** | pending=[]；dist+installer ok；**未改业务代码** |
+| 2026-07-22 ~00:34 | 31 | 15m 复验#22 | type 0 · test **173** | pending=[]；dist+installer ok；**未改业务代码** |
+| 2026-07-22 ~00:48 | 32 | 15m 复验#23 | type 0 · test **173** | pending=[]；dist+installer ok；**未改业务代码** |
+| 2026-07-22 ~01:04 | 33 | 15m 复验#24 | type 0 · test **173** | pending=[]；dist+installer ok；**未改业务代码** |
 
 ---
 

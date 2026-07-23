@@ -1,6 +1,6 @@
 # 知行读书 — 项目进度与规划
 
-## 📊 当前进度（截至 2026-07-21）
+## 📊 当前进度（截至 2026-07-23）
 
 ### ✅ 已完成
 
@@ -35,6 +35,11 @@
 | **死代码治理归档（7/21）** | ✅ 完成 | spec/tasks/checklist/verify-report 四件套；LEARNINGS 追加 LRN-20260721-006~010；installer-v2 污染已清理（-222378 行） |
 | **测试覆盖率提升 Phase 16（7/22）** | ✅ 完成 | lines 91.99% / branches 84.48% / functions 95.83%；详见 `.learnings/PHASE_16_REPORT.md` |
 | **审查 Agent 规范沉淀（7/22）** | ✅ 完成 | `.claude/rules/review-agent.md` — 提示词模板 + 审查类目 + 反馈表达规范 |
+| **AI SDK 重构（7/22-7/23，Claude）** | ⚠️ 已实现未提交 | 新增 `electron/ai-sdk-service.ts` + `tests/ai-sdk-service.test.ts`；orchestrator 已切换到 `sdkStreamChat`；方案见 `docs/ai-sdk-refactor-plan.md` |
+| **MCP Server 子项目（7/22-7/23，Claude）** | ⚠️ 已实现未提交 | 新增独立子项目 `mcp-server/` — 5 个只读工具（list-books/search-highlights/get-due-cards/get-vocabulary/get-reading-stats）+ 14 个测试；支持 Claude Desktop / Cursor 查询阅读数据 |
+| **sql.js 集成测试套件（7/22-7/23，Claude）** | ⚠️ 已实现未提交 | 新增 `tests/database-integration.test.ts` — 49 个测试覆盖 13 张表 CRUD + 索引 + 约束 + 事务；测试夹具 `tests/__fixtures__/db-helpers.ts`；database.ts 加 `injectTestDatabase` 测试注入 |
+| **Agent 编排架构（已上线，7/22-7/23 复核）** | ✅ 完整 | 详见下文「Agent 编排架构现状」章节 |
+| **UI 精简（7/22-7/23，Claude）** | ⚠️ 已实现未提交 | 删除 `Review.tsx`（-896 行）；精简 KnowledgeCards/VocabularyPage/SettingsAI 等 11 个页面；35 文件 +/- 956/-1421 |
 
 ### ⏳ 待开发（比赛后）
 
@@ -247,5 +252,165 @@
 
 ---
 
-*最后更新：2026-07-21 | v2 循环工程（收尾）完成，HEAD `b43f607` 可提交*
-*下次更新：v1.0.1 漏洞修复后追加；Phase 1 结束（7/31）后整体重写*
+## 🤖 Agent 编排架构现状（2026-07-23 复核）
+
+> Claude 在 7/22-7/23 期间未对 agent 编排架构本身做改动（架构在 v1.0.0 已落地），本次复核确认架构完整可用，并梳理出当前实际生效的 6 步流水线。
+
+### 架构组成（`electron/agent/`）
+
+| 文件 | 职责 | 关键算法 |
+|------|------|----------|
+| [intent-classifier.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/intent-classifier.ts) | 用户意图分类 | 关键词权重打分 + 负向模式 + 上下文延续（follow-up/affirmative）+ 问句模式兜底；4 类意图：`knowledge_query` / `deep_discussion` / `teaching_practice` / `casual_chat` |
+| [strategy-selector.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/strategy-selector.ts) | 教学策略映射 | 意图 → 教学模式 + Bloom 层级映射表；4 种模式：`direct_answer` / `socratic` / `feynman` / `assessment` |
+| [state-tracker.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/state-tracker.ts) | 会话状态跟踪 | 内存 Map（1000 session 上限 + 24h TTL + 每小时清理）；连续答对 3 题提升 Bloom、连续答错 2 题降层、Bloom 6 答对 5 题标记掌握 |
+| [context-builder.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/context-builder.ts) | 构建器接口 | `ContextBuilder` 抽象接口（name/priority/shouldBuild/build） |
+| [context-manager.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/context-manager.ts) | 上下文预算管理 | 5 个 builder 按优先级排序执行 + 4000 token 总预算 + 单 builder 截断 + 失败隔离 |
+| [builders/](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/builders) | 5 个具体构建器 | book(90)→RAG 语义搜索 + 关键词降级；methodology(80)→相关性评分；knowledgeCard(70)→标题/内容权重；memory(50)→关键词检索；userProfile(40)→认知水平画像 |
+| [system-prompt.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/system-prompt.ts) | 系统提示词 | 默认提示词 + 从 prompt-storage 加载可配置模板 |
+| [orchestrator.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/orchestrator.ts) | 编排主入口 | 6 步流水线：意图分类 → 难度调整 → 上下文构建 → 系统提示组装 → 流式发送 → 概念掌握度更新 + 方法论掌握度更新 + 记忆提取 |
+
+### 6 步流水线实际执行顺序（`processMessageStream`）
+
+```
+1. classifyIntent(userMessage, history)         → UserIntent
+2. selectStrategy(intent) + adjustDifficulty()  → StrategyPlan + 难度动作
+3. contextManager.buildAll(buildContext)        → combinedContext（5 builder 串行 + token 预算）
+4. systemPrompt + strategyHint + difficultyHint → 最终 system 消息
+5. sdkStreamChat(messages, onChunk, ...)        → 流式响应（7/23 已切到 Vercel AI SDK）
+6. onComplete 回调                               → 概念掌握度更新 + 方法论 mastery 更新 + 记忆自动提取
+```
+
+### 编排算法关键设计
+
+1. **意图分类的鲁棒性**：
+   - 关键词权重 = 关键词长度 × 命中数（中文长关键词权重更高）
+   - 负向模式扣分（如 "怎么用" 在 `knowledge_query` 中扣分，避免与 `teaching_practice` 冲突）
+   - 上下文延续：上轮 assistant 提问 → 本轮判定 `deep_discussion`；上轮 affirmative + 本轮问句 → `teaching_practice`
+   - 问句模式兜底：有问句标记且历史 >2 轮 → `deep_discussion`，否则 `knowledge_query`
+
+2. **难度自适应**：
+   - Bloom 1-6 层级，连续答对 3 题 +1 层，连续答错 2 题 -1 层
+   - Bloom ≥4 自动切 `socratic` 模式；Bloom ≤2 自动切 `direct_answer` 模式
+   - Bloom 6 答对 5 题永久标记掌握（consecutiveCorrect 清零）
+
+3. **上下文预算管理**：
+   - 4000 token 总预算，2 字符/token（中文估算）
+   - builder 按优先级降序执行：book(90) > methodology(80) > knowledgeCard(70) > memory(50) > userProfile(40)
+   - 单 builder 超预算时部分截断（保留剩余 token），后续 builder 跳过
+   - builder 异常隔离：单 builder 失败不影响其他 builder
+
+4. **概念掌握度评估**：
+   - 正则模式提取概念（`什么是X` / `X是什么` / `教我X` 等 9 种模式）
+   - 响应质量评估：用户反馈信号（"不懂"/"明白了"）+ 响应长度兜底（>50 字视为理解）
+   - 概念掌握度 0-5 级，答对 +1，答错不扣
+
+5. **方法论 mastery 联动**：
+   - 词边界匹配（避免子串误匹配）
+   - 答对 +5 mastery、答错 +2 mastery（最多 100）
+   - practice_count 累加
+
+### 配套测试
+
+- [tests/intent-classifier.test.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/tests/intent-classifier.test.ts) — 4 类意图分类 + 关键词权重 + 上下文延续
+- [tests/strategy-selector.test.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/tests/strategy-selector.test.ts) — 意图→策略映射 + prompt 提示词获取
+- [src/renderer/src/pages/AgentOrchestration.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/AgentOrchestration.tsx) — 管理后台可视化（6 步流水线 + 5 builder + 系统提示词编辑 + 测试运行）
+
+### Claude 在 7/22-7/23 对 agent 编排的改动
+
+仅 1 处：[orchestrator.ts#L272](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/orchestrator.ts) 把 `streamChat` 改为 `sdkStreamChat`（从 `ai-sdk-service` 导入），底层从手写 fetch+SSE 切换到 Vercel AI SDK。**编排算法本身未改动。**
+
+---
+
+## 📦 Claude 7/22-7/23 新增未提交工作清单
+
+> 以下改动均在 working tree 中，未 commit。HEAD 仍为 `da678ab`（2026-07-22 Phase 16 完成）。
+
+### 1. AI SDK 重构（替换手写 fetch/SSE）
+
+- [electron/ai-sdk-service.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/ai-sdk-service.ts) — 新文件，基于 Vercel AI SDK（`ai` + `@ai-sdk/openai-compatible`）实现 `sdkStreamChat` + `cancelActiveStream` + `generateObject` 结构化输出
+- [docs/ai-sdk-refactor-plan.md](file:///d:/ai/claude%20code/微信读书/zhixing-reader/docs/ai-sdk-refactor-plan.md) — 重构方案文档
+- [tests/ai-sdk-service.test.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/tests/ai-sdk-service.test.ts) — 配套测试
+- [electron/agent/orchestrator.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/agent/orchestrator.ts) — 已切换到 `sdkStreamChat`（保留 `legacyStreamChat` 导入作为降级）
+
+### 2. MCP Server 子项目（独立 npm 包）
+
+- [mcp-server/](file:///d:/ai/claude%20code/微信读书/zhixing-reader/mcp-server) — 完整子项目（独立 package.json + tsconfig + vitest）
+- 5 个只读工具：`zhixing_list_books` / `zhixing_search_highlights` / `zhixing_get_due_cards` / `zhixing_get_vocabulary` / `zhixing_get_reading_stats`
+- 14 个测试用例（5 smoke + 9 边界）
+- 支持 Claude Desktop / Cursor 通过 stdio transport 查询本地阅读数据库
+- 安全原则：仅暴露 SELECT，不提供任何写入操作
+
+### 3. sql.js 集成测试套件（Phase 17 T2-T4）
+
+- [tests/database-integration.test.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/tests/database-integration.test.ts) — 49 个测试覆盖：
+  - schema（13 张表 + 18 个索引 + 外键约束 + 幂等初始化）
+  - booksDb / highlightsDb / cardsDb / reviewsDb / bookSummariesDb / dailyStatsDb / tokenUsageDb / conversationDb / methodologiesDb / knowledgeCardsDb / bookArchitectureDb / articlesDb / vocabularyDb / memoriesDb CRUD
+  - 外键级联删除（ON DELETE CASCADE）
+  - 事务（runTransaction）
+  - resetDatabase / clearConversationsAndMessages
+- [tests/__fixtures__/db-helpers.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/tests/__fixtures__/db-helpers.ts) — 测试夹具：`createTestDatabase` + `runSchema` + `setupTestDatabase` + `teardownTestDatabase`
+- [electron/database.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/database.ts) — 加 `injectTestDatabase` / `getTestDatabase` / `resetTestDatabaseState` 测试注入函数（+348 行）
+- [tests/debug-articles*.test.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/tests) — 3 个调试测试文件（已完成使命，可清理）
+
+### 4. UI 精简（-896 行 Review.tsx 等）
+
+- 删除 `src/renderer/src/pages/Review.tsx`（-896 行，复习功能合并到知识卡片页面）
+- 精简 `KnowledgeCards.tsx`（-171 行）/ `VocabularyPage.tsx`（-41 行）/ `SettingsAI.tsx`（-111 行 → +简化）
+- 11 个页面微调（Home/Chat/BookDetail/Methodologies/TokenUsage 等）
+- `chatStore.ts` 调整（-81/+ 部分）
+
+### 5. 其他
+
+- [dogfood.mjs](file:///d:/ai/claude%20code/微信读书/zhixing-reader/dogfood.mjs) — 真机走查脚本
+- [installer-final/](file:///d:/ai/claude%20code/微信读书/zhixing-reader/installer-final) — 新打包产物（`知行读书.exe` + 53 个 locales pak + resources）
+- [T10-commit-msg.txt](file:///d:/ai/claude%20code/微信读书/zhixing-reader/T10-commit-msg.txt) — 提交消息草稿
+- `src/renderer/src/stores/__tests__/toastStore.test.ts` — toast store 测试
+- `tests/setup.ts` — 测试环境配置增强（+111 行）
+
+### 6. 测试结果
+
+- **473 tests passed (19 files)** — 4.58s
+- 数据库集成测试 49 个全部通过
+- ai-sdk-service 测试通过
+- MCP server 测试通过（独立 npm test）
+
+---
+
+## ⚠️ 待办：Claude 工作的 commit 整理
+
+Claude 完成的工作尚未 commit，建议按以下顺序整理（参考 v2 T1 经验）：
+
+| 优先级 | commit 主题 | 涉及文件 | 备注 |
+|--------|-------------|----------|------|
+| P0 | `feat(ai-sdk): 重构流式对话为 Vercel AI SDK` | ai-sdk-service.ts / orchestrator.ts / ai-sdk-service.test.ts / docs/ai-sdk-refactor-plan.md / package.json | 替换 1441 行手写 fetch |
+| P0 | `feat(mcp): 新增 MCP Server 子项目` | mcp-server/ 整个目录 | 独立子项目，可单独 commit |
+| P0 | `test(db): sql.js 集成测试套件 49 用例` | database-integration.test.ts / db-helpers.ts / database.ts 测试注入 / setup.ts | Phase 17 T2-T4 |
+| P1 | `refactor(ui): 精简 Review/KnowledgeCards/Vocabulary 等页面` | Review.tsx 删除 + 11 页面调整 | -896 行 Review.tsx |
+| P1 | `chore(dogfood): 真机走查脚本 + installer-final` | dogfood.mjs / installer-final/ | 走查工具 |
+| P2 | `test(toast): toastStore 单测` | stores/__tests__/toastStore.test.ts | 可并入其他 commit |
+
+### ✅ Commit 整理结果（2026-07-23 完成）
+
+5 个 commit 全部完成，工作区干净（仅剩 .learnings 文档更新）：
+
+| Commit | Hash | 文件数 | 变更 |
+|--------|------|--------|------|
+| feat(ai-sdk): 重构流式对话为 Vercel AI SDK | `686e5ea` | 6 | +522/-2 |
+| feat(mcp): 新增 MCP Server 子项目 | `5f300fe` | 14 | +5662 |
+| test(db): sql.js 集成测试套件 49 用例 | `9db862d` | 4 | +1469/-5 |
+| refactor(ui): 精简 Review/KnowledgeCards/Vocabulary 等页面 | `336e4eb` | 30 | +486/-1415 |
+| chore(dogfood): 新增真机走查脚本并忽略 installer-final 产物 | `747276f` | 2 | +114 |
+
+**门禁验证**：lint 0e/188w · typecheck 0 · test 470 passed (16 files) · build OK (1m21s)
+
+**修复的 bug**：orchestrator.ts 第 272 行调用未定义的 `streamChat`（应为 `sdkStreamChat`），导致 lint error。已修复。
+
+**清理**：
+- 删除 3 个 debug-articles*.test.ts 调试文件
+- 删除临时文件 T10-commit-msg.txt
+- .gitignore 新增 installer-final/ 规则（打包产物不入库）
+
+---
+
+*最后更新：2026-07-23 | Claude 7/22-7/23 工作 commit 整理完成（5 commits），HEAD `747276f`*
+*下次更新：Phase 17 T5 coverage 配置完成后追加；Phase 1 结束（7/31）后整体重写*
