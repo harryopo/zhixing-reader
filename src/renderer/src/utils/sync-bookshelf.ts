@@ -21,6 +21,9 @@ interface WereadBook {
   cover?: string
   isbn?: string
   publisher?: string
+  intro?: string
+  publishTime?: string
+  category?: string
   progress?: number
   totalChapter?: number
   lastReadTime?: number
@@ -86,6 +89,9 @@ export async function syncBookshelfToDb(
           cover: wb.cover,
           isbn: wb.isbn,
           publisher: wb.publisher,
+          description: wb.intro || '',
+          category: wb.category || '',
+          publish_date: wb.publishTime || '',
           reading_progress: wb.progress || 0,
           total_chapter: wb.totalChapter || 0,
           last_read_time: lastReadTimeStr,
@@ -97,6 +103,13 @@ export async function syncBookshelfToDb(
         const existing = existingBooks.find((b) => b.title === wb.title)
         if (existing && existing.id) {
           await window.electronAPI.book.update(existing.id as string, {
+            author: wb.author || null,
+            cover: wb.cover || null,
+            isbn: wb.isbn || null,
+            publisher: wb.publisher || null,
+            description: wb.intro || null,
+            category: wb.category || null,
+            publish_date: wb.publishTime || null,
             reading_progress: wb.progress || 0,
             last_read_time: lastReadTimeStr,
             is_finished: wb.finishReading || 0,

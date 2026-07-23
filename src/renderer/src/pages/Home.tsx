@@ -207,8 +207,8 @@ export default function Home() {
         subtitle="一屏掌握阅读进度、待办复习与增长趋势"
         actions={
           <>
-            <Button variant="primary" onClick={() => navigate('/review')} data-dom-id="cta-start-reading">
-              <Icon name="cards" size={16} /> 开始今日复习
+            <Button variant="primary" onClick={() => navigate('/knowledge-cards')} data-dom-id="cta-start-reading">
+              <Icon name="cards" size={16} /> 今日卡片
             </Button>
             <Button variant="secondary" onClick={() => navigate('/bookshelf')} data-dom-id="cta-open-bookshelf">
               <Icon name="bookshelf" size={16} /> 打开书架
@@ -238,9 +238,9 @@ export default function Home() {
             </Trend>
           </Card>
 
-          <Card interactive onClick={() => navigate('/review')}>
+          <Card interactive onClick={() => navigate('/knowledge-cards')}>
             <div style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              待复习卡片
+              知识卡片
             </div>
             <Metric value={dueCards.length} />
             <Trend kind={overdueCount > 0 ? 'warning' : 'default'}>
@@ -396,8 +396,8 @@ export default function Home() {
                   <style>{`.list > div:first-child { border-top: none; padding-top: 0; }`}</style>
                 </div>
                 <div style={{ marginTop: 'calc(var(--spacing) * 4)', display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button variant="secondary" onClick={() => navigate('/review')} data-dom-id="cta-review-start">
-                    开始复习
+                  <Button variant="secondary" onClick={() => navigate('/knowledge-cards')} data-dom-id="cta-review-start">
+                    查看卡片
                   </Button>
                 </div>
               </>

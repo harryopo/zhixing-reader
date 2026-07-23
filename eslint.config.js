@@ -80,4 +80,14 @@ export default tseslint.config(
       complexity: 'off',
     },
   },
+  // 测试文件豁免（测试天然需要长 describe 块 + 多个 mock 声明）
+  // 覆盖：src/**/__tests__/**、**/*.test.ts、**/*.test.tsx
+  // 注意：tests/** 已在 ignores 中豁免，此块仅处理 colocated 测试
+  {
+    files: ['src/**/__tests__/**/*.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],
+    rules: {
+      'max-lines-per-function': 'off',
+      'max-lines': 'off',
+    },
+  },
 )

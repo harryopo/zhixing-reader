@@ -262,6 +262,12 @@ const electronAPI = {
     search: (keyword: string) => invoke(IPC_CHANNELS.CONVERSATIONS.SEARCH, keyword),
   },
 
+  // 聊天消息点赞 / 收藏（仅 assistant 消息）
+  chat: {
+    toggleLike: (messageId: string, liked: boolean) => invoke(IPC_CHANNELS.CHAT.TOGGLE_LIKE, messageId, liked),
+    toggleBookmark: (messageId: string, bookmarked: boolean) => invoke(IPC_CHANNELS.CHAT.TOGGLE_BOOKMARK, messageId, bookmarked),
+  },
+
   settings: {
     get: (key: string) => invoke(IPC_CHANNELS.SETTINGS.GET, key),
     set: (key: string, value: unknown) => invoke(IPC_CHANNELS.SETTINGS.SET, key, value),

@@ -71,13 +71,6 @@ export class RepositoryFactory {
       methodologies: new SqlMethodologyRepository(this.getDb),
       knowledgeCards: new SqlKnowledgeCardRepository(this.getDb),
       memories: new SqlMemoryRepository(this.getDb),
-      // 其他 Repository 可以在这里添加
-      vocabulary: {} as any, // TODO: 实现
-      articles: {} as any, // TODO: 实现
-      bookArchitecture: {} as any, // TODO: 实现
-      bookSummaries: {} as any, // TODO: 实现
-      dailyStats: {} as any, // TODO: 实现
-      tokenUsage: {} as any, // TODO: 实现
     }
   }
 

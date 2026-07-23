@@ -28,13 +28,6 @@ const DEFAULTS = {
   embeddingModel: 'text-embedding-3-small',
 }
 
-const EMBEDDING_OPTIONS = [
-  { value: 'text-embedding-3-small', label: 'text-embedding-3-small' },
-  { value: 'text-embedding-3-large', label: 'text-embedding-3-large' },
-  { value: 'bge-large-zh', label: 'bge-large-zh' },
-  { value: 'custom', label: '自定义' },
-]
-
 interface TemplateRow {
   id: string
   name: string
@@ -70,8 +63,6 @@ const NAV_ITEMS: NavItem[] = [
 
 // LLM 连接测试状态
 type ConnStatus = 'idle' | 'testing' | 'ok' | 'fail'
-// RAG 初始化状态
-type RagStatus = 'idle' | 'init' | 'ok' | 'fail'
 
 // ===== 安全读取辅助：把后端返回值强制成期望类型，缺失时回退到 fallback =====
 function asString(v: unknown, fallback: string): string {
@@ -115,7 +106,6 @@ export default function SettingsAI() {
   // ===== UI 状态 =====
   const [showApiKey, setShowApiKey] = useState(false)
   const [connStatus, setConnStatus] = useState<ConnStatus>('idle')
-  const [ragStatus, setRagStatus] = useState<RagStatus>('idle')
 
   // ===== 自定义模板状态 =====
   const [customTemplates, setCustomTemplates] = useState<TemplateRow[]>([])
@@ -258,7 +248,6 @@ export default function SettingsAI() {
     setEmbeddingModel(DEFAULTS.embeddingModel)
     setTemplates(DEFAULT_TEMPLATES)
     setConnStatus('idle')
-    setRagStatus('idle')
     setShowApiKey(false)
     toast.info('已恢复默认值，请点击「保存配置」生效')
   }, [
@@ -266,11 +255,6 @@ export default function SettingsAI() {
     setLlmKey,
     setLlmModel,
   ])
-
-  // ===== 初始化向量库：本地 Vectra 索引，跳转管理面板查看 =====
-  const handleInitVectorDb = useCallback(() => {
-    navigate('/admin')
-  }, [navigate])
 
   // ===== 模板 toggle =====
   const toggleTemplate = useCallback((id: string) => {
@@ -440,19 +424,6 @@ export default function SettingsAI() {
     }
   })()
 
-  const ragBadge = (() => {
-    switch (ragStatus) {
-      case 'init':
-        return { text: '初始化中...', dotClass: 'badge-dot-warning' }
-      case 'ok':
-        return { text: '已初始化', dotClass: 'badge-dot-success' }
-      case 'fail':
-        return { text: '初始化失败', dotClass: 'badge-dot-error' }
-      default:
-        return { text: '待初始化', dotClass: 'badge-dot-error' }
-    }
-  })()
-
   return (
     <>
       <PageHero
@@ -607,19 +578,11 @@ export default function SettingsAI() {
                     className="form-input"
                     id="llm-model"
                     type="text"
-                    list="llm-model-suggestions"
                     placeholder="如 deepseek-chat / deepseek-reasoner / gpt-4o"
                     value={llmModel}
                     onChange={(e) => setLlmModel(e.target.value)}
                     style={{ fontFamily: 'var(--font-mono)' }}
                   />
-                  <datalist id="llm-model-suggestions">
-                    <option value="gpt-4o" />
-                    <option value="gpt-4o-mini" />
-                    <option value="deepseek-chat" />
-                    <option value="deepseek-reasoner" />
-                    <option value="claude-sonnet-4-20250514" />
-                  </datalist>
                   <div className="form-hint">支持自定义输入模型名，需与 API 厂商文档一致</div>
                 </div>
                 {/* Max Tokens */}
@@ -705,79 +668,7 @@ export default function SettingsAI() {
               </div>
             </Card>
 
-            {/* ===== Card 2: RAG 配置 ===== */}
-            <Card>
-              <CardHead eyebrow="RAG 配置" title="本地向量检索（Vectra）" />
-              <div
-                className="form-grid"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 'calc(var(--spacing) * 4)',
-                }}
-              >
-                <div className="form-field form-field-full">
-                  <label className="form-label" htmlFor="rag-vector-backend">向量库后端</label>
-                  <input
-                    className="form-input"
-                    id="rag-vector-backend"
-                    type="text"
-                    value="Vectra 本地索引（打包可用）"
-                    readOnly
-                    aria-readonly="true"
-                    style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted-foreground)' }}
-                  />
-                </div>
-                <div className="form-field">
-                  <label className="form-label" htmlFor="rag-collection">Collection 名称</label>
-                  <input
-                    className="form-input"
-                    id="rag-collection"
-                    type="text"
-                    value={collection}
-                    onChange={(e) => setCollection(e.target.value)}
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  />
-                </div>
-                <div className="form-field">
-                  <label className="form-label" htmlFor="rag-embedding-model">Embedding 模型</label>
-                  <select
-                    className="form-select"
-                    id="rag-embedding-model"
-                    value={embeddingModel}
-                    onChange={(e) => setEmbeddingModel(e.target.value)}
-                  >
-                    {EMBEDDING_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div
-                className="test-row"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'calc(var(--spacing) * 3)',
-                  marginTop: 'calc(var(--spacing) * 4)',
-                  paddingTop: 'calc(var(--spacing) * 4)',
-                  borderTop: '1px solid var(--border)',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <Button
-                  variant="secondary"
-                  onClick={handleInitVectorDb}
-                  data-dom-id="cta-init-vector-db"
-                >
-                  前往管理面板查看索引
-                </Button>
-                <span className="badge badge-warning" id="rag-init-status">
-                  <span className={`badge-dot ${ragBadge.dotClass}`} aria-hidden="true"></span>
-                  {ragBadge.text}
-                </span>
-              </div>
-            </Card>
+            {/* ===== Card 2: RAG 配置（已隐藏：用户无需配置本地向量检索） ===== */}
 
             {/* ===== Card 3: 提示词模板管理 =====
                  注：原 Card 3「Agent 参数」已迁移至 /agent-orchestration（独立智能体编排分类，T10/T12）。

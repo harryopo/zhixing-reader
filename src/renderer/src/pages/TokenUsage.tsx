@@ -90,10 +90,10 @@ const FILTER_DAYS_MAP: Record<FilterDateRange, number> = {
 // USD → CNY 汇率（用于预估费用展示，与设计稿 ¥18.60 / 1.24M tokens 量级一致）
 const USD_TO_CNY = 7
 
-/** Layer 2.5 折线图配色（input 蓝 / output 绿，与设计稿双色对比一致） */
+/** Layer 2.5 折线图配色（统一 emerald 系，input 深色 / output 浅色，保持双色对比） */
 const CHART_COLORS = {
-  input: '#3b82f6', // 蓝色 - 输入 tokens
-  output: '#10b981', // 绿色 - 输出 tokens
+  input: '#047857', // emerald-700 - 输入 tokens（深色）
+  output: '#34d399', // emerald-400 - 输出 tokens（浅色）
 } as const
 
 /** 模型 → 颜色 token（设计稿：GPT-4o chart-1, Claude chart-5, mini chart-3, 其他 chart-2） */

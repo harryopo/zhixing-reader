@@ -82,22 +82,6 @@ function masteryLabel(kind: MasteryKind): string {
   }
 }
 
-/** 计算下次复习时间显示 */
-function getNextReviewText(nextReview?: string): string {
-  if (!nextReview) return '立即复习'
-  const next = new Date(nextReview)
-  const now = new Date()
-  const diff = next.getTime() - now.getTime()
-  if (diff <= 0) return '立即复习'
-  const minutes = Math.ceil(diff / (1000 * 60))
-  if (minutes < 60) return `${minutes}分钟后`
-  const hours = Math.ceil(diff / (1000 * 60 * 60))
-  if (hours < 24) return `${hours}小时后`
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-  if (days === 1) return '明天'
-  return `${days}天后`
-}
-
 /** 格式化日期（YYYY-MM-DD） */
 function formatDateOnly(val?: string): string {
   if (!val) return '-'
@@ -982,7 +966,6 @@ export default function VocabularyPage() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
                     gap: 'calc(var(--spacing) * 3)',
                     marginTop: 'calc(var(--spacing) * 2)',
                     padding: 'calc(var(--spacing) * 3)',
@@ -1011,29 +994,6 @@ export default function VocabularyPage() {
                       }}
                     >
                       {selectedItem.review_count} 次
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', textAlign: 'right' }}>
-                    <span
-                      style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--muted-foreground)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        fontWeight: 600,
-                      }}
-                    >
-                      下次复习
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '0.9rem',
-                        color: 'var(--card-foreground)',
-                        fontFamily: 'var(--font-mono)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {getNextReviewText(selectedItem.next_review_at)}
                     </span>
                   </div>
                 </div>
@@ -1587,7 +1547,6 @@ function VocabularyDrawer({
             >
               <MetaItem label="添加日期" value={formatDateOnly(item.created_at)} mono />
               <MetaItem label="复习次数" value={`${item.review_count} 次`} mono />
-              <MetaItem label="下次复习" value={formatDateOnly(item.next_review_at)} mono />
               <MetaItem label="熟悉度" value={`Lv.${item.familiarity_level ?? 0}`} mono />
               <MetaItem label="状态" value={statusLabel} style={{ color: statusColor }} />
             </div>

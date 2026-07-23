@@ -9,7 +9,6 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Icon, { IconName } from '@/components/ui/Icon'
 import type { TokenSummary } from 'src/types/renderer'
-import { useSettingsStore } from '@/stores/settingsStore'
 
 interface NavItem {
   key: string
@@ -28,10 +27,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: 'home', path: '/', label: '首页', icon: 'home', domId: 'nav-home', end: true },
   { key: 'bookshelf', path: '/bookshelf', label: '书架', icon: 'bookshelf', domId: 'nav-bookshelf' },
-  // 笔记移至书架下方，作为视觉子项（路由保留 /notes，最小破坏）
-  { key: 'notes', path: '/notes', label: '笔记', icon: 'notes', domId: 'nav-notes', nested: true },
+  { key: 'notes', path: '/notes', label: '笔记', icon: 'notes', domId: 'nav-notes' },
   { key: 'chat', path: '/chat', label: 'AI对话', icon: 'chat', domId: 'nav-chat' },
-  { key: 'review', path: '/review', label: '复习', icon: 'review', domId: 'nav-review' },
   { key: 'cards', path: '/knowledge-cards', label: '知识卡片', icon: 'cards', domId: 'nav-cards' },
   { key: 'daily', path: '/daily-learning', label: '每日学习', icon: 'daily', domId: 'nav-daily' },
   { key: 'methodology', path: '/methodologies', label: '方法论', icon: 'methodology', domId: 'nav-methodology' },
@@ -55,9 +52,6 @@ interface SidebarProps {
 export default function Sidebar({ collapsed = false }: SidebarProps) {
   const location = useLocation()
   const [tokenSummary, setTokenSummary] = useState<TokenSummary | null>(null)
-  // 复习模块开关：用于条件渲染复习导航项
-  const reviewEnabled = useSettingsStore((s) => s.reviewEnabled)
-  const loadSettings = useSettingsStore((s) => s.loadSettings)
 
   useEffect(() => {
     let active = true
@@ -71,14 +65,12 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       }
     }
     loadTokenData()
-    // 加载全局设置（含 reviewEnabled），与 SettingsAccount 共享状态
-    void loadSettings()
     const interval = setInterval(loadTokenData, 30000)
     return () => {
       active = false
       clearInterval(interval)
     }
-  }, [loadSettings])
+  }, [])
 
   /** 判断导航项是否高亮（end 严格匹配 / matchPrefix 前缀匹配 / 默认前缀匹配） */
   const isActive = (item: NavItem): boolean => {
@@ -140,11 +132,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
 
       {/* ===== Nav ===== */}
       <nav className="nav" aria-label="主导航" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
-        {NAV_ITEMS.filter((item) => {
-          // 复习模块关闭时隐藏复习导航项
-          if (item.key === 'review' && !reviewEnabled) return false
-          return true
-        }).map((item) => {
+        {NAV_ITEMS.map((item) => {
           const active = isActive(item)
           return (
             <NavLink
@@ -162,9 +150,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
                 width: '100%',
                 padding: collapsed
                   ? 'calc(var(--spacing) * 3.5)'
-                  : item.nested
-                    ? 'calc(var(--spacing) * 3) calc(var(--spacing) * 4) calc(var(--spacing) * 3) calc(var(--spacing) * 8)'
-                    : 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
+                  : 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
                 textAlign: 'left',
                 border: 'none',
                 background: active ? 'var(--sidebar-primary)' : 'transparent',
@@ -174,8 +160,6 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
                 transition: 'background 0.2s ease, color 0.2s ease, transform 0.16s ease',
                 textDecoration: 'none',
                 justifyContent: collapsed ? 'center' : 'flex-start',
-                fontSize: item.nested && !collapsed ? '0.86rem' : undefined,
-                opacity: item.nested && !active ? 0.88 : 1,
               }}
               onMouseEnter={(e) => {
                 if (!active) {

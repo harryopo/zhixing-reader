@@ -114,6 +114,8 @@ export default function Chat() {
     setCurrentBook,
     clearError,
     setEnableReasoning,
+    toggleLike,
+    toggleBookmark,
   } = useChatStore()
 
   const [input, setInput] = useState('')
@@ -537,9 +539,11 @@ export default function Chat() {
                 />
               ) : (
                 <>
-                  {messages.map((message, idx) => (
+                  {messages.map((message, idx) => {
+                    const msgId = message.id
+                    return (
                     <MessageBubble
-                      key={message.id || idx}
+                      key={msgId || idx}
                       role={message.role}
                       content={message.content}
                       reasoning={
@@ -552,10 +556,23 @@ export default function Chat() {
                           : undefined
                       }
                       sources={message.sources as RAGSource[] | undefined}
+                      liked={message.liked}
+                      bookmarked={message.bookmarked}
                       onCopy={() => handleCopyMessage(message.content)}
                       onRegenerate={message.role === 'assistant' ? handleRegenerate : undefined}
+                      onToggleLike={
+                        msgId && message.role === 'assistant'
+                          ? (liked) => toggleLike(msgId, liked)
+                          : undefined
+                      }
+                      onToggleBookmark={
+                        msgId && message.role === 'assistant'
+                          ? (bookmarked) => toggleBookmark(msgId, bookmarked)
+                          : undefined
+                      }
                     />
-                  ))}
+                    )
+                  })}
                   {streaming && (
                     <MessageBubble
                       role="assistant"

@@ -480,9 +480,9 @@ export default function BookDetail() {
             <Button
               variant="secondary"
               data-dom-id="cta-add-review"
-              onClick={() => navigate('/review')}
+              onClick={() => navigate('/knowledge-cards')}
             >
-              去复习
+              知识卡片
             </Button>
             <Button
               variant="secondary"

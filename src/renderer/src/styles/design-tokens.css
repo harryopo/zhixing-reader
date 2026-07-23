@@ -13,39 +13,39 @@
   --popover: #f9f9fa;
   --popover-foreground: #0e1115;
 
-  /* Semantic action colors */
-  --primary: #4285f4;
+  /* Semantic action colors — 统一绿色系（emerald），与 colors.ts 对齐 */
+  --primary: #059669;          /* emerald-600 */
   --primary-foreground: #ffffff;
-  --secondary: #dbeafe;
-  --secondary-foreground: #333942;
+  --secondary: #d1fae5;        /* emerald-100 */
+  --secondary-foreground: #064e3b;
   --muted: #eff1f4;
   --muted-foreground: #7f8d9f;
-  --accent: #dbeafe;
-  --accent-foreground: #003e8f;
+  --accent: #d1fae5;            /* emerald-100 */
+  --accent-foreground: #064e3b; /* emerald-900 */
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
   /* Borders, inputs, focus */
   --border: #ebebeb;
   --input: #e2e3e4;
-  --ring: #4285f4;
+  --ring: #059669;              /* emerald-600 */
 
-  /* Data visualization */
-  --chart-1: #4285f4;
+  /* Data visualization — 主色系改 emerald，保留多彩辅助 */
+  --chart-1: #10b981;           /* emerald-500 主色 */
   --chart-2: #ea4335;
   --chart-3: #fbbc05;
-  --chart-4: #0043ad;
+  --chart-4: #047857;           /* emerald-700 深色 */
   --chart-5: #34a853;
 
   /* Sidebar */
-  --sidebar: #f0f6ff;
+  --sidebar: #ecfdf5;           /* emerald-50 */
   --sidebar-foreground: #0e1115;
-  --sidebar-primary: #4285f4;
+  --sidebar-primary: #059669;   /* emerald-600 */
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #dbeafe;
-  --sidebar-accent-foreground: #003e8f;
+  --sidebar-accent: #d1fae5;    /* emerald-100 */
+  --sidebar-accent-foreground: #064e3b;
   --sidebar-border: #e7eaef;
-  --sidebar-ring: #4285f4;
+  --sidebar-ring: #059669;      /* emerald-600 */
 
   /* Typography */
   --font-sans: "DM Sans", ui-sans-serif, sans-serif, system-ui;
@@ -126,39 +126,39 @@
   --popover: #1f1f23;
   --popover-foreground: #ededef;
 
-  /* Semantic action colors — primary 与浅色 #4285f4 同色系(蓝),白字对比度 5.5:1 */
-  --primary: #2563eb;
+  /* Semantic action colors — 统一绿色系（emerald），与浅色同色系，白字对比度 4.5:1+ */
+  --primary: #10b981;            /* emerald-500（暗色用 500 提升亮度） */
   --primary-foreground: #ffffff;
   --secondary: #262629;
   --secondary-foreground: #d4d4d8;
   --muted: #262629;
   --muted-foreground: #a1a1aa;
-  --accent: #1e3a5f;
-  --accent-foreground: #93c5fd;
+  --accent: #064e3b;             /* emerald-900 */
+  --accent-foreground: #6ee7b7;  /* emerald-300 */
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
   /* Borders, inputs, focus — border #2a2a2e 比 card #18181b 亮 12 单位,边框可见 */
   --border: #2a2a2e;
   --input: #0a0a0b;
-  --ring: #2563eb;
+  --ring: #10b981;               /* emerald-500 */
 
   /* Data visualization — 与浅色同色系,亮度提升以适应暗背景 */
-  --chart-1: #60a5fa;
+  --chart-1: #34d399;            /* emerald-400 */
   --chart-2: #f87171;
   --chart-3: #fbbf24;
-  --chart-4: #93c5fd;
+  --chart-4: #6ee7b7;            /* emerald-300 */
   --chart-5: #4ade80;
 
   /* Sidebar — 与主色系一致 */
   --sidebar: #131316;
   --sidebar-foreground: #ededef;
-  --sidebar-primary: #2563eb;
+  --sidebar-primary: #10b981;    /* emerald-500 */
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e3a5f;
-  --sidebar-accent-foreground: #93c5fd;
+  --sidebar-accent: #064e3b;     /* emerald-900 */
+  --sidebar-accent-foreground: #6ee7b7;
   --sidebar-border: #2a2a2e;
-  --sidebar-ring: #2563eb;
+  --sidebar-ring: #10b981;       /* emerald-500 */
 }
 
 /* Tailwind v4 @theme inline — exposes tokens as utility classes (bg-primary, text-muted-foreground, etc.) */

@@ -22,8 +22,6 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
 import { safeStr } from '@/utils/db-mapper'
-import { useShallow } from 'zustand/react/shallow'
-import { useSettingsStore } from '@/stores/settingsStore'
 
 /** 设置分类导航项 */
 interface SettingsNavItem {
@@ -47,16 +45,6 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
 
 export default function SettingsAccount() {
   const navigate = useNavigate()
-
-  // 复习模块开关（来自 settingsStore，与 Sidebar/App 共享状态）
-  // 使用 useShallow selector 避免整体订阅 12 个字段导致的无关重渲染
-  const { reviewEnabled, loadSettings, setReviewEnabled } = useSettingsStore(
-    useShallow((s) => ({
-      reviewEnabled: s.reviewEnabled,
-      loadSettings: s.loadSettings,
-      setReviewEnabled: s.setReviewEnabled,
-    }))
-  )
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -98,9 +86,7 @@ export default function SettingsAccount() {
       }
     }
     load()
-    // 同步加载全局设置（含 reviewEnabled），供侧栏与路由共享
-    void loadSettings()
-  }, [loadSettings])
+  }, [])
 
   // ===== 派生值 =====
   const avatarInitial = useMemo(() => (nickname || '知').charAt(0), [nickname])
@@ -510,8 +496,6 @@ export default function SettingsAccount() {
             {/* ===== Card 2: 功能模块 ===== */}
             <Card>
               <CardHead eyebrow="功能" title="功能模块" />
-
-              {/* 复习模块开关 */}
               <div
                 className="form-row"
                 style={{
@@ -526,28 +510,28 @@ export default function SettingsAccount() {
               >
                 <div className="form-row-info" style={{ minWidth: 0, flex: 1 }}>
                   <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                    复习模块
+                    继承微信读书信息
                   </strong>
                   <div
                     className="tiny"
                     style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
                   >
-                    关闭后侧栏隐藏复习入口，/review 路由重定向到首页（FSRS 卡片数据保留）
+                    开启后使用微信读书账户信息，本地信息无需手动维护
                   </div>
                 </div>
                 <button
                   type="button"
                   className="toggle"
-                  data-dom-id="toggle-review-enabled"
-                  data-on={reviewEnabled ? 'true' : 'false'}
-                  aria-label="复习模块开关"
-                  aria-pressed={reviewEnabled}
-                  onClick={() => void setReviewEnabled(!reviewEnabled)}
+                  data-dom-id="toggle-inherit-weread"
+                  data-on={inheritWereadProfile ? 'true' : 'false'}
+                  aria-label="继承微信读书信息开关"
+                  aria-pressed={inheritWereadProfile}
+                  onClick={handleToggleInherit}
                   style={{
                     width: 44,
                     height: 24,
                     borderRadius: 999,
-                    background: reviewEnabled ? 'var(--primary)' : 'var(--muted)',
+                    background: inheritWereadProfile ? 'var(--primary)' : 'var(--muted)',
                     position: 'relative',
                     cursor: 'pointer',
                     transition: 'background 0.2s ease',
@@ -560,8 +544,8 @@ export default function SettingsAccount() {
                     style={{
                       position: 'absolute',
                       top: 2,
-                      left: reviewEnabled ? 'auto' : 2,
-                      right: reviewEnabled ? 2 : 'auto',
+                      left: inheritWereadProfile ? 'auto' : 2,
+                      right: inheritWereadProfile ? 2 : 'auto',
                       width: 20,
                       height: 20,
                       borderRadius: '50%',

@@ -84,6 +84,10 @@ export const IPC_CHANNELS = {
     GET_MESSAGES: 'conversations:getMessages',
     SEARCH: 'conversations:search',
   },
+  CHAT: {
+    TOGGLE_LIKE: 'chat:toggleLike',
+    TOGGLE_BOOKMARK: 'chat:toggleBookmark',
+  },
   AGENT: {
     STREAM_CHAT: 'agent:streamChat',
     STREAM_CHAT_WITH_CONTEXT: 'agent:streamChatWithContext',

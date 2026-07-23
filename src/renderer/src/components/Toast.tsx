@@ -26,9 +26,9 @@ const typeConfig: Record<ToastType, { icon: string; bgColor: string; borderColor
   info: {
     icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
     bgColor: 'bg-white',
-    borderColor: 'border-blue-200',
+    borderColor: 'border-emerald-200',
     textColor: 'text-gray-800',
-    iconColor: 'text-blue-500',
+    iconColor: 'text-emerald-500',
   },
   loading: {
     icon: '',
@@ -125,7 +125,7 @@ function ToastItem({ id, message, type, duration }: { id: string; message: strin
                   ? 'bg-red-400'
                   : type === 'warning'
                   ? 'bg-amber-400'
-                  : 'bg-blue-400'
+                  : 'bg-emerald-400'
               }`}
               style={{ width: `${progress}%` }}
             />

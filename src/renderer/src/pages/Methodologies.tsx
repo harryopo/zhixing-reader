@@ -429,7 +429,7 @@ export default function Methodologies() {
           </Button>
           <Button
             variant="ghost"
-            onClick={() => navigate('/review')}
+            onClick={() => navigate('/knowledge-cards')}
             data-dom-id="cta-practice"
           >
             <Icon name="play" size={15} /> 开始练习
@@ -1132,13 +1132,14 @@ export default function Methodologies() {
           )}
         </div>
 
-        {/* ===== 右列：详情面板（sticky） ===== */}
+        {/* ===== 右列：详情面板（sticky + 滚动） ===== */}
         <aside
           className="card method-detail-v2 methodology-scroll"
           aria-label="方法论详情"
           style={{
             position: 'sticky',
             top: 'calc(var(--spacing) * 4)',
+            maxHeight: 'calc(100vh - calc(var(--spacing) * 12))',
             padding: 'calc(var(--spacing) * 5)',
             display: 'flex',
             flexDirection: 'column',
@@ -1146,6 +1147,7 @@ export default function Methodologies() {
             minWidth: 0,
             maxWidth: '100%',
             overflowX: 'auto',
+            overflowY: 'auto',
             background: 'var(--card)',
             border: '1px solid var(--border)',
             borderRadius: 'calc(var(--radius) + 6px)',
@@ -1170,7 +1172,7 @@ export default function Methodologies() {
                 }
                 toast.success(`已打开对话，可继续讨论「${name}」`)
               }}
-              onPractice={() => navigate('/review')}
+              onPractice={() => navigate('/knowledge-cards')}
             />
           ) : (
             <EmptyState

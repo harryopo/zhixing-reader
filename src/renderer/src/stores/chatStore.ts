@@ -30,6 +30,10 @@ interface Message {
   }
   sources?: Source[]
   reasoning?: ReasoningBlock
+  /** 是否已点赞（仅 assistant 消息） */
+  liked?: boolean
+  /** 是否已收藏（仅 assistant 消息） */
+  bookmarked?: boolean
   createdAt?: string
 }
 
@@ -42,6 +46,10 @@ interface RawMessage {
   bloom_level?: number
   mastery_assessment?: string | Record<string, unknown>
   sources?: string | Source[]
+  /** DB 存 INTEGER 0/1 */
+  liked?: number | boolean
+  /** DB 存 INTEGER 0/1 */
+  bookmarked?: number | boolean
   created_at?: string
 }
 
@@ -57,6 +65,8 @@ function mapMessage(raw: RawMessage): Message {
       ? JSON.parse(raw.mastery_assessment || 'null')
       : raw.mastery_assessment as Message['masteryAssessment'],
     sources: typeof raw.sources === 'string' ? JSON.parse(raw.sources || '[]') : raw.sources,
+    liked: raw.liked != null ? Boolean(raw.liked) : false,
+    bookmarked: raw.bookmarked != null ? Boolean(raw.bookmarked) : false,
     createdAt: raw.created_at,
   }
 }
@@ -110,6 +120,10 @@ interface ChatState {
   clearError: () => void
   /** 切换深度思考模式 */
   setEnableReasoning: (enabled: boolean) => void
+  /** 点赞 / 取消点赞 assistant 消息（持久化到 DB） */
+  toggleLike: (messageId: string, liked: boolean) => Promise<void>
+  /** 收藏 / 取消收藏 assistant 消息（持久化到 DB） */
+  toggleBookmark: (messageId: string, bookmarked: boolean) => Promise<void>
 }
 
 /** Active stream control for stop button (module-level, not in zustand state) */
@@ -240,6 +254,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
 
       let settled = false
+      let finishing = false
       let removeChunkListener: (() => void) | undefined
       let removeReasoningListener: (() => void) | undefined
       let removeErrorListener: (() => void) | undefined
@@ -261,15 +276,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
           fn()
         }
 
-        const finishWithContent = (fullContent: string, resolveStream: boolean) => {
+        // 异步：先持久化 assistant 消息拿到 DB id，再写入本地 state（id 用于点赞/收藏）
+        const finishWithContent = async (fullContent: string, resolveStream: boolean) => {
+          // 守卫：防止 onStreamComplete 与 activeStreamStop 并发触发导致重复消息
+          if (finishing || settled) return
+          finishing = true
+
           const state = get()
           const fullReasoning = state.streamingReasoning
           const reasoningDuration = state.reasoningStartTime
             ? Math.max(1, Math.ceil((Date.now() - state.reasoningStartTime) / 1000))
             : undefined
 
+          // 持久化到 DB 并取回消息 id（点赞/收藏按钮依赖 id）
+          let assistantMessageId: string | undefined
+          if (sessionId && fullContent) {
+            try {
+              assistantMessageId = await window.electronAPI.conversation.addMessage(sessionId, {
+                role: 'assistant',
+                content: fullContent,
+              })
+            } catch (error) {
+              console.error('保存助手消息失败:', error)
+            }
+          }
+
           set(state => {
             const assistantMessage: Message = {
+              id: assistantMessageId,
               role: 'assistant',
               content: fullContent,
               reasoning: fullReasoning
@@ -279,13 +313,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const allMessages = fullContent
               ? [...state.messages, assistantMessage]
               : state.messages
-
-            if (sessionId && fullContent) {
-              window.electronAPI.conversation.addMessage(sessionId, {
-                role: 'assistant',
-                content: fullContent,
-              }).catch(console.error)
-            }
 
             return {
               messages: allMessages,
@@ -380,5 +407,43 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setEnableReasoning: (enabled: boolean) => {
     set({ enableReasoning: enabled })
+  },
+
+  toggleLike: async (messageId: string, liked: boolean) => {
+    // 乐观更新：先改本地状态，再持久化到 DB
+    set(state => ({
+      messages: state.messages.map(m =>
+        m.id === messageId ? { ...m, liked } : m
+      ),
+    }))
+    try {
+      await window.electronAPI.chat.toggleLike(messageId, liked)
+    } catch (error) {
+      // 持久化失败：回滚本地状态
+      set(state => ({
+        messages: state.messages.map(m =>
+          m.id === messageId ? { ...m, liked: !liked } : m
+        ),
+        error: (error as Error).message,
+      }))
+    }
+  },
+
+  toggleBookmark: async (messageId: string, bookmarked: boolean) => {
+    set(state => ({
+      messages: state.messages.map(m =>
+        m.id === messageId ? { ...m, bookmarked } : m
+      ),
+    }))
+    try {
+      await window.electronAPI.chat.toggleBookmark(messageId, bookmarked)
+    } catch (error) {
+      set(state => ({
+        messages: state.messages.map(m =>
+          m.id === messageId ? { ...m, bookmarked: !bookmarked } : m
+        ),
+        error: (error as Error).message,
+      }))
+    }
   },
 }))

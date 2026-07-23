@@ -7,11 +7,11 @@
  *   - 双 tab: 卡片库 / 蒸馏中心
  *   - 全局蒸馏进度 banner（distillProgress 显示时）
  *   - cards tab:
- *     - 4 统计卡（概念/方法/引用/平均掌握度）
+ *     - 3 统计卡（概念/方法/引用）
  *     - 筛选条 card（5 类型 chips + 搜索 + 书籍 select + 标签 select + 网格/列表切换）
  *     - 卡片网格（auto-fill minmax(280px, 1fr)）
- *       - 卡片正面：badge + 书名 + 标题 + 内容 + 时间 + 3 icon-btn（复习/编辑/删除）
- *       - 卡片反面：内容 + 解读(AI生成) + 应用(AI生成) + 标签 + 复习信息 + 5星评分
+ *       - 卡片正面：badge + 书名 + 标题 + 内容 + 时间 + 2 icon-btn（编辑/删除）
+ *       - 卡片反面：内容 + 解读(AI生成) + 应用(AI生成) + 标签 + 复习信息
  *   - distill tab:
  *     - 说明卡
  *     - 书籍网格（含蒸馏按钮 + 进度浮层）
@@ -21,7 +21,6 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef, CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -162,7 +161,6 @@ function classifyErrorMessage(msg: string): {
 
 // ===== 主组件 =====
 export default function KnowledgeCards() {
-  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabKey>('cards')
   const [cards, setCards] = useState<KnowledgeCardItem[]>([])
   const [books, setBooks] = useState<BookRow[]>([])
@@ -239,9 +237,7 @@ export default function KnowledgeCards() {
     const concepts = cards.filter((c) => c.type === 'concept').length
     const methodologies = cards.filter((c) => c.type === 'methodology').length
     const quotes = cards.filter((c) => c.type === 'quote').length
-    const avgMastery =
-      total > 0 ? Math.round(cards.reduce((s, c) => s + safeNum(c.masteryLevel), 0) / total) : 0
-    return { total, concepts, methodologies, quotes, avgMastery }
+    return { total, concepts, methodologies, quotes }
   }, [cards])
 
   const bookCount = useMemo(() => {
@@ -492,24 +488,6 @@ export default function KnowledgeCards() {
       toast.error(`生成应用失败: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setGeneratingMap((prev) => ({ ...prev, [card.id]: null }))
-    }
-  }
-
-  const getMasteryStars = (level: number) => {
-    const stars = Math.ceil(safeNum(level) / 20)
-    return '★'.repeat(Math.min(stars, 5)) + '☆'.repeat(Math.max(0, 5 - stars))
-  }
-
-  const handleUpdateMastery = async (card: KnowledgeCardItem, level: number) => {
-    try {
-      await window.electronAPI.knowledgeCard.update(card.id, {
-        masteryLevel: level * 20,
-        reviewCount: safeNum(card.reviewCount) + 1,
-      })
-      await loadData()
-      toast.success(`掌握度已更新为 ${level * 20}%`)
-    } catch (_error) {
-      toast.error('更新失败')
     }
   }
 
@@ -816,12 +794,12 @@ export default function KnowledgeCards() {
         {/* ===== cards tab ===== */}
         {activeTab === 'cards' && (
           <>
-            {/* 4 统计卡 */}
+            {/* 3 统计卡 */}
             <div
               className="grid stats"
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
                 gap: 'calc(var(--spacing) * 4)',
               }}
             >
@@ -868,35 +846,6 @@ export default function KnowledgeCards() {
                 </div>
                 <Metric value={stats.quotes} />
                 <span style={typeConfig.quote.badgeStyle}>引用</span>
-              </Card>
-
-              <Card interactive>
-                <div
-                  style={{
-                    color: 'var(--muted-foreground)',
-                    fontSize: '0.78rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                  }}
-                >
-                  平均掌握度
-                </div>
-                <Metric value={`${stats.avgMastery}%`} />
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.34rem 0.65rem',
-                    borderRadius: 999,
-                    background: 'var(--muted)',
-                    color: 'var(--foreground)',
-                    fontSize: '0.8rem',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {getMasteryStars(stats.avgMastery)}
-                </span>
               </Card>
             </div>
 
@@ -1056,9 +1005,6 @@ export default function KnowledgeCards() {
                       <Button variant="ghost" onClick={() => void handleEditCard(card)}>
                         编辑
                       </Button>
-                      <Button variant="ghost" onClick={() => navigate('/review')}>
-                        复习
-                      </Button>
                       <Button variant="ghost" onClick={() => void handleDelete(card.id)}>
                         删除
                       </Button>
@@ -1083,15 +1029,9 @@ export default function KnowledgeCards() {
                     onClose={() => setFlippedId(null)}
                     onDelete={() => handleDelete(card.id)}
                     onEdit={() => void handleEditCard(card)}
-                    onReview={() => setFlippedId(card.id)}
-                    onReviewAction={() => {
-                      navigate('/review')
-                    }}
                     onGenerateInterpretation={() => handleGenerateInterpretation(card)}
                     onGenerateApplication={() => handleGenerateApplication(card)}
-                    onUpdateMastery={(level) => handleUpdateMastery(card, level)}
                     getBookTitle={getBookTitle}
-                    getMasteryStars={getMasteryStars}
                     generating={generatingMap[card.id] ?? null}
                   />
                 ))}
@@ -1333,13 +1273,9 @@ interface KnowledgeCardArticleProps {
   onClose: () => void
   onDelete: () => void
   onEdit: () => void
-  onReview: () => void
-  onReviewAction: () => void
   onGenerateInterpretation: () => void
   onGenerateApplication: () => void
-  onUpdateMastery: (level: number) => void
   getBookTitle: (bookId: string) => string
-  getMasteryStars: (level: number) => string
   generating: 'interpretation' | 'application' | null
 }
 
@@ -1350,13 +1286,9 @@ function KnowledgeCardArticle({
   onClose,
   onDelete,
   onEdit,
-  onReview,
-  onReviewAction,
   onGenerateInterpretation,
   onGenerateApplication,
-  onUpdateMastery,
   getBookTitle,
-  getMasteryStars,
   generating,
 }: KnowledgeCardArticleProps) {
   const typeInfo = typeConfig[card.type]
@@ -1474,18 +1406,6 @@ function KnowledgeCardArticle({
               {timeLabel}
             </span>
             <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
-              <button
-                type="button"
-                aria-label="复习"
-                data-dom-id={`card-${card.id}-review`}
-                style={iconBtnStyle(false)}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onReview()
-                }}
-              >
-                <Icon name="refresh" size={14} />
-              </button>
               <button
                 type="button"
                 aria-label="编辑"
@@ -1763,75 +1683,9 @@ function KnowledgeCardArticle({
             }}
           >
             <span>
-              复习 {safeNum(card.reviewCount)} 次 · 掌握度 {safeNum(card.masteryLevel)}%
+              复习 {safeNum(card.reviewCount)} 次
             </span>
             <span title="基于您的划线/笔记提取">{formatDate(card.createdAt)}</span>
-          </div>
-
-          {/* 5 星评分 */}
-          <div
-            style={{
-              background: 'var(--muted)',
-              borderRadius: 'var(--radius)',
-              padding: 'calc(var(--spacing) * 3)',
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                fontSize: '0.75rem',
-                color: 'var(--muted-foreground)',
-                marginBottom: 'calc(var(--spacing) * 2)',
-              }}
-            >
-              你对这条内容的掌握程度：
-            </p>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'calc(var(--spacing) * 2)',
-                flexWrap: 'wrap',
-              }}
-            >
-              {[1, 2, 3, 4, 5].map((level) => {
-                const active = Math.ceil(safeNum(card.masteryLevel) / 20) >= level
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => onUpdateMastery(level)}
-                    style={{
-                      padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
-                      fontSize: '0.875rem',
-                      borderRadius: 'var(--radius)',
-                      cursor: 'pointer',
-                      transition: 'background 0.2s ease, color 0.2s ease',
-                      fontFamily: 'inherit',
-                      border: '1px solid',
-                      background: active
-                        ? 'color-mix(in srgb, var(--state-warning) 20%, transparent)'
-                        : 'var(--card)',
-                      color: active ? 'var(--state-warning)' : 'var(--muted-foreground)',
-                      borderColor: active
-                        ? 'color-mix(in srgb, var(--state-warning) 30%, transparent)'
-                        : 'var(--border)',
-                    }}
-                  >
-                    {'★'.repeat(level)}
-                  </button>
-                )
-              })}
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  color: 'var(--muted-foreground)',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {getMasteryStars(card.masteryLevel)}
-              </span>
-            </div>
           </div>
 
           {/* 底部时间 + 3 icon-btn */}
@@ -1854,17 +1708,6 @@ function KnowledgeCardArticle({
               {timeLabel}
             </span>
             <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
-              <button
-                type="button"
-                aria-label="复习"
-                style={iconBtnStyle(false)}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onReviewAction()
-                }}
-              >
-                <Icon name="refresh" size={14} />
-              </button>
               <button
                 type="button"
                 aria-label="编辑"

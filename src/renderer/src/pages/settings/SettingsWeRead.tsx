@@ -319,37 +319,22 @@ export default function SettingsWeRead() {
 
           {/* ===== 右侧：表单卡片堆叠 ===== */}
           <div className="settings-forms">
-            {/* ===== Card 0: 模式说明（cookie / API 双模式） ===== */}
+            {/* ===== Card 0: API 模式说明 ===== */}
             <Card className="mode-info-card">
-              <CardHead eyebrow="接入方式" title="Cookie 与 API 双模式说明" />
-              <div className="mode-grid">
-                <div className="mode-block">
-                  <div className="mode-head">
-                    <span className="mode-tag tag-active" aria-label="当前可用">可用</span>
-                    <strong>API Key 模式</strong>
-                  </div>
-                  <p className="mode-desc">
-                    通过微信读书开放网关的 <code>API Key</code> 鉴权，调用
-                    <code> /shelf/sync </code>等接口拉取书架、划线、笔记。
-                    下方填入 API Key 后点击「测试连接」即可验证。
-                  </p>
-                  <p className="mode-hint">
-                    API Key 通常以 <code>wrk-</code> 开头，从微信读书官方申请后获得。
-                  </p>
+              <CardHead eyebrow="接入方式" title="API Key 模式说明" />
+              <div className="mode-block">
+                <div className="mode-head">
+                  <span className="mode-tag tag-active" aria-label="当前可用">可用</span>
+                  <strong>API Key 模式</strong>
                 </div>
-                <div className="mode-block">
-                  <div className="mode-head">
-                    <span className="mode-tag tag-soon" aria-label="预留扩展">预留</span>
-                    <strong>Cookie 模式</strong>
-                  </div>
-                  <p className="mode-desc">
-                    从微信读书网页版浏览器 DevTools 复制完整 Cookie（含
-                    <code> wr_vid / wr_skey / wr_rt </code>等字段），直接调用官方 H5 接口。
-                  </p>
-                  <p className="mode-hint">
-                    Cookie 易过期（一般 1~7 天），且本地保存有泄露风险，当前版本暂未启用。
-                  </p>
-                </div>
+                <p className="mode-desc">
+                  通过微信读书开放网关的 <code>API Key</code> 鉴权，调用
+                  <code> /shelf/sync </code>等接口拉取书架、划线、笔记。
+                  下方填入 API Key 后点击「测试连接」即可验证。
+                </p>
+                <p className="mode-hint">
+                  API Key 通常以 <code>wrk-</code> 开头，从微信读书官方申请后获得。
+                </p>
               </div>
               {!isWereadConfigured && (
                 <div className="mode-guide" role="status" aria-live="polite">
@@ -458,7 +443,14 @@ export default function SettingsWeRead() {
               </div>
               <div className="form-field" style={{ marginTop: 'calc(var(--spacing) * 4)' }}>
                 <label className="form-label">同步范围</label>
-                <div className="checkbox-group">
+                <div
+                  className="chip-group"
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 'calc(var(--spacing) * 2)',
+                  }}
+                >
                   {(
                     [
                       { key: 'shelf', label: '书架', domId: 'sync-scope-shelf' },
@@ -470,20 +462,43 @@ export default function SettingsWeRead() {
                   ).map((item) => {
                     const checked = syncScope[item.key]
                     return (
-                      <label
+                      <button
                         key={item.key}
-                        className={`checkbox-item${checked ? ' checked' : ''}`}
+                        type="button"
+                        data-dom-id={item.domId}
+                        aria-pressed={checked}
+                        onClick={() =>
+                          setSyncScope((s) => ({ ...s, [item.key]: !s[item.key] }))
+                        }
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 'calc(var(--spacing) * 1)',
+                          padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 4)',
+                          borderRadius: '999px',
+                          fontSize: 'var(--font-size-sm)',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          border: checked
+                            ? '1px solid var(--color-primary)'
+                            : '1px solid var(--color-border)',
+                          background: checked ? 'var(--color-primary)' : 'transparent',
+                          color: checked ? '#fff' : 'var(--color-text-secondary)',
+                        }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) =>
-                            setSyncScope((s) => ({ ...s, [item.key]: e.target.checked }))
-                          }
-                          data-dom-id={item.domId}
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: checked ? '#fff' : 'var(--color-text-muted)',
+                            transition: 'all 0.2s ease',
+                          }}
                         />
-                        <span>{item.label}</span>
-                      </label>
+                        {item.label}
+                      </button>
                     )
                   })}
                 </div>
@@ -518,7 +533,14 @@ export default function SettingsWeRead() {
               />
               <div className="form-field">
                 <label className="form-label">同步分类</label>
-                <div className="checkbox-group">
+                <div
+                  className="chip-group"
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 'calc(var(--spacing) * 2)',
+                  }}
+                >
                   {(
                     [
                       { key: 'literature', label: '文学', domId: 'cat-literature' },
@@ -530,20 +552,43 @@ export default function SettingsWeRead() {
                   ).map((item) => {
                     const checked = categories[item.key]
                     return (
-                      <label
+                      <button
                         key={item.key}
-                        className={`checkbox-item${checked ? ' checked' : ''}`}
+                        type="button"
+                        data-dom-id={item.domId}
+                        aria-pressed={checked}
+                        onClick={() =>
+                          setCategories((s) => ({ ...s, [item.key]: !s[item.key] }))
+                        }
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 'calc(var(--spacing) * 1)',
+                          padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 4)',
+                          borderRadius: '999px',
+                          fontSize: 'var(--font-size-sm)',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          border: checked
+                            ? '1px solid var(--color-primary)'
+                            : '1px solid var(--color-border)',
+                          background: checked ? 'var(--color-primary)' : 'transparent',
+                          color: checked ? '#fff' : 'var(--color-text-secondary)',
+                        }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) =>
-                            setCategories((s) => ({ ...s, [item.key]: e.target.checked }))
-                          }
-                          data-dom-id={item.domId}
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: checked ? '#fff' : 'var(--color-text-muted)',
+                            transition: 'all 0.2s ease',
+                          }}
                         />
-                        <span>{item.label}</span>
-                      </label>
+                        {item.label}
+                      </button>
                     )
                   })}
                 </div>

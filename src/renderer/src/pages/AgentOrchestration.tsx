@@ -742,6 +742,13 @@ export default function AgentOrchestration() {
       subtitle="配置AI对话的意图识别、教学策略与上下文构建"
       actions={
         <>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/settings')}
+            data-dom-id="cta-back-to-settings"
+          >
+            <Icon name="chevron-left" size={16} /> 返回设置
+          </Button>
           <Button variant="primary" onClick={scrollToTestRun} data-dom-id="cta-test-run">
             <Icon name="play" size={16} /> 测试运行
           </Button>

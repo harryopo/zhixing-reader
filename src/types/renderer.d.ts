@@ -153,8 +153,12 @@ export interface ElectronAPI {
     getAll: () => Promise<Conversation[]>
     create: (title?: string, bookId?: string) => Promise<Conversation>
     getMessages: (id: string) => Promise<ChatMessage[]>
-    addMessage: (conversationId: string, message: { role: string; content: string; intent?: string }) => Promise<ChatMessage>
+    addMessage: (conversationId: string, message: { role: string; content: string; intent?: string }) => Promise<string>
     delete: (id: string) => Promise<void>
+  }
+  chat: {
+    toggleLike: (messageId: string, liked: boolean) => Promise<void>
+    toggleBookmark: (messageId: string, bookmarked: boolean) => Promise<void>
   }
   settings: {
     get: (key: string) => Promise<unknown>

@@ -302,10 +302,10 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     navigate('/notes')
   }
 
-  /** "去复习"：跳转复习页 */
+  /** "今日卡片"：跳转知识卡片页 */
   const handleGoReview = () => {
     setNotifyOpen(false)
-    navigate('/review')
+    navigate('/knowledge-cards')
   }
 
   /** 同步状态文案 */
@@ -534,7 +534,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                   <Icon name="chevron-right" size={16} />
                 </button>
 
-                {/* 今日复习 */}
+                {/* 今日卡片 */}
                 <button
                   type="button"
                   onClick={handleGoReview}

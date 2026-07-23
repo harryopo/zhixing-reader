@@ -597,7 +597,7 @@ export default function DailyLearning() {
     }
     // 其他任务：路由跳转
     if (task.tag === 'review') {
-      navigate('/review')
+      navigate('/knowledge-cards')
     } else if (task.tag === 'vocab') {
       setShowVocabPanel(true)
     } else if (task.tag === 'note') {

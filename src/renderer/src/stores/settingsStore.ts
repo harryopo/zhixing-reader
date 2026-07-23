@@ -5,8 +5,6 @@ interface SettingsState {
   llmEndpoint: string
   llmKey: string
   llmModel: string
-  /** 复习模块开关（默认 true）。关闭后侧栏隐藏复习入口、/review 路由重定向到首页 /（项目无 /home 路由） */
-  reviewEnabled: boolean
   /** 微信读书自动同步开关（默认 false）。开启后 main 进程按 wereadAutoSyncInterval 自动调 syncBookshelf */
   wereadAutoSync: boolean
   /** 微信读书自动同步间隔（分钟，默认 30）。常用值：15 / 30 / 60 / 180 / 360 */
@@ -31,8 +29,6 @@ interface SettingsState {
   setLlmEndpoint: (endpoint: string) => void
   setLlmKey: (key: string) => void
   setLlmModel: (model: string) => void
-  /** 切换复习模块开关并持久化到 settings 表 */
-  setReviewEnabled: (enabled: boolean) => Promise<void>
   /** 切换微信读书自动同步开关并持久化（main 进程会监听 settings.set 自动更新定时器） */
   setWereadAutoSync: (enabled: boolean) => Promise<void>
   /** 切换微信读书自动同步间隔（分钟）并持久化 */
@@ -48,7 +44,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   llmEndpoint: '',
   llmKey: '',
   llmModel: '',
-  reviewEnabled: true,
   // 默认 false：用户必须显式开启自动同步，避免无 API Key 时空跑定时器
   wereadAutoSync: false,
   wereadAutoSyncInterval: 30,
@@ -71,8 +66,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         llmEndpoint: (settings.llmEndpoint as string) || '',
         llmKey: (settings.llmKey as string) || '',
         llmModel: (settings.llmModel as string) || '',
-        // reviewEnabled 默认 true；仅当显式存储为 false 时才视为关闭
-        reviewEnabled: settings.reviewEnabled !== false,
         wereadAutoSync: settings.wereadAutoSync === true,
         wereadAutoSyncInterval: typeof settings.wereadAutoSyncInterval === 'number'
           && settings.wereadAutoSyncInterval > 0
@@ -192,16 +185,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setLlmEndpoint: (endpoint: string) => set({ llmEndpoint: endpoint }),
   setLlmKey: (key: string) => set({ llmKey: key }),
   setLlmModel: (model: string) => set({ llmModel: model }),
-  setReviewEnabled: async (enabled: boolean) => {
-    // 乐观更新：先改 state，再持久化；失败时回滚
-    const prev = get().reviewEnabled
-    set({ reviewEnabled: enabled })
-    try {
-      await window.electronAPI?.settings?.set('reviewEnabled', enabled)
-    } catch (error) {
-      set({ reviewEnabled: prev, error: (error as Error).message })
-    }
-  },
   setWereadAutoSync: async (enabled: boolean) => {
     const prev = get().wereadAutoSync
     set({ wereadAutoSync: enabled })

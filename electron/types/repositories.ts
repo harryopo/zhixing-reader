@@ -220,10 +220,4 @@ export interface IRepositoryContainer {
   methodologies: IMethodologyRepository
   knowledgeCards: IKnowledgeCardRepository
   memories: IMemoryRepository
-  vocabulary: IVocabularyRepository
-  articles: IArticleRepository
-  bookArchitecture: IBookArchitectureRepository
-  bookSummaries: IBookSummaryRepository
-  dailyStats: IDailyStatsRepository
-  tokenUsage: ITokenUsageRepository
 }
