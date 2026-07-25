@@ -95,18 +95,22 @@ export default function Notes() {
     return book?.title || '未知书籍'
   }
 
-  const handleDeleteNote = async (id: string) => {
-    if (!window.electronAPI?.highlight?.delete) {
-      toast.error('当前环境不支持删除笔记')
+  const handleExportAll = async () => {
+    if (!window.electronAPI?.highlight?.export) {
+      toast.error('当前环境不支持导出笔记')
       return
     }
-    if (!window.confirm('确定删除这条笔记？删除后不可恢复。')) return
     try {
-      await window.electronAPI.highlight.delete(id)
-      setHighlights((prev) => prev.filter((h) => h.id !== id))
-      toast.success('笔记已删除')
+      const result = (await window.electronAPI.highlight.export()) as {
+        saved: boolean
+        count: number
+        path?: string
+      }
+      if (result.saved) {
+        toast.success(`已导出 ${result.count} 条笔记${result.path ? ` 到 ${result.path}` : ''}`)
+      }
     } catch (error) {
-      toast.error(`删除失败: ${error instanceof Error ? error.message : String(error)}`)
+      toast.error(`导出失败: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -182,7 +186,7 @@ export default function Notes() {
           </Button>
           <Button
             variant="secondary"
-            onClick={() => toast.info('导出功能尚未接入，可先用后台数据库浏览导出')}
+            onClick={() => void handleExportAll()}
             data-dom-id="cta-export"
           >
             <Icon name="external-link" size={16} /> 导出全部
@@ -341,14 +345,13 @@ export default function Notes() {
               ) : (
                 filteredHighlights.map((h) => (
                   <NoteItem
-                    key={h.id}
-                    highlight={h}
-                    bookTitle={getBookTitle(h.bookId)}
-                    onEdit={() =>
-                      toast.info('本地编辑原文会破坏微信读书同步一致性，请到微信读书修改后重新导入')
-                    }
-                    onDelete={() => void handleDeleteNote(h.id)}
-                  />
+                  key={h.id}
+                  highlight={h}
+                  bookTitle={getBookTitle(h.bookId)}
+                  onEdit={() =>
+                    toast.info('本地编辑原文会破坏微信读书同步一致性，请到微信读书修改后重新导入')
+                  }
+                />
                 ))
               )}
             </div>
@@ -440,10 +443,9 @@ interface NoteItemProps {
   highlight: HighlightRow
   bookTitle: string
   onEdit?: () => void
-  onDelete?: () => void
 }
 
-function NoteItem({ highlight, bookTitle, onEdit, onDelete }: NoteItemProps) {
+function NoteItem({ highlight, bookTitle, onEdit }: NoteItemProps) {
   const chapter =
     highlight.chapterTitle && highlight.chapterTitle !== '未知章节'
       ? highlight.chapterTitle
@@ -506,7 +508,6 @@ function NoteItem({ highlight, bookTitle, onEdit, onDelete }: NoteItemProps) {
           }}
         >
           <IconButton28 icon="edit" label="编辑笔记" onClick={onEdit} />
-          <IconButton28 icon="trash" label="删除笔记" onClick={onDelete} />
         </div>
       </div>
 

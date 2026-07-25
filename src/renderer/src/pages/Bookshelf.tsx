@@ -782,48 +782,53 @@ export default function Bookshelf() {
           ) : (
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: 'calc(var(--spacing) * 4)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'calc(var(--spacing) * 3)',
               }}
             >
               {recommendations.map((rec, i) => (
                 <div
                   key={rec.bookId}
                   style={{
+                    display: 'grid',
+                    gridTemplateColumns: '72px 1fr',
+                    gap: 'calc(var(--spacing) * 4)',
+                    padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
                     border: '1px solid var(--border)',
                     borderRadius: 'calc(var(--radius) + 4px)',
                     background: 'var(--card)',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    transition: 'border-color 0.2s ease, transform 0.16s ease',
+                    transition: 'border-color 0.2s ease, background 0.2s ease',
+                    alignItems: 'flex-start',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = 'var(--ring)'
-                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.background = 'var(--sidebar-accent)'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = 'var(--border)'
-                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.background = 'var(--card)'
                   }}
                 >
-                  {/* 封面 */}
+                  {/* 左侧封面 */}
                   <div
                     style={{
+                      width: 72,
                       aspectRatio: '3 / 4',
+                      borderRadius: 'var(--radius)',
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                      background: rec.cover ? 'var(--muted)' : coverColor(i),
                       display: 'grid',
                       placeItems: 'center',
                       color: 'var(--primary-foreground)',
                       fontWeight: 700,
-                      fontSize: '0.95rem',
+                      fontSize: '0.65rem',
                       textAlign: 'center',
-                      padding: 'calc(var(--spacing) * 2)',
-                      lineHeight: 1.3,
+                      padding: 'calc(var(--spacing) * 1)',
+                      lineHeight: 1.2,
                       wordBreak: 'keep-all',
-                      overflowWrap: 'break-word',
-                      background: rec.cover ? 'var(--muted)' : coverColor(i),
-                      overflow: 'hidden',
+                      boxShadow: 'var(--shadow-sm)',
                     }}
                   >
                     {rec.cover ? (
@@ -845,78 +850,40 @@ export default function Bookshelf() {
                     )}
                   </div>
 
-                  {/* 元信息 */}
-                  <div
-                    style={{
-                      padding: 'calc(var(--spacing) * 3)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      flex: 1,
-                      gap: 'calc(var(--spacing) * 2)',
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: '0.92rem',
-                          fontWeight: 600,
-                          color: 'var(--card-foreground)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {rec.title}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '0.78rem',
-                          color: 'var(--muted-foreground)',
-                          marginTop: '0.18rem',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {rec.author || '未知作者'}
-                      </div>
-                      {rec.rating && rec.rating > 0 ? (
+                  {/* 右侧信息 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 1.5)', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'calc(var(--spacing) * 3)' }}>
+                      <div style={{ minWidth: 0 }}>
                         <div
                           style={{
-                            fontSize: '0.72rem',
-                            color: 'var(--primary)',
-                            marginTop: '0.18rem',
-                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            color: 'var(--card-foreground)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          评分 {rec.rating}
+                          {rec.title}
                         </div>
-                      ) : null}
-                    </div>
-
-                    {/* 推荐理由 */}
-                    <div
-                      style={{
-                        fontSize: '0.74rem',
-                        color: 'var(--muted-foreground)',
-                        lineHeight: 1.5,
-                        background: 'var(--muted)',
-                        padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 2.5)',
-                        borderRadius: 'var(--radius)',
-                        borderLeft: '2px solid var(--primary)',
-                      }}
-                    >
-                      {rec.reason}
-                    </div>
-
-                    {/* 操作按钮 */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 'calc(var(--spacing) * 2)',
-                        marginTop: 'auto',
-                      }}
-                    >
+                        <div
+                          style={{
+                            fontSize: '0.78rem',
+                            color: 'var(--muted-foreground)',
+                            marginTop: '0.15rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {rec.author || '未知作者'}
+                          {rec.rating && rec.rating > 0 ? (
+                            <span style={{ color: 'var(--primary)', marginLeft: 'calc(var(--spacing) * 2)', fontFamily: 'var(--font-mono)' }}>
+                              评分 {rec.rating}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
@@ -925,40 +892,12 @@ export default function Bookshelf() {
                           )
                         }}
                         style={{
-                          flex: 1,
-                          padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)',
-                          fontSize: '0.8rem',
-                          fontWeight: 500,
-                          color: 'var(--primary-foreground)',
-                          background: 'var(--primary)',
-                          border: '1px solid var(--primary)',
-                          borderRadius: 'var(--radius)',
-                          cursor: 'pointer',
-                          transition: 'opacity 0.2s ease',
-                          font: 'inherit',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.opacity = '0.85'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.opacity = '1'
-                        }}
-                      >
-                        在微信读书打开
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // 推荐书不在本地 books 表，直接外开微信读书书籍详情页
-                          // 避免 navigate('/bookshelf/:id') 后 BookDetail 显示"书籍未找到"空状态
-                          window.electronAPI.system.openExternal(
-                            `https://weread.qq.com/web/book/${encodeURIComponent(rec.bookId)}`,
-                          )
-                        }}
-                        style={{
-                          flex: 1,
-                          padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)',
-                          fontSize: '0.8rem',
+                          flexShrink: 0,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 'calc(var(--spacing) * 1.5)',
+                          padding: 'calc(var(--spacing) * 1.5) calc(var(--spacing) * 3)',
+                          fontSize: '0.78rem',
                           fontWeight: 500,
                           color: 'var(--primary)',
                           background: 'transparent',
@@ -975,9 +914,26 @@ export default function Bookshelf() {
                           e.currentTarget.style.background = 'transparent'
                         }}
                       >
-                        查看详情
+                        去微信读书 <Icon name="external-link" size={12} />
                       </button>
                     </div>
+
+                    {/* 推荐理由 */}
+                    {rec.reason && (
+                      <div
+                        style={{
+                          fontSize: '0.8rem',
+                          color: 'var(--muted-foreground)',
+                          lineHeight: 1.55,
+                          padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 2.5)',
+                          background: 'var(--muted)',
+                          borderRadius: 'var(--radius)',
+                          borderLeft: '2px solid var(--primary)',
+                        }}
+                      >
+                        {rec.reason}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

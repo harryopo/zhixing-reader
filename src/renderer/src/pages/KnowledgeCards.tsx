@@ -3,14 +3,14 @@
  * 基于设计稿 zhixing-reader-redesign/pages/knowledge-cards.html
  *
  * 结构：
- *   - hero: 标题 + 副标题（X 张卡片 · 跨 X 本书） + 3 actions（新建/AI生成/导出）
+ *   - hero: 标题 + 副标题（X 张卡片 · 跨 X 本书） + 2 actions（AI生成/导出）
  *   - 双 tab: 卡片库 / 蒸馏中心
  *   - 全局蒸馏进度 banner（distillProgress 显示时）
  *   - cards tab:
  *     - 3 统计卡（概念/方法/引用）
  *     - 筛选条 card（5 类型 chips + 搜索 + 书籍 select + 标签 select + 网格/列表切换）
  *     - 卡片网格（auto-fill minmax(280px, 1fr)）
- *       - 卡片正面：badge + 书名 + 标题 + 内容 + 时间 + 2 icon-btn（编辑/删除）
+ *       - 卡片正面：badge + 书名 + 标题 + 内容 + 时间 + 删除 icon-btn
  *       - 卡片反面：内容 + 解读(AI生成) + 应用(AI生成) + 标签 + 复习信息
  *   - distill tab:
  *     - 说明卡
@@ -354,72 +354,6 @@ export default function KnowledgeCards() {
     }
   }
 
-  /** 手动新建（knowledgeCards:create 已有 IPC） */
-  const handleCreateCard = async () => {
-    if (!window.electronAPI?.knowledgeCard) {
-      toast.error('知识卡片接口不可用')
-      return
-    }
-    if (books.length === 0) {
-      toast.info('请先同步书籍后再新建卡片')
-      return
-    }
-    const defaultBook = books[0]
-    const bookHint =
-      books.length === 1
-        ? defaultBook.title
-        : window.prompt(
-            `关联书籍（输入书名关键词，回车用第一本「${defaultBook.title}」）:`,
-            defaultBook.title,
-          )
-    if (bookHint === null) return
-    const book =
-      books.find((b) => b.title.includes(bookHint.trim()) || b.id === bookHint.trim()) ?? defaultBook
-    const typeRaw = window.prompt('类型: concept / methodology / quote', 'concept')
-    if (typeRaw === null) return
-    const type = (['concept', 'methodology', 'quote'].includes(typeRaw.trim())
-      ? typeRaw.trim()
-      : 'concept') as CardType
-    const title = window.prompt('卡片标题')
-    if (title === null || !title.trim()) return
-    const content = window.prompt('卡片内容')
-    if (content === null || !content.trim()) return
-    try {
-      await window.electronAPI.knowledgeCard.create({
-        bookId: book.id,
-        type,
-        title: title.trim(),
-        content: content.trim(),
-        tags: [],
-        masteryLevel: 0,
-        reviewCount: 0,
-      })
-      await loadData()
-      toast.success('已新建知识卡片')
-    } catch (error) {
-      toast.error(`新建失败: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  /** 编辑标题/内容（knowledgeCards:update） */
-  const handleEditCard = async (card: KnowledgeCardItem) => {
-    if (!window.electronAPI?.knowledgeCard) return
-    const title = window.prompt('编辑标题', card.title)
-    if (title === null) return
-    const content = window.prompt('编辑内容', card.content)
-    if (content === null) return
-    try {
-      await window.electronAPI.knowledgeCard.update(card.id, {
-        title: title.trim() || card.title,
-        content: content.trim() || card.content,
-      })
-      await loadData()
-      toast.success('已保存修改')
-    } catch (error) {
-      toast.error(`编辑失败: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
   /** 导出当前筛选结果为 JSON（纯前端下载，无后端） */
   const handleExportCards = () => {
     if (filteredCards.length === 0) {
@@ -656,13 +590,6 @@ export default function KnowledgeCards() {
         subtitle={subtitle}
         actions={
           <>
-            <Button
-              variant="primary"
-              onClick={() => void handleCreateCard()}
-              data-dom-id="cta-new"
-            >
-              <Icon name="plus" size={16} /> 新建卡片
-            </Button>
             <Button
               variant="secondary"
               onClick={() => setActiveTab('distill')}
@@ -1002,12 +929,15 @@ export default function KnowledgeCards() {
                       {getBookTitle(card.bookId)}
                     </span>
                     <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
-                      <Button variant="ghost" onClick={() => void handleEditCard(card)}>
-                        编辑
-                      </Button>
-                      <Button variant="ghost" onClick={() => void handleDelete(card.id)}>
-                        删除
-                      </Button>
+                      <button
+                        type="button"
+                        aria-label="删除"
+                        data-dom-id={`card-${card.id}-delete-list`}
+                        style={iconBtnStyle(false)}
+                        onClick={() => void handleDelete(card.id)}
+                      >
+                        <Icon name="trash" size={14} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1028,7 +958,6 @@ export default function KnowledgeCards() {
                     onFlip={() => setFlippedId(flippedId === card.id ? null : card.id)}
                     onClose={() => setFlippedId(null)}
                     onDelete={() => handleDelete(card.id)}
-                    onEdit={() => void handleEditCard(card)}
                     onGenerateInterpretation={() => handleGenerateInterpretation(card)}
                     onGenerateApplication={() => handleGenerateApplication(card)}
                     getBookTitle={getBookTitle}
@@ -1272,7 +1201,6 @@ interface KnowledgeCardArticleProps {
   onFlip: () => void
   onClose: () => void
   onDelete: () => void
-  onEdit: () => void
   onGenerateInterpretation: () => void
   onGenerateApplication: () => void
   getBookTitle: (bookId: string) => string
@@ -1285,7 +1213,6 @@ function KnowledgeCardArticle({
   onFlip,
   onClose,
   onDelete,
-  onEdit,
   onGenerateInterpretation,
   onGenerateApplication,
   getBookTitle,
@@ -1406,18 +1333,6 @@ function KnowledgeCardArticle({
               {timeLabel}
             </span>
             <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
-              <button
-                type="button"
-                aria-label="编辑"
-                data-dom-id={`card-${card.id}-edit`}
-                style={iconBtnStyle(false)}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onEdit()
-                }}
-              >
-                <Icon name="edit" size={14} />
-              </button>
               <button
                 type="button"
                 aria-label="删除"
@@ -1708,17 +1623,6 @@ function KnowledgeCardArticle({
               {timeLabel}
             </span>
             <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
-              <button
-                type="button"
-                aria-label="编辑"
-                style={iconBtnStyle(false)}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onEdit()
-                }}
-              >
-                <Icon name="edit" size={14} />
-              </button>
               <button
                 type="button"
                 aria-label="删除"

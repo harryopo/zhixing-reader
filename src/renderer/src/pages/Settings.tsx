@@ -291,58 +291,6 @@ export default function Settings() {
             </div>
           </Card>
 
-          {/* ===== Card 2：快捷操作 ===== */}
-          <Card>
-            <CardHead eyebrow="提示" title="设置使用指南" />
-            <ul
-              className="tips-list"
-              style={{
-                listStyle: 'none',
-                padding: 0,
-                margin: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'calc(var(--spacing) * 3)',
-              }}
-            >
-              {[
-                '账户：开启「继承微信读书信息」后无需本地填写昵称/头像（同步功能将在后续版本上线）。',
-                'AI 配置：仅配置 LLM 服务与提示词模板；与智能体编排完全解耦。',
-                '智能体编排：独立页面，配置意图识别阈值、教学策略与上下文预算。',
-                '微信读书：配置 API Key 并开启同步后，划线与笔记将自动同步到本地。',
-                '外观：仅保留深浅色主题切换，字体与界面密度已移除（无效功能）。',
-              ].map((tip, idx) => (
-                <li
-                  key={idx}
-                  className="tip-item"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 'calc(var(--spacing) * 3)',
-                    fontSize: '0.9rem',
-                    color: 'var(--foreground)',
-                    lineHeight: 1.6,
-                  }}
-                >
-                  <span
-                    className="tip-marker"
-                    aria-hidden="true"
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      background: 'var(--primary)',
-                      flexShrink: 0,
-                      marginTop: '0.5rem',
-                    }}
-                  />
-                  <span className="tip-text" style={{ minWidth: 0, flex: 1 }}>
-                    {tip}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
         </div>
       </div>
 

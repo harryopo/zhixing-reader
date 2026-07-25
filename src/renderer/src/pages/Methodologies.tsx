@@ -4,7 +4,7 @@
  *
  * 结构：
  *   - hero: 标题 + 副标题 + 2 actions（AI提取方法论 / 开始练习）
- *   - extract-panel: AI提取面板（book-select + 4 opt-chips + 开始提取 + token-hint）
+ *   - extract-panel: AI提取面板（book-select + 开始提取 + token-hint）
  *   - page-body methodologies-v2 (grid 1.4fr 1fr):
  *       左 method-list（toolbar-search + view-toggle + filter-chips + method-card-v2 列表）
  *       右 method-detail-v2（sticky 详情面板：head + 6 sections + 3 actions）
@@ -76,14 +76,6 @@ const MASTERY_FILTERS: { key: MasteryFilter; label: string; domId: string }[] = 
   { key: 'all', label: '全部', domId: 'filter-all' },
   { key: 'todo', label: '待练习', domId: 'filter-todo' },
   { key: 'mastered', label: '已掌握', domId: 'filter-mastered' },
-]
-
-/** AI 提取可选项 */
-const EXTRACT_OPTIONS: { key: 'steps' | 'scenario' | 'examples' | 'outputFormat'; label: string; default: boolean }[] = [
-  { key: 'steps', label: '步骤', default: true },
-  { key: 'scenario', label: '场景', default: true },
-  { key: 'examples', label: '示例', default: true },
-  { key: 'outputFormat', label: '输出格式', default: false },
 ]
 
 // ===== 内联 SVG 图标（设计稿特有，不在 Icon 组件库中） =====
@@ -229,13 +221,6 @@ export default function Methodologies() {
   const [selectedMethod, setSelectedMethod] = useState<MethodologyItem | null>(null)
   const [showExtractPanel, setShowExtractPanel] = useState(true)
   const [extractBook, setExtractBook] = useState('')
-  const [extractOptions, setExtractOptions] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {}
-    EXTRACT_OPTIONS.forEach((opt) => {
-      initial[opt.key] = opt.default
-    })
-    return initial
-  })
 
   const initialSelectDone = useRef(false)
 
@@ -405,11 +390,6 @@ export default function Methodologies() {
     }
   }
 
-  /** 切换提取选项 chip */
-  const toggleExtractOption = (key: string) => {
-    setExtractOptions((prev) => ({ ...prev, [key]: !prev[key] }))
-  }
-
   if (loading) {
     return <Loading hint="正在加载方法论数据..." />
   }
@@ -557,55 +537,6 @@ export default function Methodologies() {
                     </option>
                   ))}
                 </select>
-              </div>
-            </div>
-
-            {/* 提取内容选项 */}
-            <div className="extract-field" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)', flex: '0 0 auto' }}>
-              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted-foreground)' }}>
-                提取内容
-              </label>
-              <div className="extract-options" style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)', flexWrap: 'wrap' }}>
-                {EXTRACT_OPTIONS.map((opt) => {
-                  const active = !!extractOptions[opt.key]
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      data-active={active}
-                      onClick={() => toggleExtractOption(opt.key)}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        padding: '0.42rem 0.85rem',
-                        border: '1px solid',
-                        borderColor: active ? 'var(--secondary)' : 'var(--border)',
-                        background: active ? 'var(--secondary)' : 'var(--card)',
-                        color: active ? 'var(--secondary-foreground)' : 'var(--muted-foreground)',
-                        borderRadius: 'var(--radius)',
-                        cursor: 'pointer',
-                        fontSize: '0.8rem',
-                        fontWeight: 500,
-                        whiteSpace: 'nowrap',
-                        transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      <span
-                        className="dot"
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 999,
-                          background: active ? 'var(--primary)' : 'var(--muted-foreground)',
-                          flexShrink: 0,
-                        }}
-                      />
-                      {opt.label}
-                    </button>
-                  )
-                })}
               </div>
             </div>
 

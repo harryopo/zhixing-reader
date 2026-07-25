@@ -122,6 +122,8 @@ export default function Chat() {
   const [books, setBooks] = useState<BookRow[]>([])
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
   const [loadingContext, setLoadingContext] = useState(true)
+  const [sessionsCollapsed, setSessionsCollapsed] = useState(false)
+  const [contextCollapsed, setContextCollapsed] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -304,10 +306,15 @@ export default function Chat() {
           className="page-body chat-workspace"
           style={{
             display: 'grid',
-            gridTemplateColumns: '240px 1fr 280px',
+            gridTemplateColumns: (() => {
+              const sessionWidth = sessionsCollapsed ? '56px' : '220px'
+              const contextWidth = contextCollapsed ? '56px' : '260px'
+              return `${sessionWidth} 1fr ${contextWidth}`
+            })(),
             gap: 'calc(var(--spacing) * 4)',
             minHeight: 'calc(100vh - 76px - 220px)',
             overflow: 'hidden',
+            transition: 'grid-template-columns 0.25s ease',
           }}
         >
           {/* ============ 左栏：会话列表 ============ */}
@@ -326,25 +333,35 @@ export default function Chat() {
             <div
               className="sessions-head"
               style={{
-                padding: 'calc(var(--spacing) * 4)',
+                padding: sessionsCollapsed ? 'calc(var(--spacing) * 2) calc(var(--spacing) * 1)' : 'calc(var(--spacing) * 4)',
                 borderBottom: '1px solid var(--border)',
                 display: 'flex',
-                justifyContent: 'space-between',
+                flexDirection: sessionsCollapsed ? 'column' : 'row',
+                justifyContent: sessionsCollapsed ? 'flex-start' : 'space-between',
                 alignItems: 'center',
+                gap: sessionsCollapsed ? 'calc(var(--spacing) * 2)' : undefined,
               }}
             >
-              <span
-                className="eyebrow"
-                style={{
-                  fontSize: '0.78rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: 'var(--muted-foreground)',
-                  fontWeight: 600,
-                }}
+              {!sessionsCollapsed && (
+                <span
+                  className="eyebrow"
+                  style={{
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: 'var(--muted-foreground)',
+                    fontWeight: 600,
+                  }}
+                >
+                  会话
+                </span>
+              )}
+              <IconButtonSmall
+                label={sessionsCollapsed ? '展开会话列表' : '收起会话列表'}
+                onClick={() => setSessionsCollapsed((c) => !c)}
               >
-                会话
-              </span>
+                <Icon name={sessionsCollapsed ? 'chevron-right' : 'chevron-left'} size={14} />
+              </IconButtonSmall>
               <IconButtonSmall label="新建会话" onClick={handleNewChat}>
                 <Icon name="plus" size={14} />
               </IconButtonSmall>
@@ -354,26 +371,31 @@ export default function Chat() {
               style={{
                 flex: 1,
                 overflowY: 'auto',
-                padding: 'calc(var(--spacing) * 2)',
+                padding: sessionsCollapsed ? 'calc(var(--spacing) * 1)' : 'calc(var(--spacing) * 2)',
                 minHeight: 0,
               }}
             >
               {sessions.length === 0 ? (
                 <div
                   style={{
-                    padding: 'calc(var(--spacing) * 4)',
+                    padding: sessionsCollapsed ? 'calc(var(--spacing) * 3) 0' : 'calc(var(--spacing) * 4)',
                     textAlign: 'center',
                     color: 'var(--muted-foreground)',
-                    fontSize: '0.85rem',
+                    fontSize: sessionsCollapsed ? '0.75rem' : '0.85rem',
                   }}
                 >
-                  暂无会话
-                  <br />
-                  点击右上角 + 新建
+                  {sessionsCollapsed ? '无' : (
+                    <>
+                      暂无会话
+                      <br />
+                      点击右上角 + 新建
+                    </>
+                  )}
                 </div>
               ) : (
                 sessions.map((s) => {
                   const active = s.id === currentSessionId
+                  const firstChar = (s.title || '新').slice(0, 1)
                   return (
                     <div
                       key={s.id}
@@ -381,27 +403,34 @@ export default function Chat() {
                         position: 'relative',
                         display: 'flex',
                         alignItems: 'stretch',
+                        justifyContent: sessionsCollapsed ? 'center' : undefined,
                       }}
                     >
                       <button
                         type="button"
                         data-active={active ? 'true' : undefined}
                         onClick={() => switchSession(s.id)}
+                        title={s.title || '新对话'}
                         style={{
-                          flex: 1,
-                          width: '100%',
-                          padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                          textAlign: 'left',
+                          flex: sessionsCollapsed ? undefined : 1,
+                          width: sessionsCollapsed ? 40 : '100%',
+                          height: sessionsCollapsed ? 40 : undefined,
+                          padding: sessionsCollapsed ? 0 : 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                          textAlign: sessionsCollapsed ? 'center' : 'left',
                           border: 'none',
                           background: active ? 'var(--sidebar-accent)' : 'transparent',
                           color: 'var(--foreground)',
                           borderRadius: 'var(--radius)',
                           cursor: 'pointer',
                           display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.3rem',
+                          flexDirection: sessionsCollapsed ? 'row' : 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: sessionsCollapsed ? 0 : '0.3rem',
                           transition: 'background 0.2s ease',
                           font: 'inherit',
+                          overflow: 'hidden',
+                          margin: sessionsCollapsed ? '0 auto calc(var(--spacing) * 1)' : undefined,
                         }}
                         onMouseEnter={(e) => {
                           if (!active) e.currentTarget.style.background = 'var(--sidebar-accent)'
@@ -410,63 +439,86 @@ export default function Chat() {
                           if (!active) e.currentTarget.style.background = 'transparent'
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: '0.88rem',
-                            fontWeight: 500,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            color: active ? 'var(--sidebar-accent-foreground)' : 'inherit',
+                        {sessionsCollapsed ? (
+                          <span
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: '50%',
+                              background: active ? 'var(--primary)' : 'var(--muted)',
+                              color: active ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+                              display: 'grid',
+                              placeItems: 'center',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {firstChar}
+                          </span>
+                        ) : (
+                          <>
+                            <span
+                              style={{
+                                fontSize: '0.88rem',
+                                fontWeight: 500,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                color: active ? 'var(--sidebar-accent-foreground)' : 'inherit',
+                              }}
+                            >
+                              {truncate(s.title || '新对话', 18)}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                color: 'var(--muted-foreground)',
+                                fontFamily: 'var(--font-mono)',
+                              }}
+                            >
+                              {formatRelativeTime(s.updatedAt || s.createdAt)}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                      {!sessionsCollapsed && (
+                        <button
+                          type="button"
+                          aria-label="删除会话"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteSession(s.id)
                           }}
-                        >
-                          {truncate(s.title || '新对话', 18)}
-                        </span>
-                        <span
                           style={{
-                            fontSize: '0.72rem',
+                            position: 'absolute',
+                            top: 'calc(var(--spacing) * 2)',
+                            right: 'calc(var(--spacing) * 2)',
+                            width: 20,
+                            height: 20,
+                            display: 'grid',
+                            placeItems: 'center',
+                            border: 'none',
+                            background: 'transparent',
                             color: 'var(--muted-foreground)',
-                            fontFamily: 'var(--font-mono)',
+                            cursor: 'pointer',
+                            borderRadius: 4,
+                            opacity: 0.4,
+                            transition: 'opacity 0.2s ease, color 0.2s ease',
+                            padding: 0,
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.opacity = '1'
+                            e.currentTarget.style.color = 'var(--state-error)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.opacity = '0.4'
+                            e.currentTarget.style.color = 'var(--muted-foreground)'
                           }}
                         >
-                          {formatRelativeTime(s.updatedAt || s.createdAt)}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="删除会话"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteSession(s.id)
-                        }}
-                        style={{
-                          position: 'absolute',
-                          top: 'calc(var(--spacing) * 2)',
-                          right: 'calc(var(--spacing) * 2)',
-                          width: 20,
-                          height: 20,
-                          display: 'grid',
-                          placeItems: 'center',
-                          border: 'none',
-                          background: 'transparent',
-                          color: 'var(--muted-foreground)',
-                          cursor: 'pointer',
-                          borderRadius: 4,
-                          opacity: 0.4,
-                          transition: 'opacity 0.2s ease, color 0.2s ease',
-                          padding: 0,
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.opacity = '1'
-                          e.currentTarget.style.color = 'var(--state-error)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.opacity = '0.4'
-                          e.currentTarget.style.color = 'var(--muted-foreground)'
-                        }}
-                      >
-                        <Icon name="close" size={12} />
-                      </button>
+                          <Icon name="close" size={12} />
+                        </button>
+                      )}
                     </div>
                   )
                 })
@@ -764,40 +816,55 @@ export default function Chat() {
             <div
               className="context-head"
               style={{
-                padding: 'calc(var(--spacing) * 4)',
+                padding: contextCollapsed ? 'calc(var(--spacing) * 2) calc(var(--spacing) * 1)' : 'calc(var(--spacing) * 4)',
                 borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                flexDirection: contextCollapsed ? 'column' : 'row',
+                justifyContent: contextCollapsed ? 'flex-start' : 'space-between',
+                alignItems: 'center',
+                gap: contextCollapsed ? 'calc(var(--spacing) * 2)' : undefined,
               }}
             >
-              <span
-                className="eyebrow"
-                style={{
-                  fontSize: '0.78rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: 'var(--muted-foreground)',
-                  fontWeight: 600,
-                }}
+              {!contextCollapsed && (
+                <div>
+                  <span
+                    className="eyebrow"
+                    style={{
+                      fontSize: '0.78rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: 'var(--muted-foreground)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    上下文
+                  </span>
+                  <strong
+                    style={{
+                      display: 'block',
+                      marginTop: 'calc(var(--spacing) * 1)',
+                      fontSize: '0.92rem',
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    关联书籍
+                  </strong>
+                </div>
+              )}
+              <IconButtonSmall
+                label={contextCollapsed ? '展开关联书籍' : '收起关联书籍'}
+                onClick={() => setContextCollapsed((c) => !c)}
               >
-                上下文
-              </span>
-              <strong
-                style={{
-                  display: 'block',
-                  marginTop: 'calc(var(--spacing) * 1)',
-                  fontSize: '0.92rem',
-                  color: 'var(--foreground)',
-                }}
-              >
-                关联书籍
-              </strong>
+                <Icon name={contextCollapsed ? 'chevron-left' : 'chevron-right'} size={14} />
+              </IconButtonSmall>
             </div>
             <div
               className="context-body"
               style={{
                 flex: 1,
                 overflowY: 'auto',
-                padding: 'calc(var(--spacing) * 3)',
-                display: 'flex',
+                padding: contextCollapsed ? 0 : 'calc(var(--spacing) * 3)',
+                display: contextCollapsed ? 'none' : 'flex',
                 flexDirection: 'column',
                 gap: 'calc(var(--spacing) * 3)',
                 minHeight: 0,

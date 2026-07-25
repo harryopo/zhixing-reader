@@ -156,6 +156,14 @@ export default function DailyLearning() {
 
   // 单词缓存：避免每次悬停都发送IPC请求
   const wordCacheRef = useRef<Map<string, Record<string, unknown> | null>>(new Map())
+  // 悬停防抖：快速移动时只保留最后一个单词，避免连续弹出多个 tooltip
+  const hoverTimerRef = useRef<number | null>(null)
+  const leaveTimerRef = useRef<number | null>(null)
+  const pendingHoverRef = useRef<{ word: string; x: number; y: number } | null>(null)
+  // 鼠标是否位于 tooltip 内容区，用于防止单词 -> tooltip 切换时闪烁
+  const isOverTooltipRef = useRef(false)
+  // 记录最近鼠标位置，检测快速划过（距离 / 时间）
+  const lastMousePosRef = useRef<{ x: number; y: number; time: number }>({ x: 0, y: 0, time: 0 })
 
   // ===== Dashboard 新增状态 =====
   const [view, setView] = useState<'dashboard' | 'article'>('dashboard')
@@ -284,13 +292,11 @@ export default function DailyLearning() {
 
   const toggleTranslation = (index: number) => {
     setVisibleTranslations(prev => {
-      const next = new Set(prev)
-      if (next.has(index)) {
-        next.delete(index)
-      } else {
-        next.add(index)
+      // 一次只展开一个段落的翻译；点击已展开的则收起
+      if (prev.has(index)) {
+        return new Set()
       }
-      return next
+      return new Set([index])
     })
   }
 
@@ -327,35 +333,88 @@ export default function DailyLearning() {
 
   // ===== 单词悬停与右键（全部保留） =====
 
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+    if (leaveTimerRef.current !== null) {
+      window.clearTimeout(leaveTimerRef.current)
+      leaveTimerRef.current = null
+    }
+  }, [])
+
   const handleWordHover = useCallback((word: string, event: React.MouseEvent) => {
     const cleanWord = word.replace(/[^a-zA-Z]/g, '').toLowerCase()
     if (cleanWord.length < 3) {
+      clearHoverTimer()
       setHoveredWord(null)
+      setTooltipContent(null)
+      pendingHoverRef.current = null
       return
     }
 
-    setHoveredWord(cleanWord)
-    setTooltipPosition({ x: event.clientX, y: event.clientY - 10 })
+    // 检测鼠标是否快速划过：90ms 内移动超过 60px 视为快速移动，不触发查词
+    // 避免鼠标快速扫过整行时连续弹出多个 tooltip
+    const now = Date.now()
+    const dx = event.clientX - lastMousePosRef.current.x
+    const dy = event.clientY - lastMousePosRef.current.y
+    const dt = now - lastMousePosRef.current.time
+    lastMousePosRef.current = { x: event.clientX, y: event.clientY, time: now }
 
-    const cache = wordCacheRef.current
-    if (cache.has(cleanWord)) {
-      setTooltipContent(cache.get(cleanWord) ?? null)
+    if (dt > 0 && dt < 90 && (Math.abs(dx) > 60 || Math.abs(dy) > 60)) {
+      clearHoverTimer()
+      pendingHoverRef.current = null
       return
     }
 
-    window.electronAPI.dictionary.lookup(cleanWord).then(result => {
-      cache.set(cleanWord, result)
-      setTooltipContent(result)
-    }).catch(error => {
-      console.error('词典查询失败:', error)
-      cache.set(cleanWord, null)
-    })
-  }, [])
+    // 同单词内移动只更新位置，不重复查询
+    if (hoveredWord === cleanWord) {
+      setTooltipPosition({ x: event.clientX, y: event.clientY - 10 })
+      return
+    }
+
+    pendingHoverRef.current = { word: cleanWord, x: event.clientX, y: event.clientY - 10 }
+    clearHoverTimer()
+
+    hoverTimerRef.current = window.setTimeout(() => {
+      const pending = pendingHoverRef.current
+      if (!pending || pending.word !== cleanWord) return
+
+      setHoveredWord(cleanWord)
+      setTooltipPosition({ x: pending.x, y: pending.y })
+
+      const cache = wordCacheRef.current
+      if (cache.has(cleanWord)) {
+        setTooltipContent(cache.get(cleanWord) ?? null)
+        return
+      }
+
+      window.electronAPI.dictionary.lookup(cleanWord).then(result => {
+        cache.set(cleanWord, result)
+        // 仅在仍悬停于该单词时更新内容，避免异步结果覆盖新悬停
+        if (hoveredWord === cleanWord || pendingHoverRef.current?.word === cleanWord) {
+          setTooltipContent(result)
+        }
+      }).catch(error => {
+        console.error('词典查询失败:', error)
+        cache.set(cleanWord, null)
+      })
+    }, 280)
+  }, [clearHoverTimer, hoveredWord])
 
   const handleWordLeave = useCallback(() => {
-    setHoveredWord(null)
-    setTooltipContent(null)
-  }, [])
+    clearHoverTimer()
+    pendingHoverRef.current = null
+    // 如果鼠标移入 tooltip 内容区，保持显示；否则延迟 120ms 隐藏
+    // 延迟可消除相邻单词间快速切换导致的闪烁
+    if (isOverTooltipRef.current) return
+    leaveTimerRef.current = window.setTimeout(() => {
+      if (isOverTooltipRef.current) return
+      setHoveredWord(null)
+      setTooltipContent(null)
+    }, 120)
+  }, [clearHoverTimer])
 
   const handleWordContextMenu = useCallback((word: string, event: React.MouseEvent) => {
     event.preventDefault()
@@ -841,7 +900,7 @@ export default function DailyLearning() {
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'calc(var(--spacing) * 2)' }}>
                       <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', marginTop: '0.2rem', userSelect: 'none', fontFamily: 'var(--font-mono)' }}>{index + 1}</span>
-                      <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--foreground)', flex: 1 }}>
+                      <p style={{ margin: '0 0 0.6em 0', fontSize: '1.1rem', lineHeight: 1.85, color: 'var(--foreground)', flex: 1, whiteSpace: 'pre-wrap', textIndent: '2em', textAlign: 'justify' }}>
                         {renderEnglishText(para)}
                       </p>
                     </div>
@@ -854,7 +913,7 @@ export default function DailyLearning() {
                   <div style={{ padding: 'calc(var(--spacing) * 5)' }}>
                     {currentArticle.content_zh ? (
                       isTranslationVisible && zhParagraphs[index] ? (
-                        <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--foreground)' }}>
+                        <p style={{ margin: '0 0 0.6em 0', fontSize: '1.1rem', lineHeight: 1.85, color: 'var(--foreground)', whiteSpace: 'pre-wrap', textIndent: '2em', textAlign: 'justify' }}>
                           {zhParagraphs[index]}
                         </p>
                       ) : (
@@ -1116,68 +1175,82 @@ export default function DailyLearning() {
           <div
             style={{
               position: 'fixed',
-              left: Math.min(tooltipPosition.x, window.innerWidth - 320),
-              top: Math.max(tooltipPosition.y - 120, 10),
-              background: 'var(--popover)',
-              border: '1px solid var(--border)',
-              borderRadius: 'calc(var(--radius) + 4px)',
-              boxShadow: 'var(--shadow-xl)',
+              // 水平居中于鼠标，限制在视口内
+              left: Math.min(Math.max(tooltipPosition.x - 160, 12), window.innerWidth - 332),
+              // 上方空间足够时置于鼠标上方，否则置于下方，避免遮挡单词导致闪烁
+              top: tooltipPosition.y > 170 ? tooltipPosition.y - 150 : tooltipPosition.y + 20,
               zIndex: 50,
               maxWidth: 320,
-              overflow: 'hidden',
+              pointerEvents: 'none',
             }}
           >
-            {tooltipContent ? (
-              <div style={{ padding: 'calc(var(--spacing) * 4)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)', marginBottom: 'calc(var(--spacing) * 2)' }}>
-                  <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--foreground)' }}>{hoveredWord}</span>
-                  {String(tooltipContent.phonetic || '') && (
-                    <span style={{ fontSize: '0.82rem', color: 'var(--muted-foreground)' }}>{String(tooltipContent.phonetic || '')}</span>
+            <div
+              onMouseEnter={() => { isOverTooltipRef.current = true }}
+              onMouseLeave={() => {
+                isOverTooltipRef.current = false
+                handleWordLeave()
+              }}
+              style={{
+                background: 'var(--popover)',
+                border: '1px solid var(--border)',
+                borderRadius: 'calc(var(--radius) + 4px)',
+                boxShadow: 'var(--shadow-xl)',
+                overflow: 'hidden',
+                pointerEvents: 'auto',
+              }}
+            >
+              {tooltipContent ? (
+                <div style={{ padding: 'calc(var(--spacing) * 4)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)', marginBottom: 'calc(var(--spacing) * 2)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--foreground)' }}>{hoveredWord}</span>
+                    {String(tooltipContent.phonetic || '') && (
+                      <span style={{ fontSize: '0.82rem', color: 'var(--muted-foreground)' }}>{String(tooltipContent.phonetic || '')}</span>
+                    )}
+                  </div>
+                  {String(tooltipContent.pos || '') && (
+                    <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', fontSize: '0.78rem', background: 'var(--secondary)', color: 'var(--accent-foreground)', borderRadius: 'var(--radius-sm)', marginBottom: 'calc(var(--spacing) * 2)' }}>
+                      {String(tooltipContent.pos || '')}
+                    </span>
                   )}
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--foreground)', lineHeight: 1.6 }}>
+                    {String(tooltipContent.translation || '')}
+                  </p>
+                  {String(tooltipContent.tag || '') && (
+                    <div style={{ marginTop: 'calc(var(--spacing) * 2)', display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                      {String(tooltipContent.tag || '').split(' ').map((tag: string, i: number) => (
+                        <span key={i} style={{ padding: '0.2rem 0.4rem', fontSize: '0.72rem', background: 'var(--state-warning)', color: '#ffffff', borderRadius: 'var(--radius-sm)' }}>
+                          {tag.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {Number(tooltipContent.collins || 0) > 0 && (
+                    <div style={{ marginTop: 'calc(var(--spacing) * 2)', fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
+                      柯林斯星级: {'★'.repeat(Number(tooltipContent.collins || 0))}{'☆'.repeat(5 - Number(tooltipContent.collins || 0))}
+                    </div>
+                  )}
+                  <Button
+                    variant="secondary"
+                    onClick={handleAddToVocabulary}
+                    style={{ marginTop: 'calc(var(--spacing) * 3)', width: '100%' }}
+                  >
+                    <Icon name="plus" size={14} /> 添加到生词本
+                  </Button>
                 </div>
-                {String(tooltipContent.pos || '') && (
-                  <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', fontSize: '0.78rem', background: 'var(--secondary)', color: 'var(--accent-foreground)', borderRadius: 'var(--radius-sm)', marginBottom: 'calc(var(--spacing) * 2)' }}>
-                    {String(tooltipContent.pos || '')}
-                  </span>
-                )}
-                <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--foreground)', lineHeight: 1.6 }}>
-                  {String(tooltipContent.translation || '')}
-                </p>
-                {String(tooltipContent.tag || '') && (
-                  <div style={{ marginTop: 'calc(var(--spacing) * 2)', display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                    {String(tooltipContent.tag || '').split(' ').map((tag: string, i: number) => (
-                      <span key={i} style={{ padding: '0.2rem 0.4rem', fontSize: '0.72rem', background: 'var(--state-warning)', color: '#ffffff', borderRadius: 'var(--radius-sm)' }}>
-                        {tag.toUpperCase()}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {Number(tooltipContent.collins || 0) > 0 && (
-                  <div style={{ marginTop: 'calc(var(--spacing) * 2)', fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
-                    柯林斯星级: {'★'.repeat(Number(tooltipContent.collins || 0))}{'☆'.repeat(5 - Number(tooltipContent.collins || 0))}
-                  </div>
-                )}
-                <Button
-                  variant="secondary"
-                  onClick={handleAddToVocabulary}
-                  style={{ marginTop: 'calc(var(--spacing) * 3)', width: '100%' }}
-                >
-                  <Icon name="plus" size={14} /> 添加到生词本
-                </Button>
-              </div>
-            ) : (
-              <div style={{ padding: 'calc(var(--spacing) * 4)' }}>
-                <div style={{ fontWeight: 700, color: 'var(--foreground)', marginBottom: '0.25rem' }}>{hoveredWord}</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>本地词典未收录</div>
-                <Button
-                  variant="secondary"
-                  onClick={handleAddToVocabulary}
-                  style={{ marginTop: 'calc(var(--spacing) * 3)', width: '100%' }}
-                >
-                  <Icon name="plus" size={14} /> 添加到生词本
-                </Button>
-              </div>
-            )}
+              ) : (
+                <div style={{ padding: 'calc(var(--spacing) * 4)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--foreground)', marginBottom: '0.25rem' }}>{hoveredWord}</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>本地词典未收录</div>
+                  <Button
+                    variant="secondary"
+                    onClick={handleAddToVocabulary}
+                    style={{ marginTop: 'calc(var(--spacing) * 3)', width: '100%' }}
+                  >
+                    <Icon name="plus" size={14} /> 添加到生词本
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </>
