@@ -51,14 +51,16 @@
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.61.0",
     "@typescript-eslint/parser": "^8.61.0",
-    "@vitejs/plugin-react": "^4.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
     "@vitest/coverage-v8": "^2.0.0",
     "autoprefixer": "^10.4.0",
     "electron": "^35.0.0",
     "electron-builder": "^25.0.0",
     "electron-vite": "^2.0.0",
     "eslint": "^9.0.0",
+    "happy-dom": "^20.11.1",
     "jsdom": "^25.0.1",
+    "playwright": "^1.61.1",
     "postcss": "^8.4.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.6.0",
@@ -169,5 +171,6 @@
       "createStartMenuShortcut": true,
       "shortcutName": "知行读书"
     }
-  }
+  },
+  "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065"
 }
