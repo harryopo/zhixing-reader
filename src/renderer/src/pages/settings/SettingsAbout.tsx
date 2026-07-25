@@ -13,6 +13,17 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { toast } from '@/stores/toastStore'
+import {
+  APP_META,
+  FEEDBACK_TILES,
+  GITHUB_ISSUES_URL,
+  GITHUB_RELEASES_API,
+  GITHUB_RELEASES_PAGE,
+  GITHUB_REPO_URL,
+  LICENSE_TYPE,
+  LICENSE_URL,
+  PRIVACY_POLICY_URL,
+} from '../../../../shared/external-links'
 
 /** 设置分类导航项 */
 interface SettingsNavItem {
@@ -32,15 +43,6 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
   { key: 'about', label: '关于', icon: 'question', path: '/settings/about', active: true },
 ]
-
-/** 应用元信息（与设计稿一致） */
-const APP_NAME = '知行读书'
-const APP_VERSION = 'v1.0.0'
-const APP_RELEASE_DATE = '2026-07-15'
-const APP_DESC = '为阅读成长而生的智能学习工具'
-
-/** 技术栈标签 */
-const TECH_STACK = ['Electron 35', 'React 19', 'TypeScript', 'Tailwind CSS 4']
 
 /** 更新历史记录 */
 interface HistoryEntry {
@@ -65,20 +67,6 @@ const UPDATE_HISTORY: HistoryEntry[] = [
     date: '2026-04-10',
     notes: '首发内测版本，支持微信读书同步、AI 对话、知识卡片核心功能。',
   },
-]
-
-/** 反馈与帮助入口 */
-interface FeedbackTile {
-  title: string
-  hint: string
-  icon: 'message-circle' | 'file' | 'question'
-  domId: string
-}
-
-const FEEDBACK_TILES: FeedbackTile[] = [
-  { title: '用户反馈', hint: '提交建议或问题', icon: 'message-circle', domId: 'cta-feedback' },
-  { title: '使用文档', hint: '功能完善中', icon: 'file', domId: 'cta-docs' },
-  { title: '常见问题', hint: '功能完善中', icon: 'question', domId: 'cta-faq' },
 ]
 
 /** 开源许可证条目 */
@@ -153,10 +141,24 @@ export default function SettingsAbout() {
     setChecking(true)
     const toastId = toast.loading('正在检查更新...')
     try {
-      // 预留 IPC 调用点：若未来实现 electronAPI.updater.checkForUpdates，可在此调用
-      await new Promise((resolve) => setTimeout(resolve, 1200))
+      const res = await fetch(GITHUB_RELEASES_API, {
+        headers: { Accept: 'application/vnd.github+json' },
+      })
+      if (res.status === 403 || res.status === 429) {
+        throw new Error('GitHub API 速率限制，请稍后再试')
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const data = (await res.json()) as { tag_name?: string }
       toast.remove(toastId)
-      toast.success('当前已是最新版本')
+      const latestTag = (data.tag_name ?? '').trim()
+      if (latestTag && latestTag !== APP_META.version) {
+        toast.success(`发现新版本 ${latestTag}，即将打开下载页面`)
+        await window.electronAPI.system.openExternal(GITHUB_RELEASES_PAGE)
+      } else {
+        toast.success('当前已是最新版本')
+      }
     } catch (err) {
       toast.remove(toastId)
       toast.error(`检查更新失败: ${(err as Error).message}`)
@@ -166,13 +168,9 @@ export default function SettingsAbout() {
   }, [checking])
 
   // ===== 反馈 / 文档 / FAQ 入口 =====
-  const handleFeedback = useCallback(() => {
-    toast.info('反馈通道已打开，请通过 GitHub Issues 或邮件联系我们')
+  const handleOpenExternal = useCallback(async (url: string) => {
+    await window.electronAPI.system.openExternal(url)
   }, [])
-
-  const feedbackHandlers: Record<string, (() => void) | undefined> = {
-    'cta-feedback': handleFeedback,
-  }
 
   return (
     <>
@@ -314,8 +312,8 @@ export default function SettingsAbout() {
                         margin: 0,
                       }}
                     >
-                      {APP_NAME}
-                    </h3>
+                      {APP_META.name}
+                  </h3>
                     <span
                       className="version-badge"
                       style={{
@@ -329,7 +327,7 @@ export default function SettingsAbout() {
                         fontVariantNumeric: 'tabular-nums',
                       }}
                     >
-                      {APP_VERSION}
+                      {APP_META.version}
                     </span>
                   </div>
                   <p
@@ -342,7 +340,7 @@ export default function SettingsAbout() {
                       maxWidth: '60ch',
                     }}
                   >
-                    {APP_DESC}
+                    {APP_META.description}
                   </p>
                 </div>
               </div>
@@ -356,7 +354,7 @@ export default function SettingsAbout() {
                   marginTop: 'calc(var(--spacing) * 4)',
                 }}
               >
-                {TECH_STACK.map((tech) => (
+                {APP_META.techStack.map((tech) => (
                   <span
                     key={tech}
                     className="tech-chip"
@@ -408,14 +406,14 @@ export default function SettingsAbout() {
                         fontVariantNumeric: 'tabular-nums',
                       }}
                     >
-                      {APP_VERSION}
+                      {APP_META.version}
                     </span>
                   </strong>
                   <div
                     className="tiny"
                     style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
                   >
-                    发布于 {APP_RELEASE_DATE}
+                    发布于 {APP_META.releaseDate}
                   </div>
                 </div>
                 <div
@@ -534,7 +532,6 @@ export default function SettingsAbout() {
                 }}
               >
                 {FEEDBACK_TILES.map((tile) => {
-                  const handler = feedbackHandlers[tile.domId]
                   const tileStyle: CSSProperties = {
                     display: 'flex',
                     flexDirection: 'column',
@@ -544,13 +541,35 @@ export default function SettingsAbout() {
                     background: 'var(--background)',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius)',
-                    cursor: handler ? 'pointer' : 'default',
+                    cursor: 'pointer',
                     transition: 'border-color 0.2s ease, background 0.2s ease',
                     fontFamily: 'inherit',
                     textAlign: 'left',
                   }
-                  const inner = (
-                    <>
+                  return (
+                    <button
+                      key={tile.domId}
+                      type="button"
+                      className="feedback-tile"
+                      data-dom-id={tile.domId}
+                      onClick={() => handleOpenExternal(tile.url)}
+                      style={tileStyle}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--ring)'
+                        e.currentTarget.style.background = 'var(--popover)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border)'
+                        e.currentTarget.style.background = 'var(--background)'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.outline = '2px solid var(--ring)'
+                        e.currentTarget.style.outlineOffset = '2px'
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.outline = 'none'
+                      }}
+                    >
                       <span
                         className="feedback-tile-icon"
                         style={{
@@ -573,47 +592,7 @@ export default function SettingsAbout() {
                       >
                         {tile.hint}
                       </div>
-                    </>
-                  )
-                  if (handler) {
-                    return (
-                      <button
-                        key={tile.domId}
-                        type="button"
-                        className="feedback-tile"
-                        data-dom-id={tile.domId}
-                        onClick={handler}
-                        style={tileStyle}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--ring)'
-                          e.currentTarget.style.background = 'var(--popover)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--border)'
-                          e.currentTarget.style.background = 'var(--background)'
-                        }}
-                        onFocus={(e) => {
-                          e.currentTarget.style.outline = '2px solid var(--ring)'
-                          e.currentTarget.style.outlineOffset = '2px'
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.style.outline = 'none'
-                        }}
-                      >
-                        {inner}
-                      </button>
-                    )
-                  }
-                  return (
-                    <div
-                      key={tile.domId}
-                      className="feedback-tile"
-                      data-dom-id={tile.domId}
-                      style={tileStyle}
-                      aria-disabled="true"
-                    >
-                      {inner}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -628,25 +607,14 @@ export default function SettingsAbout() {
                   borderTop: '1px solid var(--border)',
                 }}
               >
-                <span
-                  className="contact-link"
-                  data-dom-id="link-github-issues"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 'calc(var(--spacing) * 2)',
-                    color: 'var(--muted-foreground)',
-                    fontSize: '0.88rem',
-                    fontWeight: 500,
-                  }}
-                >
-                  <GitHubIcon size={16} />
-                  如有问题请联系开发者
-                </span>
                 <a
                   className="contact-link"
-                  href="mailto:support@zhixing.com"
-                  data-dom-id="link-email"
+                  data-dom-id="link-github-repo"
+                  href={GITHUB_REPO_URL}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    void handleOpenExternal(GITHUB_REPO_URL)
+                  }}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -667,8 +635,39 @@ export default function SettingsAbout() {
                     e.currentTarget.style.textDecoration = 'none'
                   }}
                 >
-                  <Icon name="mail" size={16} />
-                  support@zhixing.com
+                  <GitHubIcon size={16} />
+                  在 GitHub 上查看源码
+                </a>
+                <a
+                  className="contact-link"
+                  data-dom-id="link-github-issues"
+                  href={GITHUB_ISSUES_URL}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    void handleOpenExternal(GITHUB_ISSUES_URL)
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 'calc(var(--spacing) * 2)',
+                    color: 'var(--primary)',
+                    fontSize: '0.88rem',
+                    textDecoration: 'none',
+                    fontWeight: 500,
+                    transition: 'color 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--ring)'
+                    e.currentTarget.style.textDecoration = 'underline'
+                    e.currentTarget.style.textUnderlineOffset = '3px'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--primary)'
+                    e.currentTarget.style.textDecoration = 'none'
+                  }}
+                >
+                  <GitHubIcon size={16} />
+                  在 GitHub Issues 反馈
                 </a>
               </div>
             </Card>
@@ -687,7 +686,7 @@ export default function SettingsAbout() {
                   maxWidth: '60ch',
                 }}
               >
-                知行读书基于以下开源项目构建，感谢这些项目的贡献者。
+                知行读书本身使用 {LICENSE_TYPE} 开源许可证。以下是我们使用的主要开源依赖：
               </p>
               <div
                 className="license-table-wrap"
@@ -790,36 +789,68 @@ export default function SettingsAbout() {
                   marginBottom: 'calc(var(--spacing) * 4)',
                 }}
               >
-                <span
+                <a
                   className="legal-link"
                   data-dom-id="link-privacy"
+                  href={PRIVACY_POLICY_URL}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    void handleOpenExternal(PRIVACY_POLICY_URL)
+                  }}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 'calc(var(--spacing) * 2)',
-                    color: 'var(--muted-foreground)',
+                    color: 'var(--primary)',
                     fontSize: '0.9rem',
+                    textDecoration: 'none',
                     fontWeight: 500,
+                    transition: 'color 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--ring)'
+                    e.currentTarget.style.textDecoration = 'underline'
+                    e.currentTarget.style.textUnderlineOffset = '3px'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--primary)'
+                    e.currentTarget.style.textDecoration = 'none'
                   }}
                 >
                   <ShieldIcon size={16} />
-                  隐私政策完善中
-                </span>
-                <span
+                  隐私政策
+                </a>
+                <a
                   className="legal-link"
-                  data-dom-id="link-terms"
+                  data-dom-id="link-license"
+                  href={LICENSE_URL}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    void handleOpenExternal(LICENSE_URL)
+                  }}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 'calc(var(--spacing) * 2)',
-                    color: 'var(--muted-foreground)',
+                    color: 'var(--primary)',
                     fontSize: '0.9rem',
+                    textDecoration: 'none',
                     fontWeight: 500,
+                    transition: 'color 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--ring)'
+                    e.currentTarget.style.textDecoration = 'underline'
+                    e.currentTarget.style.textUnderlineOffset = '3px'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--primary)'
+                    e.currentTarget.style.textDecoration = 'none'
                   }}
                 >
                   <Icon name="file" size={16} />
-                  服务条款完善中
-                </span>
+                  开源许可证
+                </a>
               </div>
               <div
                 className="copyright"
@@ -831,7 +862,7 @@ export default function SettingsAbout() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                &copy; 2026 知行读书
+                &copy; 2026 {APP_META.author} · {LICENSE_TYPE} License
               </div>
             </Card>
           </div>
