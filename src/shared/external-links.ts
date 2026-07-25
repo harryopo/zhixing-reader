@@ -8,7 +8,7 @@
 // ====================================================================
 // ⚠️  开源前必改：把下面的 GitHub 用户名改成你的
 // ====================================================================
-export const GITHUB_USERNAME = 'zhixing-reader'
+export const GITHUB_USERNAME = 'harryopo'
 export const GITHUB_REPO_NAME = 'zhixing-reader'
 export const GITHUB_REPO_URL = `https://github.com/${GITHUB_USERNAME}/${GITHUB_REPO_NAME}`
 
@@ -19,10 +19,8 @@ export const GITHUB_RELEASES_PAGE = `${GITHUB_REPO_URL}/releases`
 // Issues — 问题反馈
 export const GITHUB_ISSUES_URL = `${GITHUB_REPO_URL}/issues`
 
-// ====================================================================
-// ⚠️  开源前必改：把下面的飞书问卷链接改成你的
-// ====================================================================
-export const FEEDBACK_SURVEY_URL = 'https://wenjuan.feishu.cn/m?t=PLACEHOLDER_REPLACE_ME'
+// 问题反馈 — 使用 GitHub Issues 代替飞书问卷
+export const FEEDBACK_SURVEY_URL = GITHUB_ISSUES_URL
 
 // 说明文档（GitHub Pages 或仓库内 docs）
 export const DOCS_URL = `${GITHUB_REPO_URL}#readme`
