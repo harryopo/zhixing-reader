@@ -116,14 +116,24 @@ function updateMethodologyMastery(bookId: string, response: string, isCorrect: b
       practice_count?: number
     }>
 
-    // 使用更精确的匹配方式，避免误匹配
+    // 修复：\b 对中文名无效（\b 是字母数字与非字母数字边界），导致中文方法论名
+    // 几乎永远匹配不上、掌握度从不更新。中文无词边界概念，改用：
+    //   - 英文名：\b 词边界（精确，防 FeynmanMethod 误匹配）
+    //   - 中文名：includes 子串匹配 + 最小长度 2 保护（中文方法论名通常 ≥2 字，
+    //     作为完整短语出现即视为命中，子串误匹配风险可接受）
+    const MIN_CN_NAME_LEN = 2
     for (const m of methodologies) {
-      // 使用词边界匹配，而非简单的 includes
-      const namePattern = new RegExp(`\\b${escapeRegExp(m.name)}\\b`, 'i')
+      const isAsciiName = m.name.split('').every((c) => c.charCodeAt(0) <= 127)
+      const namePattern = isAsciiName
+        ? new RegExp(`\\b${escapeRegExp(m.name)}\\b`, 'i')
+        : null
       const nameEnPattern = m.name_en ? new RegExp(`\\b${escapeRegExp(m.name_en)}\\b`, 'i') : null
 
-      const nameInResponse = namePattern.test(response) ||
-        (nameEnPattern && nameEnPattern.test(response))
+      const cnNameHit = !isAsciiName && m.name.length >= MIN_CN_NAME_LEN && response.includes(m.name)
+      const nameInResponse =
+        (namePattern ? namePattern.test(response) : false) ||
+        cnNameHit ||
+        (nameEnPattern ? nameEnPattern.test(response) : false)
 
       if (nameInResponse) {
         const currentMastery = Number(m.mastery_level || 0)
