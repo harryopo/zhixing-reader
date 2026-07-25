@@ -348,7 +348,7 @@ async function callAI(messages: Message[], optsOrTokens?: number | CallOptions):
   return response
 }
 
-function extractAndParseJSON<T>(content: string, isArray: boolean): T {
+export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
   let cleaned = content.trim();
 
   logger.info('Raw AI response length:', { length: cleaned.length });
@@ -398,7 +398,7 @@ function extractAndParseJSON<T>(content: string, isArray: boolean): T {
   }
 }
 
-function repairJSON(jsonStr: string): string {
+export function repairJSON(jsonStr: string): string {
   let repaired = jsonStr
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2018\u2019]/g, "'")
