@@ -531,4 +531,57 @@ wereadHourlyCheckTimer = setInterval(() => {
 
 ---
 
-*最后更新：2026-07-24 | 7/23 用户反馈 11 项问题全部修复，门禁全绿*
+## 🚀 v1.0.0 正式开源发布（2026-07-25）
+
+> **里程碑**：项目首次正式开源发布，火山杯加分项全部完成（代码开源 + 开源许可证 + 应用内设置页关于模块完整）。
+
+### 发布清单
+
+| 项 | 状态 | 详情 |
+|----|------|------|
+| **代码开源** | ✅ | GitHub 仓库 `harryopo/zhixing-reader` 公开；123 commits 推送成功 |
+| **开源许可证** | ✅ | MIT LICENSE（用户保留版权，允许自由使用/修改/分发） |
+| **开源文档** | ✅ | LICENSE + CONTRIBUTING.md + CODE_OF_CONDUCT.md + PRIVACY.md + CHANGELOG.md |
+| **GitHub Release v1.0.0** | ✅ | https://github.com/harryopo/zhixing-reader/releases/tag/v1.0.0 |
+| **Installer 分发** | ✅ | `ZhixingReader-Setup-1.0.0.exe` (125 MB) 通过 Release Assets 分发 |
+| **Landing Page** | ✅ | `landing/index.html` 火山杯赛事展示页（待部署到 GitHub Pages） |
+| **应用内设置-关于** | ✅ | 检查更新 + 说明文档 + 问题反馈 + 开源许可 + 法律信息 5 卡片完整 |
+| **检查更新功能** | ✅ | 调用 GitHub Releases API 真实检查；新版本跳转下载页 |
+| **问题反馈入口** | ✅ | 跳转 GitHub Issues（替代原飞书问卷） |
+| **说明文档入口** | ✅ | 跳转 README + 仓库内 docs/settings-tutorial.md |
+| **大文件清理** | ✅ | git filter-branch 清除 installer-v2/installer-final/ 历史；force push 成功 |
+
+### 关键技术决策
+
+| 决策 | 理由 |
+|------|------|
+| 反馈入口从飞书问卷改为 GitHub Issues | 开源后 GitHub Issues 更专业；飞书问卷需要外部账号，与开源场景不匹配 |
+| Asset 名称用 ASCII（`ZhixingReader-Setup-1.0.0.exe`） | PowerShell + gh API 中文乱码；ASCII 名称跨平台兼容 |
+| 通过 GitHub Release Assets 分发 installer | 避免 git 历史累积大文件；GitHub 自动提供下载统计与 CDN 加速 |
+| MIT 许可证 | 最宽松，允许商用/修改/分发，仅保留版权声明；适合学生项目开源 |
+| SSH 密钥放项目目录 `.ssh/` 并 gitignore | 与项目隔离，不污染用户全局 `~/.ssh/`；多项目并行开发友好 |
+
+### 火山杯加分项覆盖
+
+| 加分项 | 完成方式 |
+|--------|----------|
+| **代码开源** | GitHub 公开仓库 + MIT 许可证 + 完整开源文档 |
+| **开源许可证书** | MIT LICENSE 文件（自动获得，无需申请） |
+| **应用内设置-关于** | 5 卡片：应用信息 / 版本更新（检查更新）/ 反馈与帮助 / 开源许可 / 法律信息 |
+| **介绍网页** | `landing/index.html` 单页介绍（Hero + 功能 + 技术栈 + 截图 + 下载） |
+
+### 最终交付状态
+
+✅ **正式发布**：HEAD `1ff21db` 已推送至 `origin/master`；v1.0.0 Release 已发布；installer 已上传。
+
+| 门禁项 | 结果 |
+|--------|------|
+| git working tree | ✅ 干净（仅 memory/、pnpm-lock.yaml、pnpm-workspace.yaml 未跟踪，均无需 commit） |
+| git push | ✅ 123 commits 推送成功（`49e8611..1ff21db`） |
+| GitHub Release v1.0.0 | ✅ 已发布，含 125MB installer asset |
+| 代码门禁（lint/typecheck/test/build） | ✅ 全绿（详见 7/24 复测） |
+| 之前检查出的问题 | ✅ 全部修复（Stats 2026 过滤 / orchestrator 控制字符 / AI 对话区宽度 / 统计趋势图） |
+
+---
+
+*最后更新：2026-07-25 | v1.0.0 正式开源发布完成*

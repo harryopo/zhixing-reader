@@ -2,7 +2,125 @@
 
 知行读书项目开发过程中的学习记录、错误和改进。
 
-> **最近更新**：2026-07-25 — 追加 LRN-20260725-006 交付审查时发现并修复 Stats.tsx 2026 已读过滤 bug
+> **最近更新**：2026-07-25 — 追加 LRN-20260725-007~009 v1.0.0 正式开源发布经验
+
+---
+
+## [LRN-20260725-009] best_practice
+
+**Logged**: 2026-07-25T17:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+**Project**: zhixing-reader
+
+### Summary
+GitHub Release 创建时若 tag 已存在，应使用 `gh release upload --clobber` + `gh release edit` 增量更新，而非 `gh release delete` + 重建。
+
+### Details
+v1.0.0 tag 在 2026-07-14 已预先创建（旧 installer 96.62MB），本次 7/25 收尾时需替换为新的 125MB installer。直接 `gh release create v1.0.0` 报错 `a release with the same tag name already exists`。
+
+**正确流程**：
+1. `gh release delete-asset v1.0.0 Setup.1.0.0.exe --yes` 删除旧 asset
+2. `gh release upload v1.0.0 "新文件" --clobber` 上传新 asset（--clobber 防止同名冲突）
+3. `gh release edit v1.0.0 --title "..." --notes-file "..." --latest` 更新 release notes 与标题
+4. 若需重命名 asset（避免中文文件名乱码），用 `gh api -X PATCH /repos/.../assets/{id} -f name=英文 -f label=描述`
+
+**关键坑**：PowerShell 调用 `gh api -f "name=知行读书.exe"` 时中文会被编码为乱码（GBK→UTF-8 错位）。**Release asset 名称必须用 ASCII**，描述字段也尽量用英文或通过 JSON body 传 UTF-8 字节。
+
+### Suggested Action
+GitHub Release 增量更新模板：delete-asset → upload --clobber → edit notes。Asset 名称统一用 ASCII（项目名-Setup-版本.exe），中文展示用 label 字段（但仍有编码风险，建议英文 label）。
+
+### Metadata
+- Source: loop-engineering-v2/v1.0.0-publish
+- Related Files: .github/RELEASE_NOTES_v1.0.0.md
+- Tags: github, release, gh-cli, asset-upload, powershell-encoding
+
+---
+
+## [LRN-20260725-008] best_practice
+
+**Logged**: 2026-07-25T16:30:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+**Project**: zhixing-reader
+
+### Summary
+GitHub 大文件推送前必须用 `git filter-branch` 清理历史，否则 100MB+ 文件会导致 push 被永久拒绝（即使后续 commit 删除也不行）。
+
+### Details
+v1.0.0 发布前 push 时遇到 `pre-receive hook declined`：历史 commit 中存在 `installer-v2/知行读书 Setup 1.0.0.exe`（104MB+），即使后续 commit 已删除该文件，git 历史仍保留 blob，GitHub 服务端会扫描所有 commit 拒绝整批 push。
+
+**清理流程**：
+```bash
+# 1. 用 filter-branch 从所有历史中删除大文件目录
+git filter-branch --force --index-filter \
+  "git rm -rf --cached --ignore-unmatch installer-v2/ installer-final/" \
+  --prune-empty --tag-name-filter cat -- --all
+
+# 2. 删除 filter-branch 备份引用
+git for-each-ref --format="%(refname)" refs/original/ | xargs -n 1 git update-ref -d
+
+# 3. 强制垃圾回收释放空间
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive
+
+# 4. force push 覆盖远端历史
+git push origin master --force
+```
+
+**关键点**：
+- `--ignore-unmatch` 防止早期 commit 没有该目录时报错
+- 必须删除 `refs/original/refs/heads/master` 备份引用，否则 gc 不会真正释放
+- force push 是必须的，因为历史已经被重写
+
+**预防**：`.gitignore` 应在项目初期就加入 `installer*/`、`dist-installer/` 等打包产物目录，避免大文件误入 git。
+
+### Suggested Action
+项目初始化模板 `.gitignore` 必含 `installer*/`、`dist/`、`*.exe`、`node_modules/`。打包产物永远不入库，通过 GitHub Release Assets 分发。
+
+### Metadata
+- Source: loop-engineering-v2/push-blocked
+- Related Files: .gitignore
+- Tags: git, filter-branch, large-files, github-push, git-history
+
+---
+
+## [LRN-20260725-007] best_practice
+
+**Logged**: 2026-07-25T16:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+**Project**: zhixing-reader
+
+### Summary
+SSH 密钥配置 GitHub push 必须用 `GIT_SSH_COMMAND` 环境变量显式指定密钥路径，否则默认 ssh-agent 会找不到非默认路径的密钥。
+
+### Details
+项目密钥放在 `d:\ai\claude code\微信读书\.ssh\id_ed25519`（非默认 `~/.ssh/id_ed25519`），`git push` 报 `Permission denied (publickey)`。
+
+**解决方案**：
+```powershell
+$env:GIT_SSH_COMMAND = 'ssh -i "完整密钥路径" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
+git push origin master --force
+```
+
+**关键参数**：
+- `-i "路径"`：指定密钥文件
+- `-o IdentitiesOnly=yes`：强制只用 -i 指定的密钥，不尝试 ssh-agent 中的其他密钥（避免 "Too many authentication failures"）
+- `-o StrictHostKeyChecking=no`：自动接受 GitHub host key（CI 友好）
+
+**持久化方案**：在 `~/.ssh/config` 写 `Host github.com\n  IdentityFile 路径\n  IdentitiesOnly yes`，但项目级密钥建议用环境变量，避免污染全局配置。
+
+### Suggested Action
+非默认路径 SSH 密钥用 `GIT_SSH_COMMAND` 环境变量临时指定；CI 环境用 `~/.ssh/config` 持久化；密钥文件不要 commit（加入 .gitignore）。
+
+### Metadata
+- Source: loop-engineering-v2/ssh-push
+- Related Files: .ssh/, .gitignore
+- Tags: git, ssh, github, authentication, key-management
 
 ---
 
