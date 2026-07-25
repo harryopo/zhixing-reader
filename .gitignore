@@ -53,3 +53,6 @@ deps.txt
 scripts/analyze-asar*.ps1
 scripts/check-*.ps1
 scripts/loop-*.mjs
+
+# SSH keys (local dev)
+.ssh/
