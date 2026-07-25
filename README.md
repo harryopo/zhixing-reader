@@ -3,6 +3,7 @@
 > **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS v5 算法 · 微信读书同步
 
 [![Version](https://img.shields.io/badge/version-1.0.0-8b5cf6)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-35-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
@@ -278,6 +279,11 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 | 调研报告 | [docs/research/2026-07-20-opensource-integration-research.md](docs/research/2026-07-20-opensource-integration-research.md) |
 | Agent 协作规范 | [AGENTS.md](AGENTS.md) |
 | Claude Code 配置 | [CLAUDE.md](CLAUDE.md) |
+| 开源许可证 | [LICENSE](LICENSE) |
+| 贡献指南 | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| 行为准则 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
+| 隐私政策 | [PRIVACY.md](PRIVACY.md) |
+| 变更日志 | [CHANGELOG.md](CHANGELOG.md) |
 
 ---
 
@@ -375,4 +381,79 @@ src/renderer/src/
 
 ---
 
-*最后更新：2026-07-20*
+## 十、贡献指南
+
+我们欢迎任何形式的贡献：Bug 报告、功能建议、文档完善、代码修复、UI/UX 改进。
+
+**快速参与**：
+
+1. 📖 阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发环境搭建、提交规范、PR 流程
+2. 🤝 查看 [GitHub Issues](https://github.com/zhixing-reader/zhixing-reader/issues) 中带 `good first issue` 标签的入门 Issue
+3. ✅ 提交 PR 前请确保 `npm run verify` 全绿（lint / typecheck / test / build）
+4. 📝 Commit message 遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/v1.0.0/) 规范
+
+**行为准则**：参与本项目即代表你同意遵守 [Code of Conduct](CODE_OF_CONDUCT.md)。请在所有交流中保持友善与尊重。
+
+---
+
+## 十一、反馈与支持
+
+| 渠道 | 用途 | 链接 |
+|------|------|------|
+| 🐛 GitHub Issues | Bug 报告、功能建议、技术讨论 | <https://github.com/zhixing-reader/zhixing-reader/issues> |
+| 📝 飞书问卷 | 产品反馈、使用体验、改进建议 | <https://wenjuan.feishu.cn/m?t=PLACEHOLDER_REPLACE_ME> |
+| 📚 使用文档 | 功能说明、设置教程 | [docs/settings-tutorial.md](docs/settings-tutorial.md) |
+| 🔒 隐私政策 | 数据存储、Cookie、AI 服务说明 | [PRIVACY.md](PRIVACY.md) |
+| 📦 Releases | 版本下载、更新日志 | <https://github.com/zhixing-reader/zhixing-reader/releases> |
+
+**遇到问题先看**：
+1. 查阅 [使用文档](docs/settings-tutorial.md)
+2. 在 [GitHub Issues](https://github.com/zhixing-reader/zhixing-reader/issues) 搜索类似问题
+3. 仍未解决？提交新 Issue 或填写飞书问卷
+
+---
+
+## 十二、开源许可证
+
+本项目基于 [**MIT License**](LICENSE) 开源，允许自由使用、修改、分发、商用，只需保留版权声明与许可证文本。
+
+### 12.1 主要依赖许可证
+
+| 依赖 | 版本 | 许可证 |
+|------|------|--------|
+| Electron | 35 | MIT |
+| React | 19 | MIT |
+| TypeScript | 5.6 | Apache-2.0 |
+| ts-fsrs | 5.4.1 | MIT |
+| sql.js | 1.14 | MIT |
+| Tailwind CSS | 4 | MIT |
+| Zustand | 5 | MIT |
+| Apache ECharts | 5.5.1 | Apache-2.0 |
+| Recharts | 3.8.1 | MIT |
+| Vitest | 2 | MIT |
+| electron-builder | 25 | MIT |
+| Vercel AI SDK | - | Apache-2.0 |
+
+> 完整依赖许可证清单可通过 `npx license-checker --summary` 生成。
+
+### 12.2 致谢
+
+本项目站在巨人的肩膀上，特别感谢：
+
+- [open-spaced-repetition/ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) —— FSRS v5 算法的 TypeScript 实现（Anki 同源）
+- [Electron](https://www.electronjs.org/) —— 跨平台桌面应用框架
+- [React](https://react.dev/) —— UI 框架
+- [Apache ECharts](https://echarts.apache.org/) —— 数据可视化库
+- [sql.js](https://github.com/sql-js/sql.js) —— SQLite WASM 编译
+
+---
+
+## License
+
+本项目基于 [MIT License](LICENSE) 开源。
+
+Copyright © 2026 张子涵
+
+---
+
+*最后更新：2026-07-25*
