@@ -31,6 +31,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // React 19 组件测试使用 happy-dom：jsdom 25 会过滤掉含 CSS 变量的内联样式（如 color: var(--primary)），
+    // 导致 MessageBubble / admin-charts 等样式断言失败；happy-dom 对 CSS 变量支持更完整。
+    environmentMatchGlobs: [
+      ['src/renderer/src/**/*.test.tsx', 'happy-dom'],
+    ],
     include: [
       'tests/**/*.test.ts',
       'electron/**/*.test.ts',

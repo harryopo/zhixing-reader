@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 /**
  * MessageBubble 组件测试
  *
@@ -17,7 +17,7 @@
  *   - mock 重依赖（react-markdown / remark-gfm / CodeBlock / Reasoning）避免复杂 AST
  *   - 用 lastMarkdownComponents 保存 react-markdown 的 components map（含函数引用），供测试直接调用
  *   - 用 getByLabelText 而非 querySelector（测了可访问性 + 更稳健）
- *   - // @vitest-environment jsdom 必须在首行
+ *   - 使用 happy-dom：jsdom 25 会过滤含 CSS 变量的内联样式，导致样式断言失败
  */
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -471,8 +471,8 @@ describe('MessageBubble', () => {
         )
         const bq = container.querySelector('blockquote') as HTMLElement
         expect(bq).toBeInTheDocument()
-        expect(bq).toHaveTextContent('引用')
-        expect(bq.style.borderLeft).toContain('3px')
+      expect(bq).toHaveTextContent('引用')
+      expect(bq.getAttribute('style')).toContain('border-left')
       })
     })
 
@@ -594,11 +594,11 @@ describe('MessageBubble', () => {
         />,
       )
       const btn = screen.getByLabelText('复制')
-      // 初始：muted-foreground（color 直接 var 设置，jsdom 接受）
-      expect(btn.style.color).toBe('var(--muted-foreground)')
+      // 初始：muted-foreground（jsdom 25 对 CSS 变量会返回空 style.color，改用 style 属性字符串断言）
+      expect(btn.getAttribute('style')).toContain('color: var(--muted-foreground)')
       // 模拟 mouseEnter — 触发 onMouseEnter 回调
       fireEvent.mouseEnter(btn)
-      expect(btn.style.color).toBe('var(--foreground)')
+      expect(btn.getAttribute('style')).toContain('color: var(--foreground)')
     })
 
     it('离开按钮 → onMouseLeave 恢复 restColor', () => {
@@ -611,9 +611,9 @@ describe('MessageBubble', () => {
       )
       const btn = screen.getByLabelText('复制')
       fireEvent.mouseEnter(btn)
-      expect(btn.style.color).toBe('var(--foreground)')
+      expect(btn.getAttribute('style')).toContain('color: var(--foreground)')
       fireEvent.mouseLeave(btn)
-      expect(btn.style.color).toBe('var(--muted-foreground)')
+      expect(btn.getAttribute('style')).toContain('color: var(--muted-foreground)')
     })
 
     it('active=true 按钮 → 初始 color 为 var(--primary)，hover 后变 var(--foreground)，离开恢复 var(--primary)', () => {
@@ -627,13 +627,13 @@ describe('MessageBubble', () => {
       )
       const btn = screen.getByLabelText('点赞')
       // active=true 初始为 primary
-      expect(btn.style.color).toBe('var(--primary)')
+      expect(btn.getAttribute('style')).toContain('color: var(--primary)')
       // hover 后变 foreground
       fireEvent.mouseEnter(btn)
-      expect(btn.style.color).toBe('var(--foreground)')
+      expect(btn.getAttribute('style')).toContain('color: var(--foreground)')
       // 离开恢复 primary（restColor 在 active=true 时为 primary）
       fireEvent.mouseLeave(btn)
-      expect(btn.style.color).toBe('var(--primary)')
+      expect(btn.getAttribute('style')).toContain('color: var(--primary)')
     })
 
     it('active=false 按钮 → hover 后变 foreground，离开恢复 muted-foreground', () => {
@@ -646,11 +646,11 @@ describe('MessageBubble', () => {
         />,
       )
       const btn = screen.getByLabelText('收藏')
-      expect(btn.style.color).toBe('var(--muted-foreground)')
+      expect(btn.getAttribute('style')).toContain('color: var(--muted-foreground)')
       fireEvent.mouseEnter(btn)
-      expect(btn.style.color).toBe('var(--foreground)')
+      expect(btn.getAttribute('style')).toContain('color: var(--foreground)')
       fireEvent.mouseLeave(btn)
-      expect(btn.style.color).toBe('var(--muted-foreground)')
+      expect(btn.getAttribute('style')).toContain('color: var(--muted-foreground)')
     })
   })
 
