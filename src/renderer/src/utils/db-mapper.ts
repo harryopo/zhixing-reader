@@ -81,6 +81,7 @@ export function mapBook(row: Record<string, unknown>): Record<string, unknown> {
     reading_progress: safeNum(row.reading_progress ?? row.progress),
     totalChapter: safeNum(row.total_chapter ?? row.totalChapter),
     lastReadAt: safeDate(row.last_read_time ?? row.lastReadAt),
+    publishDate: safeDate(row.publish_date ?? row.publishDate ?? row.publishTime),
     createdAt: safeDate(row.created_at ?? row.createdAt),
     updatedAt: safeDate(row.updated_at ?? row.updatedAt),
   }

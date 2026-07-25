@@ -31,7 +31,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Metric, Trend, Muted, Tiny } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
-import { mapBooks, mapHighlights, mapCards, safeNum } from '../utils/db-mapper'
+import { mapBooks, mapHighlights, mapCards, safeNum, safeStr } from '../utils/db-mapper'
 import { useReadingDataStore, formatReadingTime } from '../stores/readingDataStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import {
@@ -59,6 +59,8 @@ interface BookStat {
   cardCount: number
   lastReadAt?: string
   updatedAt?: string
+  publishDate?: string
+  isFinished?: boolean
 }
 
 // ===== 常量 =====
@@ -181,6 +183,11 @@ export default function Stats() {
           category?: string
           lastReadAt?: string
           updatedAt?: string
+          publishDate?: string
+          isFinished?: number | boolean
+          is_finished?: number | boolean
+          finishedAt?: string
+          finished_at?: string
         }
         stats.push({
           id: book.id as string,
@@ -193,6 +200,8 @@ export default function Stats() {
           cardCount,
           lastReadAt: bookAny.lastReadAt,
           updatedAt: bookAny.updatedAt,
+          publishDate: bookAny.publishDate,
+          isFinished: Boolean(bookAny.isFinished ?? bookAny.is_finished),
         })
       }
 
@@ -626,20 +635,28 @@ function ReadingStatsView({
     return { books, highlights, cards, readingTime, days: dailyRangeData.length }
   }, [dailyRangeData])
 
-  // 按所选日期范围过滤年度书单：以 updatedAt（最后更新时间）作为完成时间近似
-  // 'all' 用 3650 天近似 10 年，覆盖全量数据
-  const rangeFilteredBookStats = useMemo(() => {
-    const { startDate, endDate } = getStatsRangeDates(statsDateRange)
-    const startTime = new Date(startDate).getTime()
-    // endDate 为当日 23:59:59，加一天减 1 毫秒以包含当日全部时间
-    const endTime = new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1
-    return bookStats.filter((b) => {
-      if (!b.updatedAt) return false
-      const t = new Date(b.updatedAt).getTime()
-      if (isNaN(t)) return false
-      return t >= startTime && t <= endTime
-    })
-  }, [bookStats, statsDateRange])
+  // 年度书单：以 is_finished 或进度 100% 判定已读完，并按 updatedAt 近似完成时间过滤当年
+  const yearFinishedBookStats = useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    const startTime = new Date(currentYear, 0, 1).getTime()
+    const endTime = new Date(currentYear + 1, 0, 1).getTime() - 1
+    return bookStats
+      .filter((b) => {
+        const normalized = b.progress > 1 ? b.progress : b.progress * 100
+        const finished = b.isFinished || normalized >= 100
+        if (!finished) return false
+        if (!b.updatedAt) return false
+        const t = new Date(b.updatedAt).getTime()
+        if (isNaN(t)) return false
+        if (t < startTime || t > endTime) return false
+        return true
+      })
+      .sort((a, b) => {
+        const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+        const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+        return tb - ta
+      })
+  }, [bookStats])
 
   return (
     <>
@@ -747,7 +764,7 @@ function ReadingStatsView({
         <Card>
           <CardHead
             eyebrow="阅读趋势"
-            title={`近 ${readingMode === 'annually' ? '12 月' : readingMode === 'monthly' ? '30 日' : '14 日'} 时长`}
+            title={`近 ${readingMode === 'annually' ? '12 月' : '7 日'} 时长`}
             action={<Badge variant="ok">{readingMode === 'annually' ? '每月' : '每日'}</Badge>}
           />
           <ReadingTrendBars
@@ -755,6 +772,7 @@ function ReadingStatsView({
             mode={readingMode}
             loading={readingLoading}
           />
+          <WeeklyTrendMini data={dailyRangeData} loading={rangeLoading} />
         </Card>
 
         <Card>
@@ -868,7 +886,7 @@ function ReadingStatsView({
             </>
           )}
         </div>
-        <YearlyBookTable bookStats={rangeFilteredBookStats} />
+        <YearlyBookTable bookStats={yearFinishedBookStats} />
       </Card>
 
       {/* ===== 附录：详细阅读数据（保留原有 ReadingDataSection 内容） ===== */}
@@ -903,7 +921,7 @@ function ReadingTrendBars({
   }, [readTimes])
 
   const displayPoints = useMemo(() => {
-    const showCount = mode === 'weekly' ? 7 : mode === 'monthly' ? 30 : 12
+    const showCount = mode === 'annually' ? 12 : 7
     return points.slice(-showCount)
   }, [points, mode])
 
@@ -956,7 +974,7 @@ function ReadingTrendBars({
           display: 'grid',
           gridTemplateColumns: `repeat(${displayPoints.length}, 1fr)`,
           alignItems: 'end',
-          gap: 'calc(var(--spacing) * 1.5)',
+          gap: 'calc(var(--spacing) * 3)',
           height: 220,
           marginTop: 'calc(var(--spacing) * 4)',
         }}
@@ -986,7 +1004,8 @@ function ReadingTrendBars({
                 title={`${label}: ${minutes} 分钟`}
                 style={{
                   width: '100%',
-                  borderRadius: '999px 999px 10px 10px',
+                  maxWidth: 10,
+                  borderRadius: '999px 999px 8px 8px',
                   background: isMax ? 'var(--chart-5)' : 'var(--chart-1)',
                   height: `${Math.max(heightPct, 2)}%`,
                   minHeight: 6,
@@ -1065,6 +1084,127 @@ function ReadingTrendBars({
         </span>
       </div>
     </>
+  )
+}
+
+// ===== 一周趋势 mini 柱状图（基于 dailyRangeData 最近 7 天） =====
+function WeeklyTrendMini({
+  data,
+  loading,
+}: {
+  data: unknown[]
+  loading: boolean
+}) {
+  const points = useMemo(() => {
+    const rows = (data || []).map((row) => {
+      const r = (row ?? {}) as Record<string, unknown>
+      const date = safeStr(r.date)
+      const seconds = safeNum(r.reading_time ?? r.readingTime)
+      return { date, seconds, minutes: Math.round(seconds / 60) }
+    })
+    return rows
+      .filter((p) => p.date)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-7)
+  }, [data])
+
+  const maxVal = useMemo(() => Math.max(...points.map((p) => p.minutes), 1), [points])
+
+  if (loading) {
+    return (
+      <div style={{ marginTop: 'calc(var(--spacing) * 5)', padding: 'calc(var(--spacing) * 4) 0' }}>
+        <span style={{ color: 'var(--muted-foreground)', fontSize: '0.85rem' }}>加载一周趋势...</span>
+      </div>
+    )
+  }
+
+  if (points.length === 0) {
+    return (
+      <div style={{ marginTop: 'calc(var(--spacing) * 5)', padding: 'calc(var(--spacing) * 2) 0' }}>
+        <Tiny>暂无一周趋势数据</Tiny>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ marginTop: 'calc(var(--spacing) * 5)' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 'calc(var(--spacing) * 3)',
+        }}
+      >
+        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)' }}>
+          一周趋势
+        </span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+          近 7 天阅读时长（分钟）
+        </span>
+      </div>
+      <div
+        role="img"
+        aria-label="最近 7 天阅读时长 mini 柱状图"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${points.length}, 1fr)`,
+          alignItems: 'end',
+          gap: 'calc(var(--spacing) * 2.5)',
+          height: 96,
+        }}
+      >
+        {points.map((p) => {
+          const heightPct = maxVal > 0 ? (p.minutes / maxVal) * 100 : 0
+          const isMax = p.minutes === maxVal && p.minutes > 0
+          const d = new Date(p.date)
+          const label = `${d.getMonth() + 1}/${d.getDate()}`
+          const weekday = WEEKDAY_LABELS[(d.getDay() + 6) % 7]
+          return (
+            <div
+              key={p.date}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                height: '100%',
+                gap: 'calc(var(--spacing) * 1.5)',
+              }}
+            >
+              <div
+                title={`${label} ${weekday}: ${p.minutes} 分钟`}
+                style={{
+                  width: '100%',
+                  maxWidth: 10,
+                  borderRadius: '999px 999px 6px 6px',
+                  background: isMax ? 'var(--chart-5)' : 'var(--chart-1)',
+                  height: `${Math.max(heightPct, 4)}%`,
+                  minHeight: 4,
+                  transition: 'opacity 0.16s ease',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '0.85'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1'
+                }}
+              />
+              <span
+                style={{
+                  fontSize: '0.7rem',
+                  color: 'var(--muted-foreground)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {weekday}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -1419,7 +1559,7 @@ function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
     return bookStats
       .filter((s) => {
         const normalized = s.progress > 1 ? s.progress : s.progress * 100
-        return normalized >= 100
+        return s.isFinished || normalized >= 100
       })
       .sort((a, b) => {
         const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
