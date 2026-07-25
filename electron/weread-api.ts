@@ -658,6 +658,72 @@ export async function testConnection(key: string): Promise<TestConnectionResult>
   }
 }
 
+export interface WeReadUserProfile {
+  nickname: string;
+  avatarUrl: string;
+  vid?: string;
+}
+
+export interface UserProfileResult {
+  success: boolean;
+  profile?: WeReadUserProfile;
+  message: string;
+}
+
+/**
+ * 获取微信读书用户资料（头像 + 昵称）。
+ *
+ * 说明：微信读书 Agent API Gateway 未在公开文档中暴露用户资料接口，
+ * 这里先尝试常见的 /user/info；如不可用，返回失败并由调用方降级到本地设置。
+ */
+export async function fetchUserProfile(): Promise<UserProfileResult> {
+  if (!apiKey) {
+    return { success: false, message: '请先设置微信读书 API Key' };
+  }
+
+  const candidateApiNames = ['/user/info', '/user/profile'];
+
+  for (const apiName of candidateApiNames) {
+    try {
+      const data = await gatewayRequest<{
+        nickname?: string;
+        name?: string;
+        nickName?: string;
+        avatar?: string;
+        avatarUrl?: string;
+        headImgUrl?: string;
+        vid?: string;
+        userVid?: string;
+      }>({
+        api_name: apiName,
+      }, false);
+
+      const nickname = data.nickname || data.name || data.nickName || '';
+      const avatarUrl = data.avatar || data.avatarUrl || data.headImgUrl || '';
+
+      if (nickname || avatarUrl) {
+        return {
+          success: true,
+          profile: {
+            nickname,
+            avatarUrl,
+            vid: data.vid || data.userVid,
+          },
+          message: '已同步微信读书资料',
+        };
+      }
+    } catch (error) {
+      logger.warn(`fetchUserProfile ${apiName} failed`, { error: String(error) });
+      // 继续尝试下一个候选接口
+    }
+  }
+
+  return {
+    success: false,
+    message: '微信读书 API 暂不支持获取头像/昵称，请手动填写',
+  };
+}
+
 export type ReadingMode = 'weekly' | 'monthly' | 'annually' | 'overall';
 
 export async function fetchReadingData(mode: ReadingMode = 'monthly', baseTime?: number): Promise<ReadingDataResponse> {

@@ -38,6 +38,7 @@ export interface ElectronAPI {
     delete: (id: string) => Promise<void>
     getAll: () => Promise<Highlight[]>
     search: (keyword: string) => Promise<Highlight[]>
+    export: () => Promise<{ saved: boolean; count: number; path?: string }>
   }
   card: {
     getByHighlight: (highlightId: string) => Promise<Card[]>
@@ -119,6 +120,7 @@ export interface ElectronAPI {
     fetchNotes: (bookId: string) => Promise<unknown>
     fetchAllContent: (bookId: string) => Promise<unknown>
     fetchRecommendations: () => Promise<RecommendationItem[]>
+    getUserProfile: () => Promise<{ success: boolean; profile?: { nickname: string; avatarUrl: string; vid?: string }; message: string }>
     test: (apiKey: string) => Promise<{ success: boolean; message: string; firstBookTitle?: string }>
   }
   readingData: {

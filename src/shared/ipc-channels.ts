@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
     DELETE: 'highlights:delete',
     GET_ALL: 'highlights:getAll',
     SEARCH: 'highlights:search',
+    EXPORT: 'highlights:export',
   },
   CARDS: {
     GET_BY_HIGHLIGHT: 'cards:getByHighlight',
@@ -57,6 +58,7 @@ export const IPC_CHANNELS = {
     FETCH_ALL_CONTENT: 'weread:fetchAllContent',
     FETCH_ALL_CONTENT_BATCH: 'weread:fetchAllContentBatch',
     FETCH_RECOMMENDATIONS: 'weread:fetchRecommendations',
+    GET_USER_PROFILE: 'weread:getUserProfile',
     TEST: 'weread:test',
   },
   READING_DATA: {

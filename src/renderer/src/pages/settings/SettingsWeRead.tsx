@@ -5,7 +5,7 @@
  *   1. 顶部加 cookie/API 双模式说明卡片（cookie 模式标注"预留扩展"避免误导）
  *   2. 测试连接按钮：调 weread.test 真实拉一本书，结果显示第一本书标题
  *   3. API Key 输入框右侧图标从"搜索框"改为"小眼睛"（eye / eye-off）
- *   4. 自动同步开关 + 间隔 select：绑定 settingsStore.wereadAutoSync / wereadAutoSyncInterval，
+ *   4. 自动同步开关 + 频率 select：绑定 settingsStore.wereadAutoSync / wereadSyncFrequency，
  *      变更即写库，main 进程监听 SETTINGS.SET 自动更新定时器
  *   5. 删除 setTimeout 占位（handleValidateCookie / handleSyncNow / handleResyncShelf）
  *      → 立即同步调真实 syncBookshelfToDb（与 Topbar/Bookshelf 共用）
@@ -24,7 +24,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, Tiny } from '@/components/ui/Feedback'
-import { useSettingsStore } from '@/stores/settingsStore'
+import { useSettingsStore, type WeReadSyncFrequency } from '@/stores/settingsStore'
 import { toast } from '@/stores/toastStore'
 import { syncBookshelfToDb } from '@/utils/sync-bookshelf'
 
@@ -63,13 +63,11 @@ interface CategoryScope {
   other: boolean
 }
 
-/** 自动同步间隔选项（分钟） */
-const AUTO_SYNC_INTERVAL_OPTIONS = [
-  { value: 15, label: '15 分钟' },
-  { value: 30, label: '30 分钟' },
-  { value: 60, label: '1 小时' },
-  { value: 180, label: '3 小时' },
-  { value: 360, label: '6 小时' },
+/** 自动同步频率选项 */
+const AUTO_SYNC_FREQUENCY_OPTIONS: { value: WeReadSyncFrequency; label: string }[] = [
+  { value: '1d', label: '1 天' },
+  { value: '3d', label: '3 天' },
+  { value: '7d', label: '7 天' },
 ]
 
 export default function SettingsWeRead() {
@@ -78,7 +76,7 @@ export default function SettingsWeRead() {
   const {
     wereadApiKey,
     wereadAutoSync,
-    wereadAutoSyncInterval,
+    wereadSyncFrequency,
     loading,
     saving,
     testingWeread,
@@ -89,13 +87,13 @@ export default function SettingsWeRead() {
     testWereadConnection,
     setWereadApiKey,
     setWereadAutoSync,
-    setWereadAutoSyncInterval,
+    setWereadSyncFrequency,
     clearTestResult,
   } = useSettingsStore(
     useShallow((s) => ({
       wereadApiKey: s.wereadApiKey,
       wereadAutoSync: s.wereadAutoSync,
-      wereadAutoSyncInterval: s.wereadAutoSyncInterval,
+      wereadSyncFrequency: s.wereadSyncFrequency,
       loading: s.loading,
       saving: s.saving,
       testingWeread: s.testingWeread,
@@ -106,7 +104,7 @@ export default function SettingsWeRead() {
       testWereadConnection: s.testWereadConnection,
       setWereadApiKey: s.setWereadApiKey,
       setWereadAutoSync: s.setWereadAutoSync,
-      setWereadAutoSyncInterval: s.setWereadAutoSyncInterval,
+      setWereadSyncFrequency: s.setWereadSyncFrequency,
       clearTestResult: s.clearTestResult,
     })),
   )
@@ -259,9 +257,9 @@ export default function SettingsWeRead() {
     void setWereadAutoSync(enabled)
   }, [setWereadAutoSync])
 
-  const handleChangeInterval = useCallback((minutes: number) => {
-    void setWereadAutoSyncInterval(minutes)
-  }, [setWereadAutoSyncInterval])
+  const handleChangeFrequency = useCallback((frequency: WeReadSyncFrequency) => {
+    void setWereadSyncFrequency(frequency)
+  }, [setWereadSyncFrequency])
 
   // ===== 派生状态 =====
   const isWereadConfigured = wereadApiKey.length > 0
@@ -424,17 +422,17 @@ export default function SettingsWeRead() {
               <div className="select-row">
                 <div className="form-row-info">
                   <strong>同步频率</strong>
-                  <Tiny>自动同步的时间间隔（最小 5 分钟，避免打爆网关）</Tiny>
+                  <Tiny>自动同步的时间间隔（1 天 / 3 天 / 7 天）</Tiny>
                 </div>
                 <select
                   className="form-select"
-                  value={wereadAutoSyncInterval}
-                  onChange={(e) => handleChangeInterval(Number(e.target.value))}
+                  value={wereadSyncFrequency}
+                  onChange={(e) => handleChangeFrequency(e.target.value as WeReadSyncFrequency)}
                   disabled={!wereadAutoSync}
                   data-dom-id="select-sync-freq"
                   aria-label="自动同步频率"
                 >
-                  {AUTO_SYNC_INTERVAL_OPTIONS.map((opt) => (
+                  {AUTO_SYNC_FREQUENCY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -511,7 +509,7 @@ export default function SettingsWeRead() {
                 <div className="status-text">
                   <strong>同步就绪</strong>
                   <div className="tiny mono-time">
-                    自动同步：{wereadAutoSync ? `已开启 · 每 ${wereadAutoSyncInterval} 分钟` : '已关闭'}
+                    自动同步：{wereadAutoSync ? `已开启 · 每 ${AUTO_SYNC_FREQUENCY_OPTIONS.find((o) => o.value === wereadSyncFrequency)?.label ?? wereadSyncFrequency}` : '已关闭'}
                   </div>
                 </div>
                 <Button

@@ -62,6 +62,7 @@ const electronAPI = {
     delete: (id: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.DELETE, id),
     getAll: () => invoke(IPC_CHANNELS.HIGHLIGHTS.GET_ALL),
     search: (keyword: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.SEARCH, keyword),
+    export: () => invoke(IPC_CHANNELS.HIGHLIGHTS.EXPORT),
   },
 
   card: {
@@ -150,6 +151,7 @@ const electronAPI = {
     fetchNotes: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_NOTES, bookId),
     fetchAllContent: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT, bookId),
     fetchRecommendations: () => invoke(IPC_CHANNELS.WEREAD.FETCH_RECOMMENDATIONS),
+    getUserProfile: () => invoke<{ success: boolean; profile?: { nickname: string; avatarUrl: string; vid?: string }; message: string }>(IPC_CHANNELS.WEREAD.GET_USER_PROFILE),
     test: (apiKey: string) => invoke<{ success: boolean; message: string; firstBookTitle?: string }>(IPC_CHANNELS.WEREAD.TEST, apiKey),
   },
 

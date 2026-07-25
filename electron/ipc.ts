@@ -1,8 +1,9 @@
 import { ipcMain, IpcMainInvokeEvent, shell, app, dialog, BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, dailyStatsDb, tokenUsageDb, conversationDb, methodologiesDb, knowledgeCardsDb, bookArchitectureDb, articlesDb, vocabularyDb, forceSaveDatabase, getDatabase, clearConversationsAndMessages, resetDatabase } from './database';
-import { setApiKey, getBookshelf, fetchBookmarks, fetchNotes, fetchAllContent, fetchAllContentBatch, testConnection as testWereadConnection, clearCache as clearWeReadApiCache, fetchReadingData, ReadingMode, fetchRecommendations } from './weread-api';
+import { setApiKey, getBookshelf, fetchBookmarks, fetchNotes, fetchAllContent, fetchAllContentBatch, testConnection as testWereadConnection, clearCache as clearWeReadApiCache, fetchReadingData, ReadingMode, fetchRecommendations, fetchUserProfile } from './weread-api';
 import { setAIConfig, generateCards, generateSummary, chatWithContext, explainHighlight, testConnection as testAIConnection, extractMethodologies, analyzeBookArchitecture, distillKnowledgeCards as _distillKnowledgeCards, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch, streamChat, cancelActiveStream, translateArticle } from './ai-service';
+import { setAIConfig as setAISDKConfig } from './ai-sdk-service';
 import { Rating, setCustomParameters, resetParameters, getParameters, calculateStats as _calculateStats, getForecast, getOptimalReviewOrder, previewReviewRatings, cardFromDb } from './fsrs-engine';
 import { logger } from './logger';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
@@ -83,6 +84,72 @@ export function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.HIGHLIGHTS.DELETE, (id: string) => highlightsDb.delete(id));
   handle(IPC_CHANNELS.HIGHLIGHTS.GET_ALL, () => highlightsDb.getAll());
   handle(IPC_CHANNELS.HIGHLIGHTS.SEARCH, (keyword: string) => highlightsDb.search(keyword));
+  handle(IPC_CHANNELS.HIGHLIGHTS.EXPORT, async () => {
+    const rawHighlights = await highlightsDb.getAll();
+    if (!Array.isArray(rawHighlights) || rawHighlights.length === 0) {
+      throw new Error('没有可导出的笔记');
+    }
+    const rawBooks = await booksDb.getAll();
+    const bookMap = new Map(
+      rawBooks.map((b) => [
+        (b.id as string) ?? 'unknown',
+        ((b.title as string) || '未知书籍'),
+      ]),
+    );
+
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const result = await dialog.showSaveDialog(win, {
+      title: '导出读书笔记',
+      defaultPath: 'zhixing-notes.md',
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (result.canceled || !result.filePath) {
+      return { saved: false, count: 0 };
+    }
+
+    const getBookId = (h: Record<string, unknown>): string =>
+      ((h.book_id as string | undefined) || (h.bookId as string | undefined) || 'unknown');
+    const getCreatedAt = (h: Record<string, unknown>): number => {
+      const v = h.created_at as string | number | Date | undefined;
+      if (!v) return 0;
+      const t = new Date(v).getTime();
+      return Number.isNaN(t) ? 0 : t;
+    };
+
+    // 按书籍分组，书籍内按创建时间倒序
+    const grouped = new Map<string, Record<string, unknown>[]>();
+    for (const h of rawHighlights) {
+      const bid = getBookId(h);
+      const list = grouped.get(bid) || [];
+      list.push(h);
+      grouped.set(bid, list);
+    }
+    for (const list of grouped.values()) {
+      list.sort((a, b) => getCreatedAt(b) - getCreatedAt(a));
+    }
+
+    const escapeMd = (s: unknown) => String(s ?? '').replace(/\n/g, '  \n');
+    const lines: string[] = ['# 知行读书 · 读书笔记导出', '', `共 ${rawHighlights.length} 条笔记`, ''];
+    for (const [bookId, list] of grouped) {
+      lines.push(`## 《${bookMap.get(bookId) || '未知书籍'}》`, '');
+      for (const h of list) {
+        const chapter =
+          ((h.chapter_title as string | undefined) || (h.chapterTitle as string | undefined) || '未知章节');
+        const time = (h.created_at as string | undefined)
+          ? new Date(h.created_at as string).toLocaleString('zh-CN')
+          : '未知时间';
+        lines.push(`### ${chapter}`, '', `**时间**：${time}`, '', `> ${escapeMd(h.content)}`, '');
+        if (h.note) {
+          lines.push(`**批注**：${escapeMd(h.note)}`, '');
+        }
+        lines.push('---', '');
+      }
+    }
+
+    fs.writeFileSync(result.filePath, lines.join('\n'), 'utf8');
+    logger.info(`Highlights exported`, { count: rawHighlights.length, path: result.filePath });
+    return { saved: true, count: rawHighlights.length, path: result.filePath };
+  });
 
   handle(IPC_CHANNELS.CARDS.GET_BY_HIGHLIGHT, (highlightId: string) => cardsDb.getByHighlightId(highlightId));
   handle(IPC_CHANNELS.CARDS.GET_BY_ID, (id: string) => cardsDb.getById(id));
@@ -366,8 +433,12 @@ export function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.WEREAD.FETCH_NOTES, (bookId: string) => fetchNotes(bookId));
   handle(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT, (bookId: string) => fetchAllContent(bookId));
   handle(IPC_CHANNELS.WEREAD.FETCH_RECOMMENDATIONS, () => fetchRecommendations());
+  handle(IPC_CHANNELS.WEREAD.GET_USER_PROFILE, () => fetchUserProfile());
 
-  handle(IPC_CHANNELS.AI.SET_CONFIG, (config: Record<string, unknown>) => setAIConfig(config as unknown as Parameters<typeof setAIConfig>[0]));
+  handle(IPC_CHANNELS.AI.SET_CONFIG, (config: Record<string, unknown>) => {
+    setAIConfig(config as unknown as Parameters<typeof setAIConfig>[0]);
+    setAISDKConfig(config as unknown as Parameters<typeof setAISDKConfig>[0]);
+  });
   handle(IPC_CHANNELS.AI.GENERATE_CARDS, (highlights: Array<{ content: string; note?: string }>, bookTitle: string) =>
     generateCards(highlights, bookTitle)
   );

@@ -1,21 +1,28 @@
 import { create } from 'zustand'
 
+export type WeReadSyncFrequency = '1d' | '3d' | '7d'
+
 interface SettingsState {
   wereadApiKey: string
   llmEndpoint: string
   llmKey: string
   llmModel: string
-  /** 微信读书自动同步开关（默认 false）。开启后 main 进程按 wereadAutoSyncInterval 自动调 syncBookshelf */
+  /** 微信读书自动同步开关（默认 false）。开启后 main 进程按 wereadSyncFrequency 自动调 syncBookshelf */
   wereadAutoSync: boolean
-  /** 微信读书自动同步间隔（分钟，默认 30）。常用值：15 / 30 / 60 / 180 / 360 */
-  wereadAutoSyncInterval: number
+  /** 微信读书自动同步频率（默认 1d）。可选：1d / 3d / 7d */
+  wereadSyncFrequency: WeReadSyncFrequency
   /** 个人档案成绩勋章显示开关（默认 true）。关闭后 Profile 页面隐藏成就徽章区域 */
   profileBadgesEnabled: boolean
+  /** 个人档案头像 URL（可来自微信读书同步或手动填写） */
+  userAvatarUrl: string
+  /** 个人档案昵称（可来自微信读书同步或手动填写） */
+  userNickname: string
 
   loading: boolean
   saving: boolean
   testingWeread: boolean
   testingAI: boolean
+  syncingProfile: boolean
   error: string | null
   testResult: { type: 'weread' | 'ai'; success: boolean; message: string; firstBookTitle?: string } | null
   saved: boolean
@@ -24,6 +31,8 @@ interface SettingsState {
   saveSettings: () => Promise<void>
   testWereadConnection: () => Promise<void>
   testAIConnection: () => Promise<void>
+  /** 尝试从微信读书同步头像/昵称到本地设置 */
+  syncWeReadUserProfile: () => Promise<{ success: boolean; message: string }>
 
   setWereadApiKey: (key: string) => void
   setLlmEndpoint: (endpoint: string) => void
@@ -31,12 +40,35 @@ interface SettingsState {
   setLlmModel: (model: string) => void
   /** 切换微信读书自动同步开关并持久化（main 进程会监听 settings.set 自动更新定时器） */
   setWereadAutoSync: (enabled: boolean) => Promise<void>
-  /** 切换微信读书自动同步间隔（分钟）并持久化 */
-  setWereadAutoSyncInterval: (minutes: number) => Promise<void>
+  /** 切换微信读书自动同步频率并持久化 */
+  setWereadSyncFrequency: (frequency: WeReadSyncFrequency) => Promise<void>
   /** 切换个人档案成绩勋章显示开关并持久化 */
   setProfileBadgesEnabled: (enabled: boolean) => Promise<void>
+  /** 设置个人档案头像 URL */
+  setUserAvatarUrl: (url: string) => Promise<void>
+  /** 设置个人档案昵称 */
+  setUserNickname: (nickname: string) => Promise<void>
   clearTestResult: () => void
   clearError: () => void
+}
+
+function parseWeReadSyncFrequency(
+  value: unknown,
+  legacyInterval?: unknown
+): WeReadSyncFrequency {
+  if (value === '1d' || value === '3d' || value === '7d') {
+    return value
+  }
+
+  // 向后兼容：旧版本使用 wereadAutoSyncInterval（分钟）
+  if (typeof legacyInterval === 'number' && legacyInterval > 0) {
+    const days = legacyInterval / 60 / 24
+    if (days < 2) return '1d'
+    if (days < 5) return '3d'
+    return '7d'
+  }
+
+  return '1d'
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -46,13 +78,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   llmModel: '',
   // 默认 false：用户必须显式开启自动同步，避免无 API Key 时空跑定时器
   wereadAutoSync: false,
-  wereadAutoSyncInterval: 30,
+  // 默认 1d：按天维度自动同步，避免过于频繁调用 API
+  wereadSyncFrequency: '1d',
   // 默认 true：成绩勋章默认显示，用户可在 Profile 页面关闭
   profileBadgesEnabled: true,
+  // 个人档案头像/昵称默认空，由用户手动填写或从微信读书同步
+  userAvatarUrl: '',
+  userNickname: '',
   loading: false,
   saving: false,
   testingWeread: false,
   testingAI: false,
+  syncingProfile: false,
   error: null,
   testResult: null,
   saved: false,
@@ -67,12 +104,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         llmKey: (settings.llmKey as string) || '',
         llmModel: (settings.llmModel as string) || '',
         wereadAutoSync: settings.wereadAutoSync === true,
-        wereadAutoSyncInterval: typeof settings.wereadAutoSyncInterval === 'number'
-          && settings.wereadAutoSyncInterval > 0
-          ? settings.wereadAutoSyncInterval
-          : 30,
+        wereadSyncFrequency: parseWeReadSyncFrequency(
+          settings.wereadSyncFrequency,
+          settings.wereadAutoSyncInterval
+        ),
         // profileBadgesEnabled 默认 true；仅当显式存储为 false 时才视为关闭
         profileBadgesEnabled: settings.profileBadgesEnabled !== false,
+        userAvatarUrl: (settings.userAvatarUrl as string) || '',
+        userNickname: (settings.userNickname as string) || '',
         loading: false
       })
     } catch (error) {
@@ -83,7 +122,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   saveSettings: async () => {
     set({ saving: true, error: null, saved: false })
     try {
-      const { wereadApiKey, llmEndpoint, llmKey, llmModel, wereadAutoSync, wereadAutoSyncInterval } = get()
+      const { wereadApiKey, llmEndpoint, llmKey, llmModel, wereadAutoSync, wereadSyncFrequency, userAvatarUrl, userNickname } = get()
 
       await Promise.all([
         window.electronAPI.settings.set('wereadApiKey', wereadApiKey),
@@ -91,9 +130,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         window.electronAPI.settings.set('llmEndpoint', llmEndpoint),
         window.electronAPI.settings.set('llmKey', llmKey),
         window.electronAPI.settings.set('llmModel', llmModel),
-        // 自动同步开关与间隔单独写库：SETTINGS.SET handler 检测到这两个 key 时会触发 main 进程更新定时器
+        // 自动同步开关与频率单独写库：SETTINGS.SET handler 检测到这两个 key 时会触发 main 进程更新定时器
         window.electronAPI.settings.set('wereadAutoSync', wereadAutoSync),
-        window.electronAPI.settings.set('wereadAutoSyncInterval', wereadAutoSyncInterval)
+        window.electronAPI.settings.set('wereadSyncFrequency', wereadSyncFrequency),
+        window.electronAPI.settings.set('userAvatarUrl', userAvatarUrl),
+        window.electronAPI.settings.set('userNickname', userNickname)
       ])
 
       if (llmKey) {
@@ -194,15 +235,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ wereadAutoSync: prev, error: (error as Error).message })
     }
   },
-  setWereadAutoSyncInterval: async (minutes: number) => {
-    // 限定到 5 - 1440 分钟（5 分钟 - 24 小时），避免过短打爆 API 或过长无意义
-    const safe = Math.max(5, Math.min(1440, Math.floor(minutes)))
-    const prev = get().wereadAutoSyncInterval
-    set({ wereadAutoSyncInterval: safe })
+  setWereadSyncFrequency: async (frequency: WeReadSyncFrequency) => {
+    const safe: WeReadSyncFrequency = frequency === '1d' || frequency === '3d' || frequency === '7d'
+      ? frequency
+      : '1d'
+    const prev = get().wereadSyncFrequency
+    set({ wereadSyncFrequency: safe })
     try {
-      await window.electronAPI?.settings?.set('wereadAutoSyncInterval', safe)
+      await window.electronAPI?.settings?.set('wereadSyncFrequency', safe)
     } catch (error) {
-      set({ wereadAutoSyncInterval: prev, error: (error as Error).message })
+      set({ wereadSyncFrequency: prev, error: (error as Error).message })
     }
   },
   setProfileBadgesEnabled: async (enabled: boolean) => {
@@ -213,6 +255,56 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await window.electronAPI?.settings?.set('profileBadgesEnabled', enabled)
     } catch (error) {
       set({ profileBadgesEnabled: prev, error: (error as Error).message })
+    }
+  },
+  setUserAvatarUrl: async (url: string) => {
+    const prev = get().userAvatarUrl
+    set({ userAvatarUrl: url })
+    try {
+      await window.electronAPI?.settings?.set('userAvatarUrl', url)
+    } catch (error) {
+      set({ userAvatarUrl: prev, error: (error as Error).message })
+    }
+  },
+  setUserNickname: async (nickname: string) => {
+    const prev = get().userNickname
+    set({ userNickname: nickname })
+    try {
+      await window.electronAPI?.settings?.set('userNickname', nickname)
+    } catch (error) {
+      set({ userNickname: prev, error: (error as Error).message })
+    }
+  },
+  syncWeReadUserProfile: async () => {
+    set({ syncingProfile: true, error: null })
+    try {
+      const result = await window.electronAPI.weread.getUserProfile()
+      if (result.success && result.profile) {
+        const { profile } = result
+        const prevAvatar = get().userAvatarUrl
+        const prevNickname = get().userNickname
+        set({
+          userAvatarUrl: profile.avatarUrl || prevAvatar,
+          userNickname: profile.nickname || prevNickname,
+        })
+        try {
+          await Promise.all([
+            window.electronAPI?.settings?.set('userAvatarUrl', profile.avatarUrl || prevAvatar),
+            window.electronAPI?.settings?.set('userNickname', profile.nickname || prevNickname),
+          ])
+        } catch (error) {
+          set({ userAvatarUrl: prevAvatar, userNickname: prevNickname, error: (error as Error).message })
+          return { success: false, message: `保存失败: ${(error as Error).message}` }
+        }
+        return { success: true, message: result.message }
+      }
+      return { success: false, message: result.message }
+    } catch (error) {
+      const message = `同步失败: ${(error as Error).message}`
+      set({ error: message })
+      return { success: false, message }
+    } finally {
+      set({ syncingProfile: false })
     }
   },
   clearTestResult: () => set({ testResult: null }),

@@ -27,6 +27,29 @@ export function setAIConfig(cfg: AISDKConfig): void {
   config = { ...cfg };
 }
 
+/**
+ * 从 settings 初始化配置（与 ai-service.initFromSettings 同源）
+ * 在 main.ts 启动时调用，让 orchestrator 走 SDK 路径时有配置可用
+ */
+export function initFromSettings(settings: Record<string, unknown>): void {
+  const llmKey = settings.llmKey as string;
+  const aiProvider = (settings.aiProvider as AIProvider) || 'custom';
+  const llmEndpoint = settings.llmEndpoint as string;
+  const llmModel = settings.llmModel as string;
+
+  if (llmKey) {
+    config = {
+      provider: aiProvider,
+      apiKey: llmKey,
+      baseUrl: llmEndpoint || undefined,
+      model: llmModel || undefined,
+      maxTokens: 2000,
+      temperature: 0.7,
+    };
+    logger.info(`AI SDK initialized from settings: provider=${aiProvider}, model=${llmModel || 'default'}`);
+  }
+}
+
 function getModel() {
   if (!config) throw new Error('AI SDK not configured');
   const baseUrl = config.baseUrl || 'https://api.openai.com/v1';

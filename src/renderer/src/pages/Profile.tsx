@@ -81,6 +81,12 @@ export default function Profile() {
   const setProfileBadgesEnabled = useSettingsStore((s) => s.setProfileBadgesEnabled)
   const loadSettings = useSettingsStore((s) => s.loadSettings)
 
+  // 微信读书同步的头像 / 昵称
+  const userAvatarUrl = useSettingsStore((s) => s.userAvatarUrl)
+  const userNickname = useSettingsStore((s) => s.userNickname)
+  const syncingProfile = useSettingsStore((s) => s.syncingProfile)
+  const syncWeReadUserProfile = useSettingsStore((s) => s.syncWeReadUserProfile)
+
   // 扩展数据源：生词数 / 用户设置 / 半年热力数据 / 类型分布
   const [vocabCount, setVocabCount] = useState(0)
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE)
@@ -91,6 +97,7 @@ export default function Profile() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState<UserProfile>(DEFAULT_PROFILE)
   const [editSaving, setEditSaving] = useState(false)
+  const [avatarError, setAvatarError] = useState(false)
   const editModalRef = useRef<HTMLDivElement>(null)
   const editFirstInputRef = useRef<HTMLInputElement>(null)
 
@@ -102,6 +109,13 @@ export default function Profile() {
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
+
+  // settingsStore 中的昵称同步到本地展示态
+  useEffect(() => {
+    if (userNickname) {
+      setProfile((p) => ({ ...p, nickname: userNickname }))
+    }
+  }, [userNickname])
 
   // 加载扩展数据（独立 effect，避免阻塞 profileStore 首屏）
   useEffect(() => {
@@ -118,20 +132,24 @@ export default function Profile() {
         /* 非致命：保持默认 0 */
       }
 
-      // 2. 用户设置（昵称 / 加入日期 / 城市 / 简介）
+      // 2. 用户设置（昵称 / 加入日期 / 城市 / 简介 / 头像）
       try {
-        const [nickname, joinedAt, location, bio] = await Promise.all([
+        const [nickname, joinedAt, location, bio, avatarUrl] = await Promise.all([
           api.settings.get('userNickname'),
           api.settings.get('userJoinedAt'),
           api.settings.get('userLocation'),
           api.settings.get('userBio'),
+          api.settings.get('userAvatarUrl'),
         ])
         setProfile({
-          nickname: safeStr(nickname) || DEFAULT_PROFILE.nickname,
+          nickname: safeStr(nickname) || safeStr(userNickname) || DEFAULT_PROFILE.nickname,
           joinedAt: safeStr(joinedAt) || DEFAULT_PROFILE.joinedAt,
           location: safeStr(location) || DEFAULT_PROFILE.location,
           bio: safeStr(bio) || DEFAULT_PROFILE.bio,
         })
+        if (safeStr(avatarUrl)) {
+          setAvatarError(false)
+        }
       } catch {
         /* 非致命：保持默认 */
       }
@@ -298,6 +316,23 @@ export default function Profile() {
     }
   }, [editModalOpen])
 
+  // ===== 从微信读书同步头像 / 昵称 =====
+  const handleSyncWeReadProfile = async () => {
+    const result = await syncWeReadUserProfile()
+    if (result.success) {
+      toast.success(result.message)
+      // store 已更新 userAvatarUrl / userNickname；刷新本地 profile 显示
+      if (userNickname) {
+        setProfile((p) => ({ ...p, nickname: userNickname }))
+      }
+      if (userAvatarUrl) {
+        setAvatarError(false)
+      }
+    } else {
+      toast.error(result.message)
+    }
+  }
+
   // ===== 分享按钮：生成分享文本并复制到剪贴板 =====
   const handleShare = async () => {
     const lines = [
@@ -360,6 +395,14 @@ export default function Profile() {
         subtitle={`知行读书 · 加入 ${joinedDays} 天`}
         actions={
           <>
+            <Button
+              variant="secondary"
+              data-dom-id="cta-sync-weread"
+              onClick={() => void handleSyncWeReadProfile()}
+              disabled={syncingProfile}
+            >
+              {syncingProfile ? '同步中...' : '同步微信读书'}
+            </Button>
             <Button variant="secondary" data-dom-id="cta-edit" onClick={openEditModal}>编辑资料</Button>
             <Button variant="ghost" data-dom-id="cta-share" onClick={handleShare}>分享</Button>
           </>
@@ -376,24 +419,41 @@ export default function Profile() {
               alignItems: 'center',
             }}
           >
-            <div
-              className="avatar-large"
-              style={{
-                width: 96,
-                height: 96,
-                borderRadius: '50%',
-                background: 'var(--primary)',
-                color: 'var(--primary-foreground)',
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: '2rem',
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-              aria-label="用户头像"
-            >
-              {profile.nickname.charAt(0) || '读'}
-            </div>
+            {userAvatarUrl && !avatarError ? (
+              <img
+                src={userAvatarUrl}
+                alt="用户头像"
+                className="avatar-large"
+                onError={() => setAvatarError(true)}
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid var(--border)',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                className="avatar-large"
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: '50%',
+                  background: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: '2rem',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+                aria-label="用户头像"
+              >
+                {(userNickname || profile.nickname).charAt(0) || '读'}
+              </div>
+            )}
 
             <div
               className="profile-info"

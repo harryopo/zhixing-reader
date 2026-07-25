@@ -262,12 +262,6 @@ export default function SettingsAccount() {
                   <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
                     继承微信读书信息
                   </strong>
-                  <div
-                    className="tiny"
-                    style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
-                  >
-                    开启后将在后续版本中自动从微信读书同步个人信息（当前版本暂未实现）
-                  </div>
                 </div>
                 <button
                   type="button"
@@ -512,12 +506,6 @@ export default function SettingsAccount() {
                   <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
                     继承微信读书信息
                   </strong>
-                  <div
-                    className="tiny"
-                    style={{ marginTop: '0.2rem', color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.4 }}
-                  >
-                    开启后使用微信读书账户信息，本地信息无需手动维护
-                  </div>
                 </div>
                 <button
                   type="button"

@@ -2,7 +2,7 @@
  * weread-sync-manager — 微信读书自动同步定时器（main 进程后台任务）
  *
  * 职责：
- *   1. 按 settings.wereadAutoSync / wereadAutoSyncInterval 启动/停止 setInterval
+ *   1. 按 settings.wereadAutoSync / wereadSyncFrequency 启动/停止基于「下一次执行时间」的 setTimeout 调度
  *   2. 后台调 getBookshelf() → booksDb 写库（与渲染进程 sync-bookshelf.ts 行为对齐）
  *   3. 应用退出时清理定时器
  *
@@ -13,9 +13,9 @@
  *
  * 设计决策：
  *   - 独立模块，避免 main ↔ ipc 循环依赖
- *   - 单 setInterval，启动/停止都是幂等操作
+ *   - 基于下一次执行时间调度，避免长时间占用内存跑倒计时
  *   - 未配置 wereadApiKey 时拒绝启动，避免空跑报错刷屏
- *   - 最小间隔 5 分钟，防止打爆网关
+ *   - 每小时兜底检查一次，防止系统时间调整或错过执行
  */
 
 import { getBookshelf, getApiKey } from './weread-api';
@@ -23,7 +23,20 @@ import { booksDb } from './database';
 import { logger } from './logger';
 import { settingsService } from './services/settings-service';
 
+export type WeReadSyncFrequency = '1d' | '3d' | '7d';
+
+const FREQUENCY_MS: Record<WeReadSyncFrequency, number> = {
+  '1d': 24 * 60 * 60 * 1000,
+  '3d': 3 * 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+};
+
+const HOURLY_CHECK_MS = 60 * 60 * 1000;
+const SYNC_AT_KEY = 'wereadLastSyncAt';
+const FREQUENCY_KEY = 'wereadSyncFrequency';
+
 let wereadAutoSyncTimer: NodeJS.Timeout | null = null;
+let wereadHourlyCheckTimer: NodeJS.Timeout | null = null;
 
 /** 后台同步：拉书架 → 写本地 books 表 */
 async function syncWereadBookshelfBackground(): Promise<void> {
@@ -56,6 +69,9 @@ async function syncWereadBookshelfBackground(): Promise<void> {
             cover: wb.cover,
             isbn: wb.isbn,
             publisher: wb.publisher,
+            publish_date: wb.publishTime || null,
+            description: wb.intro || null,
+            category: wb.category || null,
             reading_progress: wb.progress || 0,
             total_chapter: wb.totalChapter || 0,
             last_read_time: lastReadTimeStr,
@@ -67,6 +83,13 @@ async function syncWereadBookshelfBackground(): Promise<void> {
           if (match && match.id) {
             try {
               booksDb.update(match.id as string, {
+                author: wb.author || null,
+                cover: wb.cover || null,
+                isbn: wb.isbn || null,
+                publisher: wb.publisher || null,
+                publish_date: wb.publishTime || null,
+                description: wb.intro || null,
+                category: wb.category || null,
                 reading_progress: wb.progress || 0,
                 last_read_time: lastReadTimeStr,
                 is_finished: wb.finishReading || 0,
@@ -83,27 +106,109 @@ async function syncWereadBookshelfBackground(): Promise<void> {
     }
 
     logger.info(`WeRead auto-sync done: total=${wereadBooks.length} new=${newCount} updated=${updatedCount}`);
+    settingsService.set(SYNC_AT_KEY, Date.now());
   } catch (error) {
     logger.error('WeRead auto-sync failed', error);
   }
 }
 
-/** 读取 settings 并按需启动/停止定时器（幂等） */
-function applyWereadAutoSyncSettings(): void {
-  const settings = settingsService.getAll();
-  const enabled = settings.wereadAutoSync === true;
-  const intervalMin = typeof settings.wereadAutoSyncInterval === 'number' && settings.wereadAutoSyncInterval > 0
-    ? settings.wereadAutoSyncInterval
-    : 30;
+function parseFrequency(value: unknown): WeReadSyncFrequency {
+  if (value === '1d' || value === '3d' || value === '7d') {
+    return value;
+  }
+  // 向后兼容：旧版本使用分钟数
+  if (typeof value === 'number' && value > 0) {
+    const days = value / 60 / 24;
+    if (days < 2) return '1d';
+    if (days < 5) return '3d';
+    return '7d';
+  }
+  return '1d';
+}
 
-  // 先清掉旧定时器（无论是否开启都先清，避免重复）
+function getFrequencyMs(value: unknown): number {
+  const freq = parseFrequency(value);
+  return FREQUENCY_MS[freq];
+}
+
+/** 计算下一次同步时间戳 */
+function getNextSyncTimeMs(): number {
+  const settings = settingsService.getAll();
+  const frequencyMs = getFrequencyMs(settings[FREQUENCY_KEY]);
+  const lastSyncAt = typeof settings[SYNC_AT_KEY] === 'number'
+    ? settings[SYNC_AT_KEY] as number
+    : 0;
+
+  const now = Date.now();
+  if (!lastSyncAt || lastSyncAt > now + frequencyMs) {
+    // 无记录或系统时间被调到未来，下次从当前时间开始
+    return now;
+  }
+  return lastSyncAt + frequencyMs;
+}
+
+/** 调度下一次同步 */
+function scheduleNextSync(): void {
   if (wereadAutoSyncTimer) {
-    clearInterval(wereadAutoSyncTimer);
+    clearTimeout(wereadAutoSyncTimer);
     wereadAutoSyncTimer = null;
-    logger.info('WeRead auto-sync timer cleared');
   }
 
+  const settings = settingsService.getAll();
+  const enabled = settings.wereadAutoSync === true;
+  if (!enabled || !getApiKey()) {
+    return;
+  }
+
+  const nextTime = getNextSyncTimeMs();
+  const now = Date.now();
+  const delay = Math.max(0, Math.min(nextTime - now, Number.MAX_SAFE_INTEGER));
+  const freq = parseFrequency(settings[FREQUENCY_KEY]);
+
+  wereadAutoSyncTimer = setTimeout(() => {
+    void syncWereadBookshelfBackground().then(scheduleNextSync);
+  }, delay);
+  logger.info(`WeRead auto-sync scheduled: frequency=${freq}, nextAt=${new Date(nextTime).toISOString()}, delayMs=${delay}`);
+}
+
+/** 轻量兜底：每小时检查一次是否已到期 */
+function startHourlyCheck(): void {
+  if (wereadHourlyCheckTimer) {
+    clearInterval(wereadHourlyCheckTimer);
+    wereadHourlyCheckTimer = null;
+  }
+
+  const settings = settingsService.getAll();
+  const enabled = settings.wereadAutoSync === true;
+  if (!enabled || !getApiKey()) {
+    return;
+  }
+
+  wereadHourlyCheckTimer = setInterval(() => {
+    const nextTime = getNextSyncTimeMs();
+    if (Date.now() >= nextTime) {
+      void syncWereadBookshelfBackground().then(scheduleNextSync);
+    }
+  }, HOURLY_CHECK_MS);
+}
+
+/** 读取 settings 并按需启动/停止定时器（幂等） */
+function applyWereadAutoSyncSettings(): void {
+  // 先清掉旧定时器（无论是否开启都先清，避免重复）
+  if (wereadAutoSyncTimer) {
+    clearTimeout(wereadAutoSyncTimer);
+    wereadAutoSyncTimer = null;
+  }
+  if (wereadHourlyCheckTimer) {
+    clearInterval(wereadHourlyCheckTimer);
+    wereadHourlyCheckTimer = null;
+  }
+
+  const settings = settingsService.getAll();
+  const enabled = settings.wereadAutoSync === true;
+
   if (!enabled) {
+    logger.info('WeRead auto-sync disabled');
     return;
   }
 
@@ -113,13 +218,8 @@ function applyWereadAutoSyncSettings(): void {
     return;
   }
 
-  // 限定 5 分钟最小间隔，防止用户填入过短值打爆网关
-  const safeIntervalMin = Math.max(5, intervalMin);
-  const intervalMs = safeIntervalMin * 60 * 1000;
-  wereadAutoSyncTimer = setInterval(() => {
-    void syncWereadBookshelfBackground();
-  }, intervalMs);
-  logger.info(`WeRead auto-sync timer started (interval=${safeIntervalMin} min)`);
+  scheduleNextSync();
+  startHourlyCheck();
 }
 
 /** 应用启动时调用：根据当前 settings 决定是否启动定时器 */
@@ -135,8 +235,12 @@ export function refreshWereadAutoSyncTimer(): void {
 /** 应用退出时调用：清理定时器，避免进程挂死 */
 export function stopWereadAutoSync(): void {
   if (wereadAutoSyncTimer) {
-    clearInterval(wereadAutoSyncTimer);
+    clearTimeout(wereadAutoSyncTimer);
     wereadAutoSyncTimer = null;
-    logger.info('WeRead auto-sync timer stopped on quit');
   }
+  if (wereadHourlyCheckTimer) {
+    clearInterval(wereadHourlyCheckTimer);
+    wereadHourlyCheckTimer = null;
+  }
+  logger.info('WeRead auto-sync timer stopped on quit');
 }

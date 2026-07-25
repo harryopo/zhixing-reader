@@ -5,6 +5,7 @@ import { initDatabase, closeDatabase, forceSaveDatabase } from './database';
 import { registerIpcHandlers } from './ipc';
 import { initFromSettings as initWereadSettings } from './weread-api';
 import { initFromSettings as initAISettings } from './ai-service';
+import { initFromSettings as initAISDKSettings } from './ai-sdk-service';
 import { logger } from './logger';
 import { settingsService } from './services/settings-service';
 import { initVectorDb, createCollection } from './services/vector-db';
@@ -193,6 +194,7 @@ app.whenReady().then(async () => {
     const settings = settingsService.getAll();
     initWereadSettings(settings);
     initAISettings(settings);
+    initAISDKSettings(settings);
     logger.info('Settings loaded and applied');
 
     // 启动微信读书自动同步定时器（如 settings.wereadAutoSync=true 且已配置 wereadApiKey）
