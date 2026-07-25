@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知行读书 — AI 驱动的阅读成长智能体</title>
+  <meta name="description" content="知行读书：微信读书同步 → AI 智能体理解 → 科学间隔复习 → 知识卡片体系化 → 英语学习。基于 Electron + React + AI 的桌面阅读成长助手。" />
+  <meta name="author" content="张子涵" />
+  <meta name="theme-color" content="#059669" />
+  <style>
+    /* ============================================
+       知行读书 Landing Page - 设计系统
+       配色：emerald 系（与产品 UI 对齐）
+       风格：简洁、专业、有科技感
+       ============================================ */
+
+    /* ---------- CSS 变量：浅色主题 ---------- */
+    :root {
+      /* 品牌色 - emerald 阶梯 */
+      --emerald-50: #ecfdf5;
+      --emerald-100: #d1fae5;
+      --emerald-200: #a7f3d0;
+      --emerald-300: #6ee7b7;
+      --emerald-400: #34d399;
+      --emerald-500: #10b981;
+      --emerald-600: #059669;
+      --emerald-700: #047857;
+      --emerald-800: #065f46;
+      --emerald-900: #064e3b;
+
+      /* 语义色 */
+      --bg: #ffffff;
+      --bg-subtle: #f8fafb;
+      --bg-elevated: #ffffff;
+      --fg: #0e1115;
+      --fg-muted: #4b5563;
+      --fg-subtle: #6b7280;
+      --border: #e5e7eb;
+      --border-strong: #d1d5db;
+      --primary: #059669;
+      --primary-hover: #047857;
+      --accent-bg: #ecfdf5;
+      --accent-fg: #064e3b;
+
+      /* 阴影 */
+      --shadow-sm: 0 1px 2px 0 rgba(14, 17, 21, 0.05);
+      --shadow-md: 0 4px 8px -2px rgba(14, 17, 21, 0.08), 0 2px 4px -2px rgba(14, 17, 21, 0.04);
+      --shadow-lg: 0 12px 24px -6px rgba(5, 150, 105, 0.12), 0 4px 8px -4px rgba(14, 17, 21, 0.06);
+      --shadow-xl: 0 20px 40px -12px rgba(5, 150, 105, 0.18);
+
+      /* 字体 */
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, monospace;
+
+      /* 间距 */
+      --radius-sm: 6px;
+      --radius: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+
+      /* 布局 */
+      --max-width: 1200px;
+      --gutter: clamp(1.25rem, 4vw, 2.5rem);
+    }
+
+    /* ---------- 暗色主题 ---------- */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f0f10;
+        --bg-subtle: #131316;
+        --bg-elevated: #18181b;
+        --fg: #ededef;
+        --fg-muted: #a1a1aa;
+        --fg-subtle: #71717a;
+        --border: #2a2a2e;
+        --border-strong: #3f3f46;
+        --primary: #10b981;
+        --primary-hover: #34d399;
+        --accent-bg: #064e3b;
+        --accent-fg: #6ee7b7;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 12px 24px -6px rgba(16, 185, 129, 0.18), 0 4px 8px -4px rgba(0, 0, 0, 0.4);
+        --shadow-xl: 0 20px 40px -12px rgba(16, 185, 129, 0.25);
+      }
+    }
+
+    /* ---------- 全局重置 ---------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+    img { max-width: 100%; display: block; }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    ul { list-style: none; }
+
+    /* ---------- 容器 ---------- */
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--gutter);
+    }
+
+    /* ---------- 通用按钮 ---------- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.75rem;
+      border-radius: var(--radius);
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: var(--shadow-md);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+    .btn-secondary {
+      background: var(--bg-elevated);
+      color: var(--fg);
+      border-color: var(--border-strong);
+    }
+    .btn-secondary:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .btn-lg { padding: 1rem 2rem; font-size: 1rem; }
+
+    /* ---------- Section 通用 ---------- */
+    section { padding: clamp(4rem, 10vw, 7rem) 0; }
+    .section-header { text-align: center; max-width: 720px; margin: 0 auto clamp(2.5rem, 6vw, 4rem); }
+    .section-eyebrow {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 1rem;
+      padding: 0.35rem 0.85rem;
+      background: var(--accent-bg);
+      color: var(--accent-fg);
+      border-radius: 999px;
+    }
+    .section-title {
+      font-size: clamp(1.875rem, 4vw, 2.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .section-subtitle {
+      font-size: clamp(1rem, 2vw, 1.125rem);
+      color: var(--fg-muted);
+      line-height: 1.7;
+    }
+
+    /* ============================================
+       1. 导航栏
+       ============================================ */
+    .navbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: color-mix(in srgb, var(--bg) 80%, transparent);
+      backdrop-filter: saturate(180%) blur(16px);
+      -webkit-backdrop-filter: saturate(180%) blur(16px);
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.3s ease, background 0.3s ease;
+    }
+    .navbar.scrolled { border-bottom-color: var(--border); }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+    .nav-logo {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--emerald-500), var(--emerald-700));
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 0.95rem;
+      box-shadow: 0 4px 12px -2px rgba(5, 150, 105, 0.4);
+    }
+    .nav-links { display: flex; gap: 2rem; align-items: center; }
+    .nav-links a {
+      font-size: 0.9rem;
+      color: var(--fg-muted);
+      transition: color 0.2s;
+      font-weight: 500;
+    }
+    .nav-links a:hover { color: var(--primary); }
+    .nav-cta {
+      padding: 0.55rem 1.1rem;
+      font-size: 0.85rem;
+      background: var(--primary);
+      color: #fff !important;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+    }
+    .nav-cta:hover { background: var(--primary-hover); color: #fff !important; }
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+    }
+
+    /* ============================================
+       2. Hero Section
+       ============================================ */
+    .hero {
+      position: relative;
+      padding: clamp(7rem, 16vw, 10rem) 0 clamp(5rem, 12vw, 7rem);
+      overflow: hidden;
+      background: var(--bg);
+    }
+    /* 几何渐变背景 */
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in srgb, var(--emerald-500) 18%, transparent), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 100% 30%, color-mix(in srgb, var(--emerald-300) 12%, transparent), transparent 60%),
+        radial-gradient(ellipse 50% 40% at 0% 60%, color-mix(in srgb, var(--emerald-400) 10%, transparent), transparent 60%);
+    }
+    /* 网格纹理 */
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        linear-gradient(to right, color-mix(in srgb, var(--fg) 4%, transparent) 1px, transparent 1px),
+        linear-gradient(to bottom, color-mix(in srgb, var(--fg) 4%, transparent) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
+      pointer-events: none;
+    }
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 880px;
+      margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.95rem;
+      background: var(--accent-bg);
+      color: var(--accent-fg);
+      border: 1px solid color-mix(in srgb, var(--emerald-500) 25%, transparent);
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 1.75rem;
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--emerald-500);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+    }
+    .hero-title {
+      font-size: clamp(2.5rem, 7vw, 4.5rem);
+      font-weight: 800;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      margin-bottom: 1.25rem;
+      background: linear-gradient(180deg, var(--fg) 60%, color-mix(in srgb, var(--fg) 60%, var(--emerald-600)));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero-subtitle {
+      font-size: clamp(1.125rem, 2.5vw, 1.5rem);
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+    .hero-desc {
+      font-size: clamp(0.95rem, 1.8vw, 1.125rem);
+      color: var(--fg-muted);
+      max-width: 680px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.7;
+    }
+    .hero-flow {
+      display: inline-flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2.5rem;
+      font-size: 0.85rem;
+    }
+    .hero-flow span {
+      padding: 0.4rem 0.9rem;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+    .hero-flow .arrow { color: var(--emerald-500); padding: 0.4rem 0.25rem; }
+    .hero-cta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+    }
+    /* Hero 装饰浮元素 */
+    .hero-deco {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .hero-deco-1 {
+      width: 280px; height: 280px;
+      background: var(--emerald-300);
+      top: 20%; left: -80px;
+      animation: float 12s ease-in-out infinite;
+    }
+    .hero-deco-2 {
+      width: 200px; height: 200px;
+      background: var(--emerald-500);
+      bottom: 10%; right: -60px;
+      animation: float 15s ease-in-out infinite reverse;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) translateX(0); }
+      50% { transform: translateY(-30px) translateX(20px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-deco, .hero-badge .dot { animation: none; }
+    }
+
+    /* ============================================
+       3. 功能亮点 Section
+       ============================================ */
+    .features { background: var(--bg-subtle); }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+    @media (max-width: 960px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .feature-grid { grid-template-columns: 1fr; } }
+
+    .feature-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--emerald-500) 5%, transparent), transparent 50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .feature-card:hover {
+      border-color: color-mix(in srgb, var(--emerald-500) 40%, var(--border));
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: var(--accent-bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 1.25rem;
+      position: relative;
+      z-index: 1;
+    }
+    .feature-title {
+      font-size: 1.125rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.01em;
+      position: relative;
+      z-index: 1;
+    }
+    .feature-desc {
+      font-size: 0.925rem;
+      color: var(--fg-muted);
+      line-height: 1.65;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ============================================
+       4. 技术架构 Section
+       ============================================ */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .tech-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      transition: all 0.2s;
+    }
+    .tech-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .tech-card-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--fg-subtle);
+      margin-bottom: 0.5rem;
+    }
+    .tech-card-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .tech-tag {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      padding: 0.25rem 0.6rem;
+      background: var(--accent-bg);
+      color: var(--accent-fg);
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+    }
+    .tech-highlight {
+      text-align: center;
+      padding: 1.5rem 2rem;
+      background: linear-gradient(135deg, var(--emerald-600), var(--emerald-700));
+      color: #fff;
+      border-radius: var(--radius-lg);
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      box-shadow: var(--shadow-lg);
+    }
+    .tech-highlight .sep { opacity: 0.5; margin: 0 0.75rem; }
+
+    /* ============================================
+       5. 截图展示 Section
+       ============================================ */
+    .screenshots { background: var(--bg-subtle); }
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+    @media (max-width: 768px) { .screenshot-grid { grid-template-columns: 1fr; } }
+    .screenshot-item {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+    .screenshot-item:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-xl);
+      border-color: color-mix(in srgb, var(--emerald-500) 30%, var(--border));
+    }
+    .screenshot-img-wrap {
+      aspect-ratio: 16 / 9;
+      background: var(--bg-subtle);
+      overflow: hidden;
+      position: relative;
+    }
+    .screenshot-img-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 70%, color-mix(in srgb, var(--bg-elevated) 50%, transparent));
+      pointer-events: none;
+    }
+    .screenshot-img-wrap img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .screenshot-item:hover .screenshot-img-wrap img { transform: scale(1.03); }
+    .screenshot-caption {
+      padding: 1rem 1.25rem;
+      font-size: 0.9rem;
+      color: var(--fg-muted);
+      font-weight: 500;
+      border-top: 1px solid var(--border);
+    }
+    .screenshot-caption strong {
+      color: var(--fg);
+      font-weight: 600;
+      display: block;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ============================================
+       6. 下载 Section
+       ============================================ */
+    .download-card {
+      max-width: 640px;
+      margin: 0 auto;
+      text-align: center;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: clamp(2rem, 5vw, 3.5rem);
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+    }
+    .download-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--emerald-400), var(--emerald-600), var(--emerald-400));
+    }
+    .download-platform {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--accent-bg);
+      color: var(--accent-fg);
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+    .download-title {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+    .download-desc {
+      color: var(--fg-muted);
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+    .download-requirements {
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--fg-subtle);
+    }
+
+    /* ============================================
+       7. 开源 Section
+       ============================================ */
+    .opensource {
+      background: var(--bg-subtle);
+    }
+    .os-card {
+      max-width: 880px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .os-license {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1.1rem;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--primary);
+    }
+    .os-title {
+      font-size: clamp(1.75rem, 4vw, 2.25rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+    .os-desc {
+      color: var(--fg-muted);
+      margin-bottom: 2.5rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .os-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+    .os-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 0.5rem 0;
+      border-bottom: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+    .os-link:hover { border-bottom-color: var(--primary); }
+
+    /* ============================================
+       8. Footer
+       ============================================ */
+    footer {
+      padding: 3rem 0 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .footer-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      text-align: center;
+    }
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-weight: 700;
+    }
+    .footer-meta {
+      font-size: 0.875rem;
+      color: var(--fg-subtle);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem 1.5rem;
+    }
+    .footer-meta a { color: var(--fg-muted); transition: color 0.2s; }
+    .footer-meta a:hover { color: var(--primary); }
+    .footer-made {
+      font-size: 0.82rem;
+      color: var(--fg-subtle);
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      width: 100%;
+      max-width: 400px;
+      margin-top: 0.5rem;
+    }
+
+    /* ============================================
+       滚动动画
+       ============================================ */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1), transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+    .reveal-delay-5 { transition-delay: 0.5s; }
+    .reveal-delay-6 { transition-delay: 0.6s; }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ============================================
+       导航栏
+       ============================================ -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="#" class="nav-brand">
+        <span class="nav-logo">知</span>
+        <span>知行读书</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">功能</a>
+        <a href="#tech">技术</a>
+        <a href="#screenshots">截图</a>
+        <a href="#download">下载</a>
+        <a href="#opensource">开源</a>
+        <a href="https://github.com/zhixing-reader/zhixing-reader" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============================================
+       1. Hero Section
+       ============================================ -->
+  <header class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-grid"></div>
+    <div class="hero-deco hero-deco-1"></div>
+    <div class="hero-deco hero-deco-2"></div>
+    <div class="container hero-content">
+      <div class="hero-badge reveal">
+        <span class="dot"></span>
+        <span>火山杯 2026 参赛作品 · MIT 开源</span>
+      </div>
+      <h1 class="hero-title reveal reveal-delay-1">知行读书</h1>
+      <p class="hero-subtitle reveal reveal-delay-2">AI 驱动的阅读成长智能体</p>
+      <p class="hero-desc reveal reveal-delay-3">
+        一个把微信读书划线变成知识资产的桌面应用。让 AI 智能体理解你的阅读脉络，
+        用科学算法对抗遗忘，把零散笔记蒸馏成体系化的知识卡片。
+      </p>
+      <div class="hero-flow reveal reveal-delay-4">
+        <span>微信读书同步</span>
+        <span class="arrow">→</span>
+        <span>AI 智能体理解</span>
+        <span class="arrow">→</span>
+        <span>科学间隔复习</span>
+        <span class="arrow">→</span>
+        <span>知识卡片体系化</span>
+        <span class="arrow">→</span>
+        <span>英语学习</span>
+      </div>
+      <div class="hero-cta reveal reveal-delay-5">
+        <a href="https://github.com/zhixing-reader/zhixing-reader" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          GitHub 开源
+        </a>
+        <a href="https://github.com/zhixing-reader/zhixing-reader/releases" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载 Windows 版
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================
+       2. 功能亮点 Section
+       ============================================ -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-eyebrow">核心功能</span>
+        <h2 class="section-title">六大能力，构建阅读成长闭环</h2>
+        <p class="section-subtitle">从数据同步到知识内化，让每一本书都不止于读完。</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature-card reveal">
+          <div class="feature-icon">📚</div>
+          <h3 class="feature-title">微信读书同步</h3>
+          <p class="feature-desc">一键同步书架、划线、笔记。本地持久化存储，数据完全归属用户，断网可用。</p>
+        </article>
+        <article class="feature-card reveal reveal-delay-1">
+          <div class="feature-icon">🤖</div>
+          <h3 class="feature-title">AI 智能体对话</h3>
+          <p class="feature-desc">5 维上下文构建、意图识别、苏格拉底式教学。AI 不只是回答，更引导你主动思考。</p>
+        </article>
+        <article class="feature-card reveal reveal-delay-2">
+          <div class="feature-icon">🔁</div>
+          <h3 class="feature-title">FSRS v5 间隔重复</h3>
+          <p class="feature-desc">Anki 同源算法（ts-fsrs 5.4.1），科学调度复习时机，用最小时间成本对抗遗忘曲线。</p>
+        </article>
+        <article class="feature-card reveal reveal-delay-3">
+          <div class="feature-icon">🗂️</div>
+          <h3 class="feature-title">知识卡片体系</h3>
+          <p class="feature-desc">概念卡 / 方法论卡 / 金句卡三类，AI 自动从笔记蒸馏，构建可检索的个人知识库。</p>
+        </article>
+        <article class="feature-card reveal reveal-delay-4">
+          <div class="feature-icon">📖</div>
+          <h3 class="feature-title">英语词汇学习</h3>
+          <p class="feature-desc">每日精读、查词、生词本。结合 FSRS 算法智能复习生词，阅读中自然习得词汇。</p>
+        </article>
+        <article class="feature-card reveal reveal-delay-5">
+          <div class="feature-icon">📊</div>
+          <h3 class="feature-title">统计与可视化</h3>
+          <p class="feature-desc">ECharts 仪表盘，阅读习惯、复习进度、知识分布全维度数据化呈现。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================
+       3. 技术架构 Section
+       ============================================ -->
+  <section class="tech" id="tech">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-eyebrow">技术架构</span>
+        <h2 class="section-title">现代桌面技术栈，工程化品质</h2>
+        <p class="section-subtitle">采用 2026 年主流前端栈，TypeScript 全链路类型安全，测试覆盖率优先。</p>
+      </div>
+      <div class="tech-grid">
+        <div class="tech-card reveal">
+          <div class="tech-card-title">应用框架</div>
+          <div class="tech-card-list">
+            <span class="tech-tag">Electron 35</span>
+            <span class="tech-tag">React 19</span>
+            <span class="tech-tag">TypeScript 5.6</span>
+            <span class="tech-tag">Tailwind CSS 4</span>
+          </div>
+        </div>
+        <div class="tech-card reveal reveal-delay-1">
+          <div class="tech-card-title">数据与算法</div>
+          <div class="tech-card-list">
+            <span class="tech-tag">sql.js (SQLite WASM)</span>
+            <span class="tech-tag">ts-fsrs 5.4.1 (FSRS v5)</span>
+          </div>
+        </div>
+        <div class="tech-card reveal reveal-delay-2">
+          <div class="tech-card-title">AI 与可视化</div>
+          <div class="tech-card-list">
+            <span class="tech-tag">Vercel AI SDK</span>
+            <span class="tech-tag">Apache ECharts</span>
+            <span class="tech-tag">Zustand 5</span>
+          </div>
+        </div>
+        <div class="tech-card reveal reveal-delay-3">
+          <div class="tech-card-title">质量保障</div>
+          <div class="tech-card-list">
+            <span class="tech-tag">Vitest</span>
+            <span class="tech-tag">ESLint 9</span>
+            <span class="tech-tag">Playwright</span>
+          </div>
+        </div>
+      </div>
+      <div class="tech-highlight reveal reveal-delay-4">
+        <span>667 个单元测试</span>
+        <span class="sep">·</span>
+        <span>0 lint errors</span>
+        <span class="sep">·</span>
+        <span>MIT 开源</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================
+       4. 截图展示 Section
+       ============================================ -->
+  <section class="screenshots" id="screenshots">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-eyebrow">产品预览</span>
+        <h2 class="section-title">知行合一，所见即所得</h2>
+        <p class="section-subtitle">emerald 主题贯穿始终，深浅模式自适应，专注阅读与思考。</p>
+      </div>
+      <div class="screenshot-grid">
+        <figure class="screenshot-item reveal">
+          <div class="screenshot-img-wrap">
+            <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20desktop%20reading%20app%20main%20dashboard%20with%20book%20grid%20and%20review%20panel%20emerald%20theme%20clean%20UI&image_size=landscape_16_9" alt="主页与复习面板" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>主页 + 复习面板</strong>
+            书架一览、今日待复习卡片、阅读进度统计
+          </figcaption>
+        </figure>
+        <figure class="screenshot-item reveal reveal-delay-1">
+          <div class="screenshot-img-wrap">
+            <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=AI%20chat%20interface%20with%20streaming%20text%20response%20reading%20assistant%20emerald%20dark%20theme&image_size=landscape_16_9" alt="AI 对话与流式输出" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>AI 对话 + 流式输出</strong>
+            5 维上下文构建，苏格拉底式引导提问
+          </figcaption>
+        </figure>
+        <figure class="screenshot-item reveal reveal-delay-2">
+          <div class="screenshot-img-wrap">
+            <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=knowledge%20card%20flip%20animation%20concept%20card%20methodology%20card%20emerald%20theme%20desktop%20app&image_size=landscape_16_9" alt="知识卡片翻转" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>知识卡片 + 翻转</strong>
+            概念卡 / 方法论卡 / 金句卡，AI 自动蒸馏
+          </figcaption>
+        </figure>
+        <figure class="screenshot-item reveal reveal-delay-3">
+          <div class="screenshot-img-wrap">
+            <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=statistics%20dashboard%20with%20charts%20and%20graphs%20reading%20stats%20emerald%20theme%20data%20visualization&image_size=landscape_16_9" alt="统计仪表盘" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>统计仪表盘 + ECharts</strong>
+            阅读习惯、复习进度、知识分布全维度可视化
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================
+       5. 下载 Section
+       ============================================ -->
+  <section class="download" id="download">
+    <div class="container">
+      <div class="download-card reveal">
+        <div class="download-platform">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          <span>Windows 平台</span>
+        </div>
+        <h2 class="download-title">立即开始你的知行之旅</h2>
+        <p class="download-desc">免费下载，开源透明。本地优先架构，你的阅读数据永远属于你自己。</p>
+        <a href="https://github.com/zhixing-reader/zhixing-reader/releases" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载最新版本
+        </a>
+        <div class="download-requirements">
+          系统要求：Windows 10 及以上 · 需要 100MB 磁盘空间
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================
+       6. 开源 Section
+       ============================================ -->
+  <section class="opensource" id="opensource">
+    <div class="container">
+      <div class="os-card reveal">
+        <div class="os-license">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+          <span>MIT License</span>
+        </div>
+        <h2 class="os-title">完全开源 · 自由使用</h2>
+        <p class="os-desc">代码托管于 GitHub，欢迎 Star、Fork、Issue、PR。社区共建，让知行读书成为更好的工具。</p>
+        <div class="os-links">
+          <a href="https://github.com/zhixing-reader/zhixing-reader" target="_blank" rel="noopener" class="os-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+            GitHub 仓库
+          </a>
+          <a href="https://github.com/zhixing-reader/zhixing-reader/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener" class="os-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            贡献指南
+          </a>
+          <a href="https://github.com/zhixing-reader/zhixing-reader/blob/main/PRIVACY.md" target="_blank" rel="noopener" class="os-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            隐私政策
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================
+       Footer
+       ============================================ -->
+  <footer>
+    <div class="container footer-inner">
+      <a href="#" class="footer-brand">
+        <span class="nav-logo">知</span>
+        <span>知行读书</span>
+      </a>
+      <div class="footer-meta">
+        <span>© 2026 张子涵</span>
+        <span>·</span>
+        <a href="https://github.com/zhixing-reader/zhixing-reader/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <span>·</span>
+        <a href="https://github.com/zhixing-reader/zhixing-reader" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <div class="footer-made">Made with Electron + React + AI</div>
+    </div>
+  </footer>
+
+  <!-- ============================================
+       内联脚本：滚动动画 + 导航栏效果
+       ============================================ -->
+  <script>
+    (function () {
+      'use strict';
+
+      // 1. IntersectionObserver：滚动触发淡入动画
+      var reveals = document.querySelectorAll('.reveal');
+      if ('IntersectionObserver' in window && reveals.length > 0) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+              observer.unobserve(entry.target);
+            }
+          });
+        }, {
+          threshold: 0.1,
+          rootMargin: '0px 0px -50px 0px'
+        });
+        reveals.forEach(function (el) { observer.observe(el); });
+      } else {
+        // 降级：直接显示
+        reveals.forEach(function (el) { el.classList.add('visible'); });
+      }
+
+      // 2. 导航栏滚动效果
+      var navbar = document.getElementById('navbar');
+      var onScroll = function () {
+        if (window.scrollY > 20) {
+          navbar.classList.add('scrolled');
+        } else {
+          navbar.classList.remove('scrolled');
+        }
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+
+      // 3. 平滑滚动到锚点（兼容处理）
+      document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+        anchor.addEventListener('click', function (e) {
+          var href = this.getAttribute('href');
+          if (href === '#' || href.length <= 1) return;
+          var target = document.querySelector(href);
+          if (target) {
+            e.preventDefault();
+            var offset = 70; // 导航栏高度
+            var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+            window.scrollTo({ top: top, behavior: 'smooth' });
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
