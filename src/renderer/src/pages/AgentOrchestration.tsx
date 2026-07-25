@@ -9,27 +9,21 @@
  *     后端 intent-classifier 实际读 prompt-storage.agent.intentKeywords，二者不通）
  *   - 删除无效控件：bloomAuto toggle / builder toggle / maxMemories input（后端无对应配置入口）
  *   - 保留真实可用控件：系统提示词 textarea + 保存/重置（admin.savePrompt('agent.system')）
- *   - 保留真实可用控件：测试运行（ai.streamChatWithContext + 流式监听）
- *   - trace 改为运行时占位（不再误导用户为「真实追踪」）
- *   - 每张卡片加用途说明，明确「参数由后端 X 控制」
+ *   - 移除测试运行模块：用户测试完成后直接发布，不在 UI 上提供测试入口
+ *   - 配置卡片改为只读展示，仅系统提示词可编辑
  *
  * 结构：
- *   - hero: 标题 + 副标题 + 2 actions（测试运行 / 提示词管理）
+ *   - hero: 标题 + 副标题 + 1 action（保存配置）
  *   - pipeline-card: 6 步流水线（意图分类 → 策略选择 → 难度调整 → 上下文构建 → 系统提示 → 流式响应）
- *   - config-grid (2 列 × 3 卡片):
- *       左列：意图分类器（4 意图 chips + 阈值只读）/ 策略选择器（4×6 热力矩阵）/ 难度调整（3 规则 + 示例掌握度）
- *       右列：上下文构建器（5 builder 预算只读）/ 系统提示词（textarea + 6 var-chips + 保存）/ 记忆提取（3 规则只读）
- *   - test-run-card: 测试问题输入 + 流水线 trace 占位 + 流式响应预览
+ *   - config-grid (2 列网格，系统提示词跨列突出):
+ *       意图分类器 / 策略选择器 / 难度调整 / 上下文构建器 / 系统提示词 / 记忆提取
  *
  * IPC 接口（真实可用）：
  *   - admin.getAgentConfig() → { systemPrompt }
  *   - admin.savePrompt('agent.system', template) / resetPrompt('agent.system')
- *   - ai.streamChatWithContext({ sessionId, userMessage, conversationHistory })
- *   - ai.onStreamChunk / onStreamComplete / onStreamError / cancelStream
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -71,12 +65,6 @@ interface PipelineStep {
   iconName: 'question' | 'box' | 'arrow-up' | 'box' | 'edit' | 'play'
   badgeTone: 'info' | 'muted'
   badgeLabel: string
-}
-
-interface TraceRow {
-  label: string
-  value: string
-  conf: string
 }
 
 // ===== 常量 =====
@@ -333,23 +321,6 @@ const PROMPT_VARIABLES: { name: string; domId: string }[] = [
   { name: '{knowledge_card}', domId: 'var-knowledge-card' },
 ]
 
-/**
- * 测试运行 trace 占位（运行时由 onStreamComplete 更新「响应」行；其他行需后端 trace 事件支持，当前为占位）。
- * 历史版本使用硬编码假数据（knowledge_query / direct_answer / L2 / 3700 / 412 tokens）会误导用户为真实追踪，
- * 现统一改为「—」占位，仅当后端发送对应事件时才更新。
- */
-const DEFAULT_TRACE: TraceRow[] = [
-  { label: '意图', value: '—', conf: '运行时' },
-  { label: '策略', value: '—', conf: '运行时' },
-  { label: '难度', value: '—', conf: '运行时' },
-  { label: '上下文', value: '—', conf: '运行时' },
-  { label: '提示', value: '—', conf: '运行时' },
-  { label: '响应', value: '点击「运行测试」查看流式响应', conf: '就绪' },
-]
-
-/** 测试问题输入框默认值（设计稿示例） */
-const DEFAULT_TEST_QUESTION = '《思考，快与慢》中系统1和系统2的区别是什么？'
-
 /** Token 总预算（与 electron/agent/context-manager.ts MAX_CONTEXT_TOKENS 一致） */
 const MAX_CONTEXT_TOKENS = 4000
 
@@ -531,8 +502,6 @@ function StatusBadge({
 
 // ===== 主组件 =====
 export default function AgentOrchestration() {
-  const navigate = useNavigate()
-
   // 配置状态
   // 注：intents / builders 仅作只读展示（DEFAULT_INTENTS / DEFAULT_BUILDERS）。
   // T12 核查发现：UI 的 toggle/slider/保存按钮保存到 settings.admin_intent_keywords，
@@ -543,14 +512,6 @@ export default function AgentOrchestration() {
   const [promptTemplate, setPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-
-  // 测试运行状态
-  const [testQuestion, setTestQuestion] = useState(DEFAULT_TEST_QUESTION)
-  const [testRunning, setTestRunning] = useState(false)
-  const [streamingContent, setStreamingContent] = useState('')
-  const [trace, setTrace] = useState<TraceRow[]>(DEFAULT_TRACE)
-  const testRunRef = useRef<HTMLDivElement | null>(null)
-  const streamCleanupRef = useRef<Array<() => void>>([])
 
   // ===== 加载配置 =====
   // 仅加载 systemPrompt（后端 admin.getAgentConfig 返回 { systemPrompt, intentKeywords }，
@@ -577,17 +538,6 @@ export default function AgentOrchestration() {
     }
     loadConfig()
 
-    // 卸载时清理流监听
-    return () => {
-      streamCleanupRef.current.forEach((fn) => {
-        try {
-          fn()
-        } catch {
-          /* noop */
-        }
-      })
-      streamCleanupRef.current = []
-    }
   }, [])
 
   // ===== 保存系统提示词（真实可用：admin.savePrompt('agent.system') → prompt-storage） =====
@@ -628,83 +578,6 @@ export default function AgentOrchestration() {
     }
   }, [])
 
-  // ===== 测试运行 =====
-  const handleTestRun = useCallback(async () => {
-    if (!testQuestion.trim()) {
-      toast.warning('请输入测试问题')
-      return
-    }
-    if (!window.electronAPI?.ai?.streamChatWithContext) {
-      toast.error('当前环境不支持流式对话')
-      return
-    }
-
-    // 清理上一次监听
-    streamCleanupRef.current.forEach((fn) => {
-      try {
-        fn()
-      } catch {
-        /* noop */
-      }
-    })
-    streamCleanupRef.current = []
-
-    setTestRunning(true)
-    setStreamingContent('')
-    setTrace(DEFAULT_TRACE)
-
-    const sessionId = `agent-test-${Date.now()}`
-
-    // 注册流式监听
-    const removeChunk = window.electronAPI.ai.onStreamChunk?.((chunk: string) => {
-      setStreamingContent((prev) => prev + chunk)
-    })
-    const removeError = window.electronAPI.ai.onStreamError?.((error: string) => {
-      setTestRunning(false)
-      toast.error(`流式响应失败: ${error}`)
-    })
-    const removeComplete = window.electronAPI.ai.onStreamComplete?.(
-      (usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => {
-        setTestRunning(false)
-        if (usage?.completionTokens) {
-          setTrace((prev) =>
-            prev.map((row) =>
-              row.label === '响应'
-                ? { ...row, value: `streaming · ${usage.completionTokens} tokens` }
-                : row,
-            ),
-          )
-        }
-      },
-    )
-    if (removeChunk) streamCleanupRef.current.push(removeChunk)
-    if (removeError) streamCleanupRef.current.push(removeError)
-    if (removeComplete) streamCleanupRef.current.push(removeComplete)
-
-    try {
-      await window.electronAPI.ai.streamChatWithContext({
-        sessionId,
-        userMessage: testQuestion,
-        conversationHistory: [],
-      })
-    } catch (err) {
-      setTestRunning(false)
-      toast.error(`测试运行失败: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }, [testQuestion])
-
-  const handleCancelStream = useCallback(() => {
-    window.electronAPI?.ai?.cancelStream?.().catch(() => {
-      /* noop */
-    })
-    setTestRunning(false)
-  }, [])
-
-  // ===== 滚动到测试运行区 =====
-  const scrollToTestRun = useCallback(() => {
-    testRunRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
   // ===== 变量 chip 点击：插入到 textarea =====
   const promptRef = useRef<HTMLTextAreaElement | null>(null)
   const insertVariable = useCallback((variable: string) => {
@@ -741,25 +614,14 @@ export default function AgentOrchestration() {
       title="智能体编排"
       subtitle="配置AI对话的意图识别、教学策略与上下文构建"
       actions={
-        <>
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/settings')}
-            data-dom-id="cta-back-to-settings"
-          >
-            <Icon name="chevron-left" size={16} /> 返回设置
-          </Button>
-          <Button variant="primary" onClick={scrollToTestRun} data-dom-id="cta-test-run">
-            <Icon name="play" size={16} /> 测试运行
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => navigate('/admin?tab=prompts')}
-            data-dom-id="cta-prompts"
-          >
-            <Icon name="notes" size={16} /> 提示词管理
-          </Button>
-        </>
+        <Button
+          variant="primary"
+          onClick={handleSavePrompt}
+          disabled={saving}
+          data-dom-id="cta-publish-config"
+        >
+          <Icon name="check" size={16} /> 保存配置
+        </Button>
       }
     >
       {/* ===== Section 1: Pipeline Flow Diagram ===== */}
@@ -808,10 +670,12 @@ export default function AgentOrchestration() {
           role="list"
           style={{
             display: 'flex',
+            flexWrap: 'nowrap',
             alignItems: 'stretch',
-            gap: 'calc(var(--spacing) * 2)',
+            gap: 'calc(var(--spacing) * 3)',
+            padding: 'calc(var(--spacing) * 2) 0 calc(var(--spacing) * 3)',
             overflowX: 'auto',
-            paddingBottom: 'calc(var(--spacing) * 3)',
+            scrollSnapType: 'x mandatory',
           }}
         >
           {PIPELINE_STEPS.map((step, idx) => (
@@ -821,8 +685,9 @@ export default function AgentOrchestration() {
                 data-status={step.status}
                 role="listitem"
                 style={{
-                  flex: '1 1 0',
-                  minWidth: 170,
+                  flex: '0 0 auto',
+                  width: 200,
+                  scrollSnapAlign: 'start',
                   background: step.status === 'active' ? 'var(--secondary)' : 'var(--background)',
                   border: '1px solid',
                   borderColor: step.status === 'active' ? 'var(--primary)' : 'var(--border)',
@@ -919,17 +784,45 @@ export default function AgentOrchestration() {
 
       {/* ===== Section 2: Config Grid (2 columns × 3 cards) ===== */}
       <div
+        className="config-section-header"
+        style={{ marginTop: 'calc(var(--spacing) * 8)' }}
+      >
+        <div
+          className="eyebrow"
+          style={{
+            color: 'var(--muted-foreground)',
+            fontSize: '0.74rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            fontWeight: 500,
+          }}
+        >
+          配置详情
+        </div>
+        <strong
+          id="config-title"
+          style={{ display: 'block', fontSize: '1.05rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}
+        >
+          六模块运行参数
+        </strong>
+        <div
+          className="tiny"
+          style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.4rem', maxWidth: '70ch' }}
+        >
+          除「系统提示词」外，其余卡片均为只读展示，运行时由对应后端服务自动处理。
+        </div>
+      </div>
+      <div
         className="config-grid"
         style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
+          display: 'flex',
+          flexDirection: 'column',
           gap: 'calc(var(--spacing) * 5)',
-          alignItems: 'start',
+          alignItems: 'stretch',
+          marginTop: 'calc(var(--spacing) * 5)',
         }}
       >
-        {/* ===== LEFT COLUMN ===== */}
-        <div className="config-col" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 5)', minWidth: 0 }}>
-          {/* Card a: 意图分类器 */}
+        {/* Card a: 意图分类器 */}
           <Card>
             <div
               className="card-head"
@@ -1025,33 +918,6 @@ export default function AgentOrchestration() {
               </div>
             ))}
 
-            <div
-              className="usage-note"
-              role="note"
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 2.5)',
-                padding: 'calc(var(--spacing) * 3.5)',
-                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
-                borderRadius: 'var(--radius)',
-                marginTop: 'calc(var(--spacing) * 4)',
-                color: 'var(--foreground)',
-                fontSize: '0.82rem',
-                lineHeight: 1.6,
-              }}
-            >
-              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
-                <Icon name="info" size={16} />
-              </span>
-              <span>
-                <strong>用途说明：</strong>
-                本卡片为只读展示。意图关键词由后端 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/intent-classifier.ts</code> 从
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>prompt-storage.agent.intentKeywords</code> 读取，置信阈值为内部常量。
-                如需修改关键词，请前往「设置 → AI 模型配置 → 提示词模板 → 意图识别关键词」编辑保存，下次对话即生效。
-              </span>
-            </div>
           </Card>
 
           {/* Card b: 策略选择器矩阵 */}
@@ -1167,33 +1033,6 @@ export default function AgentOrchestration() {
               })}
             </div>
 
-            <div
-              className="usage-note"
-              role="note"
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 2.5)',
-                padding: 'calc(var(--spacing) * 3.5)',
-                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
-                borderRadius: 'var(--radius)',
-                marginTop: 'calc(var(--spacing) * 4)',
-                color: 'var(--foreground)',
-                fontSize: '0.82rem',
-                lineHeight: 1.6,
-              }}
-            >
-              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
-                <Icon name="info" size={16} />
-              </span>
-              <span>
-                <strong>用途说明：</strong>
-                本矩阵为只读展示，反映 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/strategy-selector.ts</code> 中
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>INTENT_STRATEGY_MAP</code> 与 Bloom L1-L6 等级的匹配关系。
-                矩阵频次为设计稿示例数据，运行时策略由意图分类结果 + 当前 Bloom 等级自动决定，无需用户配置。
-              </span>
-            </div>
           </Card>
 
           {/* Card c: 难度调整 */}
@@ -1317,40 +1156,9 @@ export default function AgentOrchestration() {
               ))}
             </div>
 
-            <div
-              className="usage-note"
-              role="note"
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 2.5)',
-                padding: 'calc(var(--spacing) * 3.5)',
-                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
-                borderRadius: 'var(--radius)',
-                marginTop: 'calc(var(--spacing) * 5)',
-                color: 'var(--foreground)',
-                fontSize: '0.82rem',
-                lineHeight: 1.6,
-              }}
-            >
-              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
-                <Icon name="info" size={16} />
-              </span>
-              <span>
-                <strong>用途说明：</strong>
-                本卡片为只读展示。难度调整规则对应 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/state-tracker.ts</code> 的
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>adjustDifficulty</code> 逻辑，概念掌握度在内存中维护，无 UI 可读接口。
-                概念掌握度示例数据仅用于展示进度条形态。难度调整提示词可在「设置 → 提示词模板」的
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>agent.difficultyHint.*</code> 中编辑。
-              </span>
-            </div>
           </Card>
-        </div>
 
-        {/* ===== RIGHT COLUMN ===== */}
-        <div className="config-col" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 5)', minWidth: 0 }}>
-          {/* Card d: 上下文构建器 */}
+        {/* Card d: 上下文构建器 */}
           <Card>
             <div
               className="card-head"
@@ -1477,37 +1285,14 @@ export default function AgentOrchestration() {
               </strong>
             </div>
 
-            <div
-              className="usage-note"
-              role="note"
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 2.5)',
-                padding: 'calc(var(--spacing) * 3.5)',
-                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
-                borderRadius: 'var(--radius)',
-                marginTop: 'calc(var(--spacing) * 4)',
-                color: 'var(--foreground)',
-                fontSize: '0.82rem',
-                lineHeight: 1.6,
-              }}
-            >
-              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
-                <Icon name="info" size={16} />
-              </span>
-              <span>
-                <strong>用途说明：</strong>
-                本卡片为只读展示。构建器优先级与预算由 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/context-manager.ts</code> 与
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/builders/*</code> 内部常量决定，总预算上限
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>MAX_CONTEXT_TOKENS = 4000</code>。运行时按优先级组装上下文，超出预算自动截断。
-              </span>
-            </div>
           </Card>
 
           {/* Card e: 系统提示词 */}
-          <Card>
+          <Card
+            style={{
+              gridColumn: '1 / -1',
+            }}
+          >
             <div
               className="card-head"
               style={{
@@ -1545,7 +1330,7 @@ export default function AgentOrchestration() {
               onChange={(e) => setPromptTemplate(e.target.value)}
               style={{
                 width: '100%',
-                minHeight: 170,
+                minHeight: 260,
                 padding: 'calc(var(--spacing) * 4)',
                 border: '1px solid var(--input)',
                 borderRadius: 'var(--radius)',
@@ -1602,34 +1387,6 @@ export default function AgentOrchestration() {
               </Button>
             </div>
 
-            <div
-              className="usage-note"
-              role="note"
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 2.5)',
-                padding: 'calc(var(--spacing) * 3.5)',
-                background: 'color-mix(in srgb, var(--state-success) 10%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--state-success) 30%, transparent)',
-                borderRadius: 'var(--radius)',
-                marginTop: 'calc(var(--spacing) * 4)',
-                color: 'var(--foreground)',
-                fontSize: '0.82rem',
-                lineHeight: 1.6,
-              }}
-            >
-              <span aria-hidden="true" style={{ color: 'var(--state-success)', flexShrink: 0, marginTop: 2 }}>
-                <Icon name="check" size={16} />
-              </span>
-              <span>
-                <strong>用途说明：</strong>
-                本卡片为<strong>真实可交互</strong>控件。保存路径：<code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>admin.savePrompt('agent.system', template)</code> →
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>prompt-storage</code> →
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/agent/system-prompt.ts</code> 读取生效。
-                点击变量 chip 可将 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{'{花括号}'}</code> 占位符插入到光标位置，运行时由各 builder 自动填充。
-              </span>
-            </div>
           </Card>
 
           {/* Card f: 记忆提取 */}
@@ -1707,222 +1464,9 @@ export default function AgentOrchestration() {
               })}
             </div>
 
-            <div
-              className="usage-note"
-              role="note"
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 2.5)',
-                padding: 'calc(var(--spacing) * 3.5)',
-                background: 'color-mix(in srgb, var(--state-info) 8%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--state-info) 28%, transparent)',
-                borderRadius: 'var(--radius)',
-                marginTop: 'calc(var(--spacing) * 5)',
-                color: 'var(--foreground)',
-                fontSize: '0.82rem',
-                lineHeight: 1.6,
-              }}
-            >
-              <span aria-hidden="true" style={{ color: 'var(--state-info)', flexShrink: 0, marginTop: 2 }}>
-                <Icon name="info" size={16} />
-              </span>
-              <span>
-                <strong>用途说明：</strong>
-                本卡片为只读展示。记忆提取规则对应 <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>electron/services/memory-service.ts</code> 的
-                preference / fact / feedback 三类记忆写入逻辑，由 orchestrator 在每轮对话后自动调用。
-                记忆条目数与抽取策略为后端内部常量，运行时无需用户配置；如需清理历史记忆，请前往「设置 → 数据存储 → 重置数据」。
-              </span>
-            </div>
           </Card>
-        </div>
       </div>
 
-      {/* ===== Section 3: Test Run Panel ===== */}
-      <Card padding="calc(var(--spacing) * 6)">
-        <div ref={testRunRef} />
-        <div
-          className="card-head"
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            gap: 'calc(var(--spacing) * 3)',
-            marginBottom: 'calc(var(--spacing) * 4)',
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div
-              className="eyebrow"
-              style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
-            >
-              测试运行
-            </div>
-            <strong id="test-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
-              验证编排效果
-            </strong>
-            <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-              输入测试问题，实时查看流水线追踪与响应预览
-            </div>
-          </div>
-          <StatusBadge tone={testRunning ? 'info' : 'info'}>
-            {testRunning ? '运行中' : '就绪'}
-          </StatusBadge>
-        </div>
-
-        <div
-          className="test-input-row"
-          style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', marginBottom: 'calc(var(--spacing) * 5)', alignItems: 'stretch' }}
-        >
-          <input
-            type="text"
-            className="test-input"
-            placeholder="输入测试问题..."
-            value={testQuestion}
-            onChange={(e) => setTestQuestion(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                if (!testRunning) handleTestRun()
-              }
-            }}
-            data-dom-id="input-test-question"
-            aria-label="测试问题输入"
-            style={{
-              flex: 1,
-              padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 5)',
-              border: '1px solid var(--input)',
-              borderRadius: 'var(--radius)',
-              background: 'var(--popover)',
-              color: 'var(--foreground)',
-              fontSize: '0.9rem',
-              outline: 'none',
-              minWidth: 0,
-            }}
-          />
-          {testRunning ? (
-            <Button variant="ghost" onClick={handleCancelStream} data-dom-id="cta-pipeline-cancel">
-              <Icon name="pause" size={16} /> 停止
-            </Button>
-          ) : (
-            <Button variant="primary" onClick={handleTestRun} data-dom-id="cta-pipeline-test">
-              <Icon name="play" size={16} /> 运行测试
-            </Button>
-          )}
-        </div>
-
-        <div
-          className="test-results"
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 'calc(var(--spacing) * 5)', alignItems: 'start' }}
-        >
-          {/* Pipeline trace */}
-          <div className="trace-grid" aria-label="流水线追踪" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
-            {trace.map((row) => (
-              <div
-                key={row.label}
-                className="trace-row"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'calc(var(--spacing) * 3)',
-                  padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                  background: 'var(--background)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                }}
-              >
-                <span
-                  className="trace-label"
-                  style={{
-                    fontSize: '0.72rem',
-                    color: 'var(--muted-foreground)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    minWidth: 60,
-                    flexShrink: 0,
-                    fontWeight: 500,
-                  }}
-                >
-                  {row.label}
-                </span>
-                <span
-                  className="trace-value"
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.8rem',
-                    color: 'var(--foreground)',
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {row.value}
-                </span>
-                <span
-                  className="trace-conf"
-                  style={{ fontFamily: 'var(--font-mono)', fontSize: '0.76rem', color: 'var(--state-success)', flexShrink: 0, fontWeight: 600 }}
-                >
-                  {row.conf}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Response preview */}
-          <div
-            className="response-preview"
-            aria-label="响应预览"
-            style={{
-              background: 'var(--background)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              padding: 'calc(var(--spacing) * 5)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'calc(var(--spacing) * 3)',
-              minHeight: 260,
-            }}
-          >
-            <div
-              className="response-head"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'calc(var(--spacing) * 3)' }}
-            >
-              <strong style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--foreground)' }}>响应预览</strong>
-              <StatusBadge tone="info">流式</StatusBadge>
-            </div>
-            <div
-              className="response-body"
-              style={{
-                fontSize: '0.86rem',
-                lineHeight: 1.7,
-                color: 'var(--foreground)',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                flex: 1,
-              }}
-            >
-              {streamingContent || (testRunning ? '' : '点击「运行测试」按钮，查看 AI 在当前编排配置下的流式响应...')}
-              {testRunning && (
-                <span
-                  className="response-cursor"
-                  aria-hidden="true"
-                  style={{
-                    display: 'inline-block',
-                    width: 7,
-                    height: 14,
-                    background: 'var(--primary)',
-                    verticalAlign: 'text-bottom',
-                    marginLeft: 2,
-                    animation: 'blink 1s steps(2) infinite',
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </Card>
     </PageHero>
   )
 }
