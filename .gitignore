@@ -56,3 +56,10 @@ scripts/loop-*.mjs
 
 # SSH keys (local dev)
 .ssh/
+
+# Trae local memory (user memory system, not for repo)
+memory/
+
+# pnpm workspace artifacts (not part of project build)
+pnpm-lock.yaml
+pnpm-workspace.yaml

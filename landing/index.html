@@ -3,20 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>知行读书 — AI 驱动的阅读成长智能体</title>
-  <meta name="description" content="知行读书：微信读书同步 → AI 智能体理解 → 科学间隔复习 → 知识卡片体系化 → 英语学习。基于 Electron + React + AI 的桌面阅读成长助手。" />
+  <title>知行读书 — AI 驱动的阅读成长智能体 | 火山杯 2026</title>
+  <meta name="description" content="知行读书：微信读书同步 → AI 智能体理解 → FSRS v5 科学间隔复习 → 知识卡片体系化 → 英语学习。基于 Electron 35 + React 19 + TypeScript 的桌面应用，MIT 开源。" />
   <meta name="author" content="张子涵" />
   <meta name="theme-color" content="#059669" />
+  <meta property="og:title" content="知行读书 — AI 驱动的阅读成长智能体" />
+  <meta property="og:description" content="把微信读书划线变成知识资产的桌面应用。FSRS v5 算法 · AI 智能体 · 知识卡片 · 英语学习。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://github.com/harryopo/zhixing-reader" />
+  <meta property="og:image" content="screenshots/screenshot-home.png" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23059669'/%3E%3Ctext x='16' y='22' font-family='-apple-system,sans-serif' font-size='18' font-weight='700' fill='white' text-anchor='middle'%3E%E7%9F%A5%3C/text%3E%3C/svg%3E" />
   <style>
     /* ============================================
-       知行读书 Landing Page - 设计系统
-       配色：emerald 系（与产品 UI 对齐）
-       风格：简洁、专业、有科技感
+       知行读书 Landing Page v2 — impeccable 设计规则
+       配色：emerald（与产品 UI 对齐）
+       原则：1) 真实跳转 0 占位 2) 真实截图 0 AI 图
+             3) 信息密度优先 4) 反 AI slop
        ============================================ */
 
-    /* ---------- CSS 变量：浅色主题 ---------- */
+    /* ---------- 设计令牌：浅色 ---------- */
     :root {
-      /* 品牌色 - emerald 阶梯 */
+      /* 品牌色 emerald 阶梯（与产品 UI 一致） */
       --emerald-50: #ecfdf5;
       --emerald-100: #d1fae5;
       --emerald-200: #a7f3d0;
@@ -28,60 +35,62 @@
       --emerald-800: #065f46;
       --emerald-900: #064e3b;
 
-      /* 语义色 */
+      /* 语义色（真中性色，非奶油色） */
       --bg: #ffffff;
-      --bg-subtle: #f8fafb;
+      --bg-subtle: #f6f7f8;
       --bg-elevated: #ffffff;
-      --fg: #0e1115;
-      --fg-muted: #4b5563;
-      --fg-subtle: #6b7280;
-      --border: #e5e7eb;
-      --border-strong: #d1d5db;
+      --fg: #0c1014;
+      --fg-muted: #424955;
+      --fg-subtle: #5a6472;
+      --border: #e4e6ea;
+      --border-strong: #cbd0d7;
       --primary: #059669;
       --primary-hover: #047857;
       --accent-bg: #ecfdf5;
       --accent-fg: #064e3b;
+      --code-bg: #f3f5f7;
 
-      /* 阴影 */
-      --shadow-sm: 0 1px 2px 0 rgba(14, 17, 21, 0.05);
-      --shadow-md: 0 4px 8px -2px rgba(14, 17, 21, 0.08), 0 2px 4px -2px rgba(14, 17, 21, 0.04);
-      --shadow-lg: 0 12px 24px -6px rgba(5, 150, 105, 0.12), 0 4px 8px -4px rgba(14, 17, 21, 0.06);
-      --shadow-xl: 0 20px 40px -12px rgba(5, 150, 105, 0.18);
+      /* 阴影（单层，避免 ghost-card） */
+      --shadow-sm: 0 1px 2px rgba(12, 16, 20, 0.06);
+      --shadow-md: 0 2px 6px rgba(12, 16, 20, 0.08);
+      --shadow-lg: 0 6px 16px rgba(5, 150, 105, 0.12);
+      --shadow-card-hover: 0 8px 24px rgba(5, 150, 105, 0.15);
 
       /* 字体 */
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
       --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, monospace;
 
-      /* 间距 */
+      /* 圆角（impeccable 上限 12-16px） */
       --radius-sm: 6px;
       --radius: 10px;
-      --radius-lg: 16px;
-      --radius-xl: 24px;
+      --radius-lg: 14px;
 
       /* 布局 */
       --max-width: 1200px;
       --gutter: clamp(1.25rem, 4vw, 2.5rem);
+      --nav-h: 60px;
     }
 
-    /* ---------- 暗色主题 ---------- */
+    /* ---------- 暗色模式 ---------- */
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0f0f10;
-        --bg-subtle: #131316;
-        --bg-elevated: #18181b;
-        --fg: #ededef;
-        --fg-muted: #a1a1aa;
-        --fg-subtle: #71717a;
-        --border: #2a2a2e;
-        --border-strong: #3f3f46;
+        --bg: #0d0e10;
+        --bg-subtle: #15171a;
+        --bg-elevated: #1a1d21;
+        --fg: #ededf0;
+        --fg-muted: #b4b9c1;
+        --fg-subtle: #8a9099;
+        --border: #26292e;
+        --border-strong: #3a3f47;
         --primary: #10b981;
         --primary-hover: #34d399;
         --accent-bg: #064e3b;
         --accent-fg: #6ee7b7;
-        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-        --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-        --shadow-lg: 0 12px 24px -6px rgba(16, 185, 129, 0.18), 0 4px 8px -4px rgba(0, 0, 0, 0.4);
-        --shadow-xl: 0 20px 40px -12px rgba(16, 185, 129, 0.25);
+        --code-bg: #1f2227;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 6px 16px rgba(16, 185, 129, 0.18);
+        --shadow-card-hover: 0 8px 24px rgba(16, 185, 129, 0.22);
       }
     }
 
@@ -92,16 +101,29 @@
       font-family: var(--font-sans);
       background: var(--bg);
       color: var(--fg);
-      line-height: 1.6;
+      line-height: 1.65;
       font-size: 16px;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       overflow-x: hidden;
     }
     img { max-width: 100%; display: block; }
-    a { color: inherit; text-decoration: none; }
-    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    a {
+      color: var(--primary);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    a:hover { color: var(--primary-hover); text-decoration: underline; text-underline-offset: 3px; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
     ul { list-style: none; }
+    code { font-family: var(--font-mono); font-size: 0.9em; }
+
+    /* 焦点环（无障碍） */
+    :focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+      border-radius: 3px;
+    }
 
     /* ---------- 容器 ---------- */
     .container {
@@ -116,14 +138,15 @@
       align-items: center;
       justify-content: center;
       gap: 0.5rem;
-      padding: 0.875rem 1.75rem;
+      padding: 0.7rem 1.4rem;
       border-radius: var(--radius);
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       font-weight: 600;
-      letter-spacing: 0.01em;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      letter-spacing: -0.005em;
+      transition: background 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
       white-space: nowrap;
       border: 1px solid transparent;
+      text-decoration: none;
     }
     .btn-primary {
       background: var(--primary);
@@ -132,8 +155,10 @@
     }
     .btn-primary:hover {
       background: var(--primary-hover);
-      transform: translateY(-2px);
+      color: #fff;
+      transform: translateY(-1px);
       box-shadow: var(--shadow-lg);
+      text-decoration: none;
     }
     .btn-secondary {
       background: var(--bg-elevated);
@@ -143,147 +168,150 @@
     .btn-secondary:hover {
       border-color: var(--primary);
       color: var(--primary);
-      transform: translateY(-2px);
+      transform: translateY(-1px);
+      text-decoration: none;
     }
-    .btn-lg { padding: 1rem 2rem; font-size: 1rem; }
+    .btn-lg { padding: 0.85rem 1.75rem; font-size: 1rem; }
 
-    /* ---------- Section 通用 ---------- */
-    section { padding: clamp(4rem, 10vw, 7rem) 0; }
-    .section-header { text-align: center; max-width: 720px; margin: 0 auto clamp(2.5rem, 6vw, 4rem); }
-    .section-eyebrow {
-      display: inline-block;
-      font-size: 0.8rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--primary);
-      margin-bottom: 1rem;
-      padding: 0.35rem 0.85rem;
-      background: var(--accent-bg);
-      color: var(--accent-fg);
-      border-radius: 999px;
-    }
+    /* ---------- Section 通用（不用 eyebrow） ---------- */
+    section { padding: clamp(3.5rem, 9vw, 6rem) 0; }
+    .section-head { max-width: 720px; margin: 0 auto clamp(2rem, 5vw, 3rem); }
     .section-title {
-      font-size: clamp(1.875rem, 4vw, 2.5rem);
+      font-size: clamp(1.7rem, 3.5vw, 2.3rem);
       font-weight: 700;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.025em;
       line-height: 1.2;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
+      text-wrap: balance;
     }
     .section-subtitle {
-      font-size: clamp(1rem, 2vw, 1.125rem);
+      font-size: clamp(0.98rem, 1.6vw, 1.08rem);
       color: var(--fg-muted);
       line-height: 1.7;
+      text-wrap: pretty;
     }
 
     /* ============================================
-       1. 导航栏
+       1. 导航栏 — 干净、信息密度高
        ============================================ */
     .navbar {
       position: fixed;
       top: 0; left: 0; right: 0;
       z-index: 100;
-      background: color-mix(in srgb, var(--bg) 80%, transparent);
-      backdrop-filter: saturate(180%) blur(16px);
-      -webkit-backdrop-filter: saturate(180%) blur(16px);
+      height: var(--nav-h);
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: saturate(180%) blur(12px);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
       border-bottom: 1px solid transparent;
-      transition: border-color 0.3s ease, background 0.3s ease;
+      transition: border-color 0.25s ease;
     }
     .navbar.scrolled { border-bottom-color: var(--border); }
     .nav-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 64px;
+      height: 100%;
     }
     .nav-brand {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.55rem;
       font-weight: 700;
-      font-size: 1.05rem;
+      font-size: 1.02rem;
       letter-spacing: -0.01em;
+      color: var(--fg);
     }
+    .nav-brand:hover { text-decoration: none; color: var(--fg); }
     .nav-logo {
-      width: 32px; height: 32px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, var(--emerald-500), var(--emerald-700));
+      width: 28px; height: 28px;
+      border-radius: 7px;
+      background: var(--primary);
       display: flex; align-items: center; justify-content: center;
-      color: #fff; font-weight: 700; font-size: 0.95rem;
-      box-shadow: 0 4px 12px -2px rgba(5, 150, 105, 0.4);
+      color: #fff; font-weight: 700; font-size: 0.85rem;
     }
-    .nav-links { display: flex; gap: 2rem; align-items: center; }
-    .nav-links a {
-      font-size: 0.9rem;
-      color: var(--fg-muted);
-      transition: color 0.2s;
+    .nav-version {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--fg-subtle);
+      padding: 0.15rem 0.45rem;
+      background: var(--bg-subtle);
+      border-radius: var(--radius-sm);
+      margin-left: 0.4rem;
       font-weight: 500;
     }
-    .nav-links a:hover { color: var(--primary); }
+    .nav-links {
+      display: flex;
+      gap: 1.75rem;
+      align-items: center;
+    }
+    .nav-links a {
+      font-size: 0.88rem;
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+    .nav-links a:hover { color: var(--primary); text-decoration: none; }
     .nav-cta {
-      padding: 0.55rem 1.1rem;
+      padding: 0.45rem 1rem;
       font-size: 0.85rem;
       background: var(--primary);
       color: #fff !important;
       border-radius: var(--radius-sm);
       font-weight: 600;
     }
-    .nav-cta:hover { background: var(--primary-hover); color: #fff !important; }
-    @media (max-width: 768px) {
+    .nav-cta:hover { background: var(--primary-hover); color: #fff !important; text-decoration: none; }
+    @media (max-width: 820px) {
       .nav-links { display: none; }
     }
 
     /* ============================================
-       2. Hero Section
+       2. Hero — Asymmetric 布局 + 真实主视觉截图
+       emerald committed 策略：绿色作为背景承载品牌
+       不用 hero-metric template（SaaS cliché）
        ============================================ */
     .hero {
       position: relative;
-      padding: clamp(7rem, 16vw, 10rem) 0 clamp(5rem, 12vw, 7rem);
+      padding: calc(var(--nav-h) + 2.5rem) 0 clamp(3rem, 7vw, 4.5rem);
       overflow: hidden;
-      background: var(--bg);
+      background: var(--emerald-50);
+      border-bottom: 1px solid color-mix(in srgb, var(--emerald-500) 18%, transparent);
     }
-    /* 几何渐变背景 */
-    .hero-bg {
+    @media (prefers-color-scheme: dark) {
+      .hero { background: color-mix(in srgb, var(--emerald-900) 38%, var(--bg)); }
+    }
+    .hero-bg-deco {
       position: absolute;
       inset: 0;
       z-index: 0;
-      background:
-        radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in srgb, var(--emerald-500) 18%, transparent), transparent 70%),
-        radial-gradient(ellipse 60% 40% at 100% 30%, color-mix(in srgb, var(--emerald-300) 12%, transparent), transparent 60%),
-        radial-gradient(ellipse 50% 40% at 0% 60%, color-mix(in srgb, var(--emerald-400) 10%, transparent), transparent 60%);
-    }
-    /* 网格纹理 */
-    .hero-grid {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      background-image:
-        linear-gradient(to right, color-mix(in srgb, var(--fg) 4%, transparent) 1px, transparent 1px),
-        linear-gradient(to bottom, color-mix(in srgb, var(--fg) 4%, transparent) 1px, transparent 1px);
-      background-size: 64px 64px;
-      mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
       pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 70% at 90% 30%, color-mix(in srgb, var(--emerald-400) 22%, transparent), transparent 70%),
+        radial-gradient(ellipse 50% 60% at 5% 80%, color-mix(in srgb, var(--emerald-500) 18%, transparent), transparent 70%);
     }
     .hero-content {
       position: relative;
       z-index: 1;
-      text-align: center;
-      max-width: 880px;
-      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      gap: clamp(2rem, 5vw, 4rem);
+      align-items: center;
     }
+    @media (max-width: 920px) {
+      .hero-content { grid-template-columns: 1fr; gap: 2.25rem; }
+    }
+    .hero-text { min-width: 0; }
     .hero-badge {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
       padding: 0.4rem 0.95rem;
-      background: var(--accent-bg);
+      background: var(--bg-elevated);
       color: var(--accent-fg);
-      border: 1px solid color-mix(in srgb, var(--emerald-500) 25%, transparent);
+      border: 1px solid color-mix(in srgb, var(--emerald-500) 35%, transparent);
       border-radius: 999px;
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       font-weight: 600;
-      margin-bottom: 1.75rem;
+      margin-bottom: 1.4rem;
+      box-shadow: var(--shadow-sm);
     }
     .hero-badge .dot {
       width: 6px; height: 6px;
@@ -291,270 +319,361 @@
       border-radius: 50%;
       animation: pulse 2s ease-in-out infinite;
     }
+    .hero-badge .sep {
+      color: var(--fg-subtle);
+      margin: 0 0.15rem;
+      font-weight: 400;
+    }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.3); }
+      50% { opacity: 0.5; transform: scale(1.4); }
     }
     .hero-title {
-      font-size: clamp(2.5rem, 7vw, 4.5rem);
+      font-size: clamp(2.4rem, 6vw, 3.85rem);
       font-weight: 800;
       letter-spacing: -0.035em;
-      line-height: 1.05;
-      margin-bottom: 1.25rem;
-      background: linear-gradient(180deg, var(--fg) 60%, color-mix(in srgb, var(--fg) 60%, var(--emerald-600)));
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+      line-height: 1.08;
+      margin-bottom: 0.85rem;
+      color: var(--fg);
+      text-wrap: balance;
     }
     .hero-subtitle {
-      font-size: clamp(1.125rem, 2.5vw, 1.5rem);
+      font-size: clamp(1.05rem, 2.2vw, 1.3rem);
       font-weight: 600;
       color: var(--primary);
-      margin-bottom: 1.25rem;
-      letter-spacing: -0.01em;
+      margin-bottom: 1.1rem;
+      letter-spacing: -0.012em;
     }
     .hero-desc {
-      font-size: clamp(0.95rem, 1.8vw, 1.125rem);
+      font-size: clamp(0.95rem, 1.5vw, 1.05rem);
       color: var(--fg-muted);
-      max-width: 680px;
-      margin: 0 auto 2.5rem;
-      line-height: 1.7;
+      max-width: 56ch;
+      margin-bottom: 1.6rem;
+      line-height: 1.75;
+      text-wrap: pretty;
     }
     .hero-flow {
-      display: inline-flex;
+      display: flex;
       flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.5rem;
-      margin-bottom: 2.5rem;
-      font-size: 0.85rem;
+      gap: 0.35rem;
+      margin-bottom: 1.6rem;
+      font-size: 0.8rem;
+      align-items: center;
     }
     .hero-flow span {
-      padding: 0.4rem 0.9rem;
+      padding: 0.3rem 0.75rem;
       background: var(--bg-elevated);
-      border: 1px solid var(--border);
+      border: 1px solid color-mix(in srgb, var(--emerald-500) 18%, var(--border));
       border-radius: 999px;
       color: var(--fg-muted);
       font-weight: 500;
     }
-    .hero-flow .arrow { color: var(--emerald-500); padding: 0.4rem 0.25rem; }
+    .hero-flow .arrow {
+      color: var(--emerald-600);
+      padding: 0 0.05rem;
+      background: transparent;
+      border: none;
+      font-weight: 700;
+    }
     .hero-cta {
       display: flex;
       flex-wrap: wrap;
-      justify-content: center;
-      gap: 1rem;
+      gap: 0.75rem;
+      margin-bottom: 1.4rem;
     }
-    /* Hero 装饰浮元素 */
-    .hero-deco {
+    @media (max-width: 920px) { .hero-cta { justify-content: flex-start; } }
+
+    /* Hero 真实主视觉截图（替代 hero-metric template） */
+    .hero-visual {
+      position: relative;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: var(--bg-elevated);
+      border: 1px solid color-mix(in srgb, var(--emerald-500) 22%, var(--border));
+      box-shadow:
+        0 2px 6px rgba(12, 16, 20, 0.06),
+        0 14px 40px color-mix(in srgb, var(--emerald-600) 18%, transparent);
+      aspect-ratio: 16 / 10;
+    }
+    @media (max-width: 920px) { .hero-visual { max-width: 560px; } }
+    .hero-visual img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .hero-visual-tag {
       position: absolute;
-      border-radius: 50%;
-      filter: blur(60px);
-      opacity: 0.5;
-      pointer-events: none;
-      z-index: 0;
+      top: 0.85rem;
+      left: 0.85rem;
+      padding: 0.32rem 0.7rem;
+      background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--accent-fg);
+      border: 1px solid color-mix(in srgb, var(--emerald-500) 22%, transparent);
+      font-weight: 600;
     }
-    .hero-deco-1 {
-      width: 280px; height: 280px;
-      background: var(--emerald-300);
-      top: 20%; left: -80px;
-      animation: float 12s ease-in-out infinite;
+    .hero-meta-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid color-mix(in srgb, var(--emerald-500) 18%, transparent);
+      font-size: 0.82rem;
+      color: var(--fg-muted);
     }
-    .hero-deco-2 {
-      width: 200px; height: 200px;
-      background: var(--emerald-500);
-      bottom: 10%; right: -60px;
-      animation: float 15s ease-in-out infinite reverse;
+    .hero-meta-line strong {
+      color: var(--accent-fg);
+      font-family: var(--font-mono);
+      font-weight: 600;
     }
-    @keyframes float {
-      0%, 100% { transform: translateY(0) translateX(0); }
-      50% { transform: translateY(-30px) translateX(20px); }
+    .hero-meta-line .meta-sep {
+      color: var(--fg-subtle);
+      margin: 0 0.05rem;
     }
     @media (prefers-reduced-motion: reduce) {
-      .hero-deco, .hero-badge .dot { animation: none; }
+      .hero-badge .dot { animation: none; }
     }
 
     /* ============================================
-       3. 功能亮点 Section
+       3. 功能亮点 — 真实 SVG 图标，不用 emoji
        ============================================ */
     .features { background: var(--bg-subtle); }
     .feature-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 1.5rem;
+      gap: 1.25rem;
     }
     @media (max-width: 960px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 600px) { .feature-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 620px) { .feature-grid { grid-template-columns: 1fr; } }
 
     .feature-card {
       background: var(--bg-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 1.75rem;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 1.5rem;
+      transition: border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
       position: relative;
-      overflow: hidden;
-    }
-    .feature-card::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, color-mix(in srgb, var(--emerald-500) 5%, transparent), transparent 50%);
-      opacity: 0;
-      transition: opacity 0.3s;
     }
     .feature-card:hover {
-      border-color: color-mix(in srgb, var(--emerald-500) 40%, var(--border));
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-lg);
+      border-color: color-mix(in srgb, var(--emerald-500) 35%, var(--border));
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-card-hover);
     }
-    .feature-card:hover::before { opacity: 1; }
     .feature-icon {
-      width: 48px; height: 48px;
-      border-radius: 12px;
+      width: 40px; height: 40px;
+      border-radius: 10px;
       background: var(--accent-bg);
+      color: var(--primary);
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.5rem;
-      margin-bottom: 1.25rem;
-      position: relative;
-      z-index: 1;
+      margin-bottom: 1rem;
     }
     .feature-title {
-      font-size: 1.125rem;
+      font-size: 1.08rem;
       font-weight: 700;
-      margin-bottom: 0.5rem;
-      letter-spacing: -0.01em;
-      position: relative;
-      z-index: 1;
+      margin-bottom: 0.45rem;
+      letter-spacing: -0.015em;
     }
     .feature-desc {
-      font-size: 0.925rem;
+      font-size: 0.9rem;
       color: var(--fg-muted);
       line-height: 1.65;
-      position: relative;
-      z-index: 1;
+    }
+    .feature-meta {
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px dashed var(--border);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--fg-subtle);
     }
 
     /* ============================================
-       4. 技术架构 Section
+       4. 技术架构 — 真实数据，密度优先
        ============================================ */
     .tech-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 1rem;
-      margin-bottom: 2.5rem;
+      margin-bottom: 1.5rem;
     }
     .tech-card {
       background: var(--bg-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 1.25rem 1.5rem;
-      transition: all 0.2s;
+      padding: 1.1rem 1.25rem;
+      transition: border-color 0.2s ease;
     }
     .tech-card:hover {
       border-color: var(--primary);
-      transform: translateY(-2px);
     }
     .tech-card-title {
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      letter-spacing: 0.04em;
       color: var(--fg-subtle);
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.65rem;
+      text-transform: uppercase;
     }
     .tech-card-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.4rem;
+      gap: 0.35rem;
     }
     .tech-tag {
       font-family: var(--font-mono);
-      font-size: 0.82rem;
-      padding: 0.25rem 0.6rem;
+      font-size: 0.78rem;
+      padding: 0.22rem 0.55rem;
       background: var(--accent-bg);
       color: var(--accent-fg);
       border-radius: var(--radius-sm);
       font-weight: 500;
     }
-    .tech-highlight {
-      text-align: center;
-      padding: 1.5rem 2rem;
-      background: linear-gradient(135deg, var(--emerald-600), var(--emerald-700));
-      color: #fff;
-      border-radius: var(--radius-lg);
-      font-size: clamp(1rem, 2vw, 1.15rem);
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      box-shadow: var(--shadow-lg);
+    .tech-tag-dep {
+      background: var(--code-bg);
+      color: var(--fg-muted);
     }
-    .tech-highlight .sep { opacity: 0.5; margin: 0 0.75rem; }
+    /* 工程质量展示（替代 hero-metric template）
+       用 dl/dt/dd 结构承载密度，不堆叠大数字
+       不用 side-stripe border（skill 禁令），改用顶栏 */
+    .tech-quality {
+      margin-top: 1.5rem;
+      padding: 1.4rem 1.6rem;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      position: relative;
+    }
+    .tech-quality::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 1.4rem;
+      right: 1.4rem;
+      height: 2px;
+      background: linear-gradient(to right, var(--primary), color-mix(in srgb, var(--primary) 30%, transparent));
+      border-radius: 0 0 2px 2px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .tech-quality::before { background: linear-gradient(to right, var(--emerald-400), color-mix(in srgb, var(--emerald-400) 30%, transparent)); }
+    }
+    .tech-quality-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px dashed var(--border);
+    }
+    .tech-quality-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+    }
+    .tech-quality-source {
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      color: var(--fg-subtle);
+    }
+    .tech-quality-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.85rem 1.5rem;
+      margin: 0;
+    }
+    .tq-item { min-width: 0; }
+    .tq-item dt {
+      font-size: 0.78rem;
+      color: var(--fg-subtle);
+      font-weight: 500;
+      margin-bottom: 0.2rem;
+    }
+    .tq-item dd {
+      font-size: 0.88rem;
+      color: var(--fg);
+      font-weight: 500;
+      line-height: 1.4;
+      margin: 0;
+    }
+    .tq-item dd code {
+      font-family: var(--font-mono);
+      color: var(--accent-fg);
+      background: var(--accent-bg);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+    @media (prefers-color-scheme: dark) {
+      .tq-item dd code { color: var(--emerald-300); }
+    }
 
     /* ============================================
-       5. 截图展示 Section
+       5. 截图展示 — 真实产品截图
        ============================================ */
     .screenshots { background: var(--bg-subtle); }
     .screenshot-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 1.5rem;
+      gap: 1.25rem;
     }
-    @media (max-width: 768px) { .screenshot-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 760px) { .screenshot-grid { grid-template-columns: 1fr; } }
     .screenshot-item {
       background: var(--bg-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       overflow: hidden;
-      transition: all 0.3s;
+      transition: border-color 0.2s ease, transform 0.15s ease;
     }
     .screenshot-item:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-xl);
+      transform: translateY(-2px);
       border-color: color-mix(in srgb, var(--emerald-500) 30%, var(--border));
     }
     .screenshot-img-wrap {
-      aspect-ratio: 16 / 9;
+      aspect-ratio: 16 / 10;
       background: var(--bg-subtle);
       overflow: hidden;
       position: relative;
-    }
-    .screenshot-img-wrap::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(180deg, transparent 70%, color-mix(in srgb, var(--bg-elevated) 50%, transparent));
-      pointer-events: none;
+      border-bottom: 1px solid var(--border);
     }
     .screenshot-img-wrap img {
       width: 100%; height: 100%;
       object-fit: cover;
-      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: transform 0.4s ease;
     }
-    .screenshot-item:hover .screenshot-img-wrap img { transform: scale(1.03); }
+    .screenshot-item:hover .screenshot-img-wrap img { transform: scale(1.02); }
     .screenshot-caption {
-      padding: 1rem 1.25rem;
-      font-size: 0.9rem;
+      padding: 0.85rem 1.1rem;
+      font-size: 0.86rem;
       color: var(--fg-muted);
-      font-weight: 500;
-      border-top: 1px solid var(--border);
     }
     .screenshot-caption strong {
       color: var(--fg);
       font-weight: 600;
       display: block;
       margin-bottom: 0.15rem;
+      font-size: 0.92rem;
     }
 
     /* ============================================
-       6. 下载 Section
+       6. 下载 — 真实跳转直链
        ============================================ */
     .download-card {
-      max-width: 640px;
+      max-width: 720px;
       margin: 0 auto;
       text-align: center;
       background: var(--bg-elevated);
       border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      padding: clamp(2rem, 5vw, 3.5rem);
-      box-shadow: var(--shadow-lg);
+      border-radius: var(--radius-lg);
+      padding: clamp(1.75rem, 4vw, 3rem);
       position: relative;
       overflow: hidden;
     }
@@ -562,46 +681,69 @@
       content: '';
       position: absolute;
       top: 0; left: 0; right: 0;
-      height: 4px;
-      background: linear-gradient(90deg, var(--emerald-400), var(--emerald-600), var(--emerald-400));
+      height: 3px;
+      background: var(--primary);
     }
     .download-platform {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1rem;
+      gap: 0.45rem;
+      padding: 0.4rem 0.9rem;
       background: var(--accent-bg);
       color: var(--accent-fg);
       border-radius: 999px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 600;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.25rem;
     }
     .download-title {
-      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-size: clamp(1.4rem, 2.8vw, 1.9rem);
       font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 0.75rem;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.65rem;
     }
     .download-desc {
       color: var(--fg-muted);
-      margin-bottom: 2rem;
+      margin-bottom: 1.75rem;
       font-size: 0.95rem;
+      max-width: 56ch;
+      margin-left: auto;
+      margin-right: auto;
     }
-    .download-requirements {
+    .download-meta {
       margin-top: 1.5rem;
       padding-top: 1.5rem;
       border-top: 1px solid var(--border);
-      font-size: 0.85rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.75rem 1.5rem;
+      font-size: 0.82rem;
       color: var(--fg-subtle);
+      text-align: left;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .download-meta-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .download-meta-item code {
+      color: var(--fg-muted);
+      font-size: 0.8rem;
+    }
+    .download-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.65rem;
     }
 
     /* ============================================
-       7. 开源 Section
+       7. 开源 — 真实链接卡片
        ============================================ */
-    .opensource {
-      background: var(--bg-subtle);
-    }
+    .opensource { background: var(--bg-subtle); }
     .os-card {
       max-width: 880px;
       margin: 0 auto;
@@ -610,53 +752,79 @@
     .os-license {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1.1rem;
+      gap: 0.45rem;
+      padding: 0.4rem 0.95rem;
       background: var(--bg-elevated);
       border: 1px solid var(--border);
       border-radius: 999px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 600;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.25rem;
       color: var(--primary);
     }
     .os-title {
-      font-size: clamp(1.75rem, 4vw, 2.25rem);
+      font-size: clamp(1.6rem, 3.5vw, 2.1rem);
       font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 1rem;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.85rem;
     }
     .os-desc {
       color: var(--fg-muted);
-      margin-bottom: 2.5rem;
-      max-width: 600px;
+      margin-bottom: 2rem;
+      max-width: 580px;
       margin-left: auto;
       margin-right: auto;
-    }
-    .os-links {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 1.5rem;
-    }
-    .os-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--primary);
-      font-weight: 600;
       font-size: 0.95rem;
-      padding: 0.5rem 0;
-      border-bottom: 2px solid transparent;
-      transition: border-color 0.2s;
     }
-    .os-link:hover { border-bottom-color: var(--primary); }
+    .os-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.85rem;
+      text-align: left;
+    }
+    .os-link-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      padding: 0.95rem 1.1rem;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--fg);
+      transition: border-color 0.2s ease, transform 0.12s ease;
+      text-decoration: none;
+    }
+    .os-link-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      text-decoration: none;
+      color: var(--fg);
+    }
+    .os-link-card-icon {
+      width: 20px; height: 20px;
+      color: var(--primary);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .os-link-card-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .os-link-card-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.15rem;
+    }
+    .os-link-card-hint {
+      font-size: 0.78rem;
+      color: var(--fg-subtle);
+    }
 
     /* ============================================
        8. Footer
        ============================================ */
     footer {
-      padding: 3rem 0 2rem;
+      padding: 2.5rem 0 1.75rem;
       border-top: 1px solid var(--border);
       background: var(--bg);
     }
@@ -664,53 +832,54 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1.25rem;
+      gap: 1rem;
       text-align: center;
     }
     .footer-brand {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.55rem;
       font-weight: 700;
+      color: var(--fg);
     }
+    .footer-brand:hover { text-decoration: none; color: var(--fg); }
     .footer-meta {
-      font-size: 0.875rem;
+      font-size: 0.84rem;
       color: var(--fg-subtle);
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 0.5rem 1.5rem;
+      gap: 0.4rem 1rem;
     }
-    .footer-meta a { color: var(--fg-muted); transition: color 0.2s; }
+    .footer-meta a { color: var(--fg-muted); }
     .footer-meta a:hover { color: var(--primary); }
     .footer-made {
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       color: var(--fg-subtle);
-      padding-top: 1rem;
-      border-top: 1px solid var(--border);
+      padding-top: 0.75rem;
+      border-top: 1px dashed var(--border);
       width: 100%;
       max-width: 400px;
-      margin-top: 0.5rem;
+      margin-top: 0.25rem;
     }
 
     /* ============================================
-       滚动动画
+       滚动动画（reduced-motion 降级）
        ============================================ */
     .reveal {
       opacity: 0;
-      transform: translateY(24px);
-      transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1), transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+      transform: translateY(16px);
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
     }
     .reveal.visible {
       opacity: 1;
       transform: translateY(0);
     }
-    .reveal-delay-1 { transition-delay: 0.1s; }
-    .reveal-delay-2 { transition-delay: 0.2s; }
-    .reveal-delay-3 { transition-delay: 0.3s; }
-    .reveal-delay-4 { transition-delay: 0.4s; }
-    .reveal-delay-5 { transition-delay: 0.5s; }
-    .reveal-delay-6 { transition-delay: 0.6s; }
+    .reveal-d1 { transition-delay: 0.08s; }
+    .reveal-d2 { transition-delay: 0.16s; }
+    .reveal-d3 { transition-delay: 0.24s; }
+    .reveal-d4 { transition-delay: 0.32s; }
+    .reveal-d5 { transition-delay: 0.40s; }
     @media (prefers-reduced-motion: reduce) {
       .reveal { opacity: 1; transform: none; transition: none; }
     }
@@ -718,13 +887,14 @@
 </head>
 <body>
   <!-- ============================================
-       导航栏
+       导航栏 — 真实 GitHub 链接
        ============================================ -->
   <nav class="navbar" id="navbar">
     <div class="container nav-inner">
-      <a href="#" class="nav-brand">
+      <a href="#top" class="nav-brand">
         <span class="nav-logo">知</span>
         <span>知行读书</span>
+        <span class="nav-version">v1.0.0</span>
       </a>
       <div class="nav-links">
         <a href="#features">功能</a>
@@ -732,108 +902,146 @@
         <a href="#screenshots">截图</a>
         <a href="#download">下载</a>
         <a href="#opensource">开源</a>
-        <a href="https://github.com/zhixing-reader/zhixing-reader" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
+        <a href="https://github.com/harryopo/zhixing-reader/issues" target="_blank" rel="noopener">反馈</a>
+        <a href="https://github.com/harryopo/zhixing-reader" target="_blank" rel="noopener" class="nav-cta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          GitHub
+        </a>
       </div>
     </div>
   </nav>
 
   <!-- ============================================
-       1. Hero Section
+       1. Hero — Asymmetric 布局：左文右图
+       真实主视觉截图替代 hero-metric template
+       emerald committed：绿色背景承载品牌
        ============================================ -->
-  <header class="hero">
-    <div class="hero-bg"></div>
-    <div class="hero-grid"></div>
-    <div class="hero-deco hero-deco-1"></div>
-    <div class="hero-deco hero-deco-2"></div>
+  <header class="hero" id="top">
+    <div class="hero-bg-deco"></div>
     <div class="container hero-content">
-      <div class="hero-badge reveal">
-        <span class="dot"></span>
-        <span>火山杯 2026 参赛作品 · MIT 开源</span>
+      <div class="hero-text">
+        <div class="hero-badge reveal">
+          <span class="dot"></span>
+          <span>Trae 大赛参赛作品</span>
+          <span class="sep">·</span>
+          <span>火山杯 2026</span>
+          <span class="sep">·</span>
+          <span>v1.0.0 已发布</span>
+        </div>
+        <h1 class="hero-title reveal reveal-d1">知行读书</h1>
+        <p class="hero-subtitle reveal reveal-d2">AI 驱动的阅读成长智能体</p>
+        <p class="hero-desc reveal reveal-d3">
+          一个把微信读书划线变成知识资产的桌面应用。让 AI 智能体理解你的阅读脉络，
+          用 Anki 同源的 FSRS v5 算法对抗遗忘，把零散笔记蒸馏成体系化的知识卡片。
+        </p>
+        <div class="hero-flow reveal reveal-d4">
+          <span>微信读书同步</span>
+          <span class="arrow">→</span>
+          <span>AI 智能体理解</span>
+          <span class="arrow">→</span>
+          <span>科学间隔复习</span>
+          <span class="arrow">→</span>
+          <span>知识卡片体系化</span>
+          <span class="arrow">→</span>
+          <span>英语学习</span>
+        </div>
+        <div class="hero-cta reveal reveal-d5">
+          <a href="https://github.com/harryopo/zhixing-reader" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+            GitHub 仓库
+          </a>
+          <a href="https://github.com/harryopo/zhixing-reader/releases/download/v1.0.0/ZhixingReader-Setup-1.0.0.exe" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载 Windows v1.0.0
+          </a>
+        </div>
+        <div class="hero-meta-line reveal reveal-d5">
+          <span><strong>667</strong> 单元测试</span>
+          <span class="meta-sep">·</span>
+          <span><strong>0</strong> Lint Errors</span>
+          <span class="meta-sep">·</span>
+          <span><strong>91.99%</strong> AI 模块覆盖</span>
+          <span class="meta-sep">·</span>
+          <span><strong>MIT</strong> 开源</span>
+        </div>
       </div>
-      <h1 class="hero-title reveal reveal-delay-1">知行读书</h1>
-      <p class="hero-subtitle reveal reveal-delay-2">AI 驱动的阅读成长智能体</p>
-      <p class="hero-desc reveal reveal-delay-3">
-        一个把微信读书划线变成知识资产的桌面应用。让 AI 智能体理解你的阅读脉络，
-        用科学算法对抗遗忘，把零散笔记蒸馏成体系化的知识卡片。
-      </p>
-      <div class="hero-flow reveal reveal-delay-4">
-        <span>微信读书同步</span>
-        <span class="arrow">→</span>
-        <span>AI 智能体理解</span>
-        <span class="arrow">→</span>
-        <span>科学间隔复习</span>
-        <span class="arrow">→</span>
-        <span>知识卡片体系化</span>
-        <span class="arrow">→</span>
-        <span>英语学习</span>
-      </div>
-      <div class="hero-cta reveal reveal-delay-5">
-        <a href="https://github.com/zhixing-reader/zhixing-reader" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-          GitHub 开源
-        </a>
-        <a href="https://github.com/zhixing-reader/zhixing-reader/releases" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          下载 Windows 版
-        </a>
+      <div class="hero-visual reveal reveal-d3" aria-hidden="false">
+        <img src="screenshots/screenshot-chat.png" alt="知行读书 AI 对话界面，5 维上下文构建与流式输出" />
+        <span class="hero-visual-tag">v1.0.0 · AI 智能体对话</span>
       </div>
     </div>
   </header>
 
   <!-- ============================================
-       2. 功能亮点 Section
+       2. 功能亮点 — 真实 SVG 图标
        ============================================ -->
   <section class="features" id="features">
     <div class="container">
-      <div class="section-header reveal">
-        <span class="section-eyebrow">核心功能</span>
+      <div class="section-head reveal">
         <h2 class="section-title">六大能力，构建阅读成长闭环</h2>
-        <p class="section-subtitle">从数据同步到知识内化，让每一本书都不止于读完。</p>
+        <p class="section-subtitle">从数据同步到知识内化，让每一本书都不止于读完。微信读书 → AI 智能体 → FSRS v5 → 知识卡片 → 英语学习，一条主线打通整个阅读成长链路。</p>
       </div>
       <div class="feature-grid">
         <article class="feature-card reveal">
-          <div class="feature-icon">📚</div>
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          </div>
           <h3 class="feature-title">微信读书同步</h3>
-          <p class="feature-desc">一键同步书架、划线、笔记。本地持久化存储，数据完全归属用户，断网可用。</p>
+          <p class="feature-desc">一键同步书架、划线、笔记、书评。本地持久化存储，数据完全归属用户，断网可用。</p>
+          <div class="feature-meta">支持：书架 · 划线 · 笔记 · 书评 · 1d/3d/7d 自动同步</div>
         </article>
-        <article class="feature-card reveal reveal-delay-1">
-          <div class="feature-icon">🤖</div>
+        <article class="feature-card reveal reveal-d1">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-3a3 3 0 0 0-3-3V9a3 3 0 0 0-3-3V5a3 3 0 0 0-3-3z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>
+          </div>
           <h3 class="feature-title">AI 智能体对话</h3>
           <p class="feature-desc">5 维上下文构建、意图识别、苏格拉底式教学。AI 不只是回答，更引导你主动思考。</p>
+          <div class="feature-meta">引擎：Vercel AI SDK · 流式响应 · AbortController 中断</div>
         </article>
-        <article class="feature-card reveal reveal-delay-2">
-          <div class="feature-icon">🔁</div>
+        <article class="feature-card reveal reveal-d2">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+          </div>
           <h3 class="feature-title">FSRS v5 间隔重复</h3>
-          <p class="feature-desc">Anki 同源算法（ts-fsrs 5.4.1），科学调度复习时机，用最小时间成本对抗遗忘曲线。</p>
+          <p class="feature-desc">Anki 同源算法（ts-fsrs 5.4.1），DSR 模型科学调度复习时机，用最小时间对抗遗忘。</p>
+          <div class="feature-meta">21 参数 · 完整遗忘曲线 · repeat() 4 种评分预览</div>
         </article>
-        <article class="feature-card reveal reveal-delay-3">
-          <div class="feature-icon">🗂️</div>
+        <article class="feature-card reveal reveal-d3">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
           <h3 class="feature-title">知识卡片体系</h3>
           <p class="feature-desc">概念卡 / 方法论卡 / 金句卡三类，AI 自动从笔记蒸馏，构建可检索的个人知识库。</p>
+          <div class="feature-meta">反向链接 · 1-5 掌握度评估 · FSRS 联动调度</div>
         </article>
-        <article class="feature-card reveal reveal-delay-4">
-          <div class="feature-icon">📖</div>
+        <article class="feature-card reveal reveal-d4">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          </div>
           <h3 class="feature-title">英语词汇学习</h3>
           <p class="feature-desc">每日精读、查词、生词本。结合 FSRS 算法智能复习生词，阅读中自然习得词汇。</p>
+          <div class="feature-meta">~8 万词频词典 · 上下文例句 · SM-2 混合调度</div>
         </article>
-        <article class="feature-card reveal reveal-delay-5">
-          <div class="feature-icon">📊</div>
+        <article class="feature-card reveal reveal-d5">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
           <h3 class="feature-title">统计与可视化</h3>
-          <p class="feature-desc">ECharts 仪表盘，阅读习惯、复习进度、知识分布全维度数据化呈现。</p>
+          <p class="feature-desc">ECharts 5.5 仪表盘，阅读习惯、复习进度、知识分布、Token 用量全维度数据化呈现。</p>
+          <div class="feature-meta">Canvas 渲染 · 6 图表 · 按需引入 · lazy-loaded</div>
         </article>
       </div>
     </div>
   </section>
 
   <!-- ============================================
-       3. 技术架构 Section
+       3. 技术架构 — 真实数据
        ============================================ -->
   <section class="tech" id="tech">
     <div class="container">
-      <div class="section-header reveal">
-        <span class="section-eyebrow">技术架构</span>
+      <div class="section-head reveal">
         <h2 class="section-title">现代桌面技术栈，工程化品质</h2>
-        <p class="section-subtitle">采用 2026 年主流前端栈，TypeScript 全链路类型安全，测试覆盖率优先。</p>
+        <p class="section-subtitle">2026 年主流前端栈，TypeScript 全链路类型安全，测试覆盖率优先。所有数据本地持久化，无云端依赖，无追踪 SDK。</p>
       </div>
       <div class="tech-grid">
         <div class="tech-card reveal">
@@ -842,141 +1050,286 @@
             <span class="tech-tag">Electron 35</span>
             <span class="tech-tag">React 19</span>
             <span class="tech-tag">TypeScript 5.6</span>
-            <span class="tech-tag">Tailwind CSS 4</span>
-          </div>
-        </div>
-        <div class="tech-card reveal reveal-delay-1">
-          <div class="tech-card-title">数据与算法</div>
-          <div class="tech-card-list">
-            <span class="tech-tag">sql.js (SQLite WASM)</span>
-            <span class="tech-tag">ts-fsrs 5.4.1 (FSRS v5)</span>
-          </div>
-        </div>
-        <div class="tech-card reveal reveal-delay-2">
-          <div class="tech-card-title">AI 与可视化</div>
-          <div class="tech-card-list">
-            <span class="tech-tag">Vercel AI SDK</span>
-            <span class="tech-tag">Apache ECharts</span>
+            <span class="tech-tag">Tailwind 4</span>
             <span class="tech-tag">Zustand 5</span>
           </div>
         </div>
-        <div class="tech-card reveal reveal-delay-3">
-          <div class="tech-card-title">质量保障</div>
+        <div class="tech-card reveal reveal-d1">
+          <div class="tech-card-title">数据与算法</div>
           <div class="tech-card-list">
-            <span class="tech-tag">Vitest</span>
+            <span class="tech-tag">sql.js 1.14 (WASM)</span>
+            <span class="tech-tag">ts-fsrs 5.4.1 (FSRS v5)</span>
+            <span class="tech-tag">Qdrant (可选)</span>
+          </div>
+        </div>
+        <div class="tech-card reveal reveal-d2">
+          <div class="tech-card-title">AI 与可视化</div>
+          <div class="tech-card-list">
+            <span class="tech-tag">Vercel AI SDK</span>
+            <span class="tech-tag">ECharts 5.5.1</span>
+            <span class="tech-tag">Recharts 3.8</span>
+          </div>
+        </div>
+        <div class="tech-card reveal reveal-d3">
+          <div class="tech-card-title">质量与打包</div>
+          <div class="tech-card-list">
+            <span class="tech-tag">Vitest 2</span>
             <span class="tech-tag">ESLint 9</span>
+            <span class="tech-tag">electron-builder 25</span>
             <span class="tech-tag">Playwright</span>
           </div>
         </div>
       </div>
-      <div class="tech-highlight reveal reveal-delay-4">
-        <span>667 个单元测试</span>
-        <span class="sep">·</span>
-        <span>0 lint errors</span>
-        <span class="sep">·</span>
-        <span>MIT 开源</span>
+      <div class="tech-quality reveal reveal-d4">
+        <div class="tech-quality-head">
+          <span class="tech-quality-title">工程质量</span>
+          <span class="tech-quality-source">基于 vitest --coverage 实测 · 2026-07-25</span>
+        </div>
+        <dl class="tech-quality-grid">
+          <div class="tq-item">
+            <dt>单元测试用例</dt>
+            <dd><code>667</code> passing</dd>
+          </div>
+          <div class="tq-item">
+            <dt>Lint Errors</dt>
+            <dd><code>0</code> errors · <code>0</code> warnings</dd>
+          </div>
+          <div class="tq-item">
+            <dt>AI 模块行覆盖率</dt>
+            <dd><code>91.99%</code> lines · <code>95.83%</code> functions</dd>
+          </div>
+          <div class="tq-item">
+            <dt>Windows 安装包</dt>
+            <dd><code>125.5 MB</code> · NSIS</dd>
+          </div>
+          <div class="tq-item">
+            <dt>开源许可证</dt>
+            <dd><code>MIT</code> · 商用修改分发自由</dd>
+          </div>
+          <div class="tq-item">
+            <dt>FSRS v5 参数</dt>
+            <dd><code>21</code> 参数 · ts-fsrs 5.4.1</dd>
+          </div>
+        </dl>
       </div>
     </div>
   </section>
 
   <!-- ============================================
-       4. 截图展示 Section
+       4. 截图展示 — 真实产品截图
        ============================================ -->
   <section class="screenshots" id="screenshots">
     <div class="container">
-      <div class="section-header reveal">
-        <span class="section-eyebrow">产品预览</span>
+      <div class="section-head reveal">
         <h2 class="section-title">知行合一，所见即所得</h2>
-        <p class="section-subtitle">emerald 主题贯穿始终，深浅模式自适应，专注阅读与思考。</p>
+        <p class="section-subtitle">emerald 主题贯穿始终，深浅模式自适应，专注阅读与思考。下方为 v1.0.0 真实产品截图，未做美化处理。</p>
       </div>
       <div class="screenshot-grid">
         <figure class="screenshot-item reveal">
           <div class="screenshot-img-wrap">
-            <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20desktop%20reading%20app%20main%20dashboard%20with%20book%20grid%20and%20review%20panel%20emerald%20theme%20clean%20UI&image_size=landscape_16_9" alt="主页与复习面板" loading="lazy" />
+            <img src="screenshots/screenshot-home.png" alt="知行读书主页 — 书架一览与今日待复习卡片" loading="lazy" />
           </div>
           <figcaption class="screenshot-caption">
             <strong>主页 + 复习面板</strong>
             书架一览、今日待复习卡片、阅读进度统计
           </figcaption>
         </figure>
-        <figure class="screenshot-item reveal reveal-delay-1">
+        <figure class="screenshot-item reveal reveal-d1">
           <div class="screenshot-img-wrap">
-            <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=AI%20chat%20interface%20with%20streaming%20text%20response%20reading%20assistant%20emerald%20dark%20theme&image_size=landscape_16_9" alt="AI 对话与流式输出" loading="lazy" />
+            <img src="screenshots/screenshot-chat.png" alt="AI 对话界面，5 维上下文构建与流式输出" loading="lazy" />
           </div>
           <figcaption class="screenshot-caption">
             <strong>AI 对话 + 流式输出</strong>
             5 维上下文构建，苏格拉底式引导提问
           </figcaption>
         </figure>
-        <figure class="screenshot-item reveal reveal-delay-2">
+        <figure class="screenshot-item reveal reveal-d2">
           <div class="screenshot-img-wrap">
-            <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=knowledge%20card%20flip%20animation%20concept%20card%20methodology%20card%20emerald%20theme%20desktop%20app&image_size=landscape_16_9" alt="知识卡片翻转" loading="lazy" />
+            <img src="screenshots/screenshot-knowledge.png" alt="知识卡片管理界面，概念卡与方法论卡" loading="lazy" />
           </div>
           <figcaption class="screenshot-caption">
-            <strong>知识卡片 + 翻转</strong>
+            <strong>知识卡片体系</strong>
             概念卡 / 方法论卡 / 金句卡，AI 自动蒸馏
           </figcaption>
         </figure>
-        <figure class="screenshot-item reveal reveal-delay-3">
+        <figure class="screenshot-item reveal reveal-d3">
           <div class="screenshot-img-wrap">
-            <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=statistics%20dashboard%20with%20charts%20and%20graphs%20reading%20stats%20emerald%20theme%20data%20visualization&image_size=landscape_16_9" alt="统计仪表盘" loading="lazy" />
+            <img src="screenshots/screenshot-stats.png" alt="统计仪表盘，ECharts 图表与阅读趋势" loading="lazy" />
           </div>
           <figcaption class="screenshot-caption">
             <strong>统计仪表盘 + ECharts</strong>
             阅读习惯、复习进度、知识分布全维度可视化
           </figcaption>
         </figure>
+        <figure class="screenshot-item reveal reveal-d4">
+          <div class="screenshot-img-wrap">
+            <img src="screenshots/screenshot-review.png" alt="复习界面，FSRS v5 调度与卡片翻转" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>FSRS v5 复习</strong>
+            Anki 同源算法，4 种评分预览与遗忘曲线
+          </figcaption>
+        </figure>
+        <figure class="screenshot-item reveal reveal-d5">
+          <div class="screenshot-img-wrap">
+            <img src="screenshots/screenshot-admin.png" alt="管理后台，数据库浏览与会话历史" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>Admin 管理后台</strong>
+            Dashboard / AgentConfig / KnowledgeBase / SessionHistory
+          </figcaption>
+        </figure>
+        <figure class="screenshot-item reveal">
+          <div class="screenshot-img-wrap">
+            <img src="screenshots/screenshot-bookshelf.png" alt="书架管理界面，微信读书同步与本地持久化" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>书架管理</strong>
+            微信读书同步、本地持久化、阅读进度追踪
+          </figcaption>
+        </figure>
+        <figure class="screenshot-item reveal reveal-d1">
+          <div class="screenshot-img-wrap">
+            <img src="screenshots/screenshot-daily.png" alt="每日精读界面，英语学习与每日内容推荐" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>每日精读</strong>
+            英语学习、每日内容推荐、上下文例句
+          </figcaption>
+        </figure>
+        <figure class="screenshot-item reveal reveal-d2">
+          <div class="screenshot-img-wrap">
+            <img src="screenshots/screenshot-token.png" alt="Token 用量统计界面，AI 调用成本可视化" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>Token 用量统计</strong>
+            AI 调用成本可视化、模型对比、趋势分析
+          </figcaption>
+        </figure>
+        <figure class="screenshot-item reveal reveal-d3">
+          <div class="screenshot-img-wrap">
+            <img src="screenshots/screenshot-vocab.png" alt="词汇学习界面，生词本与 FSRS 调度复习" loading="lazy" />
+          </div>
+          <figcaption class="screenshot-caption">
+            <strong>词汇学习</strong>
+            生词本、FSRS 调度复习、词频词典
+          </figcaption>
+        </figure>
       </div>
     </div>
   </section>
 
   <!-- ============================================
-       5. 下载 Section
+       5. 下载 — 真实直链跳转
        ============================================ -->
   <section class="download" id="download">
     <div class="container">
       <div class="download-card reveal">
         <div class="download-platform">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
-          <span>Windows 平台</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          <span>Windows 平台 · v1.0.0</span>
         </div>
         <h2 class="download-title">立即开始你的知行之旅</h2>
         <p class="download-desc">免费下载，开源透明。本地优先架构，你的阅读数据永远属于你自己。</p>
-        <a href="https://github.com/zhixing-reader/zhixing-reader/releases" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          下载最新版本
-        </a>
-        <div class="download-requirements">
-          系统要求：Windows 10 及以上 · 需要 100MB 磁盘空间
+        <div class="download-actions">
+          <a href="https://github.com/harryopo/zhixing-reader/releases/download/v1.0.0/ZhixingReader-Setup-1.0.0.exe" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载 ZhixingReader-Setup-1.0.0.exe
+          </a>
+          <a href="https://github.com/harryopo/zhixing-reader/releases/tag/v1.0.0" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">
+            查看 Release Notes
+          </a>
+        </div>
+        <div class="download-meta">
+          <div class="download-meta-item">
+            <span>文件大小</span>
+            <code>125.5 MB</code>
+          </div>
+          <div class="download-meta-item">
+            <span>发布日期</span>
+            <code>2026-07-25</code>
+          </div>
+          <div class="download-meta-item">
+            <span>系统要求</span>
+            <code>Windows 10 x64+</code>
+          </div>
+          <div class="download-meta-item">
+            <span>许可证</span>
+            <code>MIT</code>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
   <!-- ============================================
-       6. 开源 Section
+       6. 开源 — 真实链接卡片
        ============================================ -->
   <section class="opensource" id="opensource">
     <div class="container">
       <div class="os-card reveal">
         <div class="os-license">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
-          <span>MIT License</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+          <span>MIT License · 完全开源</span>
         </div>
-        <h2 class="os-title">完全开源 · 自由使用</h2>
-        <p class="os-desc">代码托管于 GitHub，欢迎 Star、Fork、Issue、PR。社区共建，让知行读书成为更好的工具。</p>
-        <div class="os-links">
-          <a href="https://github.com/zhixing-reader/zhixing-reader" target="_blank" rel="noopener" class="os-link">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-            GitHub 仓库
+        <h2 class="os-title">代码托管于 GitHub，欢迎共建</h2>
+        <p class="os-desc">所有源代码、设计文档、测试用例、构建脚本均公开。欢迎 Star、Fork、Issue、PR。</p>
+        <div class="os-grid">
+          <a href="https://github.com/harryopo/zhixing-reader" target="_blank" rel="noopener" class="os-link-card">
+            <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+            <span class="os-link-card-text">
+              <span class="os-link-card-title">GitHub 仓库</span>
+              <span class="os-link-card-hint">查看完整源代码</span>
+            </span>
           </a>
-          <a href="https://github.com/zhixing-reader/zhixing-reader/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener" class="os-link">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-            贡献指南
+          <a href="https://github.com/harryopo/zhixing-reader/releases/tag/v1.0.0" target="_blank" rel="noopener" class="os-link-card">
+            <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="os-link-card-text">
+              <span class="os-link-card-title">Release v1.0.0</span>
+              <span class="os-link-card-hint">下载安装包与版本说明</span>
+            </span>
           </a>
-          <a href="https://github.com/zhixing-reader/zhixing-reader/blob/main/PRIVACY.md" target="_blank" rel="noopener" class="os-link">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            隐私政策
+          <a href="https://github.com/harryopo/zhixing-reader/issues" target="_blank" rel="noopener" class="os-link-card">
+            <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            <span class="os-link-card-text">
+              <span class="os-link-card-title">问题反馈</span>
+              <span class="os-link-card-hint">在 Issues 中提交 bug 或建议</span>
+            </span>
+          </a>
+          <a href="https://github.com/harryopo/zhixing-reader/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener" class="os-link-card">
+            <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            <span class="os-link-card-text">
+              <span class="os-link-card-title">贡献指南</span>
+              <span class="os-link-card-hint">如何参与项目共建</span>
+            </span>
+          </a>
+          <a href="https://github.com/harryopo/zhixing-reader/blob/main/PRIVACY.md" target="_blank" rel="noopener" class="os-link-card">
+            <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span class="os-link-card-text">
+              <span class="os-link-card-title">隐私政策</span>
+              <span class="os-link-card-hint">本地优先，数据归属用户</span>
+            </span>
+          </a>
+          <a href="https://github.com/harryopo/zhixing-reader/blob/main/CHANGELOG.md" target="_blank" rel="noopener" class="os-link-card">
+            <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span class="os-link-card-text">
+              <span class="os-link-card-title">变更日志</span>
+              <span class="os-link-card-hint">版本演进记录</span>
+            </span>
+          </a>
+          <a href="https://github.com/harryopo/zhixing-reader/blob/main/LICENSE" target="_blank" rel="noopener" class="os-link-card">
+            <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12l2 2 4-4"/><path d="M21 12c.552 0 1-.448 1-1V5c0-.552-.448-1-1-1H3c-.552 0-1 .448-1 1v6c0 .552.448 1 1 1s1 .448 1 1v6c0 .552.448 1 1 1h14c.552 0 1-.448 1-1v-6c0-.552.448-1 1-1z"/></svg>
+            <span class="os-link-card-text">
+              <span class="os-link-card-title">MIT 许可证</span>
+              <span class="os-link-card-hint">商用 / 修改 / 分发自由</span>
+            </span>
+          </a>
+          <a href="https://github.com/harryopo/zhixing-reader/blob/main/CODE_OF_CONDUCT.md" target="_blank" rel="noopener" class="os-link-card">
+            <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            <span class="os-link-card-text">
+              <span class="os-link-card-title">行为准则</span>
+              <span class="os-link-card-hint">社区参与规范</span>
+            </span>
           </a>
         </div>
       </div>
@@ -984,27 +1337,31 @@
   </section>
 
   <!-- ============================================
-       Footer
+       Footer — 真实链接
        ============================================ -->
   <footer>
     <div class="container footer-inner">
-      <a href="#" class="footer-brand">
+      <a href="#top" class="footer-brand">
         <span class="nav-logo">知</span>
-        <span>知行读书</span>
+        <span>知行读书 · Zhixing Reader</span>
       </a>
       <div class="footer-meta">
         <span>© 2026 张子涵</span>
         <span>·</span>
-        <a href="https://github.com/zhixing-reader/zhixing-reader/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <a href="https://github.com/harryopo/zhixing-reader/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
         <span>·</span>
-        <a href="https://github.com/zhixing-reader/zhixing-reader" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/harryopo/zhixing-reader" target="_blank" rel="noopener">GitHub</a>
+        <span>·</span>
+        <a href="https://github.com/harryopo/zhixing-reader/issues" target="_blank" rel="noopener">反馈</a>
+        <span>·</span>
+        <a href="https://github.com/harryopo/zhixing-reader/releases/tag/v1.0.0" target="_blank" rel="noopener">v1.0.0</a>
       </div>
-      <div class="footer-made">Made with Electron + React + AI</div>
+      <div class="footer-made">Made with Electron 35 + React 19 + TypeScript · 火山杯 2026 参赛作品</div>
     </div>
   </footer>
 
   <!-- ============================================
-       内联脚本：滚动动画 + 导航栏效果
+       内联脚本：滚动动画 + 导航栏 + 平滑滚动
        ============================================ -->
   <script>
     (function () {
@@ -1026,7 +1383,6 @@
         });
         reveals.forEach(function (el) { observer.observe(el); });
       } else {
-        // 降级：直接显示
         reveals.forEach(function (el) { el.classList.add('visible'); });
       }
 
@@ -1046,7 +1402,12 @@
       document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
         anchor.addEventListener('click', function (e) {
           var href = this.getAttribute('href');
-          if (href === '#' || href.length <= 1) return;
+          if (href === '#' || href === '#top') {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+          }
+          if (href.length <= 1) return;
           var target = document.querySelector(href);
           if (target) {
             e.preventDefault();
