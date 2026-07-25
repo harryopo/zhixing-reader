@@ -2,7 +2,41 @@
 
 知行读书项目开发过程中的学习记录、错误和改进。
 
-> **最近更新**：2026-07-21 — 追加 LRN-20260721-001~005 v2 循环工程收尾经验（commit-organizer / CRLF / app.asar / PowerShell 编码 / Hyper-V 端口预留）
+> **最近更新**：2026-07-25 — 追加 LRN-20260725-006 交付审查时发现并修复 Stats.tsx 2026 已读过滤 bug
+
+---
+
+## [LRN-20260725-006] correction
+
+**Logged**: 2026-07-25T11:15:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: frontend
+**Project**: zhixing-reader
+
+### Summary
+交付审查时发现 Stats.tsx 的年度书单过滤了 2026 年及以后出版的书籍，导致 2026 年真实已读书籍不显示。
+
+### Details
+代码位于 `src/renderer/src/pages/Stats.tsx:652-656`：
+```typescript
+// 过滤 2026 年及以后出版的书籍（避免未出版/测试数据干扰年度统计）
+if (b.publishDate) {
+  const publishYear = new Date(b.publishDate).getFullYear()
+  if (!isNaN(publishYear) && publishYear >= 2026) return false
+}
+```
+当前年份为 2026，该过滤会把所有 2026 年出版的真实书籍排除在年度书单之外。根因是开发者把"未出版/测试数据"与"当年真实数据"混为一谈。
+
+**修复**：删除该过滤条件，仅保留"已完成 + updatedAt 在当年"的判定。
+
+### Suggested Action
+按出版年份过滤"未来/测试数据"时，应使用绝对未来年份（如 > 当前年份 + 1），且必须确认不影响真实当年数据。
+
+### Metadata
+- Source: deliverable-readiness-review
+- Related Files: src/renderer/src/pages/Stats.tsx
+- Tags: stats, filter, bug, delivery-review
 
 ---
 
@@ -1377,5 +1411,240 @@ Phase 16 提升 ai-service.ts 测试覆盖率，采用以下识别方法：
 - Source: Phase 16 批判性审视
 - Related Files: .claude/rules/review-agent.md, AGENTS.md
 - Tags: review, agent, prompt, checklist, feedback
+
+---
+
+## [LRN-20260722-003] correction
+
+**Logged**: 2026-07-22T20:00:00+08:00
+**Priority**: high
+**Status**: pending
+**Area**: testing
+**Project**: zhixing-reader
+
+### Summary
+三绿（lint/typecheck/test/build）只是静态代理指标，不能替代真机点击端到端验证
+
+### Details
+2026-07-22/23 dogfood 阶段用户实际安装真机上体验时，一次性暴露十几个问题，均为 lint/typecheck/test/build 三绿门禁无法捕获的类别：
+
+1. **知识卡片删除无确认弹窗** — UI 交互完整性问题（静态扫描不 catch UX 缺失）
+2. **统计柱状图太粗** — Design token / 样式视觉效果问题（CSS 审查不保证视觉质量）
+3. **2026年书籍"已读"状态不显示** — 边界条件触发（三绿测试数据只覆盖 2024-2025）
+4. **AI SDK not configured 错误** — 启动空状态引导缺失（流测试不覆盖首次引导）
+5. **AI 对话区太窄** — 布局/自适应问题（vitest 不测真实窗口缩放）
+6. **NIGHTLY_LOOP 周末执行策略** — 调度策略/业务逻辑问题（单元测试不测 cron 策略）
+7. **自定义模板不选中** — 表单状态/交互问题
+8. **提示词编辑区太小** — UI 交互差、resize 不支持
+9. **统计数据更新不及时** — 实时性/事件驱动问题
+10. **知识卡片显示不全** — 渲染/滚动边界问题
+
+**根本原因分析**：
+- `npm run verify`（lint + typecheck + test + build）全是**静态代理指标**：lint 检查不 catch 逻辑错，typecheck 不 catch 运行时错，test 只测单元不测集成/端到端，build 成功只说明打包工具能编过
+- 项目中现有 171 条单测均为单元级别的**快乐路径**测试，几乎没有：
+  - 集成测试（ipc → database → renderer 端到端流程）
+  - E2E 测试（Electron 窗口内 UI 交互）
+  - 视觉回归测试（截图对比）
+  - 边界/错误状态测试（空数据、网络断开、配置缺失）
+- dogfood 阶段暴露的问题只有**真人真机点击**才能发现，自动化门禁全覆盖不了
+
+### Suggested Action
+1. **立即**：把 dogfood 发现的 10+ 问题作为 P0 bug 加入项目看板，逐一修复
+2. **短中期**：对高频出问题的页面（Chat页 / Stats页 / 知识卡片）加 Playwright E2E 测试，覆盖关键用户路径
+3. **长期**：建立"三重验证"质量体系：静态门禁（三绿）→ 集成测试（ipc+db 端到端）→ 人工 dogfood checklist
+4. **认知转变**：`npm run verify` 全绿只是"代码无语法错误"，不等于"功能可用"；提交前对关键路径做一次人工点检
+
+### Metadata
+`- Source: dogfood Phase 2026-07-22/23
+- Related Files: 全页面的 Stats, Chat, Bookshelf, KnowledgeCards, DailyLearning
+- Tags: dogfood, e2e, verification-gap, static-vs-dynamic, qa, triple-verification
+
+---
+
+## [LRN-20260725-001] correction
+
+**Logged**: 2026-07-25T00:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+**Project**: zhixing-reader
+
+### Summary
+交付前必须复核 verify，因为 working tree 可能悄悄引入 lint error（如 orchestrator.ts `\x00` 控制字符）。
+
+### Details
+2026-07-25 交付审查复核时发现 `electron/agent/orchestrator.ts` 存在 1 个 lint error：文件中意外混入 `\x00`（NUL）控制字符。该字符在常规 diff 与编辑器中不可见，但 ESLint 报 `no-control-regex` / 解析错误，直接阻塞 verify。
+
+**根因**：
+- 多轮 agent 编辑后，文件末尾或字符串字面量中可能残留不可见控制字符。
+- `git diff` 默认不显示控制字符，只在 lint 时才暴露。
+
+**修复**：
+- 定位并删除 `\x00` 字符。
+- 重新跑 `npm run verify`，确认 lint/typecheck/test/build 全绿。
+
+### Suggested Action
+交付前强制跑完整 verify；遇到 lint error 但肉眼找不到时，用十六进制工具（如 VS Code Hex Editor / `xxd`）检查文件是否含控制字符。
+
+### Metadata
+- Source: 2026-07-25 交付审查
+- Related Files: `electron/agent/orchestrator.ts`
+- Tags: lint, control-character, verify, delivery-readiness
+
+---
+
+## [LRN-20260725-002] best_practice
+
+**Logged**: 2026-07-25T00:05:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: process
+**Project**: zhixing-reader
+
+### Summary
+用户反馈要分 A/B/C 类：backend 问题过夜自主修，UI 问题留给 Trae，避免冲突。
+
+### Details
+2026-07-23 用户集中反馈 11 项问题，按负责方分类处理：
+
+- **A 类（backend）**：流式响应失败 "AI SDK not configured" →  overnight 自主修，`ipc.ts` 双写 `setAIConfig` + `setAISDKConfig`。
+- **B 类（UI 文件）**：知识卡片控件删减、确认弹窗、对话区宽度、统计趋势图、2026 已读显示、个人档案头像/昵称等 → 明确留给 Trae，overnight 不碰 UI 文件，避免与 Trae 改动冲突。
+- **C 类（设置/算法 UI）**：自动同步 1d/3d/7d 选择器 → 后端算法就绪，前端选择器由 Trae 接入。
+- **D 类（文档）**：智能体编排/提示词中心说明 → 产出独立 md 文档。
+
+**结果**： overnight 自主开发与 Trae UI 改动零冲突，次日合并后门禁全绿。
+
+### Suggested Action
+建立反馈分级协议：A 类 backend 自主修；B/C 类 UI 明确归属 Trae；D 类转文档。每日晨会同步"不碰"清单。
+
+### Metadata
+- Source: 2026-07-23-24 用户反馈批处理
+- Related Files: `.learnings/NIGHTLY_LOG.md`
+- Tags: user-feedback, triage, overnight, ui-backend-separation
+
+---
+
+## [LRN-20260725-003] best_practice
+
+**Logged**: 2026-07-25T00:10:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: testing
+**Project**: zhixing-reader
+
+### Summary
+测试从 173 → 667 的 Phase 12-18 经验：用 `vi.hoisted` mock 模块级依赖，用测试 DB fixture 不 mock。
+
+### Details
+Phase 12-18 集中补充了 14 个测试文件，覆盖 agent builders / context-manager / state-tracker / memory-service / orchestrator / user-profile-service / knowledge-card-service / prompt-storage / embedding-service / weread-sync-manager / database-integration / ai-sdk-service。
+
+**两种核心模式**：
+
+1. **模块级依赖 mock（orchestrator / builders / user-profile-service）**：
+   ```typescript
+   const { mockStreamChat } = vi.hoisted(() => ({
+     mockStreamChat: vi.fn(),
+   }));
+   vi.mock('../electron/agent/ai-sdk-service', () => ({
+     sdkStreamChat: mockStreamChat,
+   }));
+   ```
+   用 `vi.hoisted` 在模块顶层定义 mock，避免循环导入与提升问题。
+
+2. **测试 DB fixture 不 mock（memory-service / database-integration）**：
+   ```typescript
+   const db = setupTestDatabase();
+   // 直接操作真实 sql.js 内存数据库，验证 SQL/schema/约束
+   ```
+   对数据访问层，用真实 sql.js WASM 内存 DB 比 mock repository 更能捕获 schema 漂移与约束问题。
+
+**结果**：测试用例从 173 增至 667，ai-service 覆盖率 lines 91.99% / branches 84.48% / functions 95.83%。
+
+### Suggested Action
+- 依赖重的编排/服务层：用 `vi.hoisted + vi.mock` 在模块级 mock。
+- 数据访问/集成层：用 sql.js 内存 DB fixture，不 mock repository。
+
+### Metadata
+- Source: Phase 12-18 测试补全
+- Related Files: `tests/orchestrator.test.ts`, `tests/memory-service.test.ts`, `tests/database-integration.test.ts`, `tests/__fixtures__/db-helpers.ts`
+- Tags: testing, vi-hoisted, mock, sql.js, fixture, coverage
+
+---
+
+## [LRN-20260725-004] correction
+
+**Logged**: 2026-07-25T00:15:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+**Project**: zhixing-reader
+
+### Summary
+Vercel AI SDK 重构后必须双写 `setAIConfig` + `setAISDKConfig`，否则流式响应报 "AI SDK not configured"。
+
+### Details
+2026-07-23 将 orchestrator 从手写 `streamChat` 切换到 Vercel AI SDK 的 `sdkStreamChat` 后，新增 `electron/ai-sdk-service.ts` 管理 SDK 配置。但 `ipc.ts` 的 `SETTINGS.SET` handler 仍只调用旧的 `setAIConfig`，导致：
+
+- 用户保存 AI 配置后，旧服务有配置，新 `ai-sdk-service` 仍是未配置状态。
+- 发起流式对话时，`sdkStreamChat` 抛 "AI SDK not configured"。
+
+**修复**：
+```typescript
+// electron/ipc.ts SETTINGS.SET
+setAIConfig(provider, apiKey, baseUrl, model);
+setAISDKConfig(provider, apiKey, baseUrl, model);
+```
+
+**教训**：重构期存在"双轨"服务时，配置写入必须同步到所有活跃服务，不能假设新旧服务共用同一套内存变量。
+
+### Suggested Action
+任何"服务替换/双轨运行"期间，配置初始化与持久化必须显式同步到所有相关服务；重构完成后清理旧服务。
+
+### Metadata
+- Source: Wave K/L AI SDK 重构 + 用户反馈 A 类
+- Related Files: `electron/ipc.ts`, `electron/ai-sdk-service.ts`, `electron/ai-service.ts`
+- Tags: ai-sdk, configuration, dual-track, stream-chat, refactor
+
+---
+
+## [LRN-20260725-005] correction
+
+**Logged**: 2026-07-25T00:20:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+**Project**: zhixing-reader
+
+### Summary
+中文文本正则匹配不能用 `\b` 词边界，改用 `includes` + 最小长度保护。
+
+### Details
+`orchestrator.updateMethodologyMastery` 原用 `\b` 词边界正则匹配方法论名：
+```typescript
+const regex = new RegExp(`\\b${methodology.name}\\b`, 'i');
+```
+
+但 `\b` 匹配"单词字符（字母/数字/下划线）与非单词字符"边界，对中文无效。导致中文方法论名几乎永远匹配不上，掌握度从不更新。
+
+**修复**：
+```typescript
+function matchesMethodology(text: string, name: string): boolean {
+  if (/^[a-zA-Z]/.test(name)) {
+    return new RegExp(`\\b${name}\\b`, 'i').test(text);
+  }
+  // 中文：无词边界概念，用 includes + 最小长度 2 防单字误匹配
+  return name.length >= 2 && text.includes(name);
+}
+```
+
+**验证**：新增 2 个回归测试：中文名匹配命中、单字名不误匹配。
+
+### Suggested Action
+多语言文本匹配时，必须按语言分别处理：英文可用 `\b`，中文用 `includes` + 长度/分词保护，日文/韩文需单独评估。
+
+### Metadata
+- Source: Wave L orchestrator 测试发现
+- Related Files: `electron/agent/orchestrator.ts`, `tests/orchestrator.test.ts`
+- Tags: regex, word-boundary, chinese, includes, internationalization
 
 ---

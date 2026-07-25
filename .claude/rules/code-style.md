@@ -221,8 +221,8 @@ function processReview(rating: Rating, card: Card): ReviewResult {
 
 ```typescript
 /**
- * 计算 FSRS 卡片的下次复习时间（自实现版本）
- * 比赛后会升级为 ts-fsrs v5（参见 STANDARDS §自检报告 P0）
+ * 计算 FSRS 卡片的下次复习时间（自实现版本，可控、易调参、零外部依赖）
+ * 比赛后会评估是否升级为 ts-fsrs v5（参见 STANDARDS §自检报告 P0）
  * @param card 卡片状态
  * @param rating 用户评分 (1=Again, 2=Hard, 3=Good, 4=Easy)
  * @returns 新的卡片状态 + due time
@@ -232,8 +232,9 @@ export function reviewCard(card: Card, rating: Rating): Card { ... }
 // 单行注释：解释 WHY，不解释 WHAT
 const TIMEOUT_MS = 30_000;  // 微信读书 API 平均响应 8s，3 倍缓冲
 
-// TODO 必须关联 issue
-// TODO(#123): 替换为 ts-fsrs 官方实现
+// TODO 必须关联 issue（不要写"将来要换成 X"类空泛 TODO）
+// ✅ 正确示例：TODO(#124): fsrs-engine 抽离为独立 npm 包
+// ❌ 反例（已删除）：TODO(#123): 替换为 ts-fsrs 官方实现（依赖已移除，业务代码无外部 FSRS 库）
 ```
 
 ---

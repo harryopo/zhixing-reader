@@ -15,6 +15,9 @@
 | G UI↔能力断链 | **done** |
 | H Settings clearCache + cron 加固 | **done** |
 | I 知识卡/生词真接线 | **done** |
+| J 集成测试修复 + 书籍详情补字段 | **done**（2026-07-23） |
+| K Vercel AI SDK 接入（orchestrator 流式切 SDK） | **done**（2026-07-23） |
+| L 过夜自主开发（同步字段补齐 + 调研 + 根因 + 测试） | **done**（2026-07-24） |
 
 ## Wave I（2026-07-21 ~14:30）
 

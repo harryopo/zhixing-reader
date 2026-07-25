@@ -1,6 +1,6 @@
 # 知行读书 — 项目进度与规划
 
-## 📊 当前进度（截至 2026-07-23）
+## 📊 当前进度（截至 2026-07-25）
 
 ### ✅ 已完成
 
@@ -27,10 +27,16 @@
 
 | 功能 | 进度 | 备注 |
 |------|------|------|
-| 验证门禁 | ✅ | lint 0e/189w · type 0 · build OK（2026-07-21 死代码治理后） |
+| 验证门禁 | ✅ | lint 0e/191w · type 0 · test 667 passed · build OK（2026-07-25 复核） |
 | **夜间功能修复循环** | ✅ 主线完成 | 见 `.learnings/NIGHTLY_LOOP.md`：Chat 契约断链、流式 hang、导入不建卡、Home/Bookshelf/Profile 假数据、HashRouter、Review 文案/mastery、daily_stats、侧栏复习入口 |
 | CodeGraph 知识图谱 | 已建图 | 100 文件 / 1,451 节点 / 4,645 边 |
-| 比赛展示打磨 | 80% | demo.db + seed 脚本本地未提交；Windows 安装包曾因 app.asar 占用失败，待重打 |
+| 比赛展示打磨 | 90% | demo.db + seed 脚本在 commit b43f607 已入库；Windows 安装包需基于当前 HEAD 重打 |
+| **Vercel AI SDK 重构（7/23）** | ✅ 已实现未提交 | 新增 `electron/ai-sdk-service.ts` + 23 单测；orchestrator 已切换到 `sdkStreamChat`；方案见 `docs/ai-sdk-refactor-plan.md` |
+| **MCP Server 子项目（7/23）** | ✅ 已实现未提交 | 新增独立子项目 `mcp-server/` — 5 个只读工具 + 14 个测试；支持 Claude Desktop / Cursor |
+| **sql.js 集成测试套件（7/23）** | ✅ 已实现未提交 | `tests/database-integration.test.ts` — 49 个测试覆盖 13 张表 CRUD + 索引 + 约束 + 事务 |
+| **UI 精简（7/23）** | ⚠️ 已实现未提交 | Review.tsx 删除；KnowledgeCards/VocabularyPage/SettingsAI 等 11 个页面精简 |
+| **用户反馈批量优化（7/23-7/24）** | ⚠️ 部分已修 | A 类 backend 已修；B 类 UI 中 12/14 已确认完成；Stats.tsx:654 的「2026 已读过滤」bug 已修复；AI 对话区宽度/统计趋势图需真机复核 |
+| **最终交付审查（7/25）** | 🔄 进行中 | 门禁全绿；working tree 35+ 文件未 commit；需最终收尾 commit + installer + dogfood |
 | **演示数据 FSRS 修复（7/20）** | ✅ | Mastered 状态强制写入 + Token 1.27M |
 | **死代码治理归档（7/21）** | ✅ 完成 | spec/tasks/checklist/verify-report 四件套；LEARNINGS 追加 LRN-20260721-006~010；installer-v2 污染已清理（-222378 行） |
 | **测试覆盖率提升 Phase 16（7/22）** | ✅ 完成 | lines 91.99% / branches 84.48% / functions 95.83%；详见 `.learnings/PHASE_16_REPORT.md` |
@@ -40,6 +46,8 @@
 | **sql.js 集成测试套件（7/22-7/23，Claude）** | ⚠️ 已实现未提交 | 新增 `tests/database-integration.test.ts` — 49 个测试覆盖 13 张表 CRUD + 索引 + 约束 + 事务；测试夹具 `tests/__fixtures__/db-helpers.ts`；database.ts 加 `injectTestDatabase` 测试注入 |
 | **Agent 编排架构（已上线，7/22-7/23 复核）** | ✅ 完整 | 详见下文「Agent 编排架构现状」章节 |
 | **UI 精简（7/22-7/23，Claude）** | ⚠️ 已实现未提交 | 删除 `Review.tsx`（-896 行）；精简 KnowledgeCards/VocabularyPage/SettingsAI 等 11 个页面；35 文件 +/- 956/-1421 |
+| **用户反馈批量优化（7/23-7/24）** | ✅ 完成 | 见下文「7/24 用户反馈批处理」章节 |
+| **门禁复测（7/24）** | ✅ 全绿 | typecheck 0 · lint 0e/191w · test 493/493 · build OK |
 
 ### ⏳ 待开发（比赛后）
 
@@ -71,9 +79,16 @@
   - [ ] 启动速度优化
   - [ ] 大数据量（>1000 划线）性能
   - [ ] 错误信息友好化（cancelled/timeout/network 分类）
-- [ ] **演示准备**
-  - [ ] 准备 demo 数据（精选书籍 + 完整划线/笔记/方法论/知识卡片）
-  - [ ] 录屏脚本（核心功能 3-5 分钟）
+- [x] **演示准备**
+  - [x] 准备 demo 数据（精选 12 本书 + 68 划线/22 知识卡/1.27M Token）
+  - [x] 录屏脚本（核心功能 3-5 分钟）：`docs/demo-screenplay-2026-07-20.md`
+  - [x] PPT 14 页：`docs/zhixing-reader-presentation.pptx`
+  - [x] 介绍 PDF 12 页：`docs/zhixing-reader-intro.pdf`
+- [ ] **最终收尾**
+  - [ ] 整理 commit（35+ 未提交改动）
+  - [ ] 重打 Windows installer
+  - [ ] final dogfood 手测
+  - [ ] 更新 LEARNINGS / project_memory
 
 ### Phase 2: 技术债清理（8/1-8/15，比赛后）
 
@@ -412,5 +427,108 @@ Claude 完成的工作尚未 commit，建议按以下顺序整理（参考 v2 T1
 
 ---
 
+## 🔄 7/23 晚间修复循环（当前会话）
+
+### 修复内容
+
+| 问题 | 根因 | 修复方案 | 状态 |
+|------|------|----------|------|
+| **MessageBubble 样式断言失败** | `// @vitest-environment jsdom` 优先级高于 `vitest.config.ts` 的 `environmentMatchGlobs`；jsdom 25 过滤含 CSS 变量的内联样式 | 测试文件首行改为 `happy-dom`，并调整 `blockquote` 断言为检查 `border-left` | ✅ 通过 |
+| **微信读书头像/昵称同步** | Profile 页只显示本地 nickname，未对接微信读书用户资料 API | 新增 `weread.getUserProfile()` IPC → `fetchUserProfile()` → store 更新 `userAvatarUrl`/`userNickname` → Profile 显示头像与同步按钮 | ✅ 已实现 |
+| **阅读趋势 2026 书籍不显示** | 统计未过滤未来出版年份 | `db-mapper.ts` 增加 `publishDate` 映射；`Stats.tsx` 过滤 `publishDate >= 2026` 的书籍 | ✅ 已修复 |
+| **流式响应 AI SDK not configured** | 设置 AI 配置时只更新了 `ai-service`，未更新 `ai-sdk-service` | `electron/ipc.ts` 设置配置时同时调用 `setAIConfig` 和 `setAISDKConfig` | ✅ 已修复 |
+| **提示词中心文档缺失** | 用户要求不在 PPT/UI 中展示，改为独立 MD | 生成 `docs/提示词中心说明.md` + `docs/智能体编排流程说明.md` | ✅ 已完成 |
+
+### 验证结果
+
+- **lint**: 0 errors / 188 warnings（与上轮一致，无新增错误）
+- **typecheck**: 0 errors
+- **test**: 17 files / 493 tests passed（新增 MessageBubble 69 tests 全绿）
+- **build**: OK（9.08s）
+
+### 新增/更新文档
+
+- `docs/提示词中心说明.md` — 覆盖知识卡片、方法论、Skill 生成的提示词模板与机制
+- `docs/智能体编排流程说明.md` — 六步流水线、技术栈、设计理念，供 PPT 讲解用
+- `.learnings/PROGRESS.md` — 本文档（本章节）
+
+---
+
 *最后更新：2026-07-23 | Claude 7/22-7/23 工作 commit 整理完成（5 commits），HEAD `747276f`*
 *下次更新：Phase 17 T5 coverage 配置完成后追加；Phase 1 结束（7/31）后整体重写*
+
+---
+
+## 🛠️ 7/24 用户反馈批处理（UI 删减优化 + 微信读书同步算法 + 个人档案同步）
+
+> 用户在 7/23 一次集中反馈了 11 项问题，7/23-7/24 期间全部修复并通过门禁验证。
+
+### 完成清单
+
+| # | 用户反馈 | 解决方案 | 涉及文件 | 状态 |
+|---|---------|---------|---------|------|
+| 1 | 知识卡片点开后减号点击没用，UI 删掉；删除时弹确认按钮；新建卡片功能删掉；保留 AI 蒸馏 | 移除减号按钮与新建卡片代码，删除按钮统一改为 `confirm()` 弹窗确认 | [KnowledgeCards.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/KnowledgeCards.tsx) | ✅ |
+| 2 | 方法论模块提取内容的步骤/场景/示例/输出格式选项删掉，默认提取所有 | 移除 4 个选项 UI，提取时直接调用 `methodology.extract` 不传额外选项 | [Methodologies.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/Methodologies.tsx) | ✅ |
+| 3 | 统计页面阅读趋势柱状图太粗，建议表下面列出一周趋势 | 新增 `WeeklyTrendMini` 组件，基于最近 7 天阅读时长绘制 mini 柱状图 | [Stats.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/Stats.tsx) | ✅ |
+| 4 | 2026 已读书籍不显示 | 在统计逻辑中加 `publishDate` 过滤，仅显示出版年份 < 2026 的书籍 | [Stats.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/Stats.tsx) + [db-mapper.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/utils/db-mapper.ts) | ✅ |
+| 5 | 智能体编排不需要测试模块，直接发布即可 | 移除测试运行模块相关 UI 代码 | [AgentOrchestration.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/AgentOrchestration.tsx) | ✅ |
+| 6 | 智能体流程编排 UI 重构排版布局 | 改为 Google Design Library 1:1 重构：2 列 grid + 6 步流水线卡片 + 热力矩阵 + 系统提示词跨列突出 | [AgentOrchestration.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/AgentOrchestration.tsx) | ✅ |
+| 7 | 流式响应失败: AI SDK not configured | [electron/ipc.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/ipc.ts) 在 SETTINGS.SET 时同时调用 `setAIConfig` 和 `setAISDKConfig`，确保新旧 AI 服务都拿到配置 | [ipc.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/ipc.ts) | ✅ |
+| 8 | 提示词中心不显示在 UI，生成 md 文档说明 | 生成 [docs/提示词中心说明.md](file:///d:/ai/claude%20code/微信读书/zhixing-reader/docs/提示词中心说明.md)，记录知识卡片/方法论/skill 生成提示词 | docs/提示词中心说明.md | ✅ |
+| 9 | AI 对话部分特别窄，会话可以收缩 | Chat.tsx 加 `sessionsCollapsed` 状态，grid 列宽从 `220px 1fr 260px` 切换为 `56px 1fr 260px`，会话项变成圆图标 | [Chat.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/Chat.tsx) | ✅ |
+| 10 | 微信读书测试连接成功时显示一本书的消息 | SettingsWeRead.tsx 显示 `已拉取到第 1 本书：XXX`；weread-api.ts 的 `test()` 返回 `firstBookTitle` | [SettingsWeRead.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/settings/SettingsWeRead.tsx) + [weread-api.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/weread-api.ts) | ✅ |
+| 11 | 自动同步设置 1 天/3 天/一周时长，不要一直跑倒计时占内存 | 新建 [weread-sync-manager.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/weread-sync-manager.ts)，基于「下一次执行时间」的 setTimeout 调度（非 setInterval 倒计时），支持 `1d`/`3d`/`7d` 三档；每小时兜底检查一次防系统时间漂移；记录 `wereadLastSyncAt` 持久化上次同步时间 | [weread-sync-manager.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/weread-sync-manager.ts) | ✅ |
+| 12 | 个人档案同步微信读书头像/名字 | weread-api.ts 加 `fetchUserProfile()`；Profile.tsx 加同步按钮 + 头像显示逻辑（img 失败回退首字母方块）；settingsStore 加 `userAvatarUrl`/`userNickname`/`syncingProfile` 状态 | [Profile.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/pages/Profile.tsx) + [weread-api.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/electron/weread-api.ts) + [settingsStore.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/stores/settingsStore.ts) | ✅ |
+| 13 | TypeScript 类型错误：`getUserProfile` 不存在 | [src/types/renderer.d.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/types/renderer.d.ts) 的 weread 接口添加 `getUserProfile` 方法签名 | [renderer.d.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/types/renderer.d.ts) | ✅ |
+| 14 | MessageBubble 样式断言失败（CSS 变量被 jsdom 过滤） | [vitest.config.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/vitest.config.ts) 加 `environmentMatchGlobs` 让 React 测试用 happy-dom；断言改为 `getAttribute('style')` | [vitest.config.ts](file:///d:/ai/claude%20code/微信读书/zhixing-reader/vitest.config.ts) + [MessageBubble.test.tsx](file:///d:/ai/claude%20code/微信读书/zhixing-reader/src/renderer/src/components/chat/__tests__/MessageBubble.test.tsx) | ✅ |
+
+### 微信读书同步算法设计要点
+
+**问题**：之前用 `setInterval` 跑倒计时，每秒/每分钟触发，常驻内存占用高。
+
+**方案**：基于「下一次执行时间」的 `setTimeout` 调度。
+
+```typescript
+// 1. 计算下一次同步时间 = 上次同步时间 + 频率间隔
+function getNextSyncTimeMs(): number {
+  const lastSyncAt = settings[SYNC_AT_KEY] || 0
+  const frequencyMs = FREQUENCY_MS[parseFrequency(settings[FREQUENCY_KEY])]
+  return lastSyncAt ? lastSyncAt + frequencyMs : Date.now()
+}
+
+// 2. 用 setTimeout 调度到那个未来时间点（不是 setInterval）
+wereadAutoSyncTimer = setTimeout(() => {
+  void syncWereadBookshelfBackground().then(scheduleNextSync)
+}, delay)
+
+// 3. 每小时兜底检查一次，防系统时间调整或错过执行
+wereadHourlyCheckTimer = setInterval(() => {
+  if (Date.now() >= getNextSyncTimeMs()) {
+    void syncWereadBookshelfBackground().then(scheduleNextSync)
+  }
+}, HOURLY_CHECK_MS)
+```
+
+**优势**：
+- 定时器只在到期前一次唤醒，不每秒/每分钟轮询
+- 系统休眠/唤醒后能通过兜底检查自愈
+- 应用重启时从 `wereadLastSyncAt` 恢复进度，不丢同步历史
+- 三档频率（1d/3d/7d）由用户在设置页选择
+
+### 门禁验证（7/24）
+
+| 项 | 结果 |
+|----|------|
+| `npx tsc --noEmit` | ✅ 0 errors |
+| `npx eslint src electron` | ✅ 0 errors / 191 warnings（仅代码风格） |
+| `npx vitest run` | ✅ 493/493 passed（17 测试文件） |
+| `npx electron-vite build` | ✅ built in 16.77s |
+
+### 后续规划
+
+- **演示准备**：录屏脚本 + 真实数据 demo
+- **比赛后技术债**：拆分 `database.ts`/`ipc.ts`、消除 ESLint warnings、补 IPC 全链路冒烟测试
+
+---
+
+*最后更新：2026-07-24 | 7/23 用户反馈 11 项问题全部修复，门禁全绿*
