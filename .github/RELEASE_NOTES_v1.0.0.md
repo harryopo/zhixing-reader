@@ -120,11 +120,11 @@
 
 ## 📚 开源文档
 
-- [LICENSE](https://github.com/harryopo/zhixing-reader/blob/main/LICENSE) (MIT)
-- [CONTRIBUTING.md](https://github.com/harryopo/zhixing-reader/blob/main/CONTRIBUTING.md)
-- [CODE_OF_CONDUCT.md](https://github.com/harryopo/zhixing-reader/blob/main/CODE_OF_CONDUCT.md)
-- [PRIVACY.md](https://github.com/harryopo/zhixing-reader/blob/main/PRIVACY.md)
-- [CHANGELOG.md](https://github.com/harryopo/zhixing-reader/blob/main/CHANGELOG.md)
+- [LICENSE](https://github.com/harryopo/zhixing-reader/blob/master/LICENSE) (MIT)
+- [CONTRIBUTING.md](https://github.com/harryopo/zhixing-reader/blob/master/CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](https://github.com/harryopo/zhixing-reader/blob/master/CODE_OF_CONDUCT.md)
+- [PRIVACY.md](https://github.com/harryopo/zhixing-reader/blob/master/PRIVACY.md)
+- [CHANGELOG.md](https://github.com/harryopo/zhixing-reader/blob/master/CHANGELOG.md)
 
 ---
 

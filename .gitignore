@@ -52,7 +52,22 @@ deps.txt
 # Temp analysis scripts (one-off, not part of source)
 scripts/analyze-asar*.ps1
 scripts/check-*.ps1
+scripts/check-*.mjs
 scripts/loop-*.mjs
+scripts/capture-*.mjs
+scripts/capture-*.ps1
+scripts/cdp-*.mjs
+scripts/diagnose-*.mjs
+scripts/inspect-*.mjs
+scripts/screenshot-*.mjs
+scripts/test-*.mjs
+scripts/poc-*.js
+scripts/fix-*.mjs
+
+# Debug artifacts in scripts/
+scripts/*.png
+scripts/*.txt
+scripts/*.log
 
 # SSH keys (local dev)
 .ssh/
