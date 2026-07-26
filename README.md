@@ -388,7 +388,7 @@ src/renderer/src/
 **快速参与**：
 
 1. 📖 阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发环境搭建、提交规范、PR 流程
-2. 🤝 查看 [GitHub Issues](https://github.com/zhixing-reader/zhixing-reader/issues) 中带 `good first issue` 标签的入门 Issue
+2. 🤝 查看 [GitHub Issues](https://github.com/harryopo/zhixing-reader/issues) 中带 `good first issue` 标签的入门 Issue
 3. ✅ 提交 PR 前请确保 `npm run verify` 全绿（lint / typecheck / test / build）
 4. 📝 Commit message 遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/v1.0.0/) 规范
 
@@ -400,15 +400,15 @@ src/renderer/src/
 
 | 渠道 | 用途 | 链接 |
 |------|------|------|
-| 🐛 GitHub Issues | Bug 报告、功能建议、技术讨论 | <https://github.com/zhixing-reader/zhixing-reader/issues> |
+| 🐛 GitHub Issues | Bug 报告、功能建议、技术讨论 | <https://github.com/harryopo/zhixing-reader/issues> |
 | 📝 飞书问卷 | 产品反馈、使用体验、改进建议 | <https://wenjuan.feishu.cn/m?t=PLACEHOLDER_REPLACE_ME> |
 | 📚 使用文档 | 功能说明、设置教程 | [docs/settings-tutorial.md](docs/settings-tutorial.md) |
 | 🔒 隐私政策 | 数据存储、Cookie、AI 服务说明 | [PRIVACY.md](PRIVACY.md) |
-| 📦 Releases | 版本下载、更新日志 | <https://github.com/zhixing-reader/zhixing-reader/releases> |
+| 📦 Releases | 版本下载、更新日志 | <https://github.com/harryopo/zhixing-reader/releases> |
 
 **遇到问题先看**：
 1. 查阅 [使用文档](docs/settings-tutorial.md)
-2. 在 [GitHub Issues](https://github.com/zhixing-reader/zhixing-reader/issues) 搜索类似问题
+2. 在 [GitHub Issues](https://github.com/harryopo/zhixing-reader/issues) 搜索类似问题
 3. 仍未解决？提交新 Issue 或填写飞书问卷
 
 ---
