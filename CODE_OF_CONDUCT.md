@@ -34,7 +34,7 @@
 
 ## 执行
 
-辱骂、骚扰或其他不可接受的行为可通过 [GitHub Issues](https://github.com/zhixing-reader/zhixing-reader/issues) 私下联系项目维护团队举报。所有投诉都会被及时、公正地审阅和处理。
+辱骂、骚扰或其他不可接受的行为可通过 [GitHub Issues](https://github.com/harryopo/zhixing-reader/issues) 私下联系项目维护团队举报。所有投诉都会被及时、公正地审阅和处理。
 
 所有维护者都有义务尊重隐私和举报者的人身安全。
 
@@ -50,7 +50,7 @@
 
 如对本公约有任何疑问，或需要举报违反公约的行为，请通过以下方式联系维护团队：
 
-- 在 [GitHub Issues](https://github.com/zhixing-reader/zhixing-reader/issues) 创建标签为 `code-of-conduct` 的 Issue（公开讨论）
+- 在 [GitHub Issues](https://github.com/harryopo/zhixing-reader/issues) 创建标签为 `code-of-conduct` 的 Issue（公开讨论）
 - 在 Issue 中标注「私密举报」请求，维护者会将其转为私下沟通
 
 ---

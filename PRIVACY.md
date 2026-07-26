@@ -169,7 +169,7 @@ AI 服务商（OpenAI / DeepSeek / ...）
 
 本应用完全开源，源代码托管于 GitHub：
 
-- 📦 仓库地址：<https://github.com/zhixing-reader/zhixing-reader>
+- 📦 仓库地址：<https://github.com/harryopo/zhixing-reader>
 - 🔍 任何人都可以审查代码，验证本隐私政策中的承诺
 - 🛠 欢迎提交 Issue 指出任何隐私相关问题
 
@@ -191,7 +191,7 @@ AI 服务商（OpenAI / DeepSeek / ...）
 
 如对本隐私政策有任何疑问、建议或投诉，请通过以下方式联系：
 
-- **GitHub Issues**：<https://github.com/zhixing-reader/zhixing-reader/issues>
+- **GitHub Issues**：<https://github.com/harryopo/zhixing-reader/issues>
 - **飞书问卷**：<https://wenjuan.feishu.cn/m?t=PLACEHOLDER_REPLACE_ME>
 
 我们会在合理时间内回复。

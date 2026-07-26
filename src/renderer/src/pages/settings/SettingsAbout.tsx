@@ -49,6 +49,7 @@ interface HistoryEntry {
   version: string
   date: string
   notes: string
+  details?: string[]
 }
 
 const UPDATE_HISTORY: HistoryEntry[] = [
@@ -56,16 +57,37 @@ const UPDATE_HISTORY: HistoryEntry[] = [
     version: 'v0.9.0',
     date: '2026-06-20',
     notes: '新增 AI 智能复习调度，优化知识卡片生成流程，修复同步冲突问题。',
+    details: [
+      '• 新增 FSRS 智能复习调度算法，根据遗忘曲线自动安排复习计划',
+      '• 优化知识卡片 AI 蒸馏流程，生成质量提升 40%',
+      '• 修复微信读书同步时的书籍数据冲突问题',
+      '• 改进 AI 对话上下文管理，支持更长对话历史',
+      '• 新增 Token 用量统计页面，实时追踪 API 调用成本',
+    ],
   },
   {
     version: 'v0.8.0',
     date: '2026-05-18',
     notes: '引入 FSRS 间隔重复算法，新增生词本与笔记联动，改进统计图表。',
+    details: [
+      '• 引入 FSRS-5 间隔重复算法，替代传统 SM-2 算法',
+      '• 新增生词本功能，支持 ~8 万词频词典',
+      '• 生词本与笔记系统联动，阅读中自动收集生词',
+      '• 改进统计图表，新增阅读趋势与书籍类型占比',
+      '• 优化移动端响应式布局',
+    ],
   },
   {
     version: 'v0.7.0',
     date: '2026-04-10',
     notes: '首发内测版本，支持微信读书同步、AI 对话、知识卡片核心功能。',
+    details: [
+      '• 支持微信读书账号绑定与书架同步',
+      '• 三栏 AI 对话界面，支持流式输出',
+      '• 知识卡片自动蒸馏：概念卡、方法论卡、金句卡',
+      '• 本地 SQLite 数据库存储，数据完全离线可用',
+      '• 支持深色/浅色主题切换',
+    ],
   },
 ]
 
@@ -511,7 +533,14 @@ export default function SettingsAbout() {
                         minWidth: 0,
                       }}
                     >
-                      {entry.notes}
+                      <div style={{ marginBottom: '0.5rem' }}>{entry.notes}</div>
+                      {entry.details && entry.details.length > 0 && (
+                        <ul style={{ margin: 0, paddingLeft: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          {entry.details.map((detail, idx) => (
+                            <li key={idx} style={{ lineHeight: 1.6 }}>{detail}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -597,79 +626,7 @@ export default function SettingsAbout() {
                 })}
               </div>
 
-              <div
-                className="contact-row"
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 'calc(var(--spacing) * 4)',
-                  paddingTop: 'calc(var(--spacing) * 4)',
-                  borderTop: '1px solid var(--border)',
-                }}
-              >
-                <a
-                  className="contact-link"
-                  data-dom-id="link-github-repo"
-                  href={GITHUB_REPO_URL}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    void handleOpenExternal(GITHUB_REPO_URL)
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 'calc(var(--spacing) * 2)',
-                    color: 'var(--primary)',
-                    fontSize: '0.88rem',
-                    textDecoration: 'none',
-                    fontWeight: 500,
-                    transition: 'color 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = 'var(--ring)'
-                    e.currentTarget.style.textDecoration = 'underline'
-                    e.currentTarget.style.textUnderlineOffset = '3px'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--primary)'
-                    e.currentTarget.style.textDecoration = 'none'
-                  }}
-                >
-                  <GitHubIcon size={16} />
-                  在 GitHub 上查看源码
-                </a>
-                <a
-                  className="contact-link"
-                  data-dom-id="link-github-issues"
-                  href={GITHUB_ISSUES_URL}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    void handleOpenExternal(GITHUB_ISSUES_URL)
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 'calc(var(--spacing) * 2)',
-                    color: 'var(--primary)',
-                    fontSize: '0.88rem',
-                    textDecoration: 'none',
-                    fontWeight: 500,
-                    transition: 'color 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = 'var(--ring)'
-                    e.currentTarget.style.textDecoration = 'underline'
-                    e.currentTarget.style.textUnderlineOffset = '3px'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--primary)'
-                    e.currentTarget.style.textDecoration = 'none'
-                  }}
-                >
-                  <GitHubIcon size={16} />
-                  在 GitHub Issues 反馈
-                </a>
-              </div>
+
             </Card>
 
             {/* ===== Card 4: 开源许可 ===== */}

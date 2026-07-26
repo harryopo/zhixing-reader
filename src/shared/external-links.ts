@@ -24,14 +24,14 @@ export const FEEDBACK_SURVEY_URL = GITHUB_ISSUES_URL
 
 // 说明文档（GitHub Pages 或仓库内 docs）
 export const DOCS_URL = `${GITHUB_REPO_URL}#readme`
-export const SETTINGS_TUTORIAL_URL = `${GITHUB_REPO_URL}/blob/main/docs/settings-tutorial.md`
+export const SETTINGS_TUTORIAL_URL = `${GITHUB_REPO_URL}/blob/master/docs/settings-tutorial.md`
 
 // 隐私政策
-export const PRIVACY_POLICY_URL = `${GITHUB_REPO_URL}/blob/main/PRIVACY.md`
+export const PRIVACY_POLICY_URL = `${GITHUB_REPO_URL}/blob/master/PRIVACY.md`
 
 // 开源许可证
 export const LICENSE_TYPE = 'MIT'
-export const LICENSE_URL = `${GITHUB_REPO_URL}/blob/main/LICENSE`
+export const LICENSE_URL = `${GITHUB_REPO_URL}/blob/master/LICENSE`
 
 // 应用元信息
 export const APP_META = {

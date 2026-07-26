@@ -284,7 +284,7 @@ describe('reviewCard', () => {
 
 ## 八、反馈渠道
 
-- **Bug 报告 / 功能建议**：[GitHub Issues](https://github.com/zhixing-reader/zhixing-reader/issues)
+- **Bug 报告 / 功能建议**：[GitHub Issues](https://github.com/harryopo/zhixing-reader/issues)
 - **用户反馈问卷**：[飞书问卷](https://wenjuan.feishu.cn/m?t=PLACEHOLDER_REPLACE_ME)
 - **代码讨论**：通过 PR Review
 
