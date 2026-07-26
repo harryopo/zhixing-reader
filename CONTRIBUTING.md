@@ -36,7 +36,7 @@ git clone https://github.com/<你的用户名>/zhixing-reader.git
 cd zhixing-reader
 
 # 2. 添加上游仓库（用于同步主仓库更新）
-git remote add upstream https://github.com/zhixing-reader/zhixing-reader.git
+git remote add upstream https://github.com/harryopo/zhixing-reader.git
 
 # 3. 安装依赖（推荐使用 npmmirror 镜像加速）
 npm install
@@ -198,7 +198,7 @@ git push origin feat/fsrs-preview
 
 ### 6.3 创建 Pull Request
 
-1. 在 GitHub 上发起 PR，目标分支为 `zhixing-reader/zhixing-reader` 的 `main`
+1. 在 GitHub 上发起 PR，目标分支为 `harryopo/zhixing-reader` 的 `main`
 2. PR 标题遵循 Conventional Commits 格式
 3. PR 描述模板：
 
