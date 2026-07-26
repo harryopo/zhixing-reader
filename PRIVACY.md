@@ -192,7 +192,6 @@ AI 服务商（OpenAI / DeepSeek / ...）
 如对本隐私政策有任何疑问、建议或投诉，请通过以下方式联系：
 
 - **GitHub Issues**：<https://github.com/harryopo/zhixing-reader/issues>
-- **飞书问卷**：<https://wenjuan.feishu.cn/m?t=PLACEHOLDER_REPLACE_ME>
 
 我们会在合理时间内回复。
 

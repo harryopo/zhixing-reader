@@ -60,7 +60,7 @@ export interface FeedbackTileConfig {
 export const FEEDBACK_TILES: FeedbackTileConfig[] = [
   {
     title: '问题反馈',
-    hint: '填写飞书问卷，帮助我们改进',
+    hint: '在 GitHub Issues 中提交反馈',
     icon: 'message-circle',
     domId: 'cta-feedback',
     url: FEEDBACK_SURVEY_URL,

@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **667 个单元测试**：覆盖率 ≥ 85%，关键模块（fsrs-engine、agent、database）≥ 95%
 - **三进程架构**：Main / Preload / Renderer 严格隔离，`contextBridge` 安全暴露 IPC
 - **自动检查更新**：通过 GitHub Releases API 检查新版本
-- **飞书问卷反馈入口**：在应用内一键跳转反馈问卷
+- **GitHub Issues 反馈入口**：在应用内一键跳转 GitHub Issues
 - **完整开源文档**：LICENSE (MIT)、CONTRIBUTING.md、CODE_OF_CONDUCT.md、PRIVACY.md、AGENTS.md、CLAUDE.md
 
 ### Security

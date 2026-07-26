@@ -54,6 +54,21 @@ interface HistoryEntry {
 
 const UPDATE_HISTORY: HistoryEntry[] = [
   {
+    version: 'v1.0.0',
+    date: '2026-07-25',
+    notes: '首个正式版本，完整核心功能上线。',
+    details: [
+      '• 微信读书同步：拉取书架、划线、笔记、书评，本地 sql.js 离线缓存，支持 1d/3d/7d 自动同步',
+      '• AI 智能体对话：5 维上下文构建、意图分类、苏格拉底式教学，支持 DeepSeek / OpenAI / 自定义端点',
+      '• FSRS v5 间隔重复：基于 ts-fsrs 5.4.1，DSR 模型 + 21 参数完整遗忘曲线，与 Anki 数据互通',
+      '• 知识卡片体系：概念卡 / 方法论卡 / 金句卡，AI 自动蒸馏，反向链接到原文',
+      '• 英语词汇学习：~8 万词频词典、上下文例句、SM-2 混合调度',
+      '• 统计与可视化：Apache ECharts 5.5 仪表盘，阅读趋势、复习进度、Token 用量全维度呈现',
+      '• Admin 管理后台：Dashboard / AgentConfig / KnowledgeBase / SessionHistory',
+      '• MCP Server 子项目：支持 Claude Desktop / Cursor 查询本地阅读数据库',
+    ],
+  },
+  {
     version: 'v0.9.0',
     date: '2026-06-20',
     notes: '新增 AI 智能复习调度，优化知识卡片生成流程，修复同步冲突问题。',
@@ -67,7 +82,7 @@ const UPDATE_HISTORY: HistoryEntry[] = [
   },
   {
     version: 'v0.8.0',
-    date: '2026-05-18',
+    date: '2026-06-15',
     notes: '引入 FSRS 间隔重复算法，新增生词本与笔记联动，改进统计图表。',
     details: [
       '• 引入 FSRS-5 间隔重复算法，替代传统 SM-2 算法',
@@ -79,7 +94,7 @@ const UPDATE_HISTORY: HistoryEntry[] = [
   },
   {
     version: 'v0.7.0',
-    date: '2026-04-10',
+    date: '2026-06-05',
     notes: '首发内测版本，支持微信读书同步、AI 对话、知识卡片核心功能。',
     details: [
       '• 支持微信读书账号绑定与书架同步',
