@@ -78,3 +78,20 @@ memory/
 # pnpm workspace artifacts (not part of project build)
 pnpm-lock.yaml
 pnpm-workspace.yaml
+
+# Local AI / agent config (not for repo)
+.claude/
+.learnings/
+
+# Deliverables and docs (internal, not for public repo)
+deliverables/
+docs/
+mcp-server/
+
+# Local launch scripts and test artifacts
+启动知行读书.bat
+启动知行读书.vbs
+dogfood.mjs
+test-api.ps1
+resources/demo.db
+PRODUCT.md
