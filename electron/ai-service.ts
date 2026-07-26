@@ -1405,6 +1405,7 @@ export async function translateArticle(
   contentEn: string
 ): Promise<{ title_zh: string; summary_zh: string; content_zh: string }> {
   if (!config) throw new Error('AI service not configured');
+  const startMs = Date.now()
 
   // 翻译标题
   const titleMessages: Message[] = [
@@ -1414,6 +1415,8 @@ export async function translateArticle(
 
   const titleResponse = await callAI(titleMessages, { maxTokensOverride: 200 });
   const title_zh = titleResponse.content.trim();
+  let totalPromptTokens = titleResponse.usage?.promptTokens || 0;
+  let totalCompletionTokens = titleResponse.usage?.completionTokens || 0;
 
   // 分段翻译正文
   const paragraphs = contentEn.split(/\n\s*\n/).filter(p => p.trim());
@@ -1427,6 +1430,10 @@ export async function translateArticle(
 
     const paraResponse = await callAI(paraMessages, { maxTokensOverride: 1000 });
     contentParagraphs.push(paraResponse.content.trim());
+    if (paraResponse.usage) {
+      totalPromptTokens += paraResponse.usage.promptTokens || 0;
+      totalCompletionTokens += paraResponse.usage.completionTokens || 0;
+    }
   }
 
   const content_zh = contentParagraphs.join('\n\n');
@@ -1437,5 +1444,8 @@ export async function translateArticle(
     ? contentParagraphs[0].slice(0, 100) + '...'
     : '';
 
+  const durationMs = Date.now() - startMs;
+  recordTokenUsage('translateArticle', { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens }, durationMs);
+  logger.info('Article translated', { durationMs, totalPromptTokens, totalCompletionTokens });
   return { title_zh, summary_zh, content_zh };
 }

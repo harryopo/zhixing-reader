@@ -300,7 +300,11 @@ export default function KnowledgeCards() {
       await window.electronAPI.knowledgeCard.distill(bookId, safeStr(book.title))
       toast.remove(loadingId)
       toast.success('知识卡片蒸馏完成')
-      await loadData()
+      // 短暂延迟再加载数据，确保 distillProgress 事件先被处理
+      setTimeout(async () => {
+        setDistillProgress(null)
+        await loadData()
+      }, 800)
     } catch (error) {
       toast.remove(loadingId)
       const errorMsg = error instanceof Error ? error.message : String(error)
@@ -972,56 +976,13 @@ export default function KnowledgeCards() {
         {/* ===== distill tab ===== */}
         {activeTab === 'distill' && (
           <>
-            {/* 蒸馏说明卡 */}
-            <Card>
-              <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', alignItems: 'flex-start' }}>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    flexShrink: 0,
-                    borderRadius: 'var(--radius)',
-                    background: 'var(--accent)',
-                    color: 'var(--accent-foreground)',
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  <Icon name="agent" size={18} />
-                </div>
-                <div>
-                  <h3
-                    style={{
-                      margin: 0,
-                      fontSize: '0.95rem',
-                      fontWeight: 600,
-                      color: 'var(--foreground)',
-                    }}
-                  >
-                    蒸馏说明
-                  </h3>
-                  <p
-                    style={{
-                      margin: '0.5rem 0 0',
-                      fontSize: '0.875rem',
-                      color: 'var(--muted-foreground)',
-                      lineHeight: 1.55,
-                    }}
-                  >
-                    选择下方书籍，AI
-                    会从你的划线/笔记中提取概念、方法论和金句，生成知识卡片。解读和应用场景可在卡片生成后手动添加。
-                  </p>
-                </div>
-              </div>
-            </Card>
-
             {/* 书籍网格 */}
             {books.length > 0 ? (
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                  gap: 'calc(var(--spacing) * 4)',
+                  gap: 'calc(var(--spacing) * 3)',
                 }}
               >
                 {books.map((book) => {
@@ -1036,7 +997,7 @@ export default function KnowledgeCards() {
                         background: 'var(--card)',
                         border: '1px solid var(--border)',
                         borderRadius: 'calc(var(--radius) + 4px)',
-                        padding: 'calc(var(--spacing) * 4)',
+                        padding: 'calc(var(--spacing) * 3)',
                         transition: 'border-color 0.2s ease',
                         overflow: 'hidden',
                       }}
@@ -1051,8 +1012,8 @@ export default function KnowledgeCards() {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 'calc(var(--spacing) * 3)',
-                          marginBottom: 'calc(var(--spacing) * 3)',
+                          gap: 'calc(var(--spacing) * 2)',
+                          marginBottom: 'calc(var(--spacing) * 2)',
                         }}
                       >
                         <div

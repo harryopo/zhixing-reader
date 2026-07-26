@@ -139,7 +139,7 @@ export default function SettingsWeRead() {
   useEffect(() => {
     if (testResult && testResult.type === 'weread') {
       if (testResult.success) {
-        toast.success(testResult.message)
+        toast.success('连接成功！微信读书 API 可用', 3000)
       } else {
         toast.error(testResult.message)
       }
@@ -392,10 +392,10 @@ export default function SettingsWeRead() {
                     {testingWeread ? '测试中...' : '测试连接'}
                   </Button>
                 </div>
-                {testResult && testResult.type === 'weread' && testResult.firstBookTitle && (
+                {testResult && testResult.type === 'weread' && (
                   <div className="test-result" role="status" aria-live="polite">
                     <Icon name="check" size={14} aria-hidden="true" />
-                    <span>已拉取到第 1 本书：<strong>{testResult.firstBookTitle}</strong></span>
+                    <span>{testResult.message}</span>
                   </div>
                 )}
               </div>

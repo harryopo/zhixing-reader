@@ -638,14 +638,7 @@ export async function testConnection(key: string): Promise<TestConnectionResult>
     }
 
     logger.info('WeRead test connection successful');
-    const books = Array.isArray(data.books) ? data.books : [];
-    const firstBookTitle = books[0]?.title && books[0].title.trim().length > 0
-      ? books[0].title.trim()
-      : undefined;
-    const message = firstBookTitle
-      ? `连接成功！已拉取到第 1 本书：${firstBookTitle}`
-      : '连接成功！书架为空或暂无可同步书籍';
-    return { success: true, message, firstBookTitle };
+    return { success: true, message: '连接成功' };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('WeRead test connection failed', error);

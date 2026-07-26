@@ -123,9 +123,8 @@ export default function Chat() {
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
   const [loadingContext, setLoadingContext] = useState(true)
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false)
-  const [contextCollapsed, setContextCollapsed] = useState(false)
+  const [contextCollapsed, setContextCollapsed] = useState(true)
 
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bookIdFromUrlApplied = useRef(false)
 
@@ -175,9 +174,23 @@ export default function Chat() {
     }
   }, [currentBookId])
 
-  // ===== 自动滚动到底部 =====
+  // ===== 自动滚动到底部（只滚对话区，不滚整页） =====
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    // 如果用户手动向上滚看过历史，流式输出时不再强制拉回底部
+    const isUserScrolledUp =
+      container.scrollHeight - container.scrollTop - container.clientHeight > 120
+
+    if (!isUserScrolledUp) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      })
+    }
   }, [messages, streamingContent])
 
   // ===== error toast =====
@@ -220,7 +233,7 @@ export default function Chat() {
     await sendMessage(question)
   }, [input, loading, streaming, sendMessage])
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -571,6 +584,7 @@ export default function Chat() {
 
             {/* 消息流 */}
             <div
+              ref={messagesContainerRef}
               className="messages-stream"
               style={{
                 flex: 1,
@@ -643,7 +657,6 @@ export default function Chat() {
                   )}
                 </>
               )}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* 输入区 */}
@@ -675,7 +688,7 @@ export default function Chat() {
                     e.target.style.height = '44px'
                     e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'
                   }}
-                  onKeyPress={handleKeyPress}
+                  onKeyDown={handleKeyDown}
                   placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
                   rows={1}
                   disabled={inputDisabled}
@@ -706,7 +719,7 @@ export default function Chat() {
                   className="input-tools"
                   style={{
                     display: 'flex',
-                    gap: 'calc(var(--spacing) * 2)',
+                    gap: 'calc(var(--spacing) * 3)',
                     flexWrap: 'wrap',
                     alignItems: 'center',
                   }}

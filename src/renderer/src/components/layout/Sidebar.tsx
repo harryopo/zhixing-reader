@@ -66,9 +66,15 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
     }
     loadTokenData()
     const interval = setInterval(loadTokenData, 30000)
+
+    // 监听 TokenUsage 页面清空事件，立即刷新侧边栏 token 用量
+    const onCleared = () => { loadTokenData() }
+    window.addEventListener('token-usage:cleared', onCleared)
+
     return () => {
       active = false
       clearInterval(interval)
+      window.removeEventListener('token-usage:cleared', onCleared)
     }
   }, [])
 

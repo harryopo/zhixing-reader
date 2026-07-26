@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
+console.log('[preload] executing, electronAPI exists before expose:', typeof (window as unknown as Record<string, unknown>).electronAPI);
+
 interface IPCResponse<T> {
   success: boolean;
   data?: T;
@@ -188,14 +190,19 @@ const electronAPI = {
     },
     cancelStream: () => invoke(IPC_CHANNELS.AGENT.CANCEL_STREAM) as Promise<{ aborted: boolean }>,
     onStreamChunk: (callback: (chunk: string) => void) => {
+      console.log('[preload] onStreamChunk registering')
       const existing = streamChunkHandlers.get(callback)
       if (existing) {
         ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, existing)
       }
-      const handler: StreamChunkHandler = (_event, data) => callback(data.chunk)
+      const handler: StreamChunkHandler = (_event, data) => {
+        console.log('[preload] STREAM.CHUNK received, forwarding', { chunkLength: data?.chunk?.length })
+        callback(data.chunk)
+      }
       streamChunkHandlers.set(callback, handler)
       ipcRenderer.on(IPC_CHANNELS.STREAM.CHUNK, handler)
       return () => {
+        console.log('[preload] onStreamChunk cleanup')
         const h = streamChunkHandlers.get(callback)
         if (h) {
           ipcRenderer.removeListener(IPC_CHANNELS.STREAM.CHUNK, h)
@@ -220,11 +227,15 @@ const electronAPI = {
       }
     },
     onStreamComplete: (callback: (usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void) => {
+      console.log('[preload] onStreamComplete registering')
       const existing = streamCompleteHandlers.get(callback)
       if (existing) {
         ipcRenderer.removeListener(IPC_CHANNELS.STREAM.COMPLETE, existing)
       }
-      const handler: StreamCompleteHandler = (_event, data) => callback(data.usage)
+      const handler: StreamCompleteHandler = (_event, data) => {
+        console.log('[preload] STREAM.COMPLETE received, forwarding')
+        callback(data.usage)
+      }
       streamCompleteHandlers.set(callback, handler)
       ipcRenderer.on(IPC_CHANNELS.STREAM.COMPLETE, handler)
       return () => {
@@ -236,11 +247,15 @@ const electronAPI = {
       }
     },
     onStreamError: (callback: (error: string) => void) => {
+      console.log('[preload] onStreamError registering')
       const existing = streamErrorHandlers.get(callback)
       if (existing) {
         ipcRenderer.removeListener(IPC_CHANNELS.STREAM.ERROR, existing)
       }
-      const handler: StreamErrorHandler = (_event, data) => callback(data.error)
+      const handler: StreamErrorHandler = (_event, data) => {
+        console.log('[preload] STREAM.ERROR received, forwarding', { error: data?.error })
+        callback(data.error)
+      }
       streamErrorHandlers.set(callback, handler)
       ipcRenderer.on(IPC_CHANNELS.STREAM.ERROR, handler)
       return () => {
@@ -403,5 +418,6 @@ const electronAPI = {
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+console.log('[preload] electronAPI exposed, keys:', Object.keys(electronAPI).slice(0, 10));
 
 export type ZhixingAPI = typeof electronAPI;

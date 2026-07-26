@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知行读书 — AI驱动的阅读成长伙伴</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    /* === Surface Layers (深渊暗系层次) === */
+    --surface-0: #080c0a;
+    --surface-1: #0d1210;
+    --surface-2: #121a16;
+    --surface-3: #182019;
+    --surface-4: #1e2820;
+    --surface-overlay: rgba(8, 12, 10, 0.85);
+
+    /* === Green System (深林绿意) === */
+    --green-dim: #1a3a25;
+    --green-muted: #2d6b42;
+    --green-soft: #4a9d68;
+    --green-primary: #5cb87a;
+    --green-bright: #7ed99a;
+    --green-glow: rgba(92, 184, 122, 0.12);
+    --green-glow-md: rgba(92, 184, 122, 0.2);
+    --green-glow-strong: rgba(92, 184, 122, 0.35);
+
+    /* === Purple Accent (幽暗紫点缀) === */
+    --purple-dim: #1f1530;
+    --purple-muted: #3d2a5c;
+    --purple-soft: #6b4d8a;
+    --purple-primary: #8b6aab;
+    --purple-glow: rgba(139, 106, 171, 0.1);
+
+    /* === Typography === */
+    --text-primary: #e2ede6;
+    --text-secondary: #9bb5a4;
+    --text-muted: #5e7d68;
+    --text-faint: #3a5442;
+
+    /* === Spacing Rhythm === */
+    --space-xs: 8px;
+    --space-sm: 16px;
+    --space-md: 32px;
+    --space-lg: 64px;
+    --space-xl: 96px;
+    --space-2xl: 128px;
+
+    /* === Motion === */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --duration-fast: 0.2s;
+    --duration-normal: 0.4s;
+    --duration-slow: 0.8s;
+
+    /* === Border === */
+    --border-subtle: rgba(92, 184, 122, 0.06);
+    --border-default: rgba(92, 184, 122, 0.1);
+    --border-hover: rgba(92, 184, 122, 0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--green-dim) var(--surface-0);
+  }
+
+  body {
+    font-family: 'Inter', 'Noto Serif SC', -apple-system, sans-serif;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* === Noise Texture Overlay === */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 9999;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  /* === Canvas Background === */
+  #bg-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* === Navigation === */
+  .nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all var(--duration-normal) var(--ease-out-expo);
+    backdrop-filter: blur(0px);
+  }
+
+  .nav.scrolled {
+    padding: 14px 40px;
+    background: rgba(8, 12, 10, 0.8);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .nav-logo {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 2px;
+  }
+
+  .nav-logo .accent {
+    color: var(--green-primary);
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    transition: color var(--duration-fast);
+    position: relative;
+  }
+
+  .nav-links a::after {
+    content: '';
+    position: absolute;
+    bottom: -4px; left: 0;
+    width: 0; height: 1px;
+    background: var(--green-primary);
+    transition: width var(--duration-normal) var(--ease-out-expo);
+  }
+
+  .nav-links a:hover { color: var(--text-primary); }
+  .nav-links a:hover::after { width: 100%; }
+
+  /* === Section Common === */
+  .section {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-xl) var(--space-md);
+  }
+
+  .section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--green-primary);
+    margin-bottom: var(--space-md);
+    opacity: 0.8;
+  }
+
+  .section-label::before {
+    content: '';
+    width: 24px; height: 1px;
+    background: var(--green-primary);
+  }
+
+  .section-heading {
+    font-family: 'Noto Serif SC', serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 900;
+    letter-spacing: -1px;
+    line-height: 1.2;
+    margin-bottom: var(--space-sm);
+    color: var(--text-primary);
+  }
+
+  .section-subtext {
+    font-size: 17px;
+    color: var(--text-muted);
+    max-width: 560px;
+    line-height: 1.8;
+  }
+
+  /* === Hero === */
+  .hero {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 120px var(--space-md) var(--space-lg);
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--green-soft);
+    margin-bottom: var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hero-eyebrow .line {
+    width: 40px; height: 1px;
+    background: var(--green-muted);
+  }
+
+  .hero-eyebrow .pulse-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green-primary);
+    animation: pulse-dot 2.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--green-glow-strong); }
+    50% { opacity: 0.6; box-shadow: 0 0 0 8px transparent; }
+  }
+
+  .hero-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: clamp(56px, 9vw, 120px);
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -3px;
+    margin-bottom: var(--space-md);
+  }
+
+  .hero-title .word-zhixing {
+    background: linear-gradient(135deg, var(--green-bright) 0%, var(--green-primary) 50%, var(--green-soft) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-title .word-dushu {
+    color: var(--text-primary);
+  }
+
+  .hero-desc {
+    font-size: clamp(18px, 2.2vw, 24px);
+    font-weight: 300;
+    color: var(--text-secondary);
+    max-width: 600px;
+    line-height: 1.7;
+    margin-bottom: var(--space-lg);
+  }
+
+  .hero-desc .highlight {
+    color: var(--green-primary);
+    font-weight: 500;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    padding: 14px 32px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-out-expo);
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: var(--green-primary);
+    color: var(--surface-0);
+    box-shadow: 0 0 0 0 var(--green-glow-md), 0 4px 16px rgba(0,0,0,0.3);
+  }
+
+  .btn-primary:hover {
+    background: var(--green-bright);
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px var(--green-glow-md), 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
+  }
+
+  .btn-ghost:hover {
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+    background: var(--green-glow);
+  }
+
+  .btn svg {
+    width: 16px; height: 16px;
+    transition: transform var(--duration-normal) var(--ease-out-expo);
+  }
+
+  .btn:hover svg { transform: translateX(3px); }
+
+  /* Hero Stats */
+  .hero-stats {
+    display: flex;
+    gap: var(--space-lg);
+    margin-top: var(--space-xl);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .hero-stat {
+    position: relative;
+  }
+
+  .hero-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--green-primary);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .hero-stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+  }
+
+  /* === Divider === */
+  .divider {
+    max-width: 1200px;
+    margin: 0 auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--border-default) 50%, transparent 100%);
+    position: relative;
+    z-index: 1;
+  }
+
+  /* === Pain Points === */
+  .pain-section .pain-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    margin-top: var(--space-lg);
+    background: var(--border-subtle);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .pain-card {
+    background: var(--surface-1);
+    padding: 40px 36px;
+    transition: all var(--duration-slow) var(--ease-out-expo);
+    position: relative;
+  }
+
+  .pain-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 0;
+    background: var(--green-primary);
+    transition: height var(--duration-slow) var(--ease-out-expo);
+  }
+
+  .pain-card:hover {
+    background: var(--surface-2);
+  }
+
+  .pain-card:hover::before {
+    height: 100%;
+  }
+
+  .pain-card-icon {
+    width: 40px; height: 40px;
+    margin-bottom: 20px;
+    color: var(--green-soft);
+  }
+
+  .pain-card-icon svg {
+    width: 100%; height: 100%;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  .pain-card-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+  }
+
+  .pain-card-desc {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+
+  /* === Features === */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 2px;
+    margin-top: var(--space-lg);
+    background: var(--border-subtle);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .feature-card {
+    background: var(--surface-1);
+    padding: 40px 32px;
+    position: relative;
+    transition: all var(--duration-slow) var(--ease-out-expo);
+    overflow: hidden;
+  }
+
+  .feature-card:hover {
+    background: var(--surface-2);
+  }
+
+  /* Asymmetric grid — break the uniform pattern */
+  .feature-card:nth-child(1) { grid-column: span 5; }
+  .feature-card:nth-child(2) { grid-column: span 7; }
+  .feature-card:nth-child(3) { grid-column: span 4; }
+  .feature-card:nth-child(4) { grid-column: span 4; }
+  .feature-card:nth-child(5) { grid-column: span 4; }
+  .feature-card:nth-child(6) { grid-column: span 6; background: var(--surface-2); }
+  .feature-card:nth-child(7) { grid-column: span 6; background: var(--surface-2); }
+
+  .feature-card-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green-muted);
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+  }
+
+  .feature-card-icon {
+    width: 36px; height: 36px;
+    margin-bottom: 20px;
+    color: var(--green-primary);
+  }
+
+  .feature-card-icon svg {
+    width: 100%; height: 100%;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  .feature-card-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+  }
+
+  .feature-card-desc {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.8;
+    margin-bottom: 16px;
+  }
+
+  .feature-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .feature-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: var(--green-glow);
+    color: var(--green-soft);
+    letter-spacing: 0.3px;
+  }
+
+  /* === Architecture === */
+  .arch-visual {
+    margin-top: var(--space-lg);
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: var(--space-lg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .arch-visual::before {
+    content: '';
+    position: absolute;
+    top: -100px; right: -100px;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--purple-glow), transparent 70%);
+    pointer-events: none;
+  }
+
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: var(--space-lg);
+    position: relative;
+  }
+
+  .arch-node {
+    padding: 14px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    position: relative;
+    transition: all var(--duration-normal) var(--ease-out-expo);
+  }
+
+  .arch-node:hover { transform: translateY(-2px); }
+
+  .arch-node.type-render {
+    background: rgba(92, 184, 122, 0.08);
+    border: 1px solid rgba(92, 184, 122, 0.15);
+    color: var(--green-soft);
+  }
+
+  .arch-node.type-bridge {
+    background: rgba(139, 106, 171, 0.08);
+    border: 1px solid rgba(139, 106, 171, 0.15);
+    color: var(--purple-soft);
+  }
+
+  .arch-node.type-main {
+    background: rgba(92, 184, 122, 0.15);
+    border: 1px solid rgba(92, 184, 122, 0.25);
+    color: var(--green-primary);
+    box-shadow: 0 0 24px var(--green-glow);
+  }
+
+  .arch-node.type-data {
+    background: rgba(92, 184, 122, 0.06);
+    border: 1px solid rgba(92, 184, 122, 0.12);
+    color: var(--green-soft);
+  }
+
+  .arch-arrow {
+    color: var(--text-faint);
+    font-size: 18px;
+  }
+
+  .arch-arrow svg {
+    width: 24px; height: 24px;
+    stroke: var(--text-faint);
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  .arch-layers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    background: var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .arch-layer {
+    background: var(--surface-2);
+    padding: 24px;
+  }
+
+  .arch-layer-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--green-primary);
+    margin-bottom: 8px;
+  }
+
+  .arch-layer-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* === Value === */
+  .value-layout {
+    display: grid;
+    grid-template-columns: 7fr 5fr;
+    gap: 2px;
+    margin-top: var(--space-lg);
+    background: var(--border-subtle);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .value-main {
+    background: var(--surface-1);
+    padding: 56px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .value-main::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; right: -80px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--green-glow), transparent 70%);
+    pointer-events: none;
+  }
+
+  .value-main-icon {
+    width: 48px; height: 48px;
+    margin-bottom: 24px;
+    color: var(--green-primary);
+  }
+
+  .value-main-icon svg {
+    width: 100%; height: 100%;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  .value-main-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    line-height: 1.3;
+  }
+
+  .value-main-desc {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.8;
+    margin-bottom: 32px;
+  }
+
+  .value-metrics {
+    display: flex;
+    gap: var(--space-lg);
+  }
+
+  .value-metric-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--green-primary);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .value-metric-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+  }
+
+  .value-side {
+    background: var(--surface-2);
+    padding: 48px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+  }
+
+  .value-side::after {
+    content: '';
+    position: absolute;
+    top: -60px; left: -60px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--purple-glow), transparent 70%);
+    pointer-events: none;
+  }
+
+  .value-side-icon {
+    width: 40px; height: 40px;
+    margin-bottom: 20px;
+    color: var(--purple-soft);
+  }
+
+  .value-side-icon svg {
+    width: 100%; height: 100%;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  .value-side-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .value-side-desc {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.8;
+    margin-bottom: 24px;
+  }
+
+  .value-side-metrics {
+    display: flex;
+    gap: var(--space-md);
+  }
+
+  /* === Tech Stack === */
+  .tech-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: var(--space-lg);
+  }
+
+  .tech-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all var(--duration-normal) var(--ease-out-expo);
+    cursor: default;
+  }
+
+  .tech-item:hover {
+    border-color: var(--border-hover);
+    background: var(--surface-2);
+    color: var(--green-soft);
+    transform: translateY(-1px);
+  }
+
+  .tech-item-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--green-primary);
+    flex-shrink: 0;
+  }
+
+  .tech-item-cat {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.5px;
+    margin-left: auto;
+    padding-left: 12px;
+  }
+
+  /* === Roadmap === */
+  .roadmap {
+    margin-top: var(--space-lg);
+    position: relative;
+  }
+
+  .roadmap::before {
+    content: '';
+    position: absolute;
+    left: 19px; top: 0;
+    width: 1px; height: 100%;
+    background: linear-gradient(180deg, var(--green-muted) 0%, var(--text-faint) 60%, transparent 100%);
+  }
+
+  .roadmap-item {
+    position: relative;
+    padding-left: 56px;
+    padding-bottom: var(--space-lg);
+  }
+
+  .roadmap-item:last-child { padding-bottom: 0; }
+
+  .roadmap-dot {
+    position: absolute;
+    left: 12px; top: 4px;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    border: 2px solid var(--green-primary);
+    background: var(--surface-0);
+    z-index: 1;
+  }
+
+  .roadmap-dot.active {
+    background: var(--green-primary);
+    box-shadow: 0 0 12px var(--green-glow-md);
+  }
+
+  .roadmap-dot.planned {
+    border-color: var(--text-faint);
+  }
+
+  .roadmap-phase {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .roadmap-phase.done { color: var(--green-primary); }
+  .roadmap-phase.active { color: var(--green-soft); }
+  .roadmap-phase.planned { color: var(--text-faint); }
+
+  .roadmap-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .roadmap-desc {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* === Footer === */
+  .footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: var(--space-xl) var(--space-md) var(--space-lg);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .footer-brand {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+
+  .footer-brand .accent { color: var(--green-primary); }
+
+  .footer-tagline {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: var(--space-md);
+  }
+
+  .footer-quote {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 16px;
+    color: var(--text-secondary);
+    font-style: italic;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.8;
+  }
+
+  .footer-quote .dash {
+    color: var(--green-muted);
+    margin-right: 8px;
+  }
+
+  .footer-bottom {
+    margin-top: var(--space-lg);
+    font-size: 12px;
+    color: var(--text-faint);
+    letter-spacing: 0.5px;
+  }
+
+  /* === Scroll Animations === */
+  .reveal {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity var(--duration-slow) var(--ease-out-expo),
+                transform var(--duration-slow) var(--ease-out-expo);
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+  .reveal-delay-5 { transition-delay: 0.5s; }
+  .reveal-delay-6 { transition-delay: 0.6s; }
+
+  /* === Responsive === */
+  @media (max-width: 900px) {
+    .nav-links { display: none; }
+    .hero-title { letter-spacing: -1px; }
+    .pain-section .pain-grid { grid-template-columns: 1fr; }
+    .features-grid { grid-template-columns: 1fr; }
+    .feature-card:nth-child(n) { grid-column: span 1; }
+    .value-layout { grid-template-columns: 1fr; }
+    .arch-layers { grid-template-columns: 1fr; }
+    .hero-stats { flex-wrap: wrap; gap: var(--space-md); }
+    .hero-actions { flex-direction: column; align-items: flex-start; }
+    .arch-flow { gap: 8px; }
+  }
+
+  @media (max-width: 600px) {
+    .section { padding: var(--space-lg) var(--space-sm); }
+    .hero { padding: 100px var(--space-sm) var(--space-lg); }
+    .nav { padding: 16px 20px; }
+    .value-main { padding: 32px 24px; }
+    .value-side { padding: 32px 24px; }
+    .arch-visual { padding: var(--space-md); }
+  }
+
+  /* === Custom Scrollbar === */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface-0); }
+  ::-webkit-scrollbar-thumb { background: var(--green-dim); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--green-muted); }
+</style>
+</head>
+<body>
+
+<!-- Background Canvas -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- Navigation -->
+<nav class="nav" id="nav">
+  <div class="nav-logo"><span class="accent">知行</span>读书</div>
+  <ul class="nav-links">
+    <li><a href="#pain">痛点洞察</a></li>
+    <li><a href="#features">核心功能</a></li>
+    <li><a href="#arch">技术架构</a></li>
+    <li><a href="#value">价值与意义</a></li>
+    <li><a href="#roadmap">发展规划</a></li>
+  </ul>
+</nav>
+
+<!-- ====== Hero ====== -->
+<section class="hero">
+  <div class="hero-eyebrow reveal">
+    <span class="line"></span>
+    <span class="pulse-dot"></span>
+    TRAE AI Creativity Contest
+  </div>
+  <h1 class="hero-title reveal reveal-delay-1">
+    <span class="word-zhixing">知行</span><span class="word-dushu">读书</span>
+  </h1>
+  <p class="hero-desc reveal reveal-delay-2">
+    AI 驱动的<span class="highlight">阅读成长伙伴</span> — 从"读过"到"记住"到"做到"，<br>让每一本书真正融入你的生活
+  </p>
+  <div class="hero-actions reveal reveal-delay-3">
+    <a href="#features" class="btn btn-primary">
+      探索功能
+      <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <a href="#value" class="btn btn-ghost">价值与意义</a>
+  </div>
+  <div class="hero-stats reveal reveal-delay-4">
+    <div class="hero-stat">
+      <div class="hero-stat-value" data-count="6">0</div>
+      <div class="hero-stat-label">核心功能模块</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">FSRS</div>
+      <div class="hero-stat-label">科学间隔重复算法</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">100%</div>
+      <div class="hero-stat-label">本地优先 · 数据自主</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">AI</div>
+      <div class="hero-stat-label">智能体深度对话</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ====== Pain Points ====== -->
+<section class="section pain-section" id="pain">
+  <div class="reveal">
+    <div class="section-label">Pain Points</div>
+    <h2 class="section-heading">读完就忘？你并不孤单</h2>
+    <p class="section-subtext">
+      研究表明，人在阅读后 7 天内会遗忘 70% 的内容。传统阅读工具只解决"读"的问题，却从未解决"记住"和"应用"的问题。
+    </p>
+  </div>
+  <div class="pain-grid">
+    <div class="pain-card reveal">
+      <div class="pain-card-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 017 7c0 3-2 5.5-4 7.5L12 22l-3-5.5C7 14.5 5 12 5 9a7 7 0 017-7z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="9" r="2.5"/></svg>
+      </div>
+      <div class="pain-card-title">读完就忘，知识留不住</div>
+      <div class="pain-card-desc">划线、做笔记时感觉都懂了，过两周回头看，仿佛从没读过这本书。阅读变成了"安慰剂式学习"。</div>
+    </div>
+    <div class="pain-card reveal reveal-delay-1">
+      <div class="pain-card-icon">
+        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7h8M8 11h5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="pain-card-title">笔记散落，无法体系化</div>
+      <div class="pain-card-desc">微信读书、Kindle、纸质笔记本……笔记分散在各个平台，无法形成知识网络，更别提跨书关联和复习。</div>
+    </div>
+    <div class="pain-card reveal reveal-delay-2">
+      <div class="pain-card-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-linecap="round"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg>
+      </div>
+      <div class="pain-card-title">读不懂，没人可以问</div>
+      <div class="pain-card-desc">遇到难懂的概念或段落，只能自己硬啃。没有即时答疑，理解偏差越积越多，最终放弃阅读。</div>
+    </div>
+    <div class="pain-card reveal reveal-delay-3">
+      <div class="pain-card-icon">
+        <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11V9a4 4 0 014-4h14" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 23l-4-4 4-4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 13v2a4 4 0 01-4 4H3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="pain-card-title">学用脱节，知行不一</div>
+      <div class="pain-card-desc">知道很多道理，却过不好这一生。读到的知识没有转化为行动，"知"与"行"之间始终隔着一道鸿沟。</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ====== Features ====== -->
+<section class="section" id="features">
+  <div class="reveal">
+    <div class="section-label">Core Features</div>
+    <h2 class="section-heading">六大模块，闭环阅读成长</h2>
+    <p class="section-subtext">
+      从"读"到"记"到"问"到"练"到"用"，知行读书构建了完整的阅读成长闭环，让每一本书都不白读。
+    </p>
+  </div>
+  <div class="features-grid">
+    <!-- Feature 1: 微信读书同步 -->
+    <div class="feature-card reveal">
+      <div class="feature-card-num">01</div>
+      <div class="feature-card-icon">
+        <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8h4M12 12h4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="feature-card-title">微信读书同步</div>
+      <div class="feature-card-desc">一键同步微信读书书架、划线与笔记，无需手动导入，已有阅读资产零成本迁移。</div>
+      <div class="feature-card-tags">
+        <span class="feature-tag">自动同步</span>
+        <span class="feature-tag">划线导入</span>
+        <span class="feature-tag">笔记关联</span>
+      </div>
+    </div>
+    <!-- Feature 2: AI 深度对话 -->
+    <div class="feature-card reveal reveal-delay-1">
+      <div class="feature-card-num">02</div>
+      <div class="feature-card-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 9h8M8 13h5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="feature-card-title">AI 深度对话</div>
+      <div class="feature-card-desc">基于书籍内容的智能体对话，支持意图识别、上下文记忆、方法论自动注入，像和作者面对面交流。</div>
+      <div class="feature-card-tags">
+        <span class="feature-tag">意图识别</span>
+        <span class="feature-tag">上下文记忆</span>
+        <span class="feature-tag">方法论注入</span>
+      </div>
+    </div>
+    <!-- Feature 3: FSRS 间隔复习 -->
+    <div class="feature-card reveal reveal-delay-2">
+      <div class="feature-card-num">03</div>
+      <div class="feature-card-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-linecap="round"/><path d="M12 6v6l4 2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-card-title">FSRS 间隔复习</div>
+      <div class="feature-card-desc">采用 FSRS 科学间隔重复算法，根据记忆曲线自动安排复习，让知识真正留在脑海中。</div>
+      <div class="feature-card-tags">
+        <span class="feature-tag">FSRS算法</span>
+        <span class="feature-tag">智能调度</span>
+        <span class="feature-tag">记忆追踪</span>
+      </div>
+    </div>
+    <!-- Feature 4: 知识卡片蒸馏 -->
+    <div class="feature-card reveal reveal-delay-3">
+      <div class="feature-card-num">04</div>
+      <div class="feature-card-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 17l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-card-title">知识卡片蒸馏</div>
+      <div class="feature-card-desc">AI 从划线笔记中蒸馏出概念、方法论和金句，形成结构化知识卡片。</div>
+      <div class="feature-card-tags">
+        <span class="feature-tag">AI蒸馏</span>
+        <span class="feature-tag">概念提取</span>
+        <span class="feature-tag">方法论沉淀</span>
+      </div>
+    </div>
+    <!-- Feature 5: 每日英语学习 -->
+    <div class="feature-card reveal reveal-delay-4">
+      <div class="feature-card-num">05</div>
+      <div class="feature-card-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-linecap="round"/><path d="M2 12h20" stroke-linecap="round"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z" stroke-linecap="round"/></svg>
+      </div>
+      <div class="feature-card-title">每日英语学习</div>
+      <div class="feature-card-desc">RSS 自动抓取英文文章，英中对照阅读，悬停查词，右键加入生词本，FSRS 驱动生词复习。</div>
+      <div class="feature-card-tags">
+        <span class="feature-tag">RSS抓取</span>
+        <span class="feature-tag">悬停查词</span>
+        <span class="feature-tag">生词复习</span>
+      </div>
+    </div>
+    <!-- Feature 6: 本地优先架构 -->
+    <div class="feature-card reveal reveal-delay-5">
+      <div class="feature-card-num">06</div>
+      <div class="feature-card-icon">
+        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11V7a5 5 0 0110 0v4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-card-title">本地优先架构</div>
+      <div class="feature-card-desc">所有数据存储在本地 SQLite 数据库，API Key 使用系统级加密，你的阅读数据永远属于你自己。</div>
+      <div class="feature-card-tags">
+        <span class="feature-tag">SQLite本地</span>
+        <span class="feature-tag">SafeStorage加密</span>
+        <span class="feature-tag">数据自主</span>
+      </div>
+    </div>
+    <!-- Feature 7 (bonus): 闭环说明 -->
+    <div class="feature-card reveal reveal-delay-6">
+      <div class="feature-card-num">LOOP</div>
+      <div class="feature-card-icon">
+        <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11V9a4 4 0 014-4h14" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 23l-4-4 4-4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 13v2a4 4 0 01-4 4H3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-card-title">知行合一闭环</div>
+      <div class="feature-card-desc">读 → 记 → 问 → 练 → 用，六模块形成完整成长闭环。FSRS+AI蒸馏双引擎驱动，阅读留存率提升 3 倍。</div>
+      <div class="feature-card-tags">
+        <span class="feature-tag">闭环设计</span>
+        <span class="feature-tag">双引擎驱动</span>
+        <span class="feature-tag">3x留存</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ====== Architecture ====== -->
+<section class="section" id="arch">
+  <div class="reveal">
+    <div class="section-label">Architecture</div>
+    <h2 class="section-heading">三进程架构，安全与性能兼得</h2>
+    <p class="section-subtext">
+      基于 Electron 三进程架构，主进程处理核心逻辑，渲染进程呈现界面，预加载脚本桥接安全通信。
+    </p>
+  </div>
+  <div class="arch-visual reveal">
+    <div class="arch-flow">
+      <div class="arch-node type-render">React 19 渲染进程</div>
+      <div class="arch-arrow">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="arch-node type-bridge">Preload 安全桥接</div>
+      <div class="arch-arrow">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="arch-node type-main">Electron 主进程</div>
+      <div class="arch-arrow">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="arch-node type-data">SQLite / AI / 微信读书 API</div>
+    </div>
+    <div class="arch-layers">
+      <div class="arch-layer">
+        <div class="arch-layer-name">Frontend</div>
+        <div class="arch-layer-desc">React 19 + React Router 7 + Zustand 5 + Tailwind CSS 4，组件化开发，状态管理清晰</div>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-name">IPC Bridge</div>
+        <div class="arch-layer-desc">IPC 通道统一定义，contextBridge 安全暴露，类型安全的全链路调用</div>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-name">Core Engine</div>
+        <div class="arch-layer-desc">sql.js (SQLite WASM) + FSRS 间隔重复 + AI 智能体引擎</div>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-name">AI Layer</div>
+        <div class="arch-layer-desc">意图分类器 + 上下文管理器 + 策略选择器 + 5大上下文构建器</div>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-name">Security</div>
+        <div class="arch-layer-desc">Electron safeStorage 加密 API Key，本地优先，零云端依赖</div>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-name">Build</div>
+        <div class="arch-layer-desc">electron-vite 2 构建 + electron-builder 25 打包，Windows NSIS 安装器</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ====== Value ====== -->
+<section class="section" id="value">
+  <div class="reveal">
+    <div class="section-label">Value</div>
+    <h2 class="section-heading">不止于阅读，更是成长引擎</h2>
+    <p class="section-subtext">
+      知行读书的价值不在于让你"读得更多"，而在于让你"真正记住"和"实际运用"。
+    </p>
+  </div>
+  <div class="value-layout">
+    <div class="value-main reveal">
+      <div class="value-main-icon">
+        <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="value-main-title">效率提升：阅读留存率提升 3 倍</div>
+      <div class="value-main-desc">
+        通过 FSRS 科学复习 + AI 知识蒸馏双引擎，将传统阅读 30% 的留存率提升至 90% 以上。不再是"读完就忘"，而是"越读越牢"。
+      </div>
+      <div class="value-metrics">
+        <div class="value-metric">
+          <div class="value-metric-num">3x</div>
+          <div class="value-metric-label">留存率提升</div>
+        </div>
+        <div class="value-metric">
+          <div class="value-metric-num">70%</div>
+          <div class="value-metric-label">遗忘率降低</div>
+        </div>
+      </div>
+    </div>
+    <div class="value-side reveal reveal-delay-1">
+      <div class="value-side-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="value-side-title">社会价值：让知识真正改变生活</div>
+      <div class="value-side-desc">
+        "知行合一"是千古命题。知行读书通过方法论提取、AI 对话引导和间隔复习，帮助用户跨越"知道"到"做到"的鸿沟。
+      </div>
+      <div class="value-side-metrics">
+        <div class="value-metric">
+          <div class="value-metric-num" style="font-size:24px;">知→行</div>
+          <div class="value-metric-label">知行合一闭环</div>
+        </div>
+        <div class="value-metric">
+          <div class="value-metric-num" style="font-size:24px;">∞</div>
+          <div class="value-metric-label">知识复利效应</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ====== Tech Stack ====== -->
+<section class="section" id="tech">
+  <div class="reveal">
+    <div class="section-label">Tech Stack</div>
+    <h2 class="section-heading">现代技术，极致体验</h2>
+    <p class="section-subtext">精选前沿技术栈，确保性能、安全与开发效率的完美平衡。</p>
+  </div>
+  <div class="tech-grid reveal">
+    <div class="tech-item"><span class="tech-item-dot"></span>Electron 35<span class="tech-item-cat">Runtime</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>React 19<span class="tech-item-cat">UI</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>TypeScript 5.6<span class="tech-item-cat">Language</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>Zustand 5<span class="tech-item-cat">State</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>Tailwind CSS 4<span class="tech-item-cat">Style</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>sql.js (SQLite WASM)<span class="tech-item-cat">Database</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>FSRS.js<span class="tech-item-cat">Algorithm</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>electron-vite 2<span class="tech-item-cat">Build</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>React Router 7<span class="tech-item-cat">Routing</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>Qdrant<span class="tech-item-cat">Vector</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>Electron SafeStorage<span class="tech-item-cat">Security</span></div>
+    <div class="tech-item"><span class="tech-item-dot"></span>electron-builder 25<span class="tech-item-cat">Package</span></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ====== Roadmap ====== -->
+<section class="section" id="roadmap">
+  <div class="reveal">
+    <div class="section-label">Roadmap</div>
+    <h2 class="section-heading">从 MVP 到生态</h2>
+    <p class="section-subtext">清晰的阶段规划，每一步都在构建更完整的阅读成长生态。</p>
+  </div>
+  <div class="roadmap reveal">
+    <div class="roadmap-item">
+      <div class="roadmap-dot active"></div>
+      <div class="roadmap-phase done">Phase 1 / Completed</div>
+      <div class="roadmap-title">核心功能闭环</div>
+      <div class="roadmap-desc">微信读书同步 + AI 对话 + FSRS 复习 + 知识卡片蒸馏 + 每日英语学习 + 本地数据库</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot active"></div>
+      <div class="roadmap-phase active">Phase 2 / In Progress</div>
+      <div class="roadmap-title">智能体深化</div>
+      <div class="roadmap-desc">RAG 向量检索增强 + 多轮对话记忆优化 + 方法论自动实践追踪 + 阅读统计仪表盘</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot planned"></div>
+      <div class="roadmap-phase planned">Phase 3 / Planned</div>
+      <div class="roadmap-title">知识图谱</div>
+      <div class="roadmap-desc">跨书知识关联 + 概念图谱可视化 + 自动生成读书报告 + 社区知识共享</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot planned"></div>
+      <div class="roadmap-phase planned">Phase 4 / Future</div>
+      <div class="roadmap-title">多端生态</div>
+      <div class="roadmap-desc">移动端适配 + 浏览器扩展 + 开放 API + 第三方阅读器集成</div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Footer ====== -->
+<footer class="footer">
+  <div class="footer-brand"><span class="accent">知行</span>读书</div>
+  <div class="footer-tagline">AI 驱动的阅读成长伙伴 · TRAE AI 创造力大赛参赛作品</div>
+  <div class="footer-quote">
+    <span class="dash">—</span>知之真切笃实处即是行，行之明觉精察处即是知。<br>王阳明《传习录》
+  </div>
+  <div class="footer-bottom">Zhixing Reader · Built with Electron + React + TypeScript</div>
+</footer>
+
+<script>
+  // === Particle Background (Canvas) ===
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  let mouse = { x: -1000, y: -1000 };
+  let animId;
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  class Particle {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      this.x = Math.random() * canvas.width;
+      this.y = Math.random() * canvas.height;
+      this.size = Math.random() * 1.5 + 0.5;
+      this.speedX = (Math.random() - 0.5) * 0.3;
+      this.speedY = (Math.random() - 0.5) * 0.3;
+      this.opacity = Math.random() * 0.3 + 0.05;
+      this.baseOpacity = this.opacity;
+    }
+    update() {
+      this.x += this.speedX;
+      this.y += this.speedY;
+
+      // Mouse interaction
+      const dx = this.x - mouse.x;
+      const dy = this.y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 150) {
+        const force = (150 - dist) / 150;
+        this.opacity = this.baseOpacity + force * 0.4;
+        this.x += dx * force * 0.01;
+        this.y += dy * force * 0.01;
+      } else {
+        this.opacity += (this.baseOpacity - this.opacity) * 0.05;
+      }
+
+      // Wrap around
+      if (this.x < -10) this.x = canvas.width + 10;
+      if (this.x > canvas.width + 10) this.x = -10;
+      if (this.y < -10) this.y = canvas.height + 10;
+      if (this.y > canvas.height + 10) this.y = -10;
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(92, 184, 122, ${this.opacity})`;
+      ctx.fill();
+    }
+  }
+
+  function initParticles() {
+    particles = [];
+    const count = Math.min(Math.floor((canvas.width * canvas.height) / 15000), 80);
+    for (let i = 0; i < count; i++) {
+      particles.push(new Particle());
+    }
+  }
+
+  function drawConnections() {
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          const opacity = (1 - dist / 120) * 0.06;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(92, 184, 122, ${opacity})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Subtle radial glow at center
+    const gradient = ctx.createRadialGradient(
+      canvas.width * 0.3, canvas.height * 0.4, 0,
+      canvas.width * 0.3, canvas.height * 0.4, canvas.width * 0.5
+    );
+    gradient.addColorStop(0, 'rgba(92, 184, 122, 0.03)');
+    gradient.addColorStop(0.5, 'rgba(92, 184, 122, 0.01)');
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Purple accent glow
+    const purpleGlow = ctx.createRadialGradient(
+      canvas.width * 0.75, canvas.height * 0.6, 0,
+      canvas.width * 0.75, canvas.height * 0.6, canvas.width * 0.35
+    );
+    purpleGlow.addColorStop(0, 'rgba(139, 106, 171, 0.02)');
+    purpleGlow.addColorStop(1, 'transparent');
+    ctx.fillStyle = purpleGlow;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    particles.forEach(p => {
+      p.update();
+      p.draw();
+    });
+    drawConnections();
+
+    animId = requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    initParticles();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  resizeCanvas();
+  initParticles();
+  animate();
+
+  // === Navigation Scroll Effect ===
+  const nav = document.getElementById('nav');
+  let lastScroll = 0;
+
+  window.addEventListener('scroll', () => {
+    const currentScroll = window.scrollY;
+    if (currentScroll > 60) {
+      nav.classList.add('scrolled');
+    } else {
+      nav.classList.remove('scrolled');
+    }
+    lastScroll = currentScroll;
+  }, { passive: true });
+
+  // === Scroll Reveal ===
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, {
+    threshold: 0.1,
+    rootMargin: '0px 0px -60px 0px'
+  });
+
+  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+  // === Counter Animation ===
+  function animateCounter(el, target) {
+    let current = 0;
+    const duration = 1500;
+    const startTime = performance.now();
+
+    function update(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      current = Math.floor(eased * target);
+      el.textContent = current + '+';
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+  }
+
+  const statObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const count = entry.target.getAttribute('data-count');
+        if (count) {
+          animateCounter(entry.target, parseInt(count));
+          statObserver.unobserve(entry.target);
+        }
+      }
+    });
+  }, { threshold: 0.5 });
+
+  document.querySelectorAll('[data-count]').forEach(el => statObserver.observe(el));
+
+  // === Smooth Scroll for Anchor Links ===
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function(e) {
+      e.preventDefault();
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

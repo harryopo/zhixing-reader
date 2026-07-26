@@ -34,8 +34,14 @@ export function setAIConfig(cfg: AISDKConfig): void {
 export function initFromSettings(settings: Record<string, unknown>): void {
   const llmKey = settings.llmKey as string;
   const aiProvider = (settings.aiProvider as AIProvider) || 'custom';
-  const llmEndpoint = settings.llmEndpoint as string;
+  let llmEndpoint = settings.llmEndpoint as string;
   const llmModel = settings.llmModel as string;
+
+  // DeepSeek 等 OpenAI 兼容端点需要 /v1 后缀；自动补全避免返回空响应
+  if (llmEndpoint && llmEndpoint.includes('api.deepseek.com') && !llmEndpoint.endsWith('/v1')) {
+    llmEndpoint = `${llmEndpoint.replace(/\/$/, '')}/v1`;
+    logger.info(`Auto-appended /v1 to DeepSeek endpoint: ${llmEndpoint}`);
+  }
 
   if (llmKey) {
     config = {
@@ -48,6 +54,45 @@ export function initFromSettings(settings: Record<string, unknown>): void {
     };
     logger.info(`AI SDK initialized from settings: provider=${aiProvider}, model=${llmModel || 'default'}`);
   }
+}
+
+/**
+ * 归一化消息列表：将 system message 合并到第一条 user message 中。
+ * 部分模型（如 deepseek-v4-flash）不允许 messages 中包含 system role，
+ * 直接调用会触发 AI_InvalidPromptError 并被 SDK 静默吞掉，导致无输出。
+ */
+function normalizeMessages(
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const systemParts: string[] = [];
+  const nonSystem: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+  for (const m of messages) {
+    if (m.role === 'system') {
+      systemParts.push(m.content);
+    } else {
+      nonSystem.push(m as { role: 'user' | 'assistant'; content: string });
+    }
+  }
+
+  if (systemParts.length === 0) {
+    return nonSystem;
+  }
+
+  const systemPrefix = `[系统指令]\n${systemParts.join('\n\n')}\n\n---\n\n`;
+  const firstUserIndex = nonSystem.findIndex((m) => m.role === 'user');
+
+  if (firstUserIndex >= 0) {
+    nonSystem[firstUserIndex] = {
+      ...nonSystem[firstUserIndex],
+      content: `${systemPrefix}${nonSystem[firstUserIndex].content}`,
+    };
+  } else {
+    // 没有 user message 时创建一条，保证消息列表有效
+    nonSystem.unshift({ role: 'user', content: systemPrefix.trim() });
+  }
+
+  return nonSystem;
 }
 
 function getModel() {
@@ -86,10 +131,25 @@ export async function sdkStreamChat(
   onError: (error: Error) => void,
   _options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void },
 ): Promise<void> {
+  logger.info('sdkStreamChat called', {
+    messageCount: messages.length,
+    hasConfig: !!config,
+    baseUrl: config?.baseUrl,
+    model: config?.model,
+  })
   if (!config) {
     onError(new Error('AI SDK not configured'));
     return;
   }
+
+  // 归一化消息：避免模型不支持 system role 导致静默失败
+  const normalizedMessages = normalizeMessages(messages);
+  logger.info('Normalized messages for LLM', {
+    originalCount: messages.length,
+    normalizedCount: normalizedMessages.length,
+    roles: normalizedMessages.map((m) => m.role),
+    previews: normalizedMessages.map((m) => ({ role: m.role, length: m.content.length, preview: m.content.slice(0, 120) })),
+  });
 
   // Replace any previous stream
   if (activeStreamController) {
@@ -112,26 +172,50 @@ export async function sdkStreamChat(
   };
 
   try {
+    logger.info('Calling streamText with model', { model: config.model, baseUrl: config.baseUrl })
     const result = streamText({
       model: getModel(),
-      messages,
+      messages: normalizedMessages,
       maxOutputTokens: config.maxTokens ?? 2000,
       temperature: config.temperature ?? 0.7,
       abortSignal: signal,
+      onError: (error) => {
+        logger.error('streamText onError callback', error);
+        safeError(error instanceof Error ? error : new Error(String(error)));
+      },
     });
+    logger.info('streamText returned, awaiting textStream')
 
+    let hasOutput = false;
+    let chunkCount = 0;
     for await (const chunk of result.textStream) {
       onChunk(chunk);
+      hasOutput = true;
+      chunkCount++;
+      if (chunkCount <= 5 || chunkCount % 20 === 0) {
+        logger.info(`LLM chunk #${chunkCount}`, { chunkLength: chunk?.length, chunkPreview: chunk?.slice(0, 80) })
+      }
     }
+    logger.info('textStream ended', { chunkCount, hasOutput })
 
     // 获取用量
-    const usage = await result.usage;
-    safeComplete({
-      promptTokens: usage?.inputTokens ?? 0,
-      completionTokens: usage?.outputTokens ?? 0,
-    });
+    let promptTokens = 0;
+    let completionTokens = 0;
+    if (hasOutput) {
+      try {
+        const usage = await result.usage;
+        promptTokens = usage?.inputTokens ?? 0;
+        completionTokens = usage?.outputTokens ?? 0;
+        logger.info('streamText usage', { promptTokens, completionTokens })
+      } catch (e) {
+        logger.warn('Failed to get streamText usage', { error: e instanceof Error ? e.message : String(e) })
+      }
+    }
+
+    safeComplete({ promptTokens, completionTokens });
   } catch (error) {
     if (signal.aborted) {
+      logger.info('sdkStreamChat aborted by signal')
       safeComplete({ promptTokens: 0, completionTokens: 0 });
       return;
     }
@@ -154,10 +238,16 @@ export async function sdkGenerateObject<T>(
 ): Promise<T> {
   if (!config) throw new Error('AI SDK not configured');
 
+  const normalizedMessages = normalizeMessages(messages);
+  logger.info('sdkGenerateObject normalized messages', {
+    originalCount: messages.length,
+    normalizedCount: normalizedMessages.length,
+  });
+
   const result = await generateObject({
     model: getModel(),
     schema,
-    messages,
+    messages: normalizedMessages,
     maxOutputTokens: options?.maxOutputTokens ?? config.maxTokens ?? 2000,
     abortSignal: options?.signal,
   });

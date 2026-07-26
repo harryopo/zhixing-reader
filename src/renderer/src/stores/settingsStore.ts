@@ -24,7 +24,7 @@ interface SettingsState {
   testingAI: boolean
   syncingProfile: boolean
   error: string | null
-  testResult: { type: 'weread' | 'ai'; success: boolean; message: string; firstBookTitle?: string } | null
+  testResult: { type: 'weread' | 'ai'; success: boolean; message: string } | null
   saved: boolean
 
   loadSettings: () => Promise<void>
@@ -175,8 +175,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         testResult: {
           type: 'weread',
           success: result.success,
-          message: result.message,
-          firstBookTitle: result.firstBookTitle
+          message: result.message
         }
       })
     } catch (error) {

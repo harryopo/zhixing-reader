@@ -14,6 +14,12 @@ import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
 
 const isDev = !app.isPackaged;
 
+// 开发环境启用 CDP 调试端口（供截图脚本使用）
+if (isDev) {
+  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+  app.commandLine.appendSwitch('remote-allow-origins', '*');
+}
+
 
 
 function getPreloadPath(): string {
@@ -66,7 +72,9 @@ function createWindow(): void {
   });
 
   if (isDev) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL || 'http://localhost:5275');
+    // 强制使用 5500 端口（electron.vite.config.ts 中配置）
+    // 不使用 VITE_DEV_SERVER_URL 环境变量，因为它可能被缓存为旧值
+    mainWindow.loadURL('http://127.0.0.1:5500');
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));

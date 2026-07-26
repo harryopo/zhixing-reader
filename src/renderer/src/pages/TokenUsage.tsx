@@ -388,6 +388,8 @@ export default function TokenUsagePage() {
       await window.electronAPI.tokenUsage.clearAll()
       setShowClearConfirm(false)
       toast.success('Token 记录已清空')
+      // 通知侧边栏立即刷新 token 用量
+      window.dispatchEvent(new Event('token-usage:cleared'))
       await loadAll()
     } catch (error) {
       console.error('清空Token记录失败:', error)
@@ -556,12 +558,12 @@ export default function TokenUsagePage() {
           </div>
         )}
 
-        {/* ===== Layer 1: 4-up KPI cards（设计稿 1:1） ===== */}
+        {/* ===== Layer 1: KPI cards（3列：用量 + 会话数 + 平均消耗） ===== */}
         <div
           className="grid stats"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
             gap: 'calc(var(--spacing) * 4)',
           }}
         >
@@ -569,12 +571,6 @@ export default function TokenUsagePage() {
             <div style={eyebrowStyle}>{getUsageEyebrow(timeRange)}</div>
             <Metric value={formatTokens(kpi.totalTokens)} />
             <Trend kind="default">{formatTokensFull(kpi.totalTokens)} tokens</Trend>
-          </Card>
-
-          <Card interactive>
-            <div style={eyebrowStyle}>预估费用</div>
-            <Metric value={formatCost(kpi.totalCostUsd)} />
-            <Trend kind="default">预算 ¥50</Trend>
           </Card>
 
           <Card interactive>

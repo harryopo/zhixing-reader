@@ -167,6 +167,12 @@ export async function processMessageStream(
   onError: (error: Error) => void,
   options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void }
 ): Promise<void> {
+  logger.info('processMessageStream started', {
+    sessionId: context.sessionId,
+    bookId: context.bookId,
+    userMessageLength: userMessage?.length,
+    historyLength: context.conversationHistory?.length,
+  })
   // 1. 意图分类和策略选择
   const intent = await classifyIntent(userMessage, context.conversationHistory)
   let strategy = selectStrategy(intent)
@@ -225,17 +231,18 @@ export async function processMessageStream(
   const systemPromptWithStrategy = getSystemPrompt() + strategyHint + difficultyHint + masteryContext
 
   // 5. 构建消息
-  // 检查是否有任何上下文内容
-  const hasContext = combinedContext.trim().length > 0
+  // 清洗 conversationHistory，过滤空内容/无效角色
+  const cleanedHistory = context.conversationHistory
+    .slice(-8)
+    .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    .filter(m => m.content && String(m.content).trim().length > 0)
+
   const messages = [
     { role: 'system' as const, content: systemPromptWithStrategy },
-    ...(context.conversationHistory.slice(-8).map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }))),
+    ...cleanedHistory,
     {
       role: 'user' as const,
-      content: hasContext
+      content: combinedContext.trim().length > 0
         ? `我的阅读笔记和相关资料：\n${combinedContext}\n\n问题：${userMessage}`
         : `问题：${userMessage}\n\n当前没有提供阅读笔记。请基于你已有的知识回答，并明确告知用户你没有笔记可引用，如果用户需要基于笔记的回答请选择书籍后再提问。`
     },
@@ -244,10 +251,16 @@ export async function processMessageStream(
   // 6. 发送消息和处理响应
   const estimatedTokens = estimateTokenCount(messages)
   logger.info('Token estimate', { estimatedInputTokens: estimatedTokens })
+  logger.info('Sending messages to LLM', {
+    messageCount: messages.length,
+    roles: messages.map(m => m.role),
+    contents: messages.map(m => ({ role: m.role, length: m.content.length, preview: m.content.slice(0, 120) })),
+  })
 
   let fullResponse = ''
   const originalOnChunk = onChunk
   const wrappedOnChunk = (chunk: string) => {
+    logger.info('LLM chunk forwarded', { chunkLength: chunk?.length, preview: chunk?.slice(0, 80) })
     fullResponse += chunk
     originalOnChunk(chunk)
   }
@@ -275,6 +288,7 @@ export async function processMessageStream(
       logger.error('Failed to extract memories', err)
     }
 
+    logger.info('LLM response complete', { fullResponseLength: fullResponse.length, usage })
     originalOnComplete(usage)
   }
 

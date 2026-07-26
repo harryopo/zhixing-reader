@@ -18,16 +18,13 @@ import DailyLearning from './pages/DailyLearning'
 import VocabularyPage from './pages/VocabularyPage'
 import AgentOrchestration from './pages/AgentOrchestration'
 
-// 设置子页（懒加载，阶段2-P3 将填充实际内容）
+// 设置子页（懒加载）
 const SettingsAccount = lazy(() => import('./pages/settings/SettingsAccount'))
 const SettingsAI = lazy(() => import('./pages/settings/SettingsAI'))
 const SettingsWeRead = lazy(() => import('./pages/settings/SettingsWeRead'))
 const SettingsData = lazy(() => import('./pages/settings/SettingsData'))
 const SettingsAppearance = lazy(() => import('./pages/settings/SettingsAppearance'))
 const SettingsAbout = lazy(() => import('./pages/settings/SettingsAbout'))
-
-// Admin 页面（保留旧版，懒加载）
-const AdminPage = lazy(() => import('./pages/admin/AdminPage'))
 
 function Loading() {
   return (
@@ -79,9 +76,6 @@ function App() {
 
               {/* ===== 智能体编排（设计稿 agent-orchestration.html） ===== */}
               <Route path="/agent-orchestration" element={<AgentOrchestration />} />
-
-              {/* ===== 旧版保留 ===== */}
-              <Route path="/admin" element={<AdminPage />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>

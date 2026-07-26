@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知行读书 — AI 驱动的阅读成长智能体 | 火山杯 2026</title>
+  <meta name="description" content="知行读书：微信读书同步 → AI 智能体理解 → FSRS v5 科学间隔复习 → 知识卡片体系化 → 英语学习。基于 Electron 35 + React 19 + TypeScript 的桌面应用，MIT 开源。" />
+  <meta name="author" content="张子涵" />
+  <meta name="theme-color" content="#059669" />
+  <meta property="og:title" content="知行读书 — AI 驱动的阅读成长智能体" />
+  <meta property="og:description" content="把微信读书划线变成知识资产的桌面应用。FSRS v5 算法 · AI 智能体 · 知识卡片 · 英语学习。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://github.com/harryopo/zhixing-reader" />
+  <meta property="og:image" content="screenshots/screenshot-home.png" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23059669'/%3E%3Ctext x='16' y='22' font-family='-apple-system,sans-serif' font-size='18' font-weight='700' fill='white' text-anchor='middle'%3E%E7%9F%A5%3C/text%3E%3C/svg%3E" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    :root {
+      --surface-0: #080c0a;
+      --surface-1: #0d1210;
+      --surface-2: #121a16;
+      --surface-3: #182019;
+      --surface-4: #1e2820;
+      --surface-overlay: rgba(8, 12, 10, 0.85);
+
+      --green-dim: #1a3a25;
+      --green-muted: #2d6b42;
+      --green-soft: #4a9d68;
+      --green-primary: #5cb87a;
+      --green-bright: #7ed99a;
+      --green-glow: rgba(92, 184, 122, 0.12);
+      --green-glow-md: rgba(92, 184, 122, 0.2);
+      --green-glow-strong: rgba(92, 184, 122, 0.35);
+
+      --purple-dim: #1f1530;
+      --purple-muted: #3d2a5c;
+      --purple-soft: #6b4d8a;
+      --purple-primary: #8b6aab;
+      --purple-glow: rgba(139, 106, 171, 0.1);
+
+      --text-primary: #e2ede6;
+      --text-secondary: #9bb5a4;
+      --text-muted: #5e7d68;
+      --text-faint: #3a5442;
+
+      --space-xs: 8px;
+      --space-sm: 16px;
+      --space-md: 32px;
+      --space-lg: 64px;
+      --space-xl: 96px;
+      --space-2xl: 128px;
+
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+      --duration-fast: 0.2s;
+      --duration-normal: 0.4s;
+      --duration-slow: 0.8s;
+
+      --border-subtle: rgba(92, 184, 122, 0.06);
+      --border-default: rgba(92, 184, 122, 0.1);
+      --border-hover: rgba(92, 184, 122, 0.2);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: var(--green-dim) var(--surface-0);
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Serif SC', -apple-system, sans-serif;
+      background: var(--surface-0);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      opacity: 0.025;
+      pointer-events: none;
+      z-index: 9999;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      background-size: 256px 256px;
+    }
+
+    #bg-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all var(--duration-normal) var(--ease-out-expo);
+      backdrop-filter: blur(0px);
+    }
+
+    .nav.scrolled {
+      padding: 14px 40px;
+      background: rgba(8, 12, 10, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .nav-logo {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 2px;
+    }
+
+    .nav-logo .accent {
+      color: var(--green-primary);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-decoration: none;
+      letter-spacing: 0.5px;
+      transition: color var(--duration-fast);
+      position: relative;
+    }
+
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px; left: 0;
+      width: 0; height: 1px;
+      background: var(--green-primary);
+      transition: width var(--duration-normal) var(--ease-out-expo);
+    }
+
+    .nav-links a:hover { color: var(--text-primary); }
+    .nav-links a:hover::after { width: 100%; }
+
+    .section {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-xl) var(--space-md);
+    }
+
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--green-primary);
+      margin-bottom: var(--space-md);
+      opacity: 0.8;
+    }
+
+    .section-label::before {
+      content: '';
+      width: 24px; height: 1px;
+      background: var(--green-primary);
+    }
+
+    .section-heading {
+      font-family: 'Noto Serif SC', serif;
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 900;
+      letter-spacing: -1px;
+      line-height: 1.2;
+      margin-bottom: var(--space-sm);
+      color: var(--text-primary);
+    }
+
+    .section-subtext {
+      font-size: 17px;
+      color: var(--text-muted);
+      max-width: 560px;
+      line-height: 1.8;
+    }
+
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 120px var(--space-md) var(--space-lg);
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--green-soft);
+      margin-bottom: var(--space-md);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hero-eyebrow .line {
+      width: 40px; height: 1px;
+      background: var(--green-muted);
+    }
+
+    .hero-eyebrow .pulse-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green-primary);
+      animation: pulse-dot 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--green-glow-strong); }
+      50% { opacity: 0.6; box-shadow: 0 0 0 8px transparent; }
+    }
+
+    .hero-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: clamp(56px, 9vw, 120px);
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -3px;
+      margin-bottom: var(--space-md);
+    }
+
+    .hero-title .word-zhixing {
+      background: linear-gradient(135deg, var(--green-bright) 0%, var(--green-primary) 50%, var(--green-soft) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-title .word-dushu {
+      color: var(--text-primary);
+    }
+
+    .hero-desc {
+      font-size: clamp(18px, 2.2vw, 24px);
+      font-weight: 300;
+      color: var(--text-secondary);
+      max-width: 600px;
+      line-height: 1.7;
+      margin-bottom: var(--space-lg);
+    }
+
+    .hero-desc .highlight {
+      color: var(--green-primary);
+      font-weight: 500;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: var(--space-sm);
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      padding: 14px 32px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-out-expo);
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--green-primary);
+      color: var(--surface-0);
+      box-shadow: 0 0 0 0 var(--green-glow-md), 0 4px 16px rgba(0,0,0,0.3);
+    }
+
+    .btn-primary:hover {
+      background: var(--green-bright);
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px var(--green-glow-md), 0 8px 24px rgba(0,0,0,0.4);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-default);
+    }
+
+    .btn-ghost:hover {
+      color: var(--text-primary);
+      border-color: var(--border-hover);
+      background: var(--green-glow);
+    }
+
+    .btn svg {
+      width: 16px; height: 16px;
+      transition: transform var(--duration-normal) var(--ease-out-expo);
+    }
+
+    .btn:hover svg { transform: translateX(3px); }
+
+    .hero-stats {
+      display: flex;
+      gap: var(--space-lg);
+      margin-top: var(--space-xl);
+      padding-top: var(--space-lg);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .hero-stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--green-primary);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .hero-stat-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+    }
+
+    .divider {
+      max-width: 1200px;
+      margin: 0 auto;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, var(--border-default) 50%, transparent 100%);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* === Features (Terax-style numbered list) === */
+    .features-section {
+      padding: var(--space-xl) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-top: var(--space-lg);
+    }
+
+    .feature-item {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 1.5rem;
+      padding: 1.75rem 0;
+      border-bottom: 1px solid var(--border-subtle);
+      align-items: start;
+    }
+
+    .feature-item:last-child { border-bottom: none; }
+
+    .feature-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-faint);
+      padding-top: 0.15rem;
+    }
+
+    .feature-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+    }
+
+    .feature-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      max-width: 64ch;
+    }
+
+    .feature-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .feature-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0.25rem 0.6rem;
+      background: var(--green-glow);
+      color: var(--green-soft);
+      border-radius: 4px;
+      letter-spacing: 0.3px;
+    }
+
+    /* === Screenshots (single scroll reveal) === */
+    .screenshots-section {
+      padding: var(--space-xl) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .screenshot-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+      margin-top: var(--space-lg);
+    }
+
+    .screenshot-block {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: var(--space-lg);
+      align-items: center;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity var(--duration-slow) var(--ease-out-expo),
+                  transform var(--duration-slow) var(--ease-out-expo);
+    }
+
+    .screenshot-block.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .screenshot-block.reverse {
+      direction: rtl;
+    }
+
+    .screenshot-block.reverse .screenshot-text {
+      direction: ltr;
+    }
+
+    .screenshot-text {
+      padding: var(--space-md);
+    }
+
+    .screenshot-text-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.1rem;
+      color: var(--green-muted);
+      margin-bottom: var(--space-sm);
+      letter-spacing: 1px;
+    }
+
+    .screenshot-text-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2.6rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      color: var(--text-primary);
+    }
+
+    .screenshot-text-desc {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    .screenshot-img {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      background: var(--surface-1);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .screenshot-img img {
+      width: 100%;
+      display: block;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+    }
+
+    @media (max-width: 900px) {
+      .screenshot-block { grid-template-columns: 1fr; }
+      .screenshot-block.reverse { direction: ltr; }
+      .screenshot-text-title { font-size: 1.5rem; }
+    }
+
+    /* === Download === */
+    .download {
+      padding: var(--space-xl) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .download-card {
+      max-width: 680px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .download-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      background: var(--surface-1);
+      border: 1px solid var(--border-default);
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      color: var(--green-primary);
+    }
+
+    .download-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: clamp(1.4rem, 3vw, 1.8rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    .download-desc {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    .download-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.6rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .download-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem 1.5rem;
+      font-size: 0.8rem;
+      color: var(--text-faint);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .download-meta-item code {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+
+    /* === Open Source === */
+    .opensource {
+      padding: var(--space-xl) 0;
+    }
+
+    .os-card {
+      max-width: 720px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .os-license {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      background: var(--surface-1);
+      border: 1px solid var(--border-default);
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      color: var(--green-primary);
+    }
+
+    .os-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: clamp(1.4rem, 3vw, 1.8rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+
+    .os-desc {
+      color: var(--text-muted);
+      margin-bottom: 1.75rem;
+      font-size: 0.9rem;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .os-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+      text-align: left;
+    }
+
+    .os-link-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      color: var(--text-primary);
+      transition: border-color 0.2s ease;
+      text-decoration: none;
+    }
+
+    .os-link-card:hover {
+      border-color: var(--green-muted);
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .os-link-card-icon {
+      width: 18px; height: 18px;
+      color: var(--green-primary);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .os-link-card-title {
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 0.1rem;
+    }
+
+    .os-link-card-hint {
+      font-size: 0.75rem;
+      color: var(--text-faint);
+    }
+
+    /* === Footer === */
+    footer {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: var(--space-xl) var(--space-md) var(--space-lg);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .footer-brand {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: 2px;
+    }
+
+    .footer-brand .accent { color: var(--green-primary); }
+
+    .footer-tagline {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: var(--space-md);
+    }
+
+    .footer-quote {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-style: italic;
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.8;
+    }
+
+    .footer-quote .dash {
+      color: var(--green-muted);
+      margin-right: 8px;
+    }
+
+    .footer-bottom {
+      margin-top: var(--space-lg);
+      font-size: 12px;
+      color: var(--text-faint);
+      letter-spacing: 0.5px;
+    }
+
+    /* === Scroll Reveal === */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity var(--duration-slow) var(--ease-out-expo),
+                  transform var(--duration-slow) var(--ease-out-expo);
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+    .reveal-delay-5 { transition-delay: 0.5s; }
+    .reveal-delay-6 { transition-delay: 0.6s; }
+
+    /* === Responsive === */
+    @media (max-width: 900px) {
+      .nav-links { display: none; }
+      .hero-title { letter-spacing: -1px; }
+      .hero-stats { flex-wrap: wrap; gap: var(--space-md); }
+      .hero-actions { flex-direction: column; align-items: flex-start; }
+    }
+
+    @media (max-width: 600px) {
+      .section { padding: var(--space-lg) var(--space-sm); }
+      .hero { padding: 100px var(--space-sm) var(--space-lg); }
+      .nav { padding: 16px 20px; }
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface-0); }
+    ::-webkit-scrollbar-thumb { background: var(--green-dim); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--green-muted); }
+  </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<!-- Navigation -->
+<nav class="nav" id="nav">
+  <div class="nav-logo"><span class="accent">知行</span>读书</div>
+  <ul class="nav-links">
+    <li><a href="#features">核心功能</a></li>
+    <li><a href="#screenshots">产品截图</a></li>
+    <li><a href="#download">下载</a></li>
+    <li><a href="https://github.com/harryopo/zhixing-reader" target="_blank" rel="noopener">GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- ====== Hero ====== -->
+<section class="hero">
+  <div class="hero-eyebrow reveal">
+    <span class="line"></span>
+    <span class="pulse-dot"></span>
+    TRAE AI Creativity Contest · 火山杯 2026 · v1.0.0
+  </div>
+  <h1 class="hero-title reveal reveal-delay-1">
+    <span class="word-zhixing">知行</span><span class="word-dushu">读书</span>
+  </h1>
+  <p class="hero-desc reveal reveal-delay-2">
+    AI 驱动的<span class="highlight">阅读成长伙伴</span> — 从"读过"到"记住"到"做到"，<br>让每一本书真正融入你的生活
+  </p>
+  <div class="hero-actions reveal reveal-delay-3">
+    <a href="https://github.com/harryopo/zhixing-reader/releases/download/v1.0.0/ZhixingReader-Setup-1.0.0.exe" target="_blank" rel="noopener" class="btn btn-primary">
+      下载 Windows v1.0.0
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </a>
+    <a href="https://github.com/harryopo/zhixing-reader" target="_blank" rel="noopener" class="btn btn-ghost">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      GitHub
+    </a>
+  </div>
+  <div class="hero-stats reveal reveal-delay-4">
+    <div class="hero-stat">
+      <div class="hero-stat-value" data-count="6">0</div>
+      <div class="hero-stat-label">核心功能模块</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">667</div>
+      <div class="hero-stat-label">测试用例</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">91.99%</div>
+      <div class="hero-stat-label">AI 模块覆盖率</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">MIT</div>
+      <div class="hero-stat-label">开源协议</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ====== Features ====== -->
+<section class="features-section" id="features">
+  <div class="section">
+    <div class="reveal">
+      <div class="section-label">Core Features</div>
+      <h2 class="section-heading">六大模块，闭环阅读成长</h2>
+      <p class="section-subtext">
+        从"读"到"记"到"问"到"练"到"用"，知行读书构建了完整的阅读成长闭环，让每一本书都不白读。
+      </p>
+    </div>
+    <div class="feature-list">
+      <div class="feature-item reveal">
+        <div class="feature-num">01</div>
+        <div>
+          <div class="feature-title">微信读书同步</div>
+          <p class="feature-desc">一键拉取书架、划线、笔记、书评。本地持久化存储，数据完全归属用户，断网可用。支持 1d/3d/7d 自动同步。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">增量合并</span>
+            <span class="feature-tag">离线可用</span>
+            <span class="feature-tag">safeStorage 加密</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-item reveal reveal-delay-1">
+        <div class="feature-num">02</div>
+        <div>
+          <div class="feature-title">AI 智能体对话</div>
+          <p class="feature-desc">5 维上下文构建、意图识别、苏格拉底式教学。AI 不只是回答，更引导你主动思考。支持 DeepSeek / OpenAI / 自定义端点。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">Vercel AI SDK</span>
+            <span class="feature-tag">流式响应</span>
+            <span class="feature-tag">AbortController</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-item reveal reveal-delay-2">
+        <div class="feature-num">03</div>
+        <div>
+          <div class="feature-title">FSRS v5 间隔重复</div>
+          <p class="feature-desc">Anki 同源算法（ts-fsrs 5.4.1），DSR 模型科学调度复习时机，用最小时间对抗遗忘。21 参数完整遗忘曲线。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">ts-fsrs 5.4.1</span>
+            <span class="feature-tag">21 参数</span>
+            <span class="feature-tag">repeat() 4 种评分</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-item reveal reveal-delay-3">
+        <div class="feature-num">04</div>
+        <div>
+          <div class="feature-title">知识卡片体系</div>
+          <p class="feature-desc">概念卡 / 方法论卡 / 金句卡三类，AI 自动从笔记蒸馏生成。反向链接到原文，复习时联动 FSRS 调度。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">AI 蒸馏</span>
+            <span class="feature-tag">反向链接</span>
+            <span class="feature-tag">1-5 掌握度</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-item reveal reveal-delay-4">
+        <div class="feature-num">05</div>
+        <div>
+          <div class="feature-title">英语词汇学习</div>
+          <p class="feature-desc">~8 万词频词典、上下文例句、SM-2 混合调度。阅读中自然习得词汇，生词自动进入复习队列。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">~8 万词库</span>
+            <span class="feature-tag">上下文匹配</span>
+            <span class="feature-tag">SM-2 调度</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-item reveal reveal-delay-5">
+        <div class="feature-num">06</div>
+        <div>
+          <div class="feature-title">统计与可视化</div>
+          <p class="feature-desc">ECharts 5.5 仪表盘，阅读习惯、复习进度、知识分布、Token 用量全维度数据化呈现。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">ECharts 5.5</span>
+            <span class="feature-tag">Canvas 渲染</span>
+            <span class="feature-tag">6 图表</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Screenshots (scroll reveal, one by one) ====== -->
+<section class="screenshots-section" id="screenshots">
+  <div class="section">
+    <div class="reveal">
+      <div class="section-label">Screenshots</div>
+      <h2 class="section-heading">产品界面</h2>
+      <p class="section-subtext">本地优先，数据完全属于你。每一个模块都经过精心打磨。</p>
+    </div>
+    <div class="screenshot-stack">
+      <div class="screenshot-block reveal">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">01</div>
+          <div class="screenshot-text-title">首页 · 数据驾驶舱</div>
+          <p class="screenshot-text-desc">四大 KPI 卡片与阅读趋势柱状图，一目了然掌握阅读进度。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-home.png" alt="知行读书首页 — 四大 KPI 卡片与阅读趋势柱状图" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-1">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">02</div>
+          <div class="screenshot-text-title">AI 对话 · 三栏智能体</div>
+          <p class="screenshot-text-desc">5 维上下文与流式输出，像和苏格拉底对话一样深度学习。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-chat.png" alt="AI 对话界面，三栏布局与流式输出" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reveal reveal-delay-2">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">03</div>
+          <div class="screenshot-text-title">智能体编排 · 核心创新</div>
+          <p class="screenshot-text-desc">六步智能体流程：意图分类、策略选择、难度调整、上下文构建，一键保存配置。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/2.png" alt="智能体编排页面，六步智能体流程" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-3">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">04</div>
+          <div class="screenshot-text-title">知识卡片 · 蒸馏体系</div>
+          <p class="screenshot-text-desc">概念卡 / 方法论卡 / 金句卡，AI 自动从笔记蒸馏生成结构化知识。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-knowledge.png" alt="知识卡片管理界面" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-3">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">04</div>
+          <div class="screenshot-text-title">书架 · 微信读书同步</div>
+          <p class="screenshot-text-desc">按状态筛选与进度排序，已有阅读资产零成本迁移。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-bookshelf.png" alt="书架管理界面，微信读书同步与本地持久化" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reveal reveal-delay-4">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">05</div>
+          <div class="screenshot-text-title">文章阅读 · 英语学习</div>
+          <p class="screenshot-text-desc">RSS 自动抓取英文文章，英中对照阅读，悬停查词，一键翻译。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/1.png" alt="文章阅读页面，英中对照与悬停查词" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-5">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">06</div>
+          <div class="screenshot-text-title">生词本 · 英语学习</div>
+          <p class="screenshot-text-desc">~8 万词频词典与 FSRS 调度，阅读中自然习得词汇。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-vocabulary.png" alt="生词本界面，FSRS 调度复习与词频词典" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reveal reveal-delay-6">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">07</div>
+          <div class="screenshot-text-title">Token 用量 · 成本透明</div>
+          <p class="screenshot-text-desc">实时追踪 AI 调用 Token 消耗，按模型与时间维度可视化。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-token.png" alt="Token 用量统计页面" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-7">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">08</div>
+          <div class="screenshot-text-title">个人档案 · 成长轨迹</div>
+          <p class="screenshot-text-desc">阅读时长、复习完成率、知识掌握度，全维度成长数据。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-profile.png" alt="个人档案页面" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reveal reveal-delay-8">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">09</div>
+          <div class="screenshot-text-title">阅读统计 · 数据可视化</div>
+          <p class="screenshot-text-desc">2026 年度阅读数据，近 12 月时长趋势，书籍类型占比一目了然。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/3.png" alt="阅读统计页面，ECharts 仪表盘" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-9">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">10</div>
+          <div class="screenshot-text-title">方法论 · 思维模型库</div>
+          <p class="screenshot-text-desc">费曼学习法、康奈尔笔记、SQ3R 阅读法，一键注入 AI 对话。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-methodology.png" alt="方法论页面" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reveal reveal-delay-10">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">11</div>
+          <div class="screenshot-text-title">笔记 · 划线回顾</div>
+          <p class="screenshot-text-desc">按书籍与章节组织，支持编辑、标签、关联卡片，阅读沉淀一目了然。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-notes.png" alt="笔记页面" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-11">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">12</div>
+          <div class="screenshot-text-title">设置 · 个性化配置</div>
+          <p class="screenshot-text-desc">AI 模型、微信读书 API、外观主题，所有配置一处管理。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-settings.png" alt="设置页面" loading="lazy" />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Download ====== -->
+<section class="download" id="download">
+  <div class="section">
+    <div class="download-card reveal">
+      <div class="download-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+        <span>Windows 平台 · v1.0.0</span>
+      </div>
+      <h2 class="download-title">立即开始你的知行之旅</h2>
+      <p class="download-desc">免费下载，开源透明。本地优先架构，你的阅读数据永远属于你自己。</p>
+      <div class="download-actions">
+        <a href="https://github.com/harryopo/zhixing-reader/releases/download/v1.0.0/ZhixingReader-Setup-1.0.0.exe" target="_blank" rel="noopener" class="btn btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载 ZhixingReader-Setup-1.0.0.exe
+        </a>
+        <a href="https://github.com/harryopo/zhixing-reader/releases/tag/v1.0.0" target="_blank" rel="noopener" class="btn btn-ghost">
+          查看 Release Notes
+        </a>
+      </div>
+      <div class="download-meta">
+        <div class="download-meta-item">
+          <span>文件大小</span>
+          <code>125.5 MB</code>
+        </div>
+        <div class="download-meta-item">
+          <span>发布日期</span>
+          <code>2026-07-25</code>
+        </div>
+        <div class="download-meta-item">
+          <span>系统要求</span>
+          <code>Windows 10 x64+</code>
+        </div>
+        <div class="download-meta-item">
+          <span>许可证</span>
+          <code>MIT</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Open Source ====== -->
+<section class="opensource" id="opensource">
+  <div class="section">
+    <div class="os-card reveal">
+      <div class="os-license">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+        <span>MIT License · 完全开源</span>
+      </div>
+      <h2 class="os-title">代码托管于 GitHub，欢迎共建</h2>
+      <p class="os-desc">所有源代码、设计文档、测试用例、构建脚本均公开。欢迎 Star、Fork、Issue、PR。</p>
+      <div class="os-grid">
+        <a href="https://github.com/harryopo/zhixing-reader" target="_blank" rel="noopener" class="os-link-card">
+          <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          <span class="os-link-card-text">
+            <span class="os-link-card-title">GitHub 仓库</span>
+            <span class="os-link-card-hint">查看完整源代码</span>
+          </span>
+        </a>
+        <a href="https://github.com/harryopo/zhixing-reader/releases/tag/v1.0.0" target="_blank" rel="noopener" class="os-link-card">
+          <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="os-link-card-text">
+            <span class="os-link-card-title">Release v1.0.0</span>
+            <span class="os-link-card-hint">下载安装包与版本说明</span>
+          </span>
+        </a>
+        <a href="https://github.com/harryopo/zhixing-reader/issues" target="_blank" rel="noopener" class="os-link-card">
+          <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          <span class="os-link-card-text">
+            <span class="os-link-card-title">问题反馈</span>
+            <span class="os-link-card-hint">在 Issues 中提交 bug 或建议</span>
+          </span>
+        </a>
+        <a href="https://github.com/harryopo/zhixing-reader/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener" class="os-link-card">
+          <svg class="os-link-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+          <span class="os-link-card-text">
+            <span class="os-link-card-title">贡献指南</span>
+            <span class="os-link-card-hint">如何参与项目共建</span>
+          </span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Footer ====== -->
+<footer>
+  <div class="footer-brand"><span class="accent">知行</span>读书</div>
+  <div class="footer-tagline">AI 驱动的阅读成长伙伴 · TRAE AI 创造力大赛参赛作品</div>
+  <div class="footer-quote">
+    <span class="dash">—</span>知之真切笃实处即是行，行之明觉精察处即是知。<br>王阳明《传习录》
+  </div>
+  <div class="footer-bottom">Zhixing Reader · Built with Electron + React + TypeScript</div>
+</footer>
+
+<script>
+  // === Particle Background (Canvas) ===
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  let mouse = { x: -1000, y: -1000 };
+  let animId;
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  class Particle {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      this.x = Math.random() * canvas.width;
+      this.y = Math.random() * canvas.height;
+      this.size = Math.random() * 1.5 + 0.5;
+      this.speedX = (Math.random() - 0.5) * 0.3;
+      this.speedY = (Math.random() - 0.5) * 0.3;
+      this.opacity = Math.random() * 0.3 + 0.05;
+      this.baseOpacity = this.opacity;
+    }
+    update() {
+      this.x += this.speedX;
+      this.y += this.speedY;
+
+      const dx = this.x - mouse.x;
+      const dy = this.y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 150) {
+        const force = (150 - dist) / 150;
+        this.opacity = this.baseOpacity + force * 0.4;
+        this.x += dx * force * 0.01;
+        this.y += dy * force * 0.01;
+      } else {
+        this.opacity += (this.baseOpacity - this.opacity) * 0.05;
+      }
+
+      if (this.x < -10) this.x = canvas.width + 10;
+      if (this.x > canvas.width + 10) this.x = -10;
+      if (this.y < -10) this.y = canvas.height + 10;
+      if (this.y > canvas.height + 10) this.y = -10;
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(92, 184, 122, ${this.opacity})`;
+      ctx.fill();
+    }
+  }
+
+  function initParticles() {
+    particles = [];
+    const count = Math.min(Math.floor((canvas.width * canvas.height) / 15000), 80);
+    for (let i = 0; i < count; i++) {
+      particles.push(new Particle());
+    }
+  }
+
+  function drawConnections() {
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          const opacity = (1 - dist / 120) * 0.06;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(92, 184, 122, ${opacity})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const gradient = ctx.createRadialGradient(
+      canvas.width * 0.3, canvas.height * 0.4, 0,
+      canvas.width * 0.3, canvas.height * 0.4, canvas.width * 0.5
+    );
+    gradient.addColorStop(0, 'rgba(92, 184, 122, 0.03)');
+    gradient.addColorStop(0.5, 'rgba(92, 184, 122, 0.01)');
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const purpleGlow = ctx.createRadialGradient(
+      canvas.width * 0.75, canvas.height * 0.6, 0,
+      canvas.width * 0.75, canvas.height * 0.6, canvas.width * 0.35
+    );
+    purpleGlow.addColorStop(0, 'rgba(139, 106, 171, 0.02)');
+    purpleGlow.addColorStop(1, 'transparent');
+    ctx.fillStyle = purpleGlow;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    particles.forEach(p => {
+      p.update();
+      p.draw();
+    });
+    drawConnections();
+
+    animId = requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    initParticles();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  resizeCanvas();
+  initParticles();
+  animate();
+
+  // === Navigation Scroll Effect ===
+  const nav = document.getElementById('nav');
+  let lastScroll = 0;
+
+  window.addEventListener('scroll', () => {
+    const currentScroll = window.scrollY;
+    if (currentScroll > 60) {
+      nav.classList.add('scrolled');
+    } else {
+      nav.classList.remove('scrolled');
+    }
+    lastScroll = currentScroll;
+  }, { passive: true });
+
+  // === Scroll Reveal ===
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, {
+    threshold: 0.1,
+    rootMargin: '0px 0px -60px 0px'
+  });
+
+  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+  // === Counter Animation ===
+  function animateCounter(el, target) {
+    let current = 0;
+    const duration = 1500;
+    const startTime = performance.now();
+
+    function update(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      current = Math.floor(eased * target);
+      el.textContent = current + '+';
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+  }
+
+  const statObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const count = entry.target.getAttribute('data-count');
+        if (count) {
+          animateCounter(entry.target, parseInt(count));
+          statObserver.unobserve(entry.target);
+        }
+      }
+    });
+  }, { threshold: 0.5 });
+
+  document.querySelectorAll('[data-count]').forEach(el => statObserver.observe(el));
+
+  // === Smooth Scroll for Anchor Links ===
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function(e) {
+      e.preventDefault();
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

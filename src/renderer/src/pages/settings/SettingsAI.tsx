@@ -194,10 +194,19 @@ export default function SettingsAI() {
     try {
       await testAIConnection()
       toast.remove(tId)
+      // 从 store 读取测试结果并显示对应 toast
+      const result = useSettingsStore.getState().testResult
+      if (result?.type === 'ai') {
+        if (result.success) {
+          toast.success(`连接正常 · ${result.message || '测试通过'}`, 3000)
+        } else {
+          toast.error(`连接失败 · ${result.message || '测试未通过'}`, 4000)
+        }
+      }
     } catch (err) {
       toast.remove(tId)
       setConnStatus('fail')
-      toast.error(`测试失败: ${(err as Error).message}`)
+      toast.error(`测试失败: ${(err as Error).message}`, 4000)
     }
   }, [llmKey, testAIConnection])
 

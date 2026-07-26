@@ -489,6 +489,13 @@ export function registerIpcHandlers(): void {
     conversationHistory: Array<{ role: string; content: string }>
     enableReasoning?: boolean
   }) => {
+    logger.info('IPC AGENT.STREAM_CHAT_WITH_CONTEXT received', {
+      sessionId: params.sessionId,
+      bookId: params.bookId,
+      userMessageLength: params.userMessage?.length,
+      historyLength: params.conversationHistory?.length,
+      enableReasoning: params.enableReasoning,
+    })
     await processMessageStream(
       {
         sessionId: params.sessionId,

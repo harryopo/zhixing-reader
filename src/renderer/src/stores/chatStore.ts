@@ -198,8 +198,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (content: string) => {
+    console.log('[chatStore.sendMessage] start', { content, electronAPI: typeof window.electronAPI })
     const { currentSessionId, currentBookId, loading, streaming, messages, enableReasoning } = get()
-    if (loading || streaming) return
+    if (loading || streaming) {
+      console.log('[chatStore.sendMessage] blocked: already loading/streaming')
+      return
+    }
 
     let sessionId = currentSessionId
 
@@ -269,6 +273,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       const streamPromise = new Promise<void>((resolve, reject) => {
+        console.log('[chatStore] setting up stream listeners')
         const settle = (fn: () => void) => {
           if (settled) return
           settled = true
@@ -278,6 +283,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // 异步：先持久化 assistant 消息拿到 DB id，再写入本地 state（id 用于点赞/收藏）
         const finishWithContent = async (fullContent: string, resolveStream: boolean) => {
+          console.log('[chatStore] finishWithContent', { fullContentLength: fullContent?.length, resolveStream })
           // 守卫：防止 onStreamComplete 与 activeStreamStop 并发触发导致重复消息
           if (finishing || settled) return
           finishing = true
@@ -334,28 +340,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
         removeChunkListener = window.electronAPI.ai.onStreamChunk?.((chunk: string) => {
           // Ignore late chunks after soft-stop
           if (settled) return
+          console.log('[chatStore] onStreamChunk', { chunkLength: chunk?.length, settled })
           set(state => ({ streamingContent: state.streamingContent + chunk }))
         })
+        console.log('[chatStore] chunk listener registered:', typeof removeChunkListener)
 
         // 思考过程流式（DeepSeek R1 reasoning_content / Claude thinking / OpenAI o-series summary）
         removeReasoningListener = window.electronAPI.ai.onStreamReasoningChunk?.((chunk: string) => {
           if (settled) return
+          console.log('[chatStore] onStreamReasoningChunk', { chunkLength: chunk?.length })
           set(state => ({
             streamingReasoning: state.streamingReasoning + chunk,
             // 第一次收到 reasoning chunk 时记下开始时间（若尚未设置）
             reasoningStartTime: state.reasoningStartTime ?? Date.now(),
           }))
         })
+        console.log('[chatStore] reasoning listener registered:', typeof removeReasoningListener)
 
         removeErrorListener = window.electronAPI.ai.onStreamError?.((error: string) => {
+          console.log('[chatStore] onStreamError', { error })
           set({ streaming: false, loading: false, error, streamingReasoning: '', reasoningStartTime: null })
           settle(() => reject(new Error(error)))
         })
+        console.log('[chatStore] error listener registered:', typeof removeErrorListener)
 
         removeCompleteListener = window.electronAPI.ai.onStreamComplete?.(() => {
+          console.log('[chatStore] onStreamComplete', { settled, streamingContentLength: get().streamingContent?.length })
           if (settled) return
           finishWithContent(get().streamingContent, true)
         })
+        console.log('[chatStore] complete listener registered:', typeof removeCompleteListener)
 
         activeStreamStop = () => {
           const partial = get().streamingContent
@@ -368,6 +382,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         { role: 'user' as const, content },
       ]
 
+      console.log('[chatStore] calling streamChatWithContext', { sessionId, bookId: currentBookId, historyLength: conversationHistory.length, enableReasoning })
       await window.electronAPI.ai.streamChatWithContext({
         sessionId: sessionId!,
         bookId: currentBookId || undefined,
@@ -375,9 +390,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         conversationHistory,
         enableReasoning,
       })
+      console.log('[chatStore] streamChatWithContext returned')
 
       await streamPromise
     } catch (error) {
+      console.log('[chatStore] sendMessage catch', { error: (error as Error).message })
       activeStreamStop = null
       const errorMessage = (error as Error).message
       // Soft-stop uses resolve path; only real errors land here
@@ -447,3 +464,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 }))
+
+// 调试：将 store 暴露到 window，便于 Playwright/CDP 诊断
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__chatStore = useChatStore
+}
