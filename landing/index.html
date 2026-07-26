@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>知行读书 — AI 驱动的阅读成长智能体 | 火山杯 2026</title>
-  <meta name="description" content="知行读书：微信读书同步 → AI 智能体理解 → FSRS v5 科学间隔复习 → 知识卡片体系化 → 英语学习。基于 Electron 35 + React 19 + TypeScript 的桌面应用，MIT 开源。" />
+  <meta name="description" content="知行读书：微信读书同步 → AI 智能体理解 → 知识卡片体系化 → 方法论 → 英语学习。基于 Electron 35 + React 19 + TypeScript 的桌面应用，MIT 开源。" />
   <meta name="author" content="张子涵" />
   <meta name="theme-color" content="#059669" />
   <meta property="og:title" content="知行读书 — AI 驱动的阅读成长智能体" />
-  <meta property="og:description" content="把微信读书划线变成知识资产的桌面应用。FSRS v5 算法 · AI 智能体 · 知识卡片 · 英语学习。" />
+  <meta property="og:description" content="把微信读书划线变成知识资产的桌面应用。知识卡片 · 方法论 · AI 智能体编排 · 英语学习。" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://github.com/harryopo/zhixing-reader" />
   <meta property="og:image" content="screenshots/screenshot-home.png" />
@@ -836,32 +836,8 @@
       <div class="feature-item reveal reveal-delay-1">
         <div class="feature-num">02</div>
         <div>
-          <div class="feature-title">AI 智能体对话</div>
-          <p class="feature-desc">5 维上下文构建、意图识别、苏格拉底式教学。AI 不只是回答，更引导你主动思考。支持 DeepSeek / OpenAI / 自定义端点。</p>
-          <div class="feature-tags">
-            <span class="feature-tag">Vercel AI SDK</span>
-            <span class="feature-tag">流式响应</span>
-            <span class="feature-tag">AbortController</span>
-          </div>
-        </div>
-      </div>
-      <div class="feature-item reveal reveal-delay-2">
-        <div class="feature-num">03</div>
-        <div>
-          <div class="feature-title">FSRS v5 间隔重复</div>
-          <p class="feature-desc">Anki 同源算法（ts-fsrs 5.4.1），DSR 模型科学调度复习时机，用最小时间对抗遗忘。21 参数完整遗忘曲线。</p>
-          <div class="feature-tags">
-            <span class="feature-tag">ts-fsrs 5.4.1</span>
-            <span class="feature-tag">21 参数</span>
-            <span class="feature-tag">repeat() 4 种评分</span>
-          </div>
-        </div>
-      </div>
-      <div class="feature-item reveal reveal-delay-3">
-        <div class="feature-num">04</div>
-        <div>
           <div class="feature-title">知识卡片体系</div>
-          <p class="feature-desc">概念卡 / 方法论卡 / 金句卡三类，AI 自动从笔记蒸馏生成。反向链接到原文，复习时联动 FSRS 调度。</p>
+          <p class="feature-desc">概念卡 / 方法论卡 / 金句卡三类，AI 自动从笔记蒸馏生成结构化知识。反向链接到原文，让每一处划线都变成可复用的知识资产。</p>
           <div class="feature-tags">
             <span class="feature-tag">AI 蒸馏</span>
             <span class="feature-tag">反向链接</span>
@@ -869,20 +845,56 @@
           </div>
         </div>
       </div>
+      <div class="feature-item reveal reveal-delay-2">
+        <div class="feature-num">03</div>
+        <div>
+          <div class="feature-title">AI 智能体编排</div>
+          <p class="feature-desc">意图分类、策略选择、难度调整、上下文构建，六步智能体流程一键保存配置。不是简单问答，而是可编排的阅读智能体。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">意图分类</span>
+            <span class="feature-tag">策略编排</span>
+            <span class="feature-tag">可配置</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-item reveal reveal-delay-3">
+        <div class="feature-num">04</div>
+        <div>
+          <div class="feature-title">方法论 · 思维模型库</div>
+          <p class="feature-desc">内置费曼学习法、康奈尔笔记、SQ3R 阅读法等方法论，一键注入 AI 对话，把阅读方法沉淀为可复用模板。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">费曼学习法</span>
+            <span class="feature-tag">康奈尔笔记</span>
+            <span class="feature-tag">SQ3R</span>
+          </div>
+        </div>
+      </div>
       <div class="feature-item reveal reveal-delay-4">
         <div class="feature-num">05</div>
         <div>
-          <div class="feature-title">英语词汇学习</div>
-          <p class="feature-desc">~8 万词频词典、上下文例句、SM-2 混合调度。阅读中自然习得词汇，生词自动进入复习队列。</p>
+          <div class="feature-title">AI 智能体对话</div>
+          <p class="feature-desc">5 维上下文构建、苏格拉底式教学。AI 不只是回答，更引导你主动思考。支持 DeepSeek / OpenAI / 自定义端点。</p>
           <div class="feature-tags">
-            <span class="feature-tag">~8 万词库</span>
-            <span class="feature-tag">上下文匹配</span>
-            <span class="feature-tag">SM-2 调度</span>
+            <span class="feature-tag">Vercel AI SDK</span>
+            <span class="feature-tag">流式响应</span>
+            <span class="feature-tag">AbortController</span>
           </div>
         </div>
       </div>
       <div class="feature-item reveal reveal-delay-5">
         <div class="feature-num">06</div>
+        <div>
+          <div class="feature-title">英语词汇学习</div>
+          <p class="feature-desc">~8 万词频词典、上下文例句、智能复习调度。阅读中自然习得词汇，生词自动进入复习队列。</p>
+          <div class="feature-tags">
+            <span class="feature-tag">~8 万词库</span>
+            <span class="feature-tag">上下文匹配</span>
+            <span class="feature-tag">智能调度</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-item reveal reveal-delay-6">
+        <div class="feature-num">07</div>
         <div>
           <div class="feature-title">统计与可视化</div>
           <p class="feature-desc">ECharts 5.5 仪表盘，阅读习惯、复习进度、知识分布、Token 用量全维度数据化呈现。</p>
@@ -919,11 +931,11 @@
       <div class="screenshot-block reverse reveal reveal-delay-1">
         <div class="screenshot-text">
           <div class="screenshot-text-num">02</div>
-          <div class="screenshot-text-title">AI 对话 · 三栏智能体</div>
-          <p class="screenshot-text-desc">5 维上下文与流式输出，像和苏格拉底对话一样深度学习。</p>
+          <div class="screenshot-text-title">知识卡片 · 蒸馏体系</div>
+          <p class="screenshot-text-desc">概念卡 / 方法论卡 / 金句卡，AI 自动从笔记蒸馏生成结构化知识。</p>
         </div>
         <div class="screenshot-img">
-          <img src="screenshots/screenshot-chat.png" alt="AI 对话界面，三栏布局与流式输出" loading="lazy" />
+          <img src="screenshots/screenshot-knowledge.png" alt="知识卡片管理界面" loading="lazy" />
         </div>
       </div>
       <div class="screenshot-block reveal reveal-delay-2">
@@ -939,26 +951,26 @@
       <div class="screenshot-block reverse reveal reveal-delay-3">
         <div class="screenshot-text">
           <div class="screenshot-text-num">04</div>
-          <div class="screenshot-text-title">知识卡片 · 蒸馏体系</div>
-          <p class="screenshot-text-desc">概念卡 / 方法论卡 / 金句卡，AI 自动从笔记蒸馏生成结构化知识。</p>
+          <div class="screenshot-text-title">方法论 · 思维模型库</div>
+          <p class="screenshot-text-desc">费曼学习法、康奈尔笔记、SQ3R 阅读法，一键注入 AI 对话。</p>
         </div>
         <div class="screenshot-img">
-          <img src="screenshots/screenshot-knowledge.png" alt="知识卡片管理界面" loading="lazy" />
-        </div>
-      </div>
-      <div class="screenshot-block reverse reveal reveal-delay-3">
-        <div class="screenshot-text">
-          <div class="screenshot-text-num">04</div>
-          <div class="screenshot-text-title">书架 · 微信读书同步</div>
-          <p class="screenshot-text-desc">按状态筛选与进度排序，已有阅读资产零成本迁移。</p>
-        </div>
-        <div class="screenshot-img">
-          <img src="screenshots/screenshot-bookshelf.png" alt="书架管理界面，微信读书同步与本地持久化" loading="lazy" />
+          <img src="screenshots/screenshot-methodology.png" alt="方法论页面" loading="lazy" />
         </div>
       </div>
       <div class="screenshot-block reveal reveal-delay-4">
         <div class="screenshot-text">
           <div class="screenshot-text-num">05</div>
+          <div class="screenshot-text-title">AI 对话 · 三栏智能体</div>
+          <p class="screenshot-text-desc">5 维上下文与流式输出，像和苏格拉底对话一样深度学习。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-chat.png" alt="AI 对话界面，三栏布局与流式输出" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-5">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">06</div>
           <div class="screenshot-text-title">文章阅读 · 英语学习</div>
           <p class="screenshot-text-desc">RSS 自动抓取英文文章，英中对照阅读，悬停查词，一键翻译。</p>
         </div>
@@ -966,19 +978,19 @@
           <img src="screenshots/1.png" alt="文章阅读页面，英中对照与悬停查词" loading="lazy" />
         </div>
       </div>
-      <div class="screenshot-block reverse reveal reveal-delay-5">
-        <div class="screenshot-text">
-          <div class="screenshot-text-num">06</div>
-          <div class="screenshot-text-title">生词本 · 英语学习</div>
-          <p class="screenshot-text-desc">~8 万词频词典与 FSRS 调度，阅读中自然习得词汇。</p>
-        </div>
-        <div class="screenshot-img">
-          <img src="screenshots/screenshot-vocabulary.png" alt="生词本界面，FSRS 调度复习与词频词典" loading="lazy" />
-        </div>
-      </div>
       <div class="screenshot-block reveal reveal-delay-6">
         <div class="screenshot-text">
           <div class="screenshot-text-num">07</div>
+          <div class="screenshot-text-title">生词本 · 英语学习</div>
+          <p class="screenshot-text-desc">~8 万词频词典与智能复习调度，阅读中自然习得词汇。</p>
+        </div>
+        <div class="screenshot-img">
+          <img src="screenshots/screenshot-vocabulary.png" alt="生词本界面，智能复习调度与词频词典" loading="lazy" />
+        </div>
+      </div>
+      <div class="screenshot-block reverse reveal reveal-delay-7">
+        <div class="screenshot-text">
+          <div class="screenshot-text-num">08</div>
           <div class="screenshot-text-title">Token 用量 · 成本透明</div>
           <p class="screenshot-text-desc">实时追踪 AI 调用 Token 消耗，按模型与时间维度可视化。</p>
         </div>
@@ -986,9 +998,9 @@
           <img src="screenshots/screenshot-token.png" alt="Token 用量统计页面" loading="lazy" />
         </div>
       </div>
-      <div class="screenshot-block reverse reveal reveal-delay-7">
+      <div class="screenshot-block reveal reveal-delay-8">
         <div class="screenshot-text">
-          <div class="screenshot-text-num">08</div>
+          <div class="screenshot-text-num">09</div>
           <div class="screenshot-text-title">个人档案 · 成长轨迹</div>
           <p class="screenshot-text-desc">阅读时长、复习完成率、知识掌握度，全维度成长数据。</p>
         </div>
@@ -996,24 +1008,14 @@
           <img src="screenshots/screenshot-profile.png" alt="个人档案页面" loading="lazy" />
         </div>
       </div>
-      <div class="screenshot-block reveal reveal-delay-8">
+      <div class="screenshot-block reverse reveal reveal-delay-9">
         <div class="screenshot-text">
-          <div class="screenshot-text-num">09</div>
+          <div class="screenshot-text-num">10</div>
           <div class="screenshot-text-title">阅读统计 · 数据可视化</div>
           <p class="screenshot-text-desc">2026 年度阅读数据，近 12 月时长趋势，书籍类型占比一目了然。</p>
         </div>
         <div class="screenshot-img">
           <img src="screenshots/3.png" alt="阅读统计页面，ECharts 仪表盘" loading="lazy" />
-        </div>
-      </div>
-      <div class="screenshot-block reverse reveal reveal-delay-9">
-        <div class="screenshot-text">
-          <div class="screenshot-text-num">10</div>
-          <div class="screenshot-text-title">方法论 · 思维模型库</div>
-          <p class="screenshot-text-desc">费曼学习法、康奈尔笔记、SQ3R 阅读法，一键注入 AI 对话。</p>
-        </div>
-        <div class="screenshot-img">
-          <img src="screenshots/screenshot-methodology.png" alt="方法论页面" loading="lazy" />
         </div>
       </div>
       <div class="screenshot-block reveal reveal-delay-10">
