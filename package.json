@@ -74,6 +74,7 @@
     "directories": {
       "output": "installer"
     },
+    "publish": null,
     "asar": true,
     "asarUnpack": [
       "dist/**",
