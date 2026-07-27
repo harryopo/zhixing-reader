@@ -18,7 +18,7 @@
 | 维度 | 详情 |
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
-| **存储** | sql.js (SQLite WASM) · Qdrant（可选向量库）|
+| **存储** | sql.js (SQLite WASM) · Vectra（本地向量索引，RAG）|
 | **核心能力** | 微信读书同步 · **FSRS v5** 间隔重复 · AI 智能体对话 · 知识卡片 · 词汇学习 |
 | **打包** | electron-builder → Windows NSIS 安装包 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -40,8 +40,8 @@
 | 图表（AdminDashboard） | **Apache ECharts 5.5.1** + echarts-for-react 3.0.2 | 按需引入、Canvas 渲染、20+ 图表类型 |
 | 图表（Stats 页） | Recharts 3.8.1 | 简单场景够用 |
 | AI 智能体 | 自研 5 维 ContextBuilder | 意图分类 + 编排 + 策略 |
-| 向量库（可选） | Qdrant | RAG 增强 |
-| 测试 | Vitest 2 + @vitest/coverage-v8 | ≥ 85% 覆盖率门禁 |
+| 向量库 | Vectra 0.15 | 纯 TS 本地索引，RAG 增强，无需外部服务 |
+| 测试 | Vitest 2 + @vitest/coverage-v8 | 667 用例，≥ 85% 覆盖率门禁 |
 | 打包 | electron-builder 25 | Windows NSIS |
 
 ---
@@ -88,7 +88,7 @@
 | 维度 | 自实现 v1（已废弃） | **ts-fsrs 5.4.1** |
 |------|---------------------|---------------------|
 | 算法 | SM-2 简化 | **FSRS v5 (DSR)** · Anki 23.10+ 同源 |
-| 参数 | 17 个 w | **21 个 w**（含 decay / factor）|
+| 参数 | 17 个 w | **19 个 w**（FSRS-5 标准权重）|
 | 维护 | 项目自维护 | open-spaced-repetition 官方（Anki FSRS 团队）|
 | 数据互通 | 仅本项目 | **与 Anki 数据互通**（同 schema）|
 | 依赖 | fsrs.js 1.0.0（2 年未更新）| ts-fsrs 5.4.1（活跃维护）|
@@ -207,7 +207,7 @@ const retrievability = scheduler.get_retrievability(card, new Date(), false)
    - 枚举映射（CardState / Rating 与 ts-fsrs 一致）
    - step 映射规则（toFsrsCard / fromFsrsCard 双向）
    - 算法真的来自 ts-fsrs（与独立 ts-fsrs 调用对比）
-   - 21 元素默认 weights 兼容
+   - 19 元素默认 weights 兼容
    - `repeat()` 预览能力验证
    - 批量复习独立性
 
@@ -231,10 +231,10 @@ zhixing-reader/
 │       ├── features/      # 业务模块
 │       ├── components/    # UI 组件
 │       └── stores/        # Zustand stores
-├── shared/                # 跨进程共享
+├── src/shared/            # 跨进程共享（类型 + IPC 通道常量）
 ├── resources/             # 静态资源
 ├── tests/                 # Vitest 单元测试
-├── docs/                  # 设计文档 + 调研
+├── landing/               # 宣传页源码（GitHub Pages 部署）
 ├── AGENTS.md              # AI Agent 入口
 ├── CLAUDE.md              # Claude Code 专属
 └── package.json
@@ -248,7 +248,7 @@ zhixing-reader/
 # 安装依赖（使用 npmmirror 镜像）
 npm install
 
-# 开发模式（Vite 端口 5275 + Electron 自动开）
+# 开发模式（Vite 端口 5500 + Electron 自动开）
 npm run dev
 
 # 质量门禁（提交前必跑）
@@ -276,13 +276,13 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 | ts-fsrs（官方）| https://github.com/open-spaced-repetition/ts-fsrs |
 | FSRS 算法论文 | https://github.com/open-spaced-repetition/fsrs4anki |
 | Anki FSRS 插件 | https://docs.ankiweb.net/deck-options.html#fsrs |
-| 调研报告 | [docs/research/2026-07-20-opensource-integration-research.md](docs/research/2026-07-20-opensource-integration-research.md) |
 | Agent 协作规范 | [AGENTS.md](AGENTS.md) |
 | Claude Code 配置 | [CLAUDE.md](CLAUDE.md) |
 | 开源许可证 | [LICENSE](LICENSE) |
 | 贡献指南 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 行为准则 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 | 隐私政策 | [PRIVACY.md](PRIVACY.md) |
+| 常见问题 | [FAQ.md](FAQ.md) |
 | 变更日志 | [CHANGELOG.md](CHANGELOG.md) |
 
 ---
@@ -291,9 +291,9 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
-| 2026-07-20 | v1.0.0 | 知行读书 v1.0.0 首发 | AI Agent |
-| 2026-07-20 | v1.1.0 | **FSRS 引擎升级到 ts-fsrs 5.4.1 (FSRS v5 DSR)** | AI Agent |
-| 2026-07-20 | v1.2.0 | **AdminDashboard 切到 Apache ECharts 5.5.1（按需引入）** | AI Agent |
+| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | AI Agent |
+
+历史迭代明细见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -308,7 +308,7 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 | **AdminDashboard** | Apache ECharts 5.5.1 + echarts-for-react 3.0.2 | 业务 chunk ~ **20KB** + vendor ~ 2.5MB（仅在打开 /admin 时加载）| Canvas | 6 个图表、类型多样、Canvas 性能高 |
 | **Stats 页** | Recharts 3.8.1 | ~ 200KB | SVG | 简单柱/线/饼图够用，组件少不值得切 |
 
-> **关键策略**：AdminDashboard 是 `lazy()` 路由，访问前不下载。ECharts vendor chunk 仅在用户进入 `/admin` 时才请求，主入口体积不受影响。
+> **当前状态**：管理后台入口已后置（未挂载路由），AdminDashboard 与 6 个图表组件代码、测试（覆盖率 100%）完整保留；ECharts 以独立 vendor chunk 分包，不影响主入口体积。
 
 ### 9.2 ECharts 按需引入
 
@@ -401,12 +401,12 @@ src/renderer/src/
 | 渠道 | 用途 | 链接 |
 |------|------|------|
 | 🐛 GitHub Issues | Bug 报告、功能建议、技术讨论 | <https://github.com/harryopo/zhixing-reader/issues> |
-| 📚 使用文档 | 功能说明、设置教程 | [docs/settings-tutorial.md](docs/settings-tutorial.md) |
+| ❓ 常见问题 | 安装、同步、AI 配置等 FAQ | [FAQ.md](FAQ.md) |
 | 🔒 隐私政策 | 数据存储、Cookie、AI 服务说明 | [PRIVACY.md](PRIVACY.md) |
 | 📦 Releases | 版本下载、更新日志 | <https://github.com/harryopo/zhixing-reader/releases> |
 
 **遇到问题先看**：
-1. 查阅 [使用文档](docs/settings-tutorial.md)
+1. 查阅 [FAQ.md](FAQ.md)
 2. 在 [GitHub Issues](https://github.com/harryopo/zhixing-reader/issues) 搜索类似问题
 3. 仍未解决？提交新 Issue
 
@@ -455,4 +455,4 @@ Copyright © 2026 张子涵
 
 ---
 
-*最后更新：2026-07-25*
+*最后更新：2026-07-27*

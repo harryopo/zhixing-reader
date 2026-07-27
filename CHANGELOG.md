@@ -10,12 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **微信读书同步**：支持拉取书架、划线、笔记、书评，离线缓存到本地 sql.js，自动合并增量更新
 - **AI 智能体对话**：5 维上下文构建（书籍 / 知识卡片 / 记忆 / 方法论 / 用户画像）、意图分类、策略选择、编排执行、流式响应、Token 用量统计、提示词模板热更新
-- **FSRS v5 间隔重复算法**：基于 `ts-fsrs@5.4.1`（open-spaced-repetition 官方，Anki 23.10+ 同源），完整 DSR 模型，21 个参数，支持 `repeat()` 预览 4 种评分结果
+- **FSRS v5 间隔重复算法**：基于 `ts-fsrs@5.4.1`（open-spaced-repetition 官方，Anki 23.10+ 同源），完整 DSR 模型，19 组标准权重，支持 `repeat()` 预览 4 种评分结果
 - **知识卡片体系**：自动从划线蒸馏概念卡 / 方法论卡 / 金句卡，反向链接到原文，复习时联动 FSRS 调度
 - **英语词汇学习**：词频词典（`resources/dictionary.json`，~8 万词）、上下文例句匹配、SM-2 混合算法独立调度、每日学习、生词本、查词
 - **统计与可视化**：基于 Apache ECharts 5.5.1 的 AdminDashboard（6 个图表、按需引入、Canvas 渲染），Token 用量大数字、FSRS 状态分布、稳定性曲线
-- **Admin 管理后台**：数据库浏览、知识库管理、提示词中心、会话历史、Token 仪表盘
-- **MCP Server 子项目**：暴露 `list-books`、`search-highlights`、`get-due-cards`、`get-vocabulary`、`get-reading-stats` 五个工具
+- **智能体编排中枢**：六步流水线可视化、四种意图配置展示、策略矩阵热力图、系统提示词模板（6 变量注入），与后端 agent 实现同源
 - **Vercel AI SDK 集成**：通过 `@ai-sdk/openai`、`@ai-sdk/anthropic` 等统一接入多家 AI 服务商
 - **667 个单元测试**：覆盖率 ≥ 85%，关键模块（fsrs-engine、agent、database）≥ 95%
 - **三进程架构**：Main / Preload / Renderer 严格隔离，`contextBridge` 安全暴露 IPC
@@ -30,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 不包含任何分析 / 追踪 / 广告 SDK
 
 ### Known Issues
-- Windows installer 体积约 105MB（主要来自 Electron 运行时 + sql.js WASM + ECharts vendor）
+- Windows installer 体积约 125MB（主要来自 Electron 运行时 + sql.js WASM + ECharts vendor）
 - 部分依赖存在安全漏洞（详见 `npm audit`，均为间接依赖，已跟踪上游修复）
 - macOS 与 Linux 版本尚未打包（需手动构建）
 - 微信读书 Cookie 会随登录态过期，需定期重新获取
@@ -65,4 +64,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-*最后更新：2026-07-25*
+*最后更新：2026-07-27*
