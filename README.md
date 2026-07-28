@@ -431,8 +431,8 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
-| 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 双双更新到 5 大创新 + 16 大模块；补充 30 天真实使用数据（128 万 Token） | 张子涵 |
-| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 张子涵 |
+| 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 双双更新到 5 大创新 + 16 大模块 | 恒久 |
+| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 恒久 |
 
 历史迭代明细见 [CHANGELOG.md](CHANGELOG.md)。
 
