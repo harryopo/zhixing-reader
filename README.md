@@ -11,7 +11,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS-v5%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
 [![Tests](https://img.shields.io/badge/tests-667%20%E7%94%A8%E4%BE%8B%20/%2085%25-22c55e)](./tests)
-[![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
+[![Lines](https://img.shields.io/badge/code-57%2C000%2B%20TS-blueviolet)]()
 
 ---
 
@@ -26,12 +26,12 @@
 | 维度 | 详情 |
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
-| **代码规模** | 52,000+ 行 TypeScript strict |
-| **测试覆盖** | 667 用例 / ≥ 85% 覆盖率（ai-service 94.6%）|
+| **代码规模** | 57,000+ 行 TypeScript strict（源码 49,081 + 测试 7,884）|
+| **测试覆盖** | 667 用例 / 28 文件 / ≥ 85% 覆盖率（ai-service 94.6%）|
 | **存储** | sql.js (SQLite WASM) · 16 张表 · Vectra 本地向量索引 |
 | **核心能力** | 微信读书同步 · **FSRS v5** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
-| **打包** | electron-builder → Windows NSIS 安装包（~104MB）|
+| **打包** | electron-builder → Windows NSIS 安装包（**125MB**）|
 | **License** | MIT（自由使用 / 修改 / 商用）|
 
 ---
@@ -326,6 +326,16 @@ zhixing-reader/
 | AI 流式首 token | **500-2000ms** | 取决于服务商 |
 | 后续 token 速率 | **30-80 token/s** | 中文 |
 
+### 真实使用数据（开发者本人 30 天深度使用）
+
+| 指标 | 数值 |
+|------|------|
+| **累计 Token 消耗** | **128 万 tokens**（30 天） |
+| 复习曲线 | 稳定上升，无 ease hell 现象 |
+| 核心场景 | 阅读 → 笔记 → 复习 → 应用 全闭环验证通过 |
+| 平均每日 Token | ~4.3 万（≈ ¥0.5-1.5 元，按免费额度内零成本） |
+| 数据完全本地 | 0 条数据离开本机（仅 AI 请求直连服务商） |
+
 ---
 
 ## 九、本地优先与安全合规
@@ -365,7 +375,7 @@ npm run verify          # 一键跑上面四项
 
 # 打包 Windows NSIS 安装包
 npm run package:win
-# → 生成 installer/ZhixingReader-Setup-1.0.0.exe (~104MB)
+# → 生成 installer/ZhixingReader-Setup-1.0.0.exe (125MB)
 
 # 词典（仅开发者）
 npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
@@ -421,8 +431,8 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
-| 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书 + README 双双更新到 5 大创新 + 16 大模块 | AI Agent |
-| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | AI Agent |
+| 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 双双更新到 5 大创新 + 16 大模块；补充 30 天真实使用数据（128 万 Token） | 张子涵 |
+| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 张子涵 |
 
 历史迭代明细见 [CHANGELOG.md](CHANGELOG.md)。
 
