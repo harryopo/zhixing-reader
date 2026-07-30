@@ -134,6 +134,7 @@
 | **向量索引** | Vectra | 0.15 | 纯 TS 本地向量库 |
 | **间隔重复** | **ts-fsrs** | **5.4.1** | **FSRS v5 DSR，与 Anki 23.10+ 同源** |
 | **AI SDK** | Vercel AI SDK | 7.x | 多服务商统一接口 + 流式 |
+| **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
 | **测试** | Vitest | 2.x | 667 用例，≥ 85% 覆盖率门禁 |
