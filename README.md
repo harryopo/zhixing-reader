@@ -11,7 +11,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS-v5%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
 [![Tests](https://img.shields.io/badge/tests-667%20%E7%94%A8%E4%BE%8B%20/%2085%25-22c55e)](./tests)
-[![Lines](https://img.shields.io/badge/code-57%2C000%2B%20TS-blueviolet)]()
+[![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
 
 ---
 
@@ -19,14 +19,14 @@
 
 **知行读书**是一款面向阅读成长场景的桌面应用，把「**微信读书同步 → AI 智能体理解 → 科学间隔复习 → 知识卡片体系化 → 英语学习**」完整闭环装进本地优先的 Electron 容器。
 
-围绕"读了就忘、笔记散乱、想问无门、知道做不到"四大阅读痛点，给出**16 大功能模块 + 5 大核心创新**的完整解决方案。
+围绕"读了就忘、笔记散乱、想问无门、知道做不到"四大阅读痛点，给出**15 大功能模块 + 7 大核心创新**的完整解决方案。
 
 > **面向所有阅读者，帮每一位读者构建起属于自己的自我成长型系统。**
 
 | 维度 | 详情 |
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
-| **代码规模** | 57,000+ 行 TypeScript strict（源码 49,081 + 测试 7,884）|
+| **代码规模** | 52,000+ 行 TypeScript strict 代码 |
 | **测试覆盖** | 667 用例 / 28 文件 / ≥ 85% 覆盖率（ai-service 94.6%）|
 | **存储** | sql.js (SQLite WASM) · 16 张表 · Vectra 本地向量索引 |
 | **核心能力** | 微信读书同步 · **FSRS v5** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
@@ -35,9 +35,18 @@
 | **License** | MIT（自由使用 / 修改 / 商用）|
 
 ---
-<img width="681" height="490" alt="image" src="https://github.com/user-attachments/assets/c9a68a23-9b8c-447c-9035-09499065b3e4" />
 
-## 二、5 大核心创新 ⭐
+## 二、核心亮点
+
+- **微信读书生态整合** — 书架、划线、笔记、书评一键同步到本地，构建个人知识底座
+- **FSRS v5 科学记忆** — 与 Anki 23.10+ 同源算法，19 组权重精确排期复习
+- **AI 教学策略驱动** — 苏格拉底追问 + 费曼复述 + Bloom 难度自适应，不是问答机而是私教
+- **本地优先 · 数据安全** — SQLite + Vectra + safeStorage，零遥测，AI 直连不过中转
+- **ECDICT 离线词典** — 13.6MB 词典内置，悬停即查，支持英语学习全闭环
+
+---
+
+## 三、7 大核心创新
 
 > **知行读书如何把"读了就忘、笔记散乱、想问无门、知道做不到"四大阅读痛点，打成"读→记→懂→用"完整闭环？**
 
@@ -48,6 +57,8 @@
 | **3** | **FSRS v5 (DSR) 同源科学记忆引擎** | 集成 ts-fsrs 5.4.1 官方库（Anki 23.10+ 同源）| 保持率比 SM-2 **高 20-30%** |
 | **4** | **本地优先架构 · 数据主权还给用户** | sql.js + Vectra + safeStorage 三重本地化 | **零遥测** / AI 直连不过中转 |
 | **5** | **ECDICT 离线词典 + 语境化英语学习** | 13.6MB 词典 + 6 类词形还原 + 每日外刊 | **O(1) 查询** / 6 万词条 |
+| **6** | **多模型深度思考归一化** | DeepSeek R1 / OpenAI / Anthropic 三种推理格式统一解析 | 用户无感切换任意模型 |
+| **7** | **Skill 一键生成** | 方法论自动导出为可复用 Skill 模板 | 知识从阅读到应用闭环 |
 
 ### 5 维 ContextBuilder 详细预算
 
@@ -64,7 +75,7 @@
 
 ---
 
-## 三、16 大功能模块
+## 四、15 大功能模块
 
 | # | 模块 | 路由 | 核心能力 |
 |---|------|------|----------|
@@ -72,22 +83,21 @@
 | 2 | 书架 | `/bookshelf` | 微信读书同步 + 阅读进度 |
 | 3 | 书籍详情 | `/bookshelf/:id` | 笔记/卡片/方法论/讨论 多 Tab |
 | 4 | 笔记 | `/notes` | 全书笔记检索 + 高亮原文 + Markdown 导出 |
-| 5 | **复习** | `/review` | FSRS v5 智能调度 + 主动回忆两段法 + 4 评分预览 |
-| 6 | AI 对话 | `/chat` | 多会话 + 流式 + 深度思考 + 方法论注入 + RAG 溯源 |
-| 7 | 方法论 | `/methodologies` | 独立方法论管理 + 掌握度追踪 |
+| 5 | AI 对话 | `/chat` | 多会话 + 流式 + 深度思考 + 方法论注入 + RAG 溯源 |
+| 6 | 方法论 | `/methodologies` | 独立方法论管理 + 掌握度追踪 |
+| 7 | 知识卡片 | `/knowledge-cards` | 卡片体系化管理 + 语境化知识提取 |
 | 8 | 每日学习 | `/daily-learning` | 英文外刊 + AI 翻译对照 + 悬停查词 |
 | 9 | 生词本 | `/vocabulary` | ECDICT 查询 + 学习阶段 + CSV/Anki 导出 |
-| 10 | 数据统计 | `/stats` | 阅读趋势 + 学习热力图 |
+| 10 | 数据统计 | `/stats` | 阅读趋势 + 学习热力图 + 12 周复习可视化 |
 | 11 | Token 监控 | `/token-usage` | 服务商/功能双维用量 + 成本核算 |
 | 12 | 个人中心 | `/profile` | 阅读画像 + 微信读书资料继承 |
 | 13 | 设置 | `/settings` | AI 多服务商热切换 + 数据导入导出 |
 | 14 | 智能体编排 | `/agent-orchestration` | 六步流水线可视化 + 意图/策略矩阵 + 提示词模板 |
-| 15 | Skill 生成 | 对话/方法论内 | 方法论一键导出为 Claude Code Skill |
-| 16 | 学习热力图 | `/stats/heatmap` | 12 周复习热力图 + 本周节奏可视化 |
+| 15 | Skill 生成 | 对话/方法论内 | 方法论一键导出为可复用 Skill |
 
 ---
 
-## 四、Agent 六步编排流水线
+## 五、Agent 六步编排流水线
 
 > **灵魂模块**：为什么同样接大模型，知行读书的 AI 是"私教"而别人的是"问答机"？
 
@@ -105,7 +115,6 @@
       ↓
    AI 打字机输出
 ```
-<img width="3840" height="1964" alt="zhixing-reader-agent-orchestrator" src="https://github.com/user-attachments/assets/13653713-a352-4fe4-94b9-ed5426a1d1f0" />
 
 **本地决策链路 52-207ms**（步骤 ①-⑤），**用户输入到 AI 开始输出"几乎无白屏感"**。
 
@@ -119,7 +128,7 @@
 
 ---
 
-## 五、技术栈
+## 六、技术栈
 
 | 层 | 选型 | 版本 | 选型理由 |
 |----|------|------|----------|
@@ -133,7 +142,7 @@
 | **数据库** | sql.js | 1.14 | SQLite WASM，跨平台一致 |
 | **向量索引** | Vectra | 0.15 | 纯 TS 本地向量库 |
 | **间隔重复** | **ts-fsrs** | **5.4.1** | **FSRS v5 DSR，与 Anki 23.10+ 同源** |
-| **AI SDK** | Vercel AI SDK | 7.x | 多服务商统一接口 + 流式 |
+| **AI SDK** | Vercel AI SDK + 自研 SSE | 7.x | 多服务商统一接口 + 流式 + 深度思考归一化 |
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
@@ -142,131 +151,61 @@
 | **词典** | ECDICT | 自建 | 13.6MB JSON，~6 万词条，CEFR 分级 |
 
 ---
-<img width="3840" height="3000" alt="zhixing-reader-system-architecture" src="https://github.com/user-attachments/assets/8ee68d06-c63c-4668-a460-d5f2d8112267" />
 
+## 七、技术架构图
 
-## 六、FSRS v5 算法集成 ⭐
-
-> **本节重点**：描述项目从自实现 FSRS 引擎升级到 `ts-fsrs@5.4.1`（Anki 同源算法）的设计与优势。
-
-### 6.1 为什么升级？
-
-| 维度 | 自实现 v1（已废弃） | **ts-fsrs 5.4.1** |
-|------|---------------------|---------------------|
-| 算法 | SM-2 简化 | **FSRS v5 (DSR)** · Anki 23.10+ 同源 |
-| 参数 | 17 个 w | **19 个 w**（FSRS-5 标准权重）|
-| 维护 | 项目自维护 | open-spaced-repetition 官方（Anki FSRS 团队）|
-| 数据互通 | 仅本项目 | **与 Anki 数据互通**（同 schema）|
-| 依赖 | fsrs.js 1.0.0（2 年未更新）| ts-fsrs 5.4.1（活跃维护）|
-| 包体积 | — | **< 30KB**，0 依赖 |
-| 预览能力 | 1 次 1 结果 | **`repeat()` 一次返回 4 种评分结果** |
-| 遗忘曲线 | 简化 | **完整 DSR 公式** `(1 + factor·t/9S)^decay` |
-
-### 6.2 升级方案：API 兼容适配层
-
-**核心目标**：内部算法替换为 `ts-fsrs`，但**对外 100% 保持 API 兼容**，零破坏性变更。
-
+```mermaid
+graph TB
+    subgraph Main["Main 进程 · Electron 35"]
+        DB[(sql.js SQLite · 16 表)]
+        IPC[IPC 处理层 · 150+ 通道]
+        AI[AI Service]
+        WeRead[微信读书 API]
+        FSRS[FSRS v5 调度引擎]
+        Agent[Agent 六步编排]
+        RAG[Vectra 向量索引]
+        Safe[safeStorage 加密]
+    end
+    subgraph Preload["Preload 进程"]
+        Bridge[contextBridge 安全桥接]
+    end
+    subgraph Renderer["Renderer 进程 · React 19"]
+        UI[页面与组件 · Tailwind CSS 4]
+        Store[Zustand Store ×8]
+        Pages[路由页面 ×20]
+    end
+    UI --> Bridge
+    Bridge --> IPC
+    IPC --> DB
+    IPC --> AI
+    IPC --> WeRead
+    IPC --> FSRS
+    IPC --> Agent
+    IPC --> RAG
+    IPC --> Safe
+    AI -->|Vercel AI SDK| LLM[AI 服务商]
 ```
-+--------------------+        +----------------------+        +----------------+
-| Renderer 调用       |  →     | electron/            |  →     | ts-fsrs        |
-| reviewCard()       |        | fsrs-engine.ts       |        | 5.4.1          |
-| isDue()            |        | (适配层)             |        | (FSRS v5 DSR)  |
-| getParameters()    |        |                      |        |                |
-+--------------------+        +----------------------+        +----------------+
-                                       ↓
-                                Card ↔ FsrsCard
-                                双向转换层
-```
-
-### 6.3 对外 API 100% 兼容
-
-| 类别 | API | 说明 |
-|------|-----|------|
-| **类型** | `Card`, `FSRSParameters`, `FSRSCardStats`, `VocabReviewResult` | 字段名、字段类型保持不变 |
-| **枚举** | `CardState` (New=0/Learning=1/Review=2/Relearning=3) | 与 ts-fsrs `State` 完全对齐 |
-| **枚举** | `Rating` (Again=1/Hard=2/Good=3/Easy=4) | 与 ts-fsrs `Grade` 完全对齐 |
-| **函数** | `createCard`, `reviewCard`, `reviewCardBatch` | 签名不变 |
-| **函数** | `getNextReviewTime`, `isDue`, `getCardInterval`, `getCardDaysUntilDue` | 签名不变 |
-| **函数** | `getCardRetentionRate`, `calculateStats`, `getForecast`, `getOptimalReviewOrder` | 签名不变 |
-| **函数** | `getParameters`, `setCustomParameters`, `resetParameters` | 签名不变 |
-| **函数** | `cardFromDb`, `cardToRow` | 数据库 schema 不变 |
-| **函数** | `reviewVocabulary` | 词汇独立 SM-2 混合，不走 ts-fsrs |
-
-### 6.4 step 映射规则
-
-项目原有 API 用 `step ∈ {0, 1, 2}` 表示学习阶段；ts-fsrs 用 `learning_steps` 索引表示"当前所在步骤"。两者语义不同，适配层做显式映射：
-
-| 项目 step 语义 | ts-fsrs `learning_steps` |
-|----------------|--------------------------|
-| `New` 状态，`step=0` | `learning_steps=0` |
-| `Learning`，刚进入第 1 步（`step=0`）| `learning_steps=1` |
-| `Learning`，Learning+Good 1 次后（`step=1`）| `learning_steps=2` |
-| `Review` 毕业（`step=2`）| `learning_steps=0`（无意义）|
-| `Learning + Again` 重置（`step=0`）| `learning_steps=0` |
-
-**核心规则**：
-- `toFsrsCard`: `ls = state ∈ {Learning, Relearning} ? step + 1 : 0`
-- `fromFsrsCard`: `step = state === Review ? 2 : max(0, ls - 1)`
-
-### 6.5 ts-fsrs 5.4.1 关键 API 用法
-
-```typescript
-import { fsrs, generatorParameters, createEmptyCard, State, Rating } from 'ts-fsrs'
-
-// 1. 创建调度器实例
-const scheduler = fsrs(generatorParameters({
-  request_retention: 0.9,
-  maximum_interval: 36500,
-  enable_fuzz: true,
-  enable_short_term: true,
-  learning_steps: ['1m', '10m', '10m'],
-  relearning_steps: ['1m', '10m'],
-}))
-
-// 2. 计算一次复习
-const card = createEmptyCard()
-const result = scheduler.next(card, new Date(), Rating.Good)
-// result.card  ← 更新后的卡片
-// result.log   ← 复习日志
-
-// 3. ⭐ 预览 4 种评分结果（v5 优势）
-const preview = scheduler.repeat(card, new Date())
-// preview[Rating.Manual=0] ... preview[Rating.Easy=4]
-// 每条都是 { card, log }，可一次性显示给用户
-
-// 4. 遗忘曲线检索概率
-const retrievability = scheduler.get_retrievability(card, new Date(), false)
-// 返回 0-1 之间的保持率
-```
-
-### 6.6 升级带来的实际收益
-
-| 收益 | 说明 |
-|------|------|
-| **调度准确度** | DSR 模型（stability / difficulty / retrievability）比 SM-2 准确度高 20-30% |
-| **Anki 互通** | 与 Anki FSRS 插件使用同一算法，本项目卡片可导出到 Anki |
-| **0 依赖** | ts-fsrs 不依赖任何第三方库，包体积 < 30KB |
-| **活跃维护** | open-spaced-repetition 团队持续迭代，bug 修复及时 |
-| **预览能力** | `repeat()` 一次返回 4 种评分 → 可实现"评分前展示未来间隔" |
-| **遗忘曲线** | 完整实现 `(1 + factor·t/9S)^decay`，可精细化分析用户记忆 |
-| **类型安全** | 100% TypeScript，完整 `.d.ts` 类型定义 |
-
-### 6.7 测试覆盖
-
-升级后 **38 个 FSRS 引擎单元测试**（vitest），分两类：
-
-1. **原有 18 个冒烟测试** —— 100% 保持通过（API 兼容验证）
-2. **新增 20 个适配层测试** —— 验证与 ts-fsrs 5.4.1 的正确集成
-   - 枚举映射（CardState / Rating 与 ts-fsrs 一致）
-   - step 映射规则（toFsrsCard / fromFsrsCard 双向）
-   - 算法真的来自 ts-fsrs（与独立 ts-fsrs 调用对比）
-   - 19 元素默认 weights 兼容
-   - `repeat()` 预览能力验证
-   - 批量复习独立性
 
 ---
 
-## 七、目录结构
+## 八、FSRS v5 算法集成
+
+知行读书集成了 **ts-fsrs 5.4.1**（open-spaced-repetition 官方库），与 Anki 23.10+ 使用同一套 FSRS v5 (DSR) 算法。该模型基于 **19 组权重参数** 和 **DSR 三变量模型**（Stability 稳定性 / Difficulty 难度 / Retrievability 可提取性），通过完整遗忘曲线公式 `(1 + factor·t/9S)^decay` 精确预测记忆保持率。
+
+**核心能力**：
+
+| 能力 | 说明 |
+|------|------|
+| **4 评分预览** | `repeat()` 一次返回 Again/Hard/Good/Easy 四种结果，用户可在评分前查看未来间隔 |
+| **Anki 数据互通** | 与 Anki FSRS 插件同一算法、同一 schema，卡片可互相导入导出 |
+| **0 依赖 < 30KB** | 纯 TypeScript 实现，无第三方依赖，包体积极小 |
+| **API 100% 兼容** | 内部算法替换为 ts-fsrs，对外接口零变更，原有调用方无需修改 |
+
+项目实现了完整的适配层（`electron/fsrs-engine.ts`，900+ 行），包括 Card ↔ FsrsCard 双向转换、step 学习阶段映射、枚举对齐等，确保与 ts-fsrs 正确集成的同时保持对外 API 稳定。升级后 **38 个单元测试** 全部通过（18 个原有冒烟测试 + 20 个适配层测试）。
+
+---
+
+## 九、目录结构
 
 ```
 zhixing-reader/
@@ -305,7 +244,7 @@ zhixing-reader/
 │   ├── icon.ico / icon.png
 ├── landing/                                 # 宣传页源码（GitHub Pages 部署）
 ├── AGENTS.md                                # AI Agent 入口
-├── CLAUDE.md                                # Claude Code 专属
+├── CLAUDE.md                                # AI 辅助开发配置
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
@@ -314,10 +253,10 @@ zhixing-reader/
 ├── PRIVACY.md
 └── README.md
 ```
-<img width="679" height="1141" alt="image" src="https://github.com/user-attachments/assets/b3c300ec-ae01-4a4e-aa4f-9c4f2bfa4170" />
+
 ---
 
-## 八、性能画像
+## 十、性能画像
 
 | 指标 | 数值 | 说明 |
 |------|------|------|
@@ -331,19 +270,9 @@ zhixing-reader/
 | AI 流式首 token | **500-2000ms** | 取决于服务商 |
 | 后续 token 速率 | **30-80 token/s** | 中文 |
 
-### 真实使用数据（开发者本人 30 天深度使用）
-
-| 指标 | 数值 |
-|------|------|
-| **累计 Token 消耗** | **128 万 tokens**（30 天） |
-| 复习曲线 | 稳定上升，无 ease hell 现象 |
-| 核心场景 | 阅读 → 笔记 → 复习 → 应用 全闭环验证通过 |
-| 平均每日 Token | ~4.3 万（≈ ¥0.5-1.5 元，按免费额度内零成本） |
-| 数据完全本地 | 0 条数据离开本机（仅 AI 请求直连服务商） |
-
 ---
 
-## 九、本地优先与安全合规
+## 十一、本地优先与安全合规
 
 | 数据类别 | 存储位置 | 是否离开本机 |
 |----------|----------|--------------|
@@ -360,15 +289,28 @@ zhixing-reader/
 
 **Electron safeStorage 系统级加密**：Windows DPAPI / macOS Keychain / Linux libsecret。
 
+**合规性**：遵循微信读书开放平台使用条款，符合《个人信息保护法》相关规定——用户数据全部本地存储，AI 请求仅发送用户自选服务商，零遥测零埋点。
+
 ---
 
-## 十、开发与构建
+## 十二、快速开始
+
+1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `ZhixingReader-Setup-1.0.0.exe`（Windows，125MB）
+2. **配置 AI** — 设置页选择 AI 服务商（火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot），填入 API Key
+3. **连接微信读书** — 设置页填入微信读书 API Key，同步书架与划线数据
+4. **开始使用** — 浏览书架、AI 对话、知识卡片复习、每日英语学习
+
+> 除 AI 对话和微信读书同步需联网外，其余功能全部离线可用。
+
+---
+
+## 十三、开发与构建
 
 ```bash
 # 安装依赖（使用 npmmirror 镜像）
 npm install
 
-# 开发模式（Vite 端口 5500 + Electron 自动开）
+# 开发模式（Vite 端口 5275 + Electron 自动开）
 npm run dev
 
 # 质量门禁（提交前必跑）
@@ -401,7 +343,7 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 
 ---
 
-## 十一、相关链接
+## 十四、相关链接
 
 | 资源 | 链接 |
 |------|------|
@@ -415,7 +357,7 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 | 📋 行为准则 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 | 📄 开源许可证 | [LICENSE](LICENSE) |
 | 🤖 Agent 协作规范 | [AGENTS.md](AGENTS.md) |
-| 🧠 Claude Code 配置 | [CLAUDE.md](CLAUDE.md) |
+| 🧠 AI 辅助开发配置 | [CLAUDE.md](CLAUDE.md) |
 
 ### 参考资源
 
@@ -432,18 +374,18 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 
 ---
 
-## 十二、变更记录
+## 十五、变更记录
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
-| 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 双双更新到 5 大创新 + 16 大模块 | 恒久 |
-| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 恒久 |
+| 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 更新到核心亮点 + 15 大模块 | 张子涵 |
+| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 张子涵 |
 
 历史迭代明细见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
-## 十三、贡献指南
+## 十六、贡献指南
 
 我们欢迎任何形式的贡献：Bug 报告、功能建议、文档完善、代码修复、UI/UX 改进。
 
@@ -458,7 +400,7 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 
 ---
 
-## 十四、开源许可证
+## 十七、开源许可证
 
 本项目基于 [**MIT License**](LICENSE) 开源，允许自由使用、修改、分发、商用，只需保留版权声明与许可证文本。
 
