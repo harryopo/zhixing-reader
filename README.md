@@ -35,6 +35,7 @@
 | **License** | MIT（自由使用 / 修改 / 商用）|
 
 ---
+<img width="681" height="490" alt="image" src="https://github.com/user-attachments/assets/c9a68a23-9b8c-447c-9035-09499065b3e4" />
 
 ## 二、5 大核心创新 ⭐
 
@@ -104,6 +105,7 @@
       ↓
    AI 打字机输出
 ```
+<img width="3840" height="1964" alt="zhixing-reader-agent-orchestrator" src="https://github.com/user-attachments/assets/13653713-a352-4fe4-94b9-ed5426a1d1f0" />
 
 **本地决策链路 52-207ms**（步骤 ①-⑤），**用户输入到 AI 开始输出"几乎无白屏感"**。
 
@@ -139,6 +141,8 @@
 | **词典** | ECDICT | 自建 | 13.6MB JSON，~6 万词条，CEFR 分级 |
 
 ---
+<img width="3840" height="3000" alt="zhixing-reader-system-architecture" src="https://github.com/user-attachments/assets/8ee68d06-c63c-4668-a460-d5f2d8112267" />
+
 
 ## 六、FSRS v5 算法集成 ⭐
 
@@ -309,7 +313,7 @@ zhixing-reader/
 ├── PRIVACY.md
 └── README.md
 ```
-
+<img width="679" height="1141" alt="image" src="https://github.com/user-attachments/assets/b3c300ec-ae01-4a4e-aa4f-9c4f2bfa4170" />
 ---
 
 ## 八、性能画像
