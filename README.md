@@ -143,37 +143,17 @@
 
 ## 六、技术架构图
 
-```mermaid
-graph TB
-    subgraph Main["Main 进程 · Electron 35"]
-        DB[(sql.js SQLite · 16 表)]
-        IPC[IPC 处理层 · 150+ 通道]
-        AI[AI Service]
-        WeRead[微信读书 API]
-        FSRS[FSRS v5 调度引擎]
-        Agent[Agent 六步编排]
-        RAG[Vectra 向量索引]
-        Safe[safeStorage 加密]
-    end
-    subgraph Preload["Preload 进程"]
-        Bridge[contextBridge 安全桥接]
-    end
-    subgraph Renderer["Renderer 进程 · React 19"]
-        UI[页面与组件 · Tailwind CSS 4]
-        Store[Zustand Store ×8]
-        Pages[路由页面 ×20]
-    end
-    UI --> Bridge
-    Bridge --> IPC
-    IPC --> DB
-    IPC --> AI
-    IPC --> WeRead
-    IPC --> FSRS
-    IPC --> Agent
-    IPC --> RAG
-    IPC --> Safe
-    AI -->|Vercel AI SDK| LLM[AI 服务商]
-```
+### 系统架构图
+
+![知行读书 · 系统架构图](docs/zhixing-reader-system-architecture.png)
+
+> 五层 Electron 架构 · IPC 安全隔离 · 本地存储 + 知识库双引擎
+
+### Agent 智能体编排流程图
+
+![Agent 智能体编排流程图](docs/zhixing-reader-agent-orchestrator.png)
+
+> 六步流水线 · 意图路由 · 上下文注入 · 工具分发
 
 ---
 
