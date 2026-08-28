@@ -253,6 +253,13 @@ export default function TokenUsagePage() {
     loadAll()
   }, [loadAll])
 
+  // 监听 AI 对话流完成事件，实时刷新本页统计数据
+  useEffect(() => {
+    const onUpdated = () => { loadAll() }
+    window.addEventListener('token-usage:updated', onUpdated)
+    return () => window.removeEventListener('token-usage:updated', onUpdated)
+  }, [loadAll])
+
   // 按时间范围填充日历（保留原 chartDailyStats 逻辑）
   const chartDailyStats = useMemo(() => {
     const days = DAYS_MAP[timeRange]

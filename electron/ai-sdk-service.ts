@@ -6,6 +6,7 @@ import { streamText, generateObject } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { z } from 'zod';
 import { logger } from './logger';
+import { tokenUsageDb } from './database';
 
 type AIProvider = 'openai' | 'anthropic' | 'custom';
 
@@ -108,6 +109,29 @@ function getModel() {
   return provider(model);
 }
 
+/**
+ * 聊天流式用量落库 — 修复 Token 统计主链路断裂（streamChat 从不记账）。
+ * 0 用量（中断/无输出）不记录，避免垃圾数据。
+ */
+function recordChatUsage(durationMs: number, usage?: { promptTokens: number; completionTokens: number }): void {
+  try {
+    const inputTokens = usage?.promptTokens ?? 0;
+    const outputTokens = usage?.completionTokens ?? 0;
+    if (inputTokens + outputTokens <= 0) return;
+    if (!config) return;
+    tokenUsageDb.create({
+      provider: config.provider,
+      model: config.model || 'default',
+      feature: 'chat',
+      inputTokens,
+      outputTokens,
+      durationMs,
+    });
+  } catch (err) {
+    logger.warn('Failed to record chat token usage', { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 /** Abort in-flight sdkStreamChat (user stop). Returns true if something was aborted. */
 export function cancelActiveStream(): boolean {
   if (!activeStreamController) return false;
@@ -158,11 +182,13 @@ export async function sdkStreamChat(
   const controller = new AbortController();
   activeStreamController = controller;
   const signal = controller.signal;
+  const startedAt = Date.now();
 
   let completed = false;
   const safeComplete = (usage?: { promptTokens: number; completionTokens: number }) => {
     if (completed) return;
     completed = true;
+    recordChatUsage(Date.now() - startedAt, usage);
     onComplete(usage);
   };
   const safeError = (error: Error) => {

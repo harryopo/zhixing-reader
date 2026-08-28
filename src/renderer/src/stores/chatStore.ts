@@ -362,6 +362,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         removeCompleteListener = window.electronAPI.ai.onStreamComplete?.(() => {
           if (settled) return
+          // 主进程已完成 usage 落库，广播事件让 Sidebar/TokenUsage 立即刷新
+          window.dispatchEvent(new Event('token-usage:updated'))
           finishWithContent(get().streamingContent, true)
         })
 

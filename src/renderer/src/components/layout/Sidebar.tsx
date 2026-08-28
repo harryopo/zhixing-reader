@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'chat', path: '/chat', label: 'AI对话', icon: 'chat', domId: 'nav-chat' },
   { key: 'agent', path: '/agent-orchestration', label: '智能体编排', icon: 'agent', domId: 'nav-agent' },
   { key: 'cards', path: '/knowledge-cards', label: '知识卡片', icon: 'cards', domId: 'nav-cards' },
+  { key: 'review', path: '/review', label: '间隔复习', icon: 'review', domId: 'nav-review' },
   { key: 'daily', path: '/daily-learning', label: '每日学习', icon: 'daily', domId: 'nav-daily' },
   { key: 'methodology', path: '/methodologies', label: '方法论', icon: 'methodology', domId: 'nav-methodology' },
   { key: 'stats', path: '/stats', label: '统计', icon: 'stats', domId: 'nav-stats' },
@@ -68,14 +69,17 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
     loadTokenData()
     const interval = setInterval(loadTokenData, 30000)
 
-    // 监听 TokenUsage 页面清空事件，立即刷新侧边栏 token 用量
+    // 监听 TokenUsage 页面清空事件 + AI 对话流完成事件，立即刷新侧边栏 token 用量
     const onCleared = () => { loadTokenData() }
+    const onUpdated = () => { loadTokenData() }
     window.addEventListener('token-usage:cleared', onCleared)
+    window.addEventListener('token-usage:updated', onUpdated)
 
     return () => {
       active = false
       clearInterval(interval)
       window.removeEventListener('token-usage:cleared', onCleared)
+      window.removeEventListener('token-usage:updated', onUpdated)
     }
   }, [])
 
