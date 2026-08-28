@@ -6,7 +6,7 @@
  *   - hero: 书名 + 作者 · 出版社 · 年份 + 3 actions（继续阅读 / AI 对话此书 / 返回书架）
  *   - 第一层双栏 grid [1fr 2fr]:
  *     - 左栏封面卡: book-cover-large + 4 stat-mini (进度/已读/划线/笔记) + progress-bar
- *     - 右栏信息卡: description + 4 meta-item (ISBN/分类/字数/难度) + 4 action-btn
+ *     - 右栏信息卡: description + 2 meta-item (ISBN/分类) + 4 action-btn
  *   - 第二层 tab card: 划线 / 笔记 / 知识卡片 三标签 + 列表
  *
  * 业务逻辑全部保留:
@@ -74,12 +74,6 @@ interface CardRow {
 }
 
 // ===== 工具 =====
-
-/** 渲染阅读难度星级（默认 3 星） */
-function renderDifficulty(level: number): { filled: string; empty: string } {
-  const safe = Math.max(1, Math.min(5, level))
-  return { filled: '★'.repeat(safe), empty: '☆'.repeat(5 - safe) }
-}
 
 // ===== 主组件 =====
 type TabKey = 'highlights' | 'notes' | 'cards'
@@ -283,8 +277,6 @@ export default function BookDetail() {
     )
   }
 
-  const difficulty = renderDifficulty(3) // 默认 3 星（数据库暂无难度字段）
-
   return (
     <PageHero
       title={book.title}
@@ -447,16 +439,6 @@ export default function BookDetail() {
           >
             <MetaItem label="ISBN" value={book.isbn || '-'} mono />
             <MetaItem label="分类" value={book.category || '-'} />
-            <MetaItem label="字数" value="-" />
-            <MetaItem
-              label="阅读难度"
-              value={
-                <>
-                  <span style={{ color: 'var(--chart-3)' }}>{difficulty.filled}</span>
-                  <span style={{ color: 'var(--muted-foreground)' }}>{difficulty.empty}</span>
-                </>
-              }
-            />
           </div>
 
           {/* book-actions: 4 action-btn */}

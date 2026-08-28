@@ -52,7 +52,8 @@ function buildBarData(stats: DailyStats[]): { day: string; minutes: number; heig
   monday.setDate(today.getDate() - dayOfWeek)
 
   const result: { day: string; minutes: number; heightPx: number }[] = []
-  const maxMinutes = 96 // 设计稿最大值（周四 96 分钟 → 180px）
+  // 动态满刻度：取本周最大阅读分钟数（至少 60），超长柱形封顶 180px
+  const maxMinutes = Math.max(60, ...stats.map((s) => Math.floor((s.readingTimeSeconds || 0) / 60)))
 
   for (let i = 0; i < 7; i++) {
     const date = new Date(monday)

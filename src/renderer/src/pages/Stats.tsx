@@ -1578,18 +1578,6 @@ function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
     )
   }
 
-  // 数据库暂无评分字段，用循环占位（4-3-2-4-3-2...）
-  const renderStars = (count: number) => {
-    const full = '★'.repeat(count)
-    const empty = '☆'.repeat(5 - count)
-    return (
-      <span style={{ color: 'var(--chart-3)' }}>
-        {full}
-        <span style={{ color: 'var(--muted-foreground)' }}>{empty}</span>
-      </span>
-    )
-  }
-
   const formatFinishDate = (iso?: string) => {
     if (!iso) return '未知'
     const d = new Date(iso)
@@ -1599,11 +1587,11 @@ function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
-      {/* 表头（5 列 grid：1.5fr 0.8fr 0.7fr 0.8fr 0.7fr） */}
+      {/* 表头（4 列 grid：1.5fr 0.8fr 0.7fr 0.8fr） */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.5fr 0.8fr 0.7fr 0.8fr 0.7fr',
+          gridTemplateColumns: '1.5fr 0.8fr 0.7fr 0.8fr',
           gap: 'calc(var(--spacing) * 3)',
           padding: '0 calc(var(--spacing) * 4) calc(var(--spacing) * 2)',
           fontSize: '0.78rem',
@@ -1615,18 +1603,16 @@ function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
         <span>书名</span>
         <span>类型</span>
         <span>进度</span>
-        <span>评分</span>
         <span>完成日期</span>
       </div>
-      {finishedBooks.map((book, idx) => {
-        const rating = 4 - (idx % 3)
+      {finishedBooks.map((book) => {
         return (
           <div
             key={book.id}
             data-dom-id={`yearly-book-${book.id}`}
             style={{
               display: 'grid',
-              gridTemplateColumns: '1.5fr 0.8fr 0.7fr 0.8fr 0.7fr',
+              gridTemplateColumns: '1.5fr 0.8fr 0.7fr 0.8fr',
               gap: 'calc(var(--spacing) * 3)',
               alignItems: 'center',
               padding: 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
@@ -1666,7 +1652,6 @@ function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
               {book.category || '其他'}
             </span>
             <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)' }}>100%</span>
-            {renderStars(rating)}
             <span
               style={{
                 whiteSpace: 'nowrap',

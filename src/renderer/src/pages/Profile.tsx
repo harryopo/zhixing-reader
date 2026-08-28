@@ -144,9 +144,13 @@ export default function Profile() {
         setProfile({
           nickname: safeStr(nickname) || safeStr(userNickname) || DEFAULT_PROFILE.nickname,
           joinedAt: safeStr(joinedAt) || DEFAULT_PROFILE.joinedAt,
-          location: safeStr(location) || DEFAULT_PROFILE.location,
-          bio: safeStr(bio) || DEFAULT_PROFILE.bio,
+          location: safeStr(location) || '',
+          bio: safeStr(bio) || '',
         })
+        // 首次访问：把加入日期写入 settings，从今天开始真实累计
+        if (!safeStr(joinedAt)) {
+          void api.settings.set('userJoinedAt', DEFAULT_PROFILE.joinedAt)
+        }
         if (safeStr(avatarUrl)) {
           setAvatarError(false)
         }
@@ -488,7 +492,7 @@ export default function Profile() {
                 }}
               >
                 <span>{joinedDateStr} 加入</span>
-                <span>{profile.location}</span>
+                {profile.location && <span>{profile.location}</span>}
                 <span>GMT+8</span>
               </div>
               <p
@@ -501,7 +505,7 @@ export default function Profile() {
                   maxWidth: '52ch',
                 }}
               >
-                {profile.bio}
+                {profile.bio || '还没有个人简介，点击「编辑资料」写一句吧。'}
               </p>
             </div>
 
@@ -603,7 +607,6 @@ export default function Profile() {
             >
               {stats.finishedBooks}
             </div>
-            <Trend kind="up">↑ 目标 15 本</Trend>
           </Card>
 
           <Card interactive>
@@ -841,7 +844,6 @@ export default function Profile() {
             title={`已获得 ${unlockedAchievements.length} / ${achievements.length}`}
             action={
               <>
-                <Button variant="ghost" data-dom-id="cta-all-badges">查看全部</Button>
                 <Button
                   variant="ghost"
                   data-dom-id="cta-toggle-badges"

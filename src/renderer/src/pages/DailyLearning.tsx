@@ -167,7 +167,16 @@ export default function DailyLearning() {
 
   // ===== Dashboard 新增状态 =====
   const [view, setView] = useState<'dashboard' | 'article'>('dashboard')
-  const [taskOverrides, setTaskOverrides] = useState<Record<string, boolean>>({})
+  // 任务勾选状态按日期持久化到 localStorage（每日重置），key 形如 dailyTasks:2026-08-28
+  const todayKey = `dailyTasks:${new Date().toISOString().split('T')[0]}`
+  const [taskOverrides, setTaskOverrides] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(todayKey)
+      return saved ? (JSON.parse(saved) as Record<string, boolean>) : {}
+    } catch {
+      return {}
+    }
+  })
   // 翻译与文章选择状态
   const [translating, setTranslating] = useState(false)
   const [showArticleList, setShowArticleList] = useState(false)
@@ -616,7 +625,7 @@ export default function DailyLearning() {
 
     // 静态模板任务（匹配设计的笔记/对话/卡片/反思）
     list.push({ id: `task-${idx++}`, title: '整理今日笔记', duration: 10, category: '笔记', tag: 'note', done: false })
-    list.push({ id: `task-${idx++}`, title: 'AI 对话：深度工作习惯', duration: 20, category: '对话', tag: 'chat', done: false })
+    list.push({ id: `task-${idx++}`, title: 'AI 对话：探讨今日阅读内容', duration: 20, category: '对话', tag: 'chat', done: false })
     list.push({ id: `task-${idx++}`, title: '写卡片笔记 2 张', duration: 10, category: '卡片', tag: 'card', done: false })
     list.push({ id: `task-${idx++}`, title: '总结反思今日', duration: 5, category: '反思', tag: 'reflect', done: false })
 
@@ -666,13 +675,21 @@ export default function DailyLearning() {
     } else if (task.tag === 'card') {
       navigate('/knowledge-cards')
     } else if (task.tag === 'reflect') {
-      setTaskOverrides(prev => ({ ...prev, [task.id]: true }))
+      handleTaskToggle(task.id)
       toast.success('已总结反思今日')
     }
   }
 
   const handleTaskToggle = (taskId: string) => {
-    setTaskOverrides(prev => ({ ...prev, [taskId]: !prev[taskId] }))
+    setTaskOverrides(prev => {
+      const next = { ...prev, [taskId]: !prev[taskId] }
+      try {
+        localStorage.setItem(todayKey, JSON.stringify(next))
+      } catch {
+        /* 持久化失败不影响本次会话 */
+      }
+      return next
+    })
   }
 
   const handleStartToday = () => {

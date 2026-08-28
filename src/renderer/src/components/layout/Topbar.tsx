@@ -23,6 +23,7 @@ import Icon, { IconName } from '@/components/ui/Icon'
 import { toast } from '../../stores/toastStore'
 import { mapHighlights } from '../../utils/db-mapper'
 import { syncBookshelfToDb } from '../../utils/sync-bookshelf'
+import { useSettingsStore } from '../../stores/settingsStore'
 
 interface TopbarProps {
   onToggleSidebar?: () => void
@@ -137,6 +138,10 @@ interface NotifData {
 
 export default function Topbar({ onToggleSidebar }: TopbarProps) {
   const navigate = useNavigate()
+  // 用户头像/昵称（微信读书同步后由 settingsStore 持有）
+  const userAvatarUrl = useSettingsStore((s) => s.userAvatarUrl)
+  const userNickname = useSettingsStore((s) => s.userNickname)
+  const [avatarError, setAvatarError] = useState(false)
   const [isDark, setIsDark] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [syncing, setSyncing] = useState(false)
@@ -657,7 +662,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
         <div
           className="avatar"
           aria-label="用户头像"
-          title="读"
+          title={userNickname || '我的档案'}
           onClick={() => navigate('/profile')}
           style={{
             width: 40,
@@ -671,6 +676,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
             fontSize: '0.95rem',
             flexShrink: 0,
             cursor: 'pointer',
+            overflow: 'hidden',
             transition: 'transform 0.16s ease',
           }}
           onMouseDown={(e) => {
@@ -680,7 +686,16 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
             e.currentTarget.style.transform = 'scale(1)'
           }}
         >
-          读
+          {userAvatarUrl && !avatarError ? (
+            <img
+              src={userAvatarUrl}
+              alt={userNickname || '用户头像'}
+              onError={() => setAvatarError(true)}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            (userNickname?.trim()?.charAt(0) || '读')
+          )}
         </div>
       </div>
     </header>
