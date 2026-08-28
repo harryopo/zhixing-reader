@@ -487,10 +487,10 @@ export default function SettingsAgent() {
           ))}
         </aside>
 
-        {/* ===== 右：编排配置内容 ===== */}
+        {/* ===== 右：编排配置内容（minWidth:0 防止横向流水线内容挤压左侧导航列） ===== */}
         <div
           className="settings-forms"
-          style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 5)' }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 5)', minWidth: 0, overflow: 'hidden' }}
         >
       {/* ===== Section 1: Pipeline Flow Diagram ===== */}
       <Card padding="calc(var(--spacing) * 6)">
