@@ -34,6 +34,9 @@ yarn-error.log*
 tmp/
 temp/
 
+# Test temp data (vitest electron mock 写入项目内临时目录)
+.test-tmp/
+
 # Build installer artifacts (electron-builder output now points here)
 installer/
 installer-v2/

@@ -70,7 +70,7 @@ describe('database-persistence — 持久化与生命周期', () => {
     describe('getDatabasePath', () => {
       it('应返回 userData 目录下的 zhixing.db 路径', () => {
         const dbPath = getDatabasePath()
-        // electron-mock-setup 中 app.getPath('userData') 返回 '/tmp/zhixing-reader-test'
+        // electron-mock-setup 中 app.getPath('userData') 返回项目内 .test-tmp/user-data
         expect(dbPath).toContain('zhixing.db')
         expect(path.join).toHaveBeenCalled()
       })

@@ -18,10 +18,10 @@ const { mockElectron } = vi.hoisted(() => ({
   mockElectron: {
     app: {
       getPath: vi.fn((name: string) => {
-        if (name === 'userData') return '/tmp/zhixing-reader-test'
-        if (name === 'logs') return '/tmp/zhixing-reader-test/logs'
-        if (name === 'temp') return '/tmp'
-        return '/tmp'
+        if (name === 'userData') return `${process.cwd()}/.test-tmp/user-data`
+        if (name === 'logs') return `${process.cwd()}/.test-tmp/logs`
+        if (name === 'temp') return `${process.cwd()}/.test-tmp/temp`
+        return `${process.cwd()}/.test-tmp/temp`
       }),
       getVersion: vi.fn(() => '1.0.0-test'),
       getName: vi.fn(() => 'zhixing-reader-test'),
