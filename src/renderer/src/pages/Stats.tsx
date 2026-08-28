@@ -315,6 +315,34 @@ export default function Stats() {
     }
   }, [statsDateRange])
 
+  // 复习热力 12 周：拉取每日复习次数（daily_stats.cards_reviewed，由每次 FSRS 评分累加）
+  const [heatmapDaily, setHeatmapDaily] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!window.electronAPI?.stats) return
+    let isCancelled = false
+    const end = new Date()
+    const start = new Date(end.getTime() - (12 * 7 - 1) * 86400000)
+    window.electronAPI.stats
+      .getRange(start.toISOString().split('T')[0], end.toISOString().split('T')[0])
+      .then((rows) => {
+        if (isCancelled) return
+        const map: Record<string, number> = {}
+        for (const row of rows ?? []) {
+          const r = row as unknown as Record<string, unknown>
+          const date = String(r.date ?? '')
+          if (!date) continue
+          map[date] = Number(r.cards_reviewed ?? r.reviewsCount ?? 0)
+        }
+        setHeatmapDaily(map)
+      })
+      .catch(() => {
+        // 非致命：热力图保持空态
+      })
+    return () => {
+      isCancelled = true
+    }
+  }, [])
+
   const handleExportReport = async () => {
     setExportingReport(true)
     try {
@@ -566,6 +594,7 @@ export default function Stats() {
           rangeLoading={rangeLoading}
           isWereadConfigured={isWereadConfigured}
           onConfigureWeread={() => navigate('/settings/weread')}
+          heatmapDaily={heatmapDaily}
         />
       ) : (
         <BooksStatsView
@@ -597,6 +626,7 @@ function ReadingStatsView({
   rangeLoading,
   isWereadConfigured,
   onConfigureWeread,
+  heatmapDaily,
 }: {
   readingData: ReadingDataResponse | null
   readingMode: ReadingMode
@@ -618,6 +648,7 @@ function ReadingStatsView({
   rangeLoading: boolean
   isWereadConfigured: boolean
   onConfigureWeread: () => void
+  heatmapDaily: Record<string, number>
 }) {
   // 汇总所选日期范围内的每日阅读统计
   const rangeSummary = useMemo(() => {
@@ -799,7 +830,7 @@ function ReadingStatsView({
             title="近 12 周密度"
             action={<Badge>{kpiData.totalCards} 张</Badge>}
           />
-          <ReviewHeatmap12Weeks totalCards={kpiData.totalCards} />
+          <ReviewHeatmap12Weeks dailyCards={heatmapDaily} />
         </Card>
 
         <Card>
@@ -1356,25 +1387,22 @@ function CategoryDonut({
   )
 }
 
-// ===== 复习热力 12 周网格（设计稿 12×7 color-mix chart-1） =====
-function ReviewHeatmap12Weeks({ totalCards }: { totalCards: number }) {
-  // 12 周 × 7 天 = 84 格；基于 totalCards 模拟分布密度
-  // 若未来接入真实复习记录数据，可替换此处
+// ===== 复习热力 12 周网格（设计稿 12×7 color-mix chart-1；真实数据：每日 FSRS 评分次数） =====
+function ReviewHeatmap12Weeks({ dailyCards }: { dailyCards: Record<string, number> }) {
+  // 12 周 × 7 天 = 84 格，按日历对齐（从 83 天前到今天），取每日真实复习次数
   const cells = useMemo(() => {
     const total = 84
-    const baseDensity = totalCards > 0 ? totalCards / total : 0
-    const arr: number[] = []
-    // 用确定性公式代替 Math.random，避免每次重渲染抖动
+    const today = new Date()
+    const arr: { date: string; count: number }[] = []
     for (let i = 0; i < total; i++) {
-      const weight = i / total
-      const wave = Math.sin(i * 0.7) * 0.5 + Math.cos(i * 0.3) * 0.3 + 1
-      const value = baseDensity * (0.5 + weight * 1.5) * wave
-      arr.push(value)
+      const d = new Date(today.getTime() - (total - 1 - i) * 86400000)
+      const dateStr = d.toISOString().split('T')[0]
+      arr.push({ date: dateStr, count: dailyCards[dateStr] ?? 0 })
     }
     return arr
-  }, [totalCards])
+  }, [dailyCards])
 
-  const maxVal = useMemo(() => Math.max(...cells, 1), [cells])
+  const maxVal = useMemo(() => Math.max(...cells.map((c) => c.count), 1), [cells])
 
   const getColor = (val: number) => {
     if (val <= 0) return 'var(--muted)'
@@ -1395,15 +1423,15 @@ function ReviewHeatmap12Weeks({ totalCards }: { totalCards: number }) {
           marginTop: 'calc(var(--spacing) * 4)',
         }}
       >
-        {cells.map((val, i) => (
+        {cells.map((cell, i) => (
           <div
             key={i}
-            title={`第 ${Math.floor(i / 12) + 1} 周 · ${val.toFixed(1)}`}
+            title={`${cell.date} · 复习 ${cell.count} 次`}
             style={{
               width: '100%',
               aspectRatio: '1 / 1',
               borderRadius: 3,
-              backgroundColor: getColor(val),
+              backgroundColor: getColor(cell.count),
               transition: 'transform 0.15s ease',
               cursor: 'pointer',
             }}
