@@ -3,10 +3,11 @@
  * 基于设计稿 zhixing-reader-redesign/pages/book-detail.html
  *
  * 结构：
- *   - hero: 书名 + 作者 · 出版社 · 年份 + 3 actions（继续阅读 / AI 对话此书 / 返回书架）
+ *   - hero: 书名 + 作者 · 出版社 · 年份 + 3 actions（在微信读书打开 / AI 对话此书 / 返回书架）
  *   - 第一层双栏 grid [1fr 2fr]:
  *     - 左栏封面卡: book-cover-large + 4 stat-mini (进度/已读/划线/笔记) + progress-bar
- *     - 右栏信息卡: description + 2 meta-item (ISBN/分类) + 4 action-btn
+ *     - 右栏动态卡: 最近划线/笔记 2 条（真实数据）+ action-btn 组
+ *       （书籍简介/ISBN/分类无数据源已删除——微信读书同步不提供这些字段，展示只会是空占位）
  *   - 第二层 tab card: 划线 / 笔记 / 知识卡片 三标签 + 列表
  *
  * 业务逻辑全部保留:
@@ -15,7 +16,7 @@
  *   - 进度显示、笔记列表渲染、卡片列表渲染
  */
 
-import { useState, useEffect, useMemo, ReactNode } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
@@ -244,6 +245,15 @@ export default function BookDetail() {
   )
   const noteList = useMemo(() => highlights.filter((h) => h.type === 'note'), [highlights])
 
+  /** 最近动态：划线+笔记混合按时间倒序取 2 条（划线取原文，笔记取笔记内容） */
+  const recentActivity = useMemo(
+    () =>
+      [...highlights]
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+        .slice(0, 2),
+    [highlights],
+  )
+
   const bookSubtitle = useMemo(() => {
     if (!book) return ''
     const parts: string[] = []
@@ -406,42 +416,64 @@ export default function BookDetail() {
           </div>
         </Card>
 
-        {/* 右栏：书籍信息卡 */}
+        {/* 右栏：最近动态卡（真实划线/笔记数据；简介/ISBN/分类无数据源已删除） */}
         <Card>
-          {/* book-description */}
-          <div>
-            <div
-              style={{
-                color: 'var(--muted-foreground)',
-                fontSize: '0.75rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-              }}
-            >
-              书籍简介
-            </div>
+          <div
+            style={{
+              color: 'var(--muted-foreground)',
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+            }}
+          >
+            最近动态
+          </div>
+          {recentActivity.length === 0 ? (
             <p
               style={{
                 fontSize: '0.92rem',
                 lineHeight: 1.7,
-                color: 'var(--card-foreground)',
-                margin: 'calc(var(--spacing) * 2) 0 0',
+                color: 'var(--muted-foreground)',
+                margin: 'calc(var(--spacing) * 3) 0 0',
               }}
             >
-              {book.description || '暂无简介'}
+              还没有划线与笔记。点击下方「导入笔记」可从微信读书同步本书的划线内容。
             </p>
-          </div>
+          ) : (
+            <div style={{ marginTop: 'calc(var(--spacing) * 2)' }}>
+              {recentActivity.map((h, idx) => {
+                const text = h.note || h.content
+                return (
+                  <div
+                    key={h.id}
+                    style={{
+                      padding: 'calc(var(--spacing) * 3) 0',
+                      borderTop: idx === 0 ? 'none' : '1px solid var(--border)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)' }}>
+                      {h.note ? <Badge variant="ok">笔记</Badge> : <Badge>划线</Badge>}
+                      <Tiny>
+                        {h.chapterTitle || '未知章节'} · {formatDateShort(h.createdAt)}
+                      </Tiny>
+                    </div>
+                    <p
+                      style={{
+                        margin: 'calc(var(--spacing) * 2) 0 0',
+                        fontSize: '0.88rem',
+                        lineHeight: 1.6,
+                        color: 'var(--card-foreground)',
+                      }}
+                    >
+                      {text.length > 120 ? `${text.slice(0, 120)}…` : text}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-          {/* book-meta-grid: 4 meta-item */}
-          <div
-            className="grid grid-cols-2"
-            style={{ gap: 'calc(var(--spacing) * 4)', marginTop: 'calc(var(--spacing) * 5)' }}
-          >
-            <MetaItem label="ISBN" value={book.isbn || '-'} mono />
-            <MetaItem label="分类" value={book.category || '-'} />
-          </div>
-
-          {/* book-actions: 4 action-btn */}
+          {/* book-actions: action-btn 组 */}
           <div
             className="flex flex-wrap"
             style={{ gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 5)' }}
@@ -550,44 +582,6 @@ function StatMini({ label, value }: { label: string; value: string }) {
           color: 'var(--foreground)',
           fontFamily: 'var(--font-mono)',
           fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  )
-}
-
-/** 单个 meta-item（信息卡 4 宫格） */
-function MetaItem({
-  label,
-  value,
-  mono,
-}: {
-  label: string
-  value: ReactNode
-  mono?: boolean
-}) {
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: '0.75rem',
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          color: 'var(--muted-foreground)',
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: '0.9rem',
-          fontWeight: 600,
-          marginTop: '0.35rem',
-          color: 'var(--foreground)',
-          fontFamily: mono ? 'var(--font-mono)' : 'inherit',
-          wordBreak: 'break-all',
         }}
       >
         {value}
