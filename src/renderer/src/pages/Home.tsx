@@ -396,8 +396,8 @@ export default function Home() {
                   <style>{`.list > div:first-child { border-top: none; padding-top: 0; }`}</style>
                 </div>
                 <div style={{ marginTop: 'calc(var(--spacing) * 4)', display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button variant="secondary" onClick={() => navigate('/knowledge-cards')} data-dom-id="cta-review-start">
-                    查看卡片
+                  <Button variant="secondary" onClick={() => navigate('/review')} data-dom-id="cta-review-start">
+                    开始复习
                   </Button>
                 </div>
               </>

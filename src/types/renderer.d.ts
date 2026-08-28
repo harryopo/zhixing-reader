@@ -7,6 +7,27 @@ export interface TokenSummary {
   totalTokens: number
 }
 
+/** 到期复习卡片（FSRS 调度字段 + 划线内容） */
+export interface DueReviewCard {
+  id: string
+  highlightId: string
+  state: number
+  step: number
+  stability: number
+  difficulty: number
+  due: string
+  lastReview: string | null
+  elapsedDays: number
+  scheduledDays: number
+  reps: number
+  lapses: number
+  bookId: string
+  bookTitle: string | null
+  chapterTitle: string | null
+  highlightContent: string
+  highlightNote: string | null
+}
+
 export interface TokenRecord {
   id: string
   provider: string
@@ -51,6 +72,7 @@ export interface ElectronAPI {
     updateMasteryLevel: (id: string, level: number) => Promise<void>
     delete: (id: string) => Promise<void>
     getDue: (limit?: number) => Promise<Card[]>
+    getDueWithContent: (limit?: number) => Promise<DueReviewCard[]>
     getByBook: (bookId: string) => Promise<Card[]>
     getStats: () => Promise<ReviewStats>
     review: (id: string, quality: number) => Promise<Review>

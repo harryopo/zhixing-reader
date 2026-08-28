@@ -1304,6 +1304,40 @@ export const cardsDb = {
     return rowsToObjects(result).map(cardFromDb);
   },
 
+  /**
+   * 到期卡片（含复习内容）— 供间隔复习页面展示。
+   * JOIN 划线原文 + 笔记 + 章节名 + 书名，FSRS 字段走 cardFromDb 驼峰转换。
+   */
+  getDueCardsWithContent(limit: number = 100): Array<Card & {
+    bookId: string;
+    bookTitle: string | null;
+    chapterTitle: string | null;
+    highlightContent: string;
+    highlightNote: string | null;
+  }> {
+    const now = new Date().toISOString();
+    const result = getDatabase().exec(
+      `SELECT c.*, h.book_id AS _book_id, h.content AS _highlight_content,
+              h.note AS _highlight_note, h.chapter_title AS _chapter_title,
+              b.title AS _book_title
+       FROM cards c
+       JOIN highlights h ON c.highlight_id = h.id
+       LEFT JOIN books b ON h.book_id = b.id
+       WHERE c.due <= ?
+       ORDER BY c.due ASC
+       LIMIT ?`,
+      [now, limit]
+    );
+    return rowsToObjects(result).map((row) => ({
+      ...cardFromDb(row),
+      bookId: row._book_id as string,
+      bookTitle: (row._book_title as string) ?? null,
+      chapterTitle: (row._chapter_title as string) ?? null,
+      highlightContent: (row._highlight_content as string) ?? '',
+      highlightNote: (row._highlight_note as string) ?? null,
+    }));
+  },
+
   getByBookId(bookId: string): Card[] {
     const result = getDatabase().exec(`
       SELECT c.* FROM cards c

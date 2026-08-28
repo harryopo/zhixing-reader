@@ -155,7 +155,7 @@ function createMenu(): void {
           label: '复习',
           accelerator: 'CmdOrCtrl+2',
           click: () => {
-            mainWindow?.webContents.send(IPC_CHANNELS.MENU.NAVIGATE, '/knowledge-cards');
+            mainWindow?.webContents.send(IPC_CHANNELS.MENU.NAVIGATE, '/review');
           },
         },
         {

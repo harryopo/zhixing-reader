@@ -161,6 +161,7 @@ export function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.CARDS.UPDATE_MASTERY_LEVEL, (id: string, level: number) => cardsDb.updateMasteryLevel(id, level));
   handle(IPC_CHANNELS.CARDS.DELETE, (id: string) => cardsDb.delete(id));
   handle(IPC_CHANNELS.CARDS.GET_DUE, (limit?: number) => cardsDb.getDueCards(limit));
+  handle(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, (limit?: number) => cardsDb.getDueCardsWithContent(limit));
   handle(IPC_CHANNELS.CARDS.GET_BY_BOOK, (bookId: string) => cardsDb.getByBookId(bookId));
   handle(IPC_CHANNELS.CARDS.GET_STATS, () => cardsDb.getReviewStats());
 

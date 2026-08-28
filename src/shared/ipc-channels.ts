@@ -29,6 +29,7 @@ export const IPC_CHANNELS = {
     UPDATE_MASTERY_LEVEL: 'cards:updateMasteryLevel',
     DELETE: 'cards:delete',
     GET_DUE: 'cards:getDue',
+    GET_DUE_WITH_CONTENT: 'cards:getDueWithContent',
     GET_BY_BOOK: 'cards:getByBook',
     GET_STATS: 'cards:getStats',
   },

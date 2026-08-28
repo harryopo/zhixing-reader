@@ -14,6 +14,7 @@ import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import Methodologies from './pages/Methodologies'
 import KnowledgeCards from './pages/KnowledgeCards'
+import Review from './pages/Review'
 import DailyLearning from './pages/DailyLearning'
 import VocabularyPage from './pages/VocabularyPage'
 import AgentOrchestration from './pages/AgentOrchestration'
@@ -75,6 +76,7 @@ function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/methodologies" element={<Methodologies />} />
               <Route path="/knowledge-cards" element={<KnowledgeCards />} />
+              <Route path="/review" element={<Review />} />
               <Route path="/daily-learning" element={<DailyLearning />} />
               <Route path="/vocabulary" element={<VocabularyPage />} />
 
