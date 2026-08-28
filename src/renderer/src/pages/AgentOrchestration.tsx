@@ -113,7 +113,7 @@ const DEFAULT_BUILDERS: ContextBuilderInfo[] = [
   { no: 2, name: 'methodology', desc: '书籍关联的学习方法论', priority: '优先级 2' },
   { no: 3, name: 'knowledge-card', desc: '知识卡片 RAG 检索片段', priority: '优先级 3' },
   { no: 4, name: 'memory', desc: '历史对话提取的长期记忆', priority: '优先级 4' },
-  { no: 5, name: 'user-profile', desc: '用户画像（有画像数据时才构建）', priority: '优先级 5 · 条件构建' },
+  { no: 5, name: 'user-profile', desc: '用户画像：档案自述资料 + 行为推导（有数据时才构建）', priority: '优先级 5 · 条件构建' },
 ]
 
 /** 记忆提取 3 类规则（对应 services/memory-service.ts 的分类） */
@@ -604,57 +604,23 @@ export default function AgentOrchestration() {
                 className="intent-row"
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
+                  alignItems: 'center',
                   gap: 'calc(var(--spacing) * 3)',
                   padding: idx === 0 ? '0 0 calc(var(--spacing) * 4)' : 'calc(var(--spacing) * 4) 0',
                   borderTop: idx === 0 ? 'none' : '1px solid var(--border)',
                 }}
               >
-                <div
-                  className="intent-head"
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 'calc(var(--spacing) * 3)',
-                  }}
-                >
-                  <div className="intent-name" style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', minWidth: 0, flex: 1 }}>
-                    <strong style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--foreground)', fontFamily: 'var(--font-mono)' }}>
-                      {intent.name}
-                    </strong>
-                    <span className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: 0 }}>
-                      {intent.label}
-                    </span>
-                  </div>
-                  <span className="intent-conf" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--muted-foreground)', flexShrink: 0 }}>
-                    {keywords.length} 个关键词
+                <div className="intent-name" style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', minWidth: 0, flex: 1 }}>
+                  <strong style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--foreground)', fontFamily: 'var(--font-mono)' }}>
+                    {intent.name}
+                  </strong>
+                  <span className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: 0 }}>
+                    {intent.label}
                   </span>
                 </div>
-                {keywords.length > 0 && (
-                  <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 'calc(var(--spacing) * 2)' }}>
-                    {keywords.map((kw) => (
-                      <span
-                        key={kw}
-                        className="chip"
-                        data-tone="primary"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '0.25rem 0.6rem',
-                          borderRadius: 'var(--radius)',
-                          background: 'var(--secondary)',
-                          color: 'var(--accent-foreground)',
-                          fontSize: '0.74rem',
-                          whiteSpace: 'nowrap',
-                          border: '1px solid transparent',
-                        }}
-                      >
-                        {kw}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <span className="intent-conf" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--muted-foreground)', flexShrink: 0 }}>
+                  {keywords.length} 个关键词
+                </span>
               </div>
             )
           })}

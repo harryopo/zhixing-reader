@@ -1,5 +1,6 @@
 import { logger } from '../logger'
 import { getRepositories } from '../repositories'
+import { settingsService } from './settings-service'
 
 export interface UserProfile {
   id: string
@@ -64,6 +65,45 @@ export function hasUserProfile(): boolean {
   } catch {
     return false
   }
+}
+
+// ============================================================================
+// 用户自述资料（个人档案页编辑，存 settings）—— 用户主动填写的高质量信号
+// ============================================================================
+
+export interface UserSelfProfile {
+  nickname: string
+  location: string
+  bio: string
+}
+
+/** 字段长度上限：防止超长简介变成垃圾上下文挤占 token 预算 */
+const SELF_PROFILE_FIELD_MAX = 200
+
+/**
+ * 读取用户在个人档案中主动填写的资料。
+ * 全部为空（或纯空白）时返回 null——空白资料不注入，避免垃圾上下文。
+ */
+export function getUserSelfProfile(): UserSelfProfile | null {
+  try {
+    const nickname = String(settingsService.get('userNickname') ?? '').trim()
+    const location = String(settingsService.get('userLocation') ?? '').trim()
+    const bio = String(settingsService.get('userBio') ?? '').trim()
+    if (!nickname && !location && !bio) return null
+    return {
+      nickname: nickname.slice(0, SELF_PROFILE_FIELD_MAX),
+      location: location.slice(0, SELF_PROFILE_FIELD_MAX),
+      bio: bio.slice(0, SELF_PROFILE_FIELD_MAX),
+    }
+  } catch {
+    return null
+  }
+}
+
+/** 自述资料或行为画像任一存在，即可构建用户画像上下文 */
+export function hasSelfOrBehaviorProfile(): boolean {
+  if (getUserSelfProfile() !== null) return true
+  return hasUserProfile()
 }
 
 export async function buildUserProfile(): Promise<UserProfile> {
