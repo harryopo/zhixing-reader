@@ -11,6 +11,7 @@ import { settingsService } from './services/settings-service';
 import { initVectorDb, createCollection } from './services/vector-db';
 import { initFromAIConfig as initEmbedding } from './services/embedding-service';
 import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
+import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 const isDev = !app.isPackaged;
 
@@ -147,21 +148,21 @@ function createMenu(): void {
           label: '书架',
           accelerator: 'CmdOrCtrl+1',
           click: () => {
-            mainWindow?.webContents.send('navigate', '/bookshelf');
+            mainWindow?.webContents.send(IPC_CHANNELS.MENU.NAVIGATE, '/bookshelf');
           },
         },
         {
           label: '复习',
           accelerator: 'CmdOrCtrl+2',
           click: () => {
-            mainWindow?.webContents.send('navigate', '/review');
+            mainWindow?.webContents.send(IPC_CHANNELS.MENU.NAVIGATE, '/knowledge-cards');
           },
         },
         {
           label: '知识库',
           accelerator: 'CmdOrCtrl+3',
           click: () => {
-            mainWindow?.webContents.send('navigate', '/knowledge-cards');
+            mainWindow?.webContents.send(IPC_CHANNELS.MENU.NAVIGATE, '/knowledge-cards');
           },
         },
         { type: 'separator' },
@@ -181,7 +182,7 @@ function createMenu(): void {
         {
           label: '关于',
           click: () => {
-            mainWindow?.webContents.send('menu:about');
+            mainWindow?.webContents.send(IPC_CHANNELS.MENU.ABOUT);
           },
         },
       ],

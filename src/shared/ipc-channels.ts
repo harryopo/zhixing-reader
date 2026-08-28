@@ -227,4 +227,9 @@ export const IPC_CHANNELS = {
     GENERATE: 'skill:generate',
     EXPORT_BATCH: 'skill:exportBatch',
   },
+  // 主进程菜单事件（主进程 -> 渲染进程，由 Menu 点击触发）
+  MENU: {
+    NAVIGATE: 'menu:navigate',
+    ABOUT: 'menu:about',
+  },
 } as const;

@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { Routes, Route, useNavigate } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import ToastContainer from './components/Toast'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -17,6 +17,9 @@ import KnowledgeCards from './pages/KnowledgeCards'
 import DailyLearning from './pages/DailyLearning'
 import VocabularyPage from './pages/VocabularyPage'
 import AgentOrchestration from './pages/AgentOrchestration'
+
+// 管理后台（SettingsAI/SettingsData 跳转 /admin）
+const AdminPage = lazy(() => import('./pages/admin/AdminPage'))
 
 // 设置子页（懒加载）
 const SettingsAccount = lazy(() => import('./pages/settings/SettingsAccount'))
@@ -44,6 +47,16 @@ function Loading() {
 }
 
 function App() {
+  const navigate = useNavigate()
+
+  // 主进程菜单「视图」快捷键导航（CmdOrCtrl+1/2/3）→ 对应路由
+  useEffect(() => {
+    const dispose = window.electronAPI?.onNavigate?.(path => {
+      navigate(path)
+    })
+    return () => dispose?.()
+  }, [navigate])
+
   return (
     <>
       <ToastContainer />
@@ -76,6 +89,9 @@ function App() {
 
               {/* ===== 智能体编排（设计稿 agent-orchestration.html） ===== */}
               <Route path="/agent-orchestration" element={<AgentOrchestration />} />
+
+              {/* ===== 管理后台（SettingsAI 提示词中心 / SettingsData 向量索引清理跳转） ===== */}
+              <Route path="/admin" element={<AdminPage />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>

@@ -274,6 +274,8 @@ export interface ElectronAPI {
     deleteCustomPrompt: (id: string) => Promise<{ success: boolean; error?: string }>
     getCustomPrompts: () => Promise<CustomPrompt[]>
   }
+  /** 主进程菜单导航事件（视图菜单 CmdOrCtrl+1/2/3），返回清理函数 */
+  onNavigate: (callback: (path: string) => void) => () => void
 }
 
 export interface PromptVariable {

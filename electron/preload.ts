@@ -415,6 +415,15 @@ const electronAPI = {
       invoke(IPC_CHANNELS.ADMIN.DELETE_CUSTOM_PROMPT, id),
     getCustomPrompts: () => invoke(IPC_CHANNELS.ADMIN.GET_CUSTOM_PROMPTS),
   },
+
+  // 主进程菜单导航事件（视图菜单 CmdOrCtrl+1/2/3 等触发，renderer 端跳转路由）
+  onNavigate: (callback: (path: string) => void) => {
+    const handler = (_event: IpcRendererEvent, path: string) => callback(path)
+    ipcRenderer.on(IPC_CHANNELS.MENU.NAVIGATE, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.MENU.NAVIGATE, handler)
+    }
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
