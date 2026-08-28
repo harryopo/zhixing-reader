@@ -426,6 +426,5 @@ const electronAPI = {
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
-console.log('[preload] electronAPI exposed, keys:', Object.keys(electronAPI).slice(0, 10));
 
 export type ZhixingAPI = typeof electronAPI;

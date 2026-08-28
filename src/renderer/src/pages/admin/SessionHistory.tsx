@@ -30,8 +30,8 @@ export default function SessionHistory() {
 
   const loadSessions = async () => {
     try {
-      const result = await (window as any).electronAPI.admin.getSessions()
-      setSessions(Array.isArray(result) ? result : [])
+      const result = await window.electronAPI.admin.getSessions()
+      setSessions(Array.isArray(result) ? (result as unknown as Session[]) : [])
     } catch (err) {
       console.error('加载会话失败:', err)
     } finally {
@@ -47,10 +47,10 @@ export default function SessionHistory() {
     setSelectedSession(sessionId)
     setMessagesLoading(true)
     try {
-      const result = await (window as any).electronAPI.admin.getSessionMessages(
+      const result = await window.electronAPI.admin.getSessionMessages(
         sessionId
       )
-      setMessages(Array.isArray(result) ? result : [])
+      setMessages(Array.isArray(result) ? (result as unknown as Message[]) : [])
     } catch (err) {
       console.error('加载消息失败:', err)
     } finally {

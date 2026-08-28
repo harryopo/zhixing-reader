@@ -134,7 +134,7 @@ export default function PromptCenter() {
     if (!confirm('确定恢复所有提示词到默认值？此操作不可撤销。')) return
     try {
       const result = await window.electronAPI.admin.resetAllPrompts()
-      setMessage({ type: 'success', text: `已恢复 ${(result as any)?.count ?? 0} 个提示词到默认` })
+      setMessage({ type: 'success', text: `已恢复 ${(result as { count?: number } | null)?.count ?? 0} 个提示词到默认` })
       await loadPrompts()
       setTimeout(() => setMessage(null), 3000)
     } catch (err) {
@@ -168,7 +168,7 @@ export default function PromptCenter() {
       if (!file) return
       try {
         const text = await file.text()
-        const result = await window.electronAPI.admin.importPrompts(text) as any
+        const result = await window.electronAPI.admin.importPrompts(text) as { success?: boolean; imported?: number; error?: string } | null
         if (result?.success) {
           setMessage({ type: 'success', text: `已导入 ${result.imported} 个提示词` })
           await loadPrompts()

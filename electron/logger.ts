@@ -61,6 +61,8 @@ class Logger {
     }
 
     const consoleMethod = level === LogLevel.ERROR ? 'error' : level === LogLevel.WARN ? 'warn' : 'log';
+    // logger 本身负责把日志写到 console，动态方法名静态分析无法识别，此处豁免
+    // eslint-disable-next-line no-console
     console[consoleMethod](line.trim());
   }
 

@@ -57,8 +57,8 @@ export default function KnowledgeBase() {
 
   const loadBooks = async () => {
     try {
-      const result = await (window as any).electronAPI.admin.getBooksWithCounts()
-      setBooks(Array.isArray(result) ? result : [])
+      const result = await window.electronAPI.admin.getBooksWithCounts()
+      setBooks(Array.isArray(result) ? (result as unknown as Book[]) : [])
     } catch (err) {
       console.error('加载书籍失败:', err)
     } finally {
@@ -75,11 +75,11 @@ export default function KnowledgeBase() {
     setDetailLoading(true)
     try {
       const [hlResult, cardResult] = await Promise.all([
-        (window as any).electronAPI.admin.getHighlightsByBook(bookId),
-        (window as any).electronAPI.admin.getCardsByBook(bookId),
+        window.electronAPI.admin.getHighlightsByBook(bookId),
+        window.electronAPI.admin.getCardsByBook(bookId),
       ])
-      setHighlights(Array.isArray(hlResult) ? hlResult : [])
-      setCards(Array.isArray(cardResult) ? cardResult : [])
+      setHighlights(Array.isArray(hlResult) ? (hlResult as unknown as Highlight[]) : [])
+      setCards(Array.isArray(cardResult) ? (cardResult as unknown as KnowledgeCard[]) : [])
     } catch (err) {
       console.error('加载书籍详情失败:', err)
     } finally {
