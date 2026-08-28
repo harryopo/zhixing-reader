@@ -36,6 +36,7 @@ interface SettingsNavItem {
 const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', domId: 'settings-tab-account' },
   { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
+  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
   { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
   { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
   { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
@@ -62,7 +63,6 @@ const UPDATE_HISTORY: HistoryEntry[] = [
       '• 知识卡片体系：概念卡 / 方法论卡 / 金句卡，AI 自动蒸馏，反向链接到原文',
       '• 英语词汇学习：~8 万词频词典、上下文例句、SM-2 混合调度',
       '• 统计与可视化：Apache ECharts 5.5 仪表盘，阅读趋势、复习进度、Token 用量全维度呈现',
-      '• Admin 管理后台：Dashboard / AgentConfig / KnowledgeBase / SessionHistory',
       '• MCP Server 子项目：支持 Claude Desktop / Cursor 查询本地阅读数据库',
     ],
   },

@@ -1,5 +1,5 @@
 /**
- * AgentOrchestration — 智能体编排页（去伪存真版）
+ * SettingsAgent — 智能体编排设置（设置子页，与账户/AI 等子页共用设置壳层）
  *
  * 真实性原则：假数据能做真就做真，不能做真就删。
  *   - 意图分类器：关键词从主进程 GET_PIPELINE_INFO 拉取（运行时真实生效版，intent-classifier.getIntentKeywords）
@@ -21,13 +21,34 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
-import { toast } from '../stores/toastStore'
+import { toast } from '../../stores/toastStore'
+
+/** 设置分类导航项（与其他设置子页一致） */
+interface SettingsNavItem {
+  key: string
+  label: string
+  icon: 'profile' | 'settings' | 'bookshelf' | 'box' | 'sun' | 'question'
+  path: string
+  domId?: string
+  active?: boolean
+}
+
+const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
+  { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', domId: 'settings-tab-account' },
+  { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
+  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', active: true },
+  { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
+  { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
+  { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
+  { key: 'about', label: '关于', icon: 'question', path: '/settings/about', domId: 'settings-tab-about' },
+]
 
 // ===== 类型 =====
 
@@ -275,7 +296,9 @@ function StatusBadge({
 }
 
 // ===== 主组件 =====
-export default function AgentOrchestration() {
+export default function SettingsAgent() {
+  const navigate = useNavigate()
+
   // 运行时真实数据（从主进程拉取）
   const [intentKeywords, setIntentKeywords] = useState<Record<string, string[]> | null>(null)
   const [strategyMap, setStrategyMap] = useState<Record<string, StrategyPlanInfo> | null>(null)
@@ -376,6 +399,99 @@ export default function AgentOrchestration() {
         </Button>
       }
     >
+      <div
+        className="settings-body"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 2fr',
+          gap: 'calc(var(--spacing) * 5)',
+          alignItems: 'flex-start',
+        }}
+      >
+        {/* ===== 左：设置分类导航（与其他设置子页一致） ===== */}
+        <aside
+          className="settings-nav card"
+          style={{
+            position: 'sticky',
+            top: 'calc(var(--spacing) * 4)',
+            padding: 'calc(var(--spacing) * 4)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'calc(var(--spacing) * 2)',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'calc(var(--radius) + 6px)',
+            color: 'var(--card-foreground)',
+          }}
+        >
+          <div
+            className="nav-label"
+            style={{
+              padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)',
+              color: 'var(--muted-foreground)',
+              fontSize: '0.78rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+            }}
+          >
+            设置分类
+          </div>
+          {SETTINGS_NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="settings-nav-item"
+              data-dom-id={item.domId ?? `settings-tab-${item.key}`}
+              data-active={item.active ? 'true' : undefined}
+              aria-current={item.active ? 'page' : undefined}
+              onClick={() => navigate(item.path)}
+              style={{
+                width: '100%',
+                padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                textAlign: 'left',
+                border: 'none',
+                background: item.active ? 'var(--sidebar-accent)' : 'transparent',
+                borderRadius: 'var(--radius)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'calc(var(--spacing) * 3)',
+                color: item.active ? 'var(--primary)' : 'var(--muted-foreground)',
+                fontWeight: item.active ? 600 : 400,
+                transition: 'background 0.2s ease, color 0.2s ease',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+              }}
+              onMouseEnter={(e) => {
+                if (!item.active) {
+                  e.currentTarget.style.background = 'var(--sidebar-accent)'
+                  e.currentTarget.style.color = 'var(--foreground)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!item.active) {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color = 'var(--muted-foreground)'
+                }
+              }}
+            >
+              <span
+                className="nav-glyph"
+                aria-hidden="true"
+                style={{ width: 18, flexShrink: 0, display: 'grid', placeItems: 'center' }}
+              >
+                <Icon name={item.icon} size={18} />
+              </span>
+              <span className="nav-text" style={{ fontSize: '0.88rem' }}>{item.label}</span>
+            </button>
+          ))}
+        </aside>
+
+        {/* ===== 右：编排配置内容 ===== */}
+        <div
+          className="settings-forms"
+          style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 5)' }}
+        >
       {/* ===== Section 1: Pipeline Flow Diagram ===== */}
       <Card padding="calc(var(--spacing) * 6)">
         <div
@@ -1000,6 +1116,16 @@ export default function AgentOrchestration() {
           </div>
         </Card>
       </div>
+        </div>
+      </div>
+
+      {/* ===== 响应式样式（与其他设置子页一致） ===== */}
+      <style>{`
+        @media (max-width: 1100px) {
+          .settings-body { grid-template-columns: 1fr !important; }
+          .settings-nav { position: static !important; }
+        }
+      `}</style>
     </PageHero>
   )
 }

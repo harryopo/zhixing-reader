@@ -39,6 +39,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: 'account', label: '账户', icon: 'user', path: '/settings/account' },
   { key: 'ai', label: 'AI 配置', icon: 'agent', path: '/settings/ai' },
+  { key: 'agent', label: '智能体编排', icon: 'box', path: '/settings/agent' },
   { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread' },
   { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data' },
   { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance' },

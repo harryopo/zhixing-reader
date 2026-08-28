@@ -4,7 +4,7 @@
  * 3 张卡片：LLM 服务配置 / RAG 配置 / 提示词模板管理
  * 业务逻辑：复用 settingsStore（llmEndpoint/llmKey/llmModel + testAIConnection），
  *           扩展字段（maxTokens/temperature/rag/templates）通过 settings.set 持久化。
- * 注：智能体编排已独立为 /agent-orchestration，相关参数由该页面管理（T10/T12）。
+ * 注：智能体编排已独立为 /settings/agent 设置子页，相关参数由该页面管理（T10/T12）。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -54,7 +54,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: 'account', label: '账户', icon: 'user', path: '/settings/account', domId: 'settings-tab-account' },
   { key: 'ai', label: 'AI配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
-  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/agent-orchestration', domId: 'settings-tab-agent' },
+  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
   { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
   { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
   { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
@@ -269,12 +269,6 @@ export default function SettingsAI() {
   const toggleTemplate = useCallback((id: string) => {
     setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, enabled: !t.enabled } : t)))
   }, [])
-
-  // ===== 编辑内置模板（跳转到 /admin 提示词管理面板） =====
-  const handleEditTemplate = useCallback((id: string) => {
-    void id
-    navigate('/admin')
-  }, [navigate])
 
   // ===== 加载自定义模板列表 =====
   const loadCustomTemplates = useCallback(async () => {
@@ -680,7 +674,7 @@ export default function SettingsAI() {
             {/* ===== Card 2: RAG 配置（已隐藏：用户无需配置本地向量检索） ===== */}
 
             {/* ===== Card 3: 提示词模板管理 =====
-                 注：原 Card 3「Agent 参数」已迁移至 /agent-orchestration（独立智能体编排分类，T10/T12）。
+                 注：原 Card 3「Agent 参数」已迁移至 /settings/agent（独立智能体编排分类，T10/T12）。
                   */}
             <Card>
               <CardHead
@@ -701,7 +695,7 @@ export default function SettingsAI() {
                 <div
                   key={t.id}
                   className="template-row"
-                  title={`【${t.name}】${t.desc}。点击编辑修改模板内容，点击开关启用/禁用该模板。`}
+                  title={`【${t.name}】${t.desc}。点击开关启用/禁用该模板。`}
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -722,16 +716,6 @@ export default function SettingsAI() {
                     className="template-actions"
                     style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', flexShrink: 0 }}
                   >
-                    <button
-                      className="icon-btn-sm"
-                      type="button"
-                      onClick={() => handleEditTemplate(t.id)}
-                      data-dom-id={`edit-template-${t.id}`}
-                      aria-label={`编辑${t.name}模板`}
-                      title="编辑模板内容（跳转至管理面板）"
-                    >
-                      <Icon name="edit" size={16} />
-                    </button>
                     <button
                       className="toggle"
                       type="button"

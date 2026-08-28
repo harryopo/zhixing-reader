@@ -29,7 +29,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'bookshelf', path: '/bookshelf', label: '书架', icon: 'bookshelf', domId: 'nav-bookshelf' },
   { key: 'notes', path: '/notes', label: '笔记', icon: 'notes', domId: 'nav-notes' },
   { key: 'chat', path: '/chat', label: 'AI对话', icon: 'chat', domId: 'nav-chat' },
-  { key: 'agent', path: '/agent-orchestration', label: '智能体编排', icon: 'agent', domId: 'nav-agent' },
   { key: 'cards', path: '/knowledge-cards', label: '知识卡片', icon: 'cards', domId: 'nav-cards' },
   { key: 'review', path: '/review', label: '间隔复习', icon: 'review', domId: 'nav-review' },
   { key: 'daily', path: '/daily-learning', label: '每日学习', icon: 'daily', domId: 'nav-daily' },

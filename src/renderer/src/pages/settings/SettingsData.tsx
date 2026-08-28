@@ -46,6 +46,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: 'account', label: '账户', icon: 'user', path: '/settings/account', domId: 'settings-tab-account' },
   { key: 'ai', label: 'AI配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
+  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
   { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
   { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
   { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
@@ -537,11 +538,6 @@ export default function SettingsData() {
     }
   }, [])
 
-  // ===== 清理向量索引：跳转到管理面板手动操作 =====
-  const handleClearVector = useCallback(() => {
-    navigate('/admin')
-  }, [navigate])
-
   // ===== 重置数据库（三次确认 + 调 system.resetDatabase，主进程会自动重启 app） =====
   const handleResetDb = useCallback(async () => {
     if (!window.electronAPI?.system?.resetDatabase) {
@@ -847,25 +843,6 @@ export default function SettingsData() {
                   <Button variant="secondary" onClick={handleClearHistory} data-dom-id="cta-clear-history">
                     清理历史
                   </Button>
-                </div>
-                <div className="cache-row">
-                  <div className="cache-row-info">
-                    <strong>清理向量索引</strong>
-                    <Tiny>重建 Vectra 索引将影响 AI 检索</Tiny>
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'calc(var(--spacing) * 2)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span className="status-badge warning">需重建</span>
-                    <Button variant="ghost" onClick={handleClearVector} data-dom-id="cta-clear-vector">
-                      清理向量
-                    </Button>
-                  </div>
                 </div>
               </div>
             </Card>

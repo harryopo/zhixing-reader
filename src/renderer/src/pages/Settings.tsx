@@ -54,7 +54,7 @@ const NAV_ITEMS: NavItemDef[] = [
     label: '智能体编排',
     desc: '意图识别、教学策略、上下文预算（与 AI 模型配置解耦）',
     icon: <Icon name="settings" size={18} />,
-    path: '/agent-orchestration',
+    path: '/settings/agent',
   },
   {
     key: 'weread',
