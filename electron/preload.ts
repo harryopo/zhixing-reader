@@ -164,6 +164,13 @@ const electronAPI = {
     fetchOverall: () => invoke(IPC_CHANNELS.READING_DATA.FETCH_OVERALL),
   },
 
+  agent: {
+    getPipelineInfo: () => invoke(IPC_CHANNELS.AGENT.GET_PIPELINE_INFO) as Promise<{
+      intentKeywords: Record<string, string[]>
+      strategyMap: Record<string, { teachingMode: string; bloomLevel: number }>
+    }>,
+  },
+
   ai: {
     setConfig: (config: Record<string, unknown>) => invoke(IPC_CHANNELS.AI.SET_CONFIG, config),
     generateCards: (highlights: Array<{ content: string; note?: string }>, bookTitle: string) =>

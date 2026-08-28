@@ -13,6 +13,8 @@ import { fetchAllRssSources, generateArticleId } from './rss-fetcher';
 import { dictionaryService } from './dictionary-service';
 import * as admin from './admin';
 import { processMessageStream } from './agent/orchestrator';
+import { getIntentKeywords } from './agent/intent-classifier';
+import { getIntentStrategyMap } from './agent/strategy-selector';
 import { indexHighlight as indexHighlightRAG } from './services/rag-service';
 import { refreshWereadAutoSyncTimer } from './weread-sync-manager';
 
@@ -481,6 +483,14 @@ export function registerIpcHandlers(): void {
     const aborted = cancelActiveStream()
     logger.info('Stream cancel requested', { aborted })
     return { aborted }
+  })
+
+  // 编排页真实运行时配置：意图关键词（运行时生效版）+ 意图→策略映射
+  handle(IPC_CHANNELS.AGENT.GET_PIPELINE_INFO, () => {
+    return {
+      intentKeywords: getIntentKeywords(),
+      strategyMap: getIntentStrategyMap(),
+    }
   })
 
   ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, async (event, params: {

@@ -95,6 +95,7 @@ export const IPC_CHANNELS = {
     STREAM_CHAT: 'agent:streamChat',
     STREAM_CHAT_WITH_CONTEXT: 'agent:streamChatWithContext',
     CANCEL_STREAM: 'agent:cancelStream',
+    GET_PIPELINE_INFO: 'agent:getPipelineInfo',
   },
   // 流式事件 channel（主进程 -> 渲染进程，由主进程 send 触发）
   STREAM: {

@@ -1,29 +1,26 @@
 /**
- * AgentOrchestration — 智能体编排页（Google Design Library 1:1 重构）
- * 基于设计稿 zhixing-reader-redesign/pages/agent-orchestration.html
+ * AgentOrchestration — 智能体编排页（去伪存真版）
  *
- * T12 核查与重构说明（2026-07-21）：
- *   - 6 步流水线后端全部真实可用（intent-classifier / strategy-selector / state-tracker /
- *     context-manager / system-prompt / orchestrator），UI 改为「展示 + 真实可交互控件」
- *   - 删除无效控件：意图 toggle/阈值 slider/关键词保存按钮（UI 保存到 settings.admin_intent_keywords，
- *     后端 intent-classifier 实际读 prompt-storage.agent.intentKeywords，二者不通）
- *   - 删除无效控件：bloomAuto toggle / builder toggle / maxMemories input（后端无对应配置入口）
- *   - 保留真实可用控件：系统提示词 textarea + 保存/重置（admin.savePrompt('agent.system')）
- *   - 移除测试运行模块：用户测试完成后直接发布，不在 UI 上提供测试入口
- *   - 配置卡片改为只读展示，仅系统提示词可编辑
- *
- * 结构：
- *   - hero: 标题 + 副标题 + 1 action（保存配置）
- *   - pipeline-card: 6 步流水线（意图分类 → 策略选择 → 难度调整 → 上下文构建 → 系统提示 → 流式响应）
- *   - config-grid (2 列网格，系统提示词跨列突出):
- *       意图分类器 / 策略选择器 / 难度调整 / 上下文构建器 / 系统提示词 / 记忆提取
+ * 真实性原则：假数据能做真就做真，不能做真就删。
+ *   - 意图分类器：关键词从主进程 GET_PIPELINE_INFO 拉取（运行时真实生效版，intent-classifier.getIntentKeywords）
+ *   - 策略选择器：意图→教学模式→起始 Bloom 映射来自 strategy-selector.getIntentStrategyMap（运行时真实）
+ *     （原「24 单元格频次热力图」为编造数据，已删除——后端是一对一映射，不存在频次概念）
+ *   - 难度调整：三条规则描述与 state-tracker.adjustDifficulty 真实逻辑一致
+ *     （原「85% 掌握 / 60% 错误率 / 30 分钟冷却」为编造规则，已更正；原「概念掌握度进度条」为写死示例数据，已删除）
+ *   - 上下文构建器：5 个 builder 名单与描述真实（orchestrator 注册）；原「per-builder token 预算 / 百分比进度条」
+ *     为编造（后端是总预算 4000 顺序截断，无按比例分配），已删除
+ *   - 系统提示词：默认文本与 system-prompt.ts DEFAULT_SYSTEM_PROMPT 同源；保存/重置走 prompt-storage 真实生效
+ *     （原「6 个模板变量 chip」为误导功能——后端无变量替换逻辑，占位符会原样发给 LLM，已删除）
+ *   - 记忆提取：3 类规则与 memory-service 分类概念对应，保留；原「提取中」假状态徽章已删除
+ *   - 流水线：6 步真实存在；原写死「在线」状态徽章已删除
  *
  * IPC 接口（真实可用）：
+ *   - agent.getPipelineInfo() → { intentKeywords, strategyMap }
  *   - admin.getAgentConfig() → { systemPrompt }
  *   - admin.savePrompt('agent.system', template) / resetPrompt('agent.system')
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -34,99 +31,60 @@ import { toast } from '../stores/toastStore'
 
 // ===== 类型 =====
 
-interface IntentConfig {
+interface IntentMeta {
   key: 'knowledge_query' | 'deep_discussion' | 'teaching_practice' | 'casual_chat'
   name: string
   label: string
-  keywords: string[]
-  threshold: number
-  enabled: boolean
-  domIdToggle: string
-  domIdSlider: string
 }
 
-interface ContextBuilderConfig {
+interface StrategyPlanInfo {
+  teachingMode: string
+  bloomLevel: number
+}
+
+interface ContextBuilderInfo {
   no: number
   name: string
   desc: string
-  budget: number
-  pct: number
-  color: string
   priority: string
-  enabled: boolean
-  domId: string
 }
 
 interface PipelineStep {
   no: string
   title: string
   desc: string
-  status: 'active' | 'idle'
-  iconName: 'question' | 'box' | 'arrow-up' | 'box' | 'edit' | 'play'
-  badgeTone: 'info' | 'muted'
-  badgeLabel: string
+  iconName: 'question' | 'box' | 'arrow-up' | 'edit' | 'play'
 }
 
-// ===== 常量 =====
+// ===== 常量（静态元信息；运行时数据从 IPC 拉取） =====
 
-/** 4 种意图的默认配置（与 electron/agent/intent-classifier.ts DEFAULT_INTENT_KEYWORDS 一致） */
-const DEFAULT_INTENTS: IntentConfig[] = [
-  {
-    key: 'knowledge_query',
-    name: 'knowledge_query',
-    label: '知识查询 · 事实/概念/定义检索',
-    keywords: ['是什么', '定义', '含义', '区别', '举例'],
-    threshold: 0.85,
-    enabled: true,
-    domIdToggle: 'toggle-intent-knowledge',
-    domIdSlider: 'slider-intent-knowledge',
-  },
-  {
-    key: 'deep_discussion',
-    name: 'deep_discussion',
-    label: '深度讨论 · 多轮批判性思辨',
-    keywords: ['为什么', '怎么看', '对比', '质疑', '评价'],
-    threshold: 0.72,
-    enabled: true,
-    domIdToggle: 'toggle-intent-discussion',
-    domIdSlider: 'slider-intent-discussion',
-  },
-  {
-    key: 'teaching_practice',
-    name: 'teaching_practice',
-    label: '教学练习 · 苏格拉底/费曼训练',
-    keywords: ['考考我', '练习', '复述', '挑战', '教我'],
-    threshold: 0.78,
-    enabled: true,
-    domIdToggle: 'toggle-intent-practice',
-    domIdSlider: 'slider-intent-practice',
-  },
-  {
-    key: 'casual_chat',
-    name: 'casual_chat',
-    label: '闲聊问候 · 无明确学习目标',
-    keywords: ['你好', '在吗', '谢谢', '再见'],
-    threshold: 0.6,
-    enabled: false,
-    domIdToggle: 'toggle-intent-casual',
-    domIdSlider: 'slider-intent-casual',
-  },
+/** 4 种意图的元信息（key 与 intent-classifier.ts UserIntent 一致；关键词运行时拉取） */
+const INTENT_META: IntentMeta[] = [
+  { key: 'knowledge_query', name: 'knowledge_query', label: '知识查询 · 事实/概念/定义检索' },
+  { key: 'deep_discussion', name: 'deep_discussion', label: '深度讨论 · 多轮批判性思辨' },
+  { key: 'teaching_practice', name: 'teaching_practice', label: '教学练习 · 苏格拉底/费曼训练' },
+  { key: 'casual_chat', name: 'casual_chat', label: '闲聊问候 · 无明确学习目标' },
 ]
 
-/** 策略矩阵：4 教学模式 × 6 Bloom 等级频次（与设计稿热力数据一致） */
-const STRATEGY_MATRIX = {
-  strategies: ['direct_answer', 'socratic', 'feynman', 'assessment'] as const,
-  bloomLevels: ['L1 记忆', 'L2 理解', 'L3 应用', 'L4 分析', 'L5 评价', 'L6 创造'],
-  /** cells[strategyIdx][bloomIdx] = 频次百分比 */
-  cells: [
-    [95, 78, 52, 28, 8, 4],
-    [12, 45, 72, 88, 65, 35],
-    [28, 62, 72, 55, 38, 22],
-    [8, 22, 48, 75, 85, 68],
-  ],
+/** 教学模式代号 → 中文名 */
+const TEACHING_MODE_LABEL: Record<string, string> = {
+  direct_answer: '直接回答',
+  socratic: '苏格拉底提问',
+  feynman: '费曼学习法',
+  assessment: '理解测试',
 }
 
-/** 难度调整规则（对应 electron/agent/state-tracker.ts adjustDifficulty 逻辑） */
+/** Bloom 等级代号 → 中文名 */
+const BLOOM_LEVEL_LABEL: Record<number, string> = {
+  1: 'L1 记忆',
+  2: 'L2 理解',
+  3: 'L3 应用',
+  4: 'L4 分析',
+  5: 'L5 评价',
+  6: 'L6 创造',
+}
+
+/** 难度调整规则（与 electron/agent/state-tracker.ts adjustDifficulty 真实逻辑一致） */
 const DIFFICULTY_RULES: {
   tone: 'up' | 'down' | 'stable'
   title: string
@@ -134,88 +92,31 @@ const DIFFICULTY_RULES: {
 }[] = [
   {
     tone: 'up',
-    title: '升级规则 · 概念掌握度 ≥ 85%',
-    desc: '当概念在 L3 等级连续 3 次回答正确率 ≥ 85% 时，自动提升至 L4 分析层级，引导用户进入批判性思考。',
+    title: '升级规则 · 连续 3 题答对',
+    desc: '同一会话中连续 3 次回答正确时，Bloom 层级自动 +1（如 L2 理解 → L3 应用），最高 L6 创造。',
   },
   {
     tone: 'down',
-    title: '降级规则 · 答题错误率 ≥ 60%',
-    desc: '当概念在 L4 等级连续 2 次答题错误率 ≥ 60% 时，自动回退至 L3 应用层级，巩固基础后再行提升。',
+    title: '降级规则 · 连续 2 题答错',
+    desc: '同一会话中连续 2 次回答错误时，Bloom 层级自动 -1，回退巩固后再行提升。',
   },
   {
     tone: 'stable',
-    title: '稳定规则 · 30 分钟冷却期',
-    desc: '每次升降级后 30 分钟内不再触发同级变更，避免难度抖动与用户挫败感。',
+    title: '掌握规则 · L6 连对 5 次',
+    desc: '在最高层级 L6（创造）连续答对 5 次时，标记该概念已掌握。',
   },
 ]
 
-/** 概念掌握度示例数据（仅用于展示难度调整规则的输出形态；运行时由 state-tracker.ts 在内存中维护，无 UI 可读接口） */
-const CONCEPT_MASTERY: { name: string; level: string; pct: number; color: string }[] = [
-  { name: '认知偏差', level: 'L4', pct: 78, color: 'var(--chart-1)' },
-  { name: '边际效用', level: 'L3', pct: 64, color: 'var(--chart-3)' },
-  { name: '沉没成本', level: 'L2', pct: 42, color: 'var(--chart-2)' },
+/** 5 个上下文构建器（与 electron/agent/orchestrator.ts 注册顺序、context-manager.ts 优先级一致） */
+const DEFAULT_BUILDERS: ContextBuilderInfo[] = [
+  { no: 1, name: 'book', desc: '当前书籍章节与划线原文上下文', priority: '优先级 1 · 先加入上下文' },
+  { no: 2, name: 'methodology', desc: '书籍关联的学习方法论', priority: '优先级 2' },
+  { no: 3, name: 'knowledge-card', desc: '知识卡片 RAG 检索片段', priority: '优先级 3' },
+  { no: 4, name: 'memory', desc: '历史对话提取的长期记忆', priority: '优先级 4' },
+  { no: 5, name: 'user-profile', desc: '用户画像（有画像数据时才构建）', priority: '优先级 5 · 条件构建' },
 ]
 
-/** 5 个上下文构建器（对应 electron/agent/builders/* 与 context-manager.ts 优先级） */
-const DEFAULT_BUILDERS: ContextBuilderConfig[] = [
-  {
-    no: 1,
-    name: 'book',
-    desc: '当前书籍段落与书签上下文',
-    budget: 1500,
-    pct: 37.5,
-    color: 'var(--chart-1)',
-    priority: 'P1 · 章节 + 段落',
-    enabled: true,
-    domId: 'toggle-builder-book',
-  },
-  {
-    no: 2,
-    name: 'methodology',
-    desc: '学习方法论与教学策略匹配',
-    budget: 800,
-    pct: 20,
-    color: 'var(--chart-4)',
-    priority: 'P2 · FSRS + 苏格拉底模板',
-    enabled: true,
-    domId: 'toggle-builder-method',
-  },
-  {
-    no: 3,
-    name: 'knowledge-card',
-    desc: 'RAG 检索的知识卡片片段',
-    budget: 700,
-    pct: 17.5,
-    color: 'var(--chart-3)',
-    priority: 'P3 · 向量检索 top-k=5',
-    enabled: true,
-    domId: 'toggle-builder-card',
-  },
-  {
-    no: 4,
-    name: 'memory',
-    desc: '对话记忆与长期偏好提取',
-    budget: 500,
-    pct: 12.5,
-    color: 'var(--chart-5)',
-    priority: 'P4 · 最近 8 轮对话',
-    enabled: true,
-    domId: 'toggle-builder-memory',
-  },
-  {
-    no: 5,
-    name: 'user-profile',
-    desc: '用户画像与历史掌握度',
-    budget: 500,
-    pct: 12.5,
-    color: 'var(--chart-2)',
-    priority: 'P5 · 隐式画像（已禁用）',
-    enabled: false,
-    domId: 'toggle-builder-profile',
-  },
-]
-
-/** 记忆提取 3 类规则（对应 services/memory-service.ts 的 preference/fact/feedback 三类） */
+/** 记忆提取 3 类规则（对应 services/memory-service.ts 的分类） */
 const MEMORY_RULES: { title: string; desc: string; icon: 'globe' | 'camera' | 'feedback' }[] = [
   {
     title: '偏好类 · 阅读主题与作者倾向',
@@ -234,99 +135,27 @@ const MEMORY_RULES: { title: string; desc: string; icon: 'globe' | 'camera' | 'f
   },
 ]
 
-/** 6 步流水线（对应 electron/agent/orchestrator.ts processMessageStream 全流程，全部真实在线） */
+/** 6 步流水线（对应 electron/agent/orchestrator.ts processMessageStream 真实执行顺序） */
 const PIPELINE_STEPS: PipelineStep[] = [
-  {
-    no: '01',
-    title: '意图分类',
-    desc: '识别用户问题的四种意图类型',
-    status: 'active',
-    iconName: 'question',
-    badgeTone: 'info',
-    badgeLabel: '在线',
-  },
-  {
-    no: '02',
-    title: '策略选择',
-    desc: '教学策略 × Bloom 难度矩阵匹配',
-    status: 'active',
-    iconName: 'box',
-    badgeTone: 'info',
-    badgeLabel: '在线',
-  },
-  {
-    no: '03',
-    title: '难度调整',
-    desc: 'Bloom L1-L6 自动升降级',
-    status: 'active',
-    iconName: 'arrow-up',
-    badgeTone: 'info',
-    badgeLabel: '在线',
-  },
-  {
-    no: '04',
-    title: '上下文构建',
-    desc: '5 类构建器组装 RAG 上下文',
-    status: 'active',
-    iconName: 'box',
-    badgeTone: 'info',
-    badgeLabel: '在线',
-  },
-  {
-    no: '05',
-    title: '系统提示',
-    desc: '模板变量注入与提示组装',
-    status: 'active',
-    iconName: 'edit',
-    badgeTone: 'info',
-    badgeLabel: '在线',
-  },
-  {
-    no: '06',
-    title: '流式响应',
-    desc: 'LLM 流式输出与 Token 追踪',
-    status: 'active',
-    iconName: 'play',
-    badgeTone: 'info',
-    badgeLabel: '在线',
-  },
+  { no: '01', title: '意图分类', desc: '关键词计分识别四种意图', iconName: 'question' },
+  { no: '02', title: '策略选择', desc: '意图映射教学模式与起始层级', iconName: 'box' },
+  { no: '03', title: '难度调整', desc: 'Bloom L1-L6 按答题表现升降级', iconName: 'arrow-up' },
+  { no: '04', title: '上下文构建', desc: '5 类构建器按优先级组装，总预算 4000 tokens 超限截断', iconName: 'box' },
+  { no: '05', title: '系统提示', desc: '策略提示 + 难度提示 + 已掌握概念注入系统提示', iconName: 'edit' },
+  { no: '06', title: '流式响应', desc: 'LLM 流式输出，用量落库统计', iconName: 'play' },
 ]
 
 /** 系统提示词默认模板（与 electron/agent/system-prompt.ts DEFAULT_SYSTEM_PROMPT 同源） */
-const DEFAULT_PROMPT_TEMPLATE = `你是「知行读书」的 AI 学习伙伴，当前正在与用户讨论《{book_title}》一书。
-
-教学方法论：{methodology}
-当前 Bloom 难度等级：{bloom_level}
-用户对核心概念的掌握度：{user_mastery}
-
-请基于以下上下文回答用户问题：
-- 章节段落：见 book 上下文
-- 学习方法论：见 methodology 上下文
-- 相关知识卡片：见 knowledge-card 上下文
-- 历史对话：见 chat_history
+const DEFAULT_PROMPT_TEMPLATE = `你是智能阅读助手，基于用户阅读笔记教学。
 
 回答要求：
-1. 严格遵循 {methodology} 的教学风格
-2. 难度匹配 Bloom L{bloom_level}，避免越级跳跃
-3. 引用书籍原文时使用「」包裹
-4. 主动检测用户理解偏差，必要时调整难度`
-
-/** 6 个可注入变量（对应 system-prompt 模板的 {花括号} 占位符） */
-const PROMPT_VARIABLES: { name: string; domId: string }[] = [
-  { name: '{book_title}', domId: 'var-book-title' },
-  { name: '{methodology}', domId: 'var-methodology' },
-  { name: '{bloom_level}', domId: 'var-bloom-level' },
-  { name: '{user_mastery}', domId: 'var-user-mastery' },
-  { name: '{chat_history}', domId: 'var-chat-history' },
-  { name: '{knowledge_card}', domId: 'var-knowledge-card' },
-]
-
-/** Token 总预算（与 electron/agent/context-manager.ts MAX_CONTEXT_TOKENS 一致） */
-const MAX_CONTEXT_TOKENS = 4000
+1. 笔记中没有的信息坦诚告知，引用笔记原文支持你的观点
+2. 使用Markdown格式，善用标题、列表、引用保持层级清晰
+3. 按需求自适应教学：知识查询→简洁回答，深度讨论→苏格拉底式追问，教学请求→费曼学习法让用户自己解释，评测→出理解题`
 
 // ===== 内联 SVG 图标（设计稿特有，不在 Icon 组件库中） =====
 
-/** 热力矩阵上升箭头 */
+/** 规则上升箭头 */
 function IconArrowUp({ size = 14 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" width={size} height={size} aria-hidden="true">
@@ -336,7 +165,7 @@ function IconArrowUp({ size = 14 }: { size?: number }) {
   )
 }
 
-/** 热力矩阵下降箭头 */
+/** 规则下降箭头 */
 function IconArrowDown({ size = 14 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" width={size} height={size} aria-hidden="true">
@@ -346,7 +175,7 @@ function IconArrowDown({ size = 14 }: { size?: number }) {
   )
 }
 
-/** 稳定/冷却图标 */
+/** 掌握/稳定图标 */
 function IconStable({ size = 14 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" width={size} height={size} aria-hidden="true">
@@ -399,72 +228,6 @@ function IconArrowRight({ size = 18 }: { size?: number }) {
   )
 }
 
-/** 变量 chip 加号 */
-function IconPlusTiny({ size = 12 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={size} height={size} aria-hidden="true">
-      <path d="M5 12h14" />
-      <path d="M12 5v14" />
-    </svg>
-  )
-}
-
-// ===== 工具函数 =====
-
-/** 将百分比映射到热力等级 0-5（与设计稿 legend 一致） */
-function pctToHeat(pct: number): 0 | 1 | 2 | 3 | 4 | 5 {
-  if (pct >= 80) return 5
-  if (pct >= 60) return 4
-  if (pct >= 40) return 3
-  if (pct >= 20) return 2
-  if (pct > 0) return 1
-  return 0
-}
-
-/** 热力等级 → 背景 / 文字色（与设计稿 .heat-0 ~ .heat-5 一致） */
-function heatStyle(heat: 0 | 1 | 2 | 3 | 4 | 5): { background: string; color: string } {
-  switch (heat) {
-    case 5:
-      return { background: 'color-mix(in srgb, var(--chart-1) 88%, transparent)', color: 'var(--primary-foreground)' }
-    case 4:
-      return { background: 'color-mix(in srgb, var(--chart-2) 62%, transparent)', color: 'var(--primary-foreground)' }
-    case 3:
-      return { background: 'color-mix(in srgb, var(--chart-3) 72%, transparent)', color: 'var(--foreground)' }
-    case 2:
-      return { background: 'color-mix(in srgb, var(--chart-4) 48%, transparent)', color: 'var(--primary-foreground)' }
-    case 1:
-      return { background: 'color-mix(in srgb, var(--chart-5) 38%, transparent)', color: 'var(--foreground)' }
-    case 0:
-    default:
-      return { background: 'var(--muted)', color: 'var(--muted-foreground)' }
-  }
-}
-
-/** 状态点徽章（success / info / warning / muted） */
-function StatusDot({ tone }: { tone: 'success' | 'info' | 'warning' | 'muted' }) {
-  const color =
-    tone === 'success'
-      ? 'var(--state-success)'
-      : tone === 'info'
-        ? 'var(--state-info)'
-        : tone === 'warning'
-          ? 'var(--state-warning)'
-          : 'var(--muted-foreground)'
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: '50%',
-        background: color,
-        flexShrink: 0,
-        display: 'inline-block',
-      }}
-    />
-  )
-}
-
 /** 状态徽章（带圆点）— 与设计稿 .badge[data-tone] 一致 */
 function StatusBadge({
   tone,
@@ -494,7 +257,18 @@ function StatusBadge({
         ...styles,
       }}
     >
-      <StatusDot tone={tone} />
+      <span
+        aria-hidden="true"
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: 'currentColor',
+          flexShrink: 0,
+          display: 'inline-block',
+          opacity: 0.7,
+        }}
+      />
       {children}
     </span>
   )
@@ -502,33 +276,38 @@ function StatusBadge({
 
 // ===== 主组件 =====
 export default function AgentOrchestration() {
-  // 配置状态
-  // 注：intents / builders 仅作只读展示（DEFAULT_INTENTS / DEFAULT_BUILDERS）。
-  // T12 核查发现：UI 的 toggle/slider/保存按钮保存到 settings.admin_intent_keywords，
-  // 但后端 intent-classifier 实际读 prompt-storage.agent.intentKeywords，二者不通；
-  // builder toggle / bloomAuto / maxMemories 后端无对应配置入口。因此全部改为只读展示。
-  const [intents] = useState<IntentConfig[]>(DEFAULT_INTENTS)
-  const [builders] = useState<ContextBuilderConfig[]>(DEFAULT_BUILDERS)
+  // 运行时真实数据（从主进程拉取）
+  const [intentKeywords, setIntentKeywords] = useState<Record<string, string[]> | null>(null)
+  const [strategyMap, setStrategyMap] = useState<Record<string, StrategyPlanInfo> | null>(null)
+
+  // 系统提示词（唯一可编辑项，真实生效）
   const [promptTemplate, setPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  // ===== 加载配置 =====
-  // 仅加载 systemPrompt（后端 admin.getAgentConfig 返回 { systemPrompt, intentKeywords }，
-  // 但 intentKeywords 字段为 UI 历史遗留，后端 intent-classifier 不读此字段，故不加载）。
-  // 系统提示词真实生效路径：admin.savePrompt('agent.system') → prompt-storage → system-prompt.ts。
+  // ===== 加载运行时配置 =====
   useEffect(() => {
-    const loadConfig = async () => {
-      if (!window.electronAPI?.admin?.getAgentConfig) {
-        setLoading(false)
-        return
-      }
+    const load = async () => {
+      // 1) 意图关键词 + 策略映射（运行时真实生效版）
       try {
-        const config = (await window.electronAPI.admin.getAgentConfig()) as {
-          systemPrompt?: string | null
+        if (window.electronAPI?.agent?.getPipelineInfo) {
+          const info = await window.electronAPI.agent.getPipelineInfo()
+          setIntentKeywords(info.intentKeywords)
+          setStrategyMap(info.strategyMap)
         }
-        if (config?.systemPrompt) {
-          setPromptTemplate(config.systemPrompt)
+      } catch (err) {
+        console.error('加载流水线信息失败:', err)
+      }
+
+      // 2) 系统提示词（admin.getAgentConfig → settings.admin_system_prompt）
+      try {
+        if (window.electronAPI?.admin?.getAgentConfig) {
+          const config = (await window.electronAPI.admin.getAgentConfig()) as {
+            systemPrompt?: string | null
+          }
+          if (config?.systemPrompt) {
+            setPromptTemplate(config.systemPrompt)
+          }
         }
       } catch (err) {
         console.error('加载智能体配置失败:', err)
@@ -536,11 +315,10 @@ export default function AgentOrchestration() {
         setLoading(false)
       }
     }
-    loadConfig()
-
+    load()
   }, [])
 
-  // ===== 保存系统提示词（真实可用：admin.savePrompt('agent.system') → prompt-storage） =====
+  // ===== 保存系统提示词（真实生效：admin.savePrompt('agent.system') → prompt-storage → getSystemPrompt()） =====
   const handleSavePrompt = useCallback(async () => {
     if (!window.electronAPI?.admin?.savePrompt) {
       toast.error('当前环境不支持保存提示词')
@@ -578,32 +356,6 @@ export default function AgentOrchestration() {
     }
   }, [])
 
-  // ===== 变量 chip 点击：插入到 textarea =====
-  const promptRef = useRef<HTMLTextAreaElement | null>(null)
-  const insertVariable = useCallback((variable: string) => {
-    const ta = promptRef.current
-    if (!ta) {
-      setPromptTemplate((prev) => prev + variable)
-      return
-    }
-    const start = ta.selectionStart ?? promptTemplate.length
-    const end = ta.selectionEnd ?? promptTemplate.length
-    const next = promptTemplate.slice(0, start) + variable + promptTemplate.slice(end)
-    setPromptTemplate(next)
-    // 还原光标位置
-    requestAnimationFrame(() => {
-      ta.focus()
-      const pos = start + variable.length
-      ta.setSelectionRange(pos, pos)
-    })
-  }, [promptTemplate])
-
-  // ===== 总预算计算（按启用的 builder 汇总） =====
-  const budgetSummary = useMemo(() => {
-    const used = builders.filter((b) => b.enabled).reduce((acc, b) => acc + b.budget, 0)
-    return { used, total: MAX_CONTEXT_TOKENS }
-  }, [builders])
-
   if (loading) {
     return <Loading hint="正在加载智能体编排配置..." />
   }
@@ -612,7 +364,7 @@ export default function AgentOrchestration() {
   return (
     <PageHero
       title="智能体编排"
-      subtitle="配置AI对话的意图识别、教学策略与上下文构建"
+      subtitle="查看AI对话的意图识别、教学策略与上下文构建规则，自定义系统提示词"
       actions={
         <Button
           variant="primary"
@@ -659,10 +411,9 @@ export default function AgentOrchestration() {
               className="tiny"
               style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.4rem', maxWidth: '60ch' }}
             >
-              从用户输入到流式响应，全链路可视化追踪意图识别、策略选择、难度调整、上下文构建、提示组装与响应输出。
+              每条消息都会依次经过以下六步处理，从用户输入到流式响应。
             </div>
           </div>
-          <StatusBadge tone="success">流水线在线</StatusBadge>
         </div>
 
         <div
@@ -682,21 +433,19 @@ export default function AgentOrchestration() {
             <div key={step.no} style={{ display: 'contents' }}>
               <article
                 className="pipeline-step"
-                data-status={step.status}
                 role="listitem"
                 style={{
                   flex: '0 0 auto',
                   width: 200,
                   scrollSnapAlign: 'start',
-                  background: step.status === 'active' ? 'var(--secondary)' : 'var(--background)',
-                  border: '1px solid',
-                  borderColor: step.status === 'active' ? 'var(--primary)' : 'var(--border)',
+                  background: 'var(--background)',
+                  border: '1px solid var(--border)',
                   borderRadius: 'calc(var(--radius) + 4px)',
                   padding: 'calc(var(--spacing) * 4)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 'calc(var(--spacing) * 3)',
-                  transition: 'border-color 0.2s ease, transform 0.16s ease, background 0.2s ease',
+                  transition: 'border-color 0.2s ease, transform 0.16s ease',
                 }}
               >
                 <header
@@ -728,10 +477,9 @@ export default function AgentOrchestration() {
                       display: 'grid',
                       placeItems: 'center',
                       borderRadius: 'calc(var(--radius) + 2px)',
-                      background: step.status === 'active' ? 'var(--primary)' : 'var(--card)',
-                      color: step.status === 'active' ? 'var(--primary-foreground)' : 'var(--primary)',
-                      border: '1px solid',
-                      borderColor: step.status === 'active' ? 'var(--primary)' : 'var(--border)',
+                      background: 'var(--card)',
+                      color: 'var(--primary)',
+                      border: '1px solid var(--border)',
                       flexShrink: 0,
                     }}
                   >
@@ -756,9 +504,6 @@ export default function AgentOrchestration() {
                 >
                   {step.desc}
                 </p>
-                <div style={{ marginTop: 'auto', alignSelf: 'flex-start' }}>
-                  <StatusBadge tone={step.badgeTone}>{step.badgeLabel}</StatusBadge>
-                </div>
               </article>
               {idx < PIPELINE_STEPS.length - 1 && (
                 <span
@@ -782,7 +527,7 @@ export default function AgentOrchestration() {
         </div>
       </Card>
 
-      {/* ===== Section 2: Config Grid (2 columns × 3 cards) ===== */}
+      {/* ===== Section 2: Config Grid ===== */}
       <div
         className="config-section-header"
         style={{ marginTop: 'calc(var(--spacing) * 8)' }}
@@ -822,36 +567,38 @@ export default function AgentOrchestration() {
           marginTop: 'calc(var(--spacing) * 5)',
         }}
       >
-        {/* Card a: 意图分类器 */}
-          <Card>
-            <div
-              className="card-head"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 3)',
-                marginBottom: 'calc(var(--spacing) * 4)',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  className="eyebrow"
-                  style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
-                >
-                  Step 01
-                </div>
-                <strong id="intent-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
-                  意图分类器
-                </strong>
-                <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-                  关键词匹配 + 语义嵌入双通道，4 种意图类型可独立启停
-                </div>
+        {/* Card a: 意图分类器（关键词为运行时真实生效版） */}
+        <Card>
+          <div
+            className="card-head"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+              marginBottom: 'calc(var(--spacing) * 4)',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                className="eyebrow"
+                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+              >
+                Step 01
               </div>
-              <Badge variant="default">4 类意图</Badge>
+              <strong id="intent-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
+                意图分类器
+              </strong>
+              <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
+                关键词计分匹配（命中加分子串长度，否定词扣分，上下文加权），取最高分意图
+              </div>
             </div>
+            <Badge variant="default">4 类意图</Badge>
+          </div>
 
-            {intents.map((intent, idx) => (
+          {INTENT_META.map((intent, idx) => {
+            const keywords = intentKeywords?.[intent.key] ?? []
+            return (
               <div
                 key={intent.key}
                 className="intent-row"
@@ -880,621 +627,413 @@ export default function AgentOrchestration() {
                       {intent.label}
                     </span>
                   </div>
-                  <div className="intent-meta" style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', flexShrink: 0 }}>
-                    <span
-                      className="intent-conf"
-                      style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--muted-foreground)', minWidth: 44, textAlign: 'right' }}
-                      title={`默认置信阈值 ${intent.threshold.toFixed(2)}（只读展示，由后端 intent-classifier 内部使用）`}
-                    >
-                      {intent.threshold.toFixed(2)}
-                    </span>
-                    <StatusBadge tone={intent.enabled ? 'success' : 'muted'}>
-                      {intent.enabled ? '已启用' : '已禁用'}
-                    </StatusBadge>
-                  </div>
-                </div>
-                <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 'calc(var(--spacing) * 2)' }}>
-                  {intent.keywords.map((kw) => (
-                    <span
-                      key={kw}
-                      className="chip"
-                      data-tone="primary"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        padding: '0.25rem 0.6rem',
-                        borderRadius: 'var(--radius)',
-                        background: 'var(--secondary)',
-                        color: 'var(--accent-foreground)',
-                        fontSize: '0.74rem',
-                        whiteSpace: 'nowrap',
-                        border: '1px solid transparent',
-                      }}
-                    >
-                      {kw}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-          </Card>
-
-          {/* Card b: 策略选择器矩阵 */}
-          <Card>
-            <div
-              className="card-head"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 3)',
-                marginBottom: 'calc(var(--spacing) * 4)',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  className="eyebrow"
-                  style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
-                >
-                  Step 02
-                </div>
-                <strong id="strategy-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
-                  策略选择器
-                </strong>
-                <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-                  教学策略 × Bloom 难度等级使用频次热力矩阵（4 模式 × 6 等级 = 24 单元格）
-                </div>
-              </div>
-              <Badge variant="default">24 单元格</Badge>
-            </div>
-
-            <div
-              className="matrix-wrap"
-              style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
-            >
-              <table
-                className="matrix"
-                aria-label="教学策略与 Bloom 难度匹配频次矩阵"
-                style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', minWidth: 520 }}
-              >
-                <thead>
-                  <tr>
-                    <th scope="col" style={matrixHeaderCellStyle}>教学策略</th>
-                    {STRATEGY_MATRIX.bloomLevels.map((lvl) => (
-                      <th key={lvl} scope="col" style={matrixHeaderCellStyle}>
-                        {lvl}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {STRATEGY_MATRIX.cells.map((row, sIdx) => (
-                    <tr key={STRATEGY_MATRIX.strategies[sIdx]}>
-                      <th scope="row" style={matrixRowHeaderStyle}>
-                        {STRATEGY_MATRIX.strategies[sIdx]}
-                      </th>
-                      {row.map((pct, bIdx) => {
-                        const heat = pctToHeat(pct)
-                        const st = heatStyle(heat)
-                        return (
-                          <td key={bIdx} style={{ padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)', textAlign: 'center', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-                            <span
-                              className={`heat-${heat}`}
-                              style={{
-                                background: st.background,
-                                color: st.color,
-                                fontWeight: 600,
-                                display: 'inline-block',
-                                padding: '0.2rem 0.5rem',
-                                borderRadius: 'var(--radius)',
-                                minWidth: 48,
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '0.74rem',
-                              }}
-                            >
-                              {pct}%
-                            </span>
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div
-              className="legend"
-              aria-hidden="true"
-              style={{ display: 'flex', gap: 'calc(var(--spacing) * 4)', flexWrap: 'wrap', marginTop: 'calc(var(--spacing) * 4)', alignItems: 'center' }}
-            >
-              {[
-                { heat: 5 as const, label: '≥ 80% 高频' },
-                { heat: 4 as const, label: '60–79% 较高' },
-                { heat: 3 as const, label: '40–59% 中频' },
-                { heat: 2 as const, label: '20–39% 较低' },
-                { heat: 1 as const, label: '< 20% 低频' },
-              ].map((item) => {
-                const st = heatStyle(item.heat)
-                return (
-                  <span
-                    key={item.heat}
-                    className="legend-item"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)', fontSize: '0.74rem', color: 'var(--muted-foreground)' }}
-                  >
-                    <span
-                      className="legend-sw"
-                      style={{ width: 14, height: 14, borderRadius: 'var(--radius)', display: 'inline-block', background: st.background }}
-                    />
-                    {item.label}
+                  <span className="intent-conf" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--muted-foreground)', flexShrink: 0 }}>
+                    {keywords.length} 个关键词
                   </span>
-                )
-              })}
-            </div>
-
-          </Card>
-
-          {/* Card c: 难度调整 */}
-          <Card>
-            <div
-              className="card-head"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 3)',
-                marginBottom: 'calc(var(--spacing) * 4)',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  className="eyebrow"
-                  style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
-                >
-                  Step 03
                 </div>
-                <strong id="bloom-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
-                  难度调整
-                </strong>
-                <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-                  Bloom 等级自动升降级规则与概念掌握度跟踪
-                </div>
+                {keywords.length > 0 && (
+                  <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 'calc(var(--spacing) * 2)' }}>
+                    {keywords.map((kw) => (
+                      <span
+                        key={kw}
+                        className="chip"
+                        data-tone="primary"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--secondary)',
+                          color: 'var(--accent-foreground)',
+                          fontSize: '0.74rem',
+                          whiteSpace: 'nowrap',
+                          border: '1px solid transparent',
+                        }}
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-              <StatusBadge tone="warning">自动模式</StatusBadge>
-            </div>
+            )
+          })}
+        </Card>
 
-            <div className="rule-list" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
-              {DIFFICULTY_RULES.map((rule) => {
-                const Icon = rule.tone === 'up' ? IconArrowUp : rule.tone === 'down' ? IconArrowDown : IconStable
-                const iconToneStyle =
-                  rule.tone === 'up'
-                    ? { background: 'color-mix(in srgb, var(--state-success) 18%, transparent)', color: 'var(--state-success)' }
-                    : rule.tone === 'down'
-                      ? { background: 'color-mix(in srgb, var(--state-warning) 22%, transparent)', color: 'var(--state-warning)' }
-                      : { background: 'var(--secondary)', color: 'var(--accent-foreground)' }
-                return (
-                  <div
-                    key={rule.title}
-                    className="rule-item"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 'calc(var(--spacing) * 3)',
-                      padding: 'calc(var(--spacing) * 3.5)',
-                      background: 'var(--background)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius)',
-                    }}
-                  >
-                    <span
-                      className="rule-icon"
-                      data-tone={rule.tone === 'up' ? 'up' : rule.tone === 'down' ? 'down' : undefined}
-                      aria-hidden="true"
+        {/* Card b: 策略选择器（真实映射表：意图 → 教学模式 + 起始 Bloom 层级） */}
+        <Card>
+          <div
+            className="card-head"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+              marginBottom: 'calc(var(--spacing) * 4)',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                className="eyebrow"
+                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+              >
+                Step 02
+              </div>
+              <strong id="strategy-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
+                策略选择器
+              </strong>
+              <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
+                识别出的意图映射为教学模式与起始 Bloom 层级（难度会随后续答题表现自动调整）
+              </div>
+            </div>
+            <Badge variant="default">4 条映射</Badge>
+          </div>
+
+          <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+            <table
+              aria-label="意图与教学策略映射"
+              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: 420 }}
+            >
+              <thead>
+                <tr>
+                  {['识别意图', '教学模式', '起始层级'].map((h) => (
+                    <th
+                      key={h}
+                      scope="col"
                       style={{
-                        width: 26,
-                        height: 26,
-                        flexShrink: 0,
-                        display: 'grid',
-                        placeItems: 'center',
-                        borderRadius: '50%',
-                        ...iconToneStyle,
+                        padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 3)',
+                        textAlign: 'left',
+                        borderBottom: '1px solid var(--border)',
+                        borderRight: '1px solid var(--border)',
+                        background: 'var(--muted)',
+                        color: 'var(--muted-foreground)',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
                       }}
                     >
-                      <Icon size={14} />
-                    </span>
-                    <div className="rule-info" style={{ flex: 1, minWidth: 0 }}>
-                      <strong style={{ display: 'block', fontSize: '0.86rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                        {rule.title}
-                      </strong>
-                      <p className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.15rem', margin: '0.15rem 0 0' }}>
-                        {rule.desc}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {INTENT_META.map((intent) => {
+                  const plan = strategyMap?.[intent.key]
+                  return (
+                    <tr key={intent.key}>
+                      <td style={{ padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 3)', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
+                        {intent.name}
+                      </td>
+                      <td style={{ padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 3)', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
+                        {plan ? TEACHING_MODE_LABEL[plan.teachingMode] ?? plan.teachingMode : '—'}
+                      </td>
+                      <td style={{ padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 3)', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
+                        {plan ? BLOOM_LEVEL_LABEL[plan.bloomLevel] ?? `L${plan.bloomLevel}` : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
 
-            <div className="rule-list" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 5)' }}>
-              {CONCEPT_MASTERY.map((m) => (
+        {/* Card c: 难度调整（规则描述与 state-tracker.adjustDifficulty 真实逻辑一致） */}
+        <Card>
+          <div
+            className="card-head"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+              marginBottom: 'calc(var(--spacing) * 4)',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                className="eyebrow"
+                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+              >
+                Step 03
+              </div>
+              <strong id="bloom-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
+                难度调整
+              </strong>
+              <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
+                Bloom L1-L6 自动升降级（会话内按答题表现实时计算）
+              </div>
+            </div>
+            <StatusBadge tone="warning">自动模式</StatusBadge>
+          </div>
+
+          <div className="rule-list" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
+            {DIFFICULTY_RULES.map((rule) => {
+              const Icon = rule.tone === 'up' ? IconArrowUp : rule.tone === 'down' ? IconArrowDown : IconStable
+              const iconToneStyle =
+                rule.tone === 'up'
+                  ? { background: 'color-mix(in srgb, var(--state-success) 18%, transparent)', color: 'var(--state-success)' }
+                  : rule.tone === 'down'
+                    ? { background: 'color-mix(in srgb, var(--state-warning) 22%, transparent)', color: 'var(--state-warning)' }
+                    : { background: 'var(--secondary)', color: 'var(--accent-foreground)' }
+              return (
                 <div
-                  key={m.name}
-                  className="mastery-row"
+                  key={rule.title}
+                  className="rule-item"
                   style={{
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'calc(var(--spacing) * 2)',
+                    alignItems: 'flex-start',
+                    gap: 'calc(var(--spacing) * 3)',
                     padding: 'calc(var(--spacing) * 3.5)',
                     background: 'var(--background)',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius)',
                   }}
                 >
-                  <div
-                    className="mastery-head"
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'calc(var(--spacing) * 3)' }}
-                  >
-                    <span className="mastery-name" style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                      {m.name}
-                    </span>
-                    <span className="mastery-pct" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
-                      {m.level} · {m.pct}%
-                    </span>
-                  </div>
-                  <div
-                    className="mastery-bar"
+                  <span
+                    className="rule-icon"
                     aria-hidden="true"
-                    style={{ height: 6, background: 'var(--muted)', borderRadius: 999, overflow: 'hidden' }}
-                  >
-                    <span
-                      className="mastery-fill"
-                      style={{ display: 'block', height: '100%', width: `${m.pct}%`, background: m.color, borderRadius: 999, transition: 'width 0.3s ease' }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-          </Card>
-
-        {/* Card d: 上下文构建器 */}
-          <Card>
-            <div
-              className="card-head"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 3)',
-                marginBottom: 'calc(var(--spacing) * 4)',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  className="eyebrow"
-                  style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
-                >
-                  Step 04
-                </div>
-                <strong id="context-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
-                  上下文构建器
-                </strong>
-                <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-                  5 类构建器组装 RAG 上下文，总预算 {MAX_CONTEXT_TOKENS} tokens
-                </div>
-              </div>
-              <Badge variant="default">5 构建器</Badge>
-            </div>
-
-            {builders.map((b, idx) => (
-              <div
-                key={b.name}
-                className="builder-row"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'calc(var(--spacing) * 3)',
-                  padding: idx === 0 ? '0 0 calc(var(--spacing) * 4)' : 'calc(var(--spacing) * 4) 0',
-                  borderTop: idx === 0 ? 'none' : '1px solid var(--border)',
-                }}
-              >
-                <div
-                  className="builder-head"
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 'calc(var(--spacing) * 3)',
-                  }}
-                >
-                  <div className="builder-info" style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', minWidth: 0, flex: 1 }}>
-                    <span
-                      className="builder-no"
-                      style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: '50%',
-                        background: 'var(--secondary)',
-                        color: 'var(--accent-foreground)',
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: '0.74rem',
-                        fontWeight: 600,
-                        flexShrink: 0,
-                        fontFamily: 'var(--font-mono)',
-                      }}
-                    >
-                      {b.no}
-                    </span>
-                    <div className="builder-name" style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0 }}>
-                      <strong style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--foreground)' }}>{b.name}</strong>
-                      <span className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: 0 }}>
-                        {b.desc}
-                      </span>
-                    </div>
-                  </div>
-                  <span
-                    className="builder-budget"
-                    style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--foreground)', minWidth: 60, textAlign: 'right', flexShrink: 0 }}
-                  >
-                    {b.budget}
-                  </span>
-                  <StatusBadge tone={b.enabled ? 'success' : 'muted'}>
-                    {b.enabled ? '启用' : '禁用'}
-                  </StatusBadge>
-                </div>
-                <div
-                  className="alloc-bar"
-                  aria-hidden="true"
-                  style={{ height: 8, background: 'var(--muted)', borderRadius: 999, overflow: 'hidden', display: 'flex' }}
-                >
-                  <span
-                    className="alloc-seg"
-                    style={{ height: '100%', width: `${b.pct}%`, background: b.color, transition: 'width 0.2s ease' }}
-                  />
-                </div>
-                <div
-                  className="alloc-meta"
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', fontSize: '0.74rem', color: 'var(--muted-foreground)' }}
-                >
-                  <span>{b.priority}</span>
-                  <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)', fontWeight: 500 }}>
-                    {b.pct.toFixed(1)}%
-                  </strong>
-                </div>
-              </div>
-            ))}
-
-            <div
-              className="budget-total"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: 'calc(var(--spacing) * 3.5)',
-                background: 'var(--muted)',
-                borderRadius: 'var(--radius)',
-                marginTop: 'calc(var(--spacing) * 4)',
-                fontSize: '0.82rem',
-              }}
-            >
-              <span>Token 预算总计</span>
-              <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)', fontWeight: 600 }}>
-                {budgetSummary.used} / {budgetSummary.total}
-              </strong>
-            </div>
-
-          </Card>
-
-          {/* Card e: 系统提示词 */}
-          <Card
-            style={{
-              gridColumn: '1 / -1',
-            }}
-          >
-            <div
-              className="card-head"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 3)',
-                marginBottom: 'calc(var(--spacing) * 4)',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  className="eyebrow"
-                  style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
-                >
-                  Step 05
-                </div>
-                <strong id="prompt-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
-                  系统提示词
-                </strong>
-                <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-                  变量注入模板，{`{花括号}`} 占位符由构建器实时填充
-                </div>
-              </div>
-              <Badge variant="default">6 变量</Badge>
-            </div>
-
-            <textarea
-              ref={promptRef}
-              className="prompt-area"
-              data-dom-id="prompt-template"
-              aria-label="系统提示词模板"
-              spellCheck={false}
-              value={promptTemplate}
-              onChange={(e) => setPromptTemplate(e.target.value)}
-              style={{
-                width: '100%',
-                minHeight: 260,
-                padding: 'calc(var(--spacing) * 4)',
-                border: '1px solid var(--input)',
-                borderRadius: 'var(--radius)',
-                background: 'var(--popover)',
-                color: 'var(--foreground)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.8rem',
-                lineHeight: 1.65,
-                resize: 'vertical',
-                outline: 'none',
-              }}
-            />
-
-            <div
-              className="var-chips"
-              aria-label="可插入变量"
-              style={{ display: 'flex', flexWrap: 'wrap', gap: 'calc(var(--spacing) * 2)', marginTop: 'calc(var(--spacing) * 3)' }}
-            >
-              {PROMPT_VARIABLES.map((v) => (
-                <button
-                  key={v.name}
-                  type="button"
-                  className="var-chip"
-                  data-dom-id={v.domId}
-                  onClick={() => insertVariable(v.name)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.3rem 0.7rem',
-                    borderRadius: 'var(--radius)',
-                    background: 'var(--secondary)',
-                    color: 'var(--accent-foreground)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.76rem',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer',
-                    transition: 'background 0.2s ease, border-color 0.2s ease',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <IconPlusTiny size={12} />
-                  {v.name}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 4)' }}>
-              <Button variant="primary" onClick={handleSavePrompt} disabled={saving} data-dom-id="cta-save-prompt">
-                <Icon name="check" size={15} /> 保存模板
-              </Button>
-              <Button variant="ghost" onClick={handleResetPrompt} disabled={saving} data-dom-id="cta-reset-prompt">
-                <Icon name="refresh" size={15} /> 重置默认
-              </Button>
-            </div>
-
-          </Card>
-
-          {/* Card f: 记忆提取 */}
-          <Card>
-            <div
-              className="card-head"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 'calc(var(--spacing) * 3)',
-                marginBottom: 'calc(var(--spacing) * 4)',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  className="eyebrow"
-                  style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
-                >
-                  Step 06 · 附加
-                </div>
-                <strong id="memory-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
-                  记忆提取
-                </strong>
-                <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-                  从对话中抽取长期记忆条目，写入 user_memory 表供后续检索
-                </div>
-              </div>
-              <StatusBadge tone="success">提取中</StatusBadge>
-            </div>
-
-            <div className="rule-list" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
-              {MEMORY_RULES.map((rule) => {
-                const Icon = rule.icon === 'globe' ? IconGlobe : rule.icon === 'camera' ? IconCamera : IconFeedback
-                return (
-                  <div
-                    key={rule.title}
-                    className="rule-item"
                     style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 'calc(var(--spacing) * 3)',
-                      padding: 'calc(var(--spacing) * 3.5)',
-                      background: 'var(--background)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius)',
+                      width: 26,
+                      height: 26,
+                      flexShrink: 0,
+                      display: 'grid',
+                      placeItems: 'center',
+                      borderRadius: '50%',
+                      ...iconToneStyle,
                     }}
                   >
-                    <span
-                      className="rule-icon"
-                      aria-hidden="true"
-                      style={{
-                        width: 26,
-                        height: 26,
-                        flexShrink: 0,
-                        display: 'grid',
-                        placeItems: 'center',
-                        borderRadius: '50%',
-                        background: 'var(--secondary)',
-                        color: 'var(--accent-foreground)',
-                      }}
-                    >
-                      <Icon size={14} />
-                    </span>
-                    <div className="rule-info" style={{ flex: 1, minWidth: 0 }}>
-                      <strong style={{ display: 'block', fontSize: '0.86rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                        {rule.title}
-                      </strong>
-                      <p className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.15rem', margin: '0.15rem 0 0' }}>
-                        {rule.desc}
-                      </p>
-                    </div>
+                    <Icon size={14} />
+                  </span>
+                  <div className="rule-info" style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ display: 'block', fontSize: '0.86rem', fontWeight: 600, color: 'var(--foreground)' }}>
+                      {rule.title}
+                    </strong>
+                    <p className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.15rem', margin: '0.15rem 0 0' }}>
+                      {rule.desc}
+                    </p>
                   </div>
-                )
-              })}
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+
+        {/* Card d: 上下文构建器（真实注册名单 + 优先级；总预算 4000 顺序截断） */}
+        <Card>
+          <div
+            className="card-head"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+              marginBottom: 'calc(var(--spacing) * 4)',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                className="eyebrow"
+                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+              >
+                Step 04
+              </div>
+              <strong id="context-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
+                上下文构建器
+              </strong>
+              <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
+                5 类构建器按优先级顺序组装上下文，总预算 4000 tokens，超限截断
+              </div>
             </div>
+            <Badge variant="default">5 构建器</Badge>
+          </div>
 
-          </Card>
+          {DEFAULT_BUILDERS.map((b, idx) => (
+            <div
+              key={b.name}
+              className="builder-row"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'calc(var(--spacing) * 3)',
+                padding: idx === 0 ? '0 0 calc(var(--spacing) * 4)' : 'calc(var(--spacing) * 4) 0',
+                borderTop: idx === 0 ? 'none' : '1px solid var(--border)',
+              }}
+            >
+              <span
+                className="builder-no"
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: 'var(--secondary)',
+                  color: 'var(--accent-foreground)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {b.no}
+              </span>
+              <div className="builder-name" style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
+                <strong style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--foreground)', fontFamily: 'var(--font-mono)' }}>{b.name}</strong>
+                <span className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: 0 }}>
+                  {b.desc}
+                </span>
+              </div>
+              <span
+                className="builder-priority"
+                style={{ fontSize: '0.76rem', color: 'var(--muted-foreground)', flexShrink: 0, whiteSpace: 'nowrap' }}
+              >
+                {b.priority}
+              </span>
+            </div>
+          ))}
+        </Card>
+
+        {/* Card e: 系统提示词（唯一可编辑项，保存后真实生效） */}
+        <Card
+          style={{
+            gridColumn: '1 / -1',
+          }}
+        >
+          <div
+            className="card-head"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+              marginBottom: 'calc(var(--spacing) * 4)',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                className="eyebrow"
+                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+              >
+                Step 05
+              </div>
+              <strong id="prompt-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
+                系统提示词
+              </strong>
+              <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
+                保存后立即生效于所有新对话（策略提示、难度提示与已掌握概念由系统自动追加）
+              </div>
+            </div>
+          </div>
+
+          <textarea
+            className="prompt-area"
+            data-dom-id="prompt-template"
+            aria-label="系统提示词模板"
+            spellCheck={false}
+            value={promptTemplate}
+            onChange={(e) => setPromptTemplate(e.target.value)}
+            style={{
+              width: '100%',
+              minHeight: 260,
+              padding: 'calc(var(--spacing) * 4)',
+              border: '1px solid var(--input)',
+              borderRadius: 'var(--radius)',
+              background: 'var(--popover)',
+              color: 'var(--foreground)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.8rem',
+              lineHeight: 1.65,
+              resize: 'vertical',
+              outline: 'none',
+            }}
+          />
+
+          <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 4)' }}>
+            <Button variant="primary" onClick={handleSavePrompt} disabled={saving} data-dom-id="cta-save-prompt">
+              <Icon name="check" size={15} /> 保存模板
+            </Button>
+            <Button variant="ghost" onClick={handleResetPrompt} disabled={saving} data-dom-id="cta-reset-prompt">
+              <Icon name="refresh" size={15} /> 重置默认
+            </Button>
+          </div>
+        </Card>
+
+        {/* Card f: 记忆提取 */}
+        <Card>
+          <div
+            className="card-head"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 'calc(var(--spacing) * 3)',
+              marginBottom: 'calc(var(--spacing) * 4)',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                className="eyebrow"
+                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+              >
+                Step 06 · 附加
+              </div>
+              <strong id="memory-title" style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginTop: '0.2rem' }}>
+                记忆提取
+              </strong>
+              <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
+                每轮对话结束后自动抽取记忆条目，写入 user_memory 表供后续检索
+              </div>
+            </div>
+          </div>
+
+          <div className="rule-list" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
+            {MEMORY_RULES.map((rule) => {
+              const Icon = rule.icon === 'globe' ? IconGlobe : rule.icon === 'camera' ? IconCamera : IconFeedback
+              return (
+                <div
+                  key={rule.title}
+                  className="rule-item"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 'calc(var(--spacing) * 3)',
+                    padding: 'calc(var(--spacing) * 3.5)',
+                    background: 'var(--background)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                  }}
+                >
+                  <span
+                    className="rule-icon"
+                    aria-hidden="true"
+                    style={{
+                      width: 26,
+                      height: 26,
+                      flexShrink: 0,
+                      display: 'grid',
+                      placeItems: 'center',
+                      borderRadius: '50%',
+                      background: 'var(--secondary)',
+                      color: 'var(--accent-foreground)',
+                    }}
+                  >
+                    <Icon size={14} />
+                  </span>
+                  <div className="rule-info" style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ display: 'block', fontSize: '0.86rem', fontWeight: 600, color: 'var(--foreground)' }}>
+                      {rule.title}
+                    </strong>
+                    <p className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.15rem', margin: '0.15rem 0 0' }}>
+                      {rule.desc}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
       </div>
-
     </PageHero>
   )
-}
-
-// ===== 表格样式常量（避免在 JSX 中重复） =====
-const matrixHeaderCellStyle: React.CSSProperties = {
-  padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)',
-  textAlign: 'center',
-  background: 'var(--muted)',
-  color: 'var(--muted-foreground)',
-  fontWeight: 600,
-  fontSize: '0.7rem',
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
-  whiteSpace: 'nowrap',
-  borderRight: '1px solid var(--border)',
-  borderBottom: '1px solid var(--border)',
-}
-
-const matrixRowHeaderStyle: React.CSSProperties = {
-  padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)',
-  background: 'var(--muted)',
-  color: 'var(--foreground)',
-  fontWeight: 600,
-  textAlign: 'left',
-  whiteSpace: 'nowrap',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '0.74rem',
-  borderRight: '1px solid var(--border)',
-  borderBottom: '1px solid var(--border)',
 }

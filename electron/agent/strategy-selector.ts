@@ -31,6 +31,15 @@ export function selectStrategy(intent: UserIntent): StrategyPlan {
   return { ...INTENT_STRATEGY_MAP[intent] }
 }
 
+/** 返回意图→策略映射的只读副本（供编排页展示真实配置） */
+export function getIntentStrategyMap(): Record<UserIntent, StrategyPlan> {
+  const copy = {} as Record<UserIntent, StrategyPlan>
+  for (const [intent, plan] of Object.entries(INTENT_STRATEGY_MAP)) {
+    copy[intent as UserIntent] = { ...plan }
+  }
+  return copy
+}
+
 export function strategyToPromptHint(strategy: StrategyPlan): string {
   switch (strategy.teachingMode) {
     case 'socratic':

@@ -81,6 +81,12 @@ export interface ElectronAPI {
     getHistory: (cardId: string) => Promise<Review[]>
     getRecent: (limit?: number) => Promise<Review[]>
   }
+  agent: {
+    getPipelineInfo: () => Promise<{
+      intentKeywords: Record<string, string[]>
+      strategyMap: Record<string, { teachingMode: string; bloomLevel: number }>
+    }>
+  }
   article: {
     getAll: (limit?: number) => Promise<Record<string, unknown>[]>
     getById: (id: string) => Promise<Record<string, unknown> | undefined>
