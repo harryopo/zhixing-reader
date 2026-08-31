@@ -18,12 +18,36 @@
  *   - 每小时兜底检查一次，防止系统时间调整或错过执行
  */
 
+import { BrowserWindow } from 'electron';
 import { getBookshelf, getApiKey } from './weread-api';
 import { booksDb } from './database';
 import { logger } from './logger';
 import { settingsService } from './services/settings-service';
+import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 export type WeReadSyncFrequency = '1d' | '3d' | '7d';
+
+export interface WereadAutoSyncStatus {
+  ok: boolean;
+  at: number;
+  error?: string;
+  total?: number;
+  newCount?: number;
+  updatedCount?: number;
+}
+
+/** 广播自动同步结果到所有渲染窗口（窗口销毁时静默跳过） */
+function emitAutoSyncStatus(status: WereadAutoSyncStatus): void {
+  try {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send(IPC_CHANNELS.WEREAD.AUTO_SYNC_STATUS, status);
+      }
+    }
+  } catch (e) {
+    logger.warn('Failed to emit weread auto-sync status', { error: String(e) });
+  }
+}
 
 const FREQUENCY_MS: Record<WeReadSyncFrequency, number> = {
   '1d': 24 * 60 * 60 * 1000,
@@ -107,8 +131,14 @@ async function syncWereadBookshelfBackground(): Promise<void> {
 
     logger.info(`WeRead auto-sync done: total=${wereadBooks.length} new=${newCount} updated=${updatedCount}`);
     settingsService.set(SYNC_AT_KEY, Date.now());
+    emitAutoSyncStatus({ ok: true, at: Date.now(), total: wereadBooks.length, newCount, updatedCount });
   } catch (error) {
     logger.error('WeRead auto-sync failed', error);
+    emitAutoSyncStatus({
+      ok: false,
+      at: Date.now(),
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 

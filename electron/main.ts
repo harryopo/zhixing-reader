@@ -1,16 +1,17 @@
-import { app, BrowserWindow, Menu, nativeImage, shell, NativeImage } from 'electron';
+import { app, BrowserWindow, Menu, nativeImage, shell, dialog, NativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { initDatabase, closeDatabase, forceSaveDatabase } from './database';
 import { registerIpcHandlers } from './ipc';
 import { initFromSettings as initWereadSettings } from './weread-api';
 import { initFromSettings as initAISettings } from './ai-service';
-import { initFromSettings as initAISDKSettings } from './ai-sdk-service';
+import { initFromSettings as initAISDKSettings, cancelActiveStream } from './ai-sdk-service';
 import { logger } from './logger';
 import { settingsService } from './services/settings-service';
 import { initVectorDb, createCollection } from './services/vector-db';
 import { initFromAIConfig as initEmbedding } from './services/embedding-service';
 import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
+import { knowledgeCardService } from './services/knowledge-card-service';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 const isDev = !app.isPackaged;
@@ -21,9 +22,16 @@ if (isDev) {
   app.commandLine.appendSwitch('remote-allow-origins', '*');
 }
 
+// 进程级兜底：运行时未捕获异常只记日志，不静默丢失
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', { reason: String(reason) });
+});
 
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', { error: String(error?.stack || error) });
+});
 
-function getPreloadPath(): string {
+function getPreloadPath(): string | null {
   // 尝试多个可能的路径
   const possiblePaths = [
     path.join(__dirname, '../preload/index.js'),       // 生产模式
@@ -39,15 +47,22 @@ function getPreloadPath(): string {
     }
   }
 
-  // 如果都找不到，返回默认路径
-  const defaultPath = path.join(__dirname, '../preload/index.js');
-  logger.warn(`Preload not found, using default: ${defaultPath}`);
-  return defaultPath;
+  logger.error('Preload script not found in any candidate path');
+  return null;
 }
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  const preloadPath = getPreloadPath();
+  if (!preloadPath) {
+    // 缺 preload 会导致 window.electronAPI 为 undefined，渲染层首次 IPC 即崩；
+    // 明确报错退出，胜过带病运行
+    dialog.showErrorBox('知行读书启动失败', '未找到预加载脚本，请重新安装应用。');
+    app.quit();
+    return;
+  }
+
   const iconPath = path.join(__dirname, '../build/icon.png');
   let icon: NativeImage | undefined;
   try {
@@ -63,7 +78,7 @@ function createWindow(): void {
     minHeight: 600,
     icon,
     webPreferences: {
-      preload: getPreloadPath(),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -94,6 +109,8 @@ function createWindow(): void {
   // 双保险 - 即使 before-quit 没来得及触发也不丢数据
   mainWindow.on('close', () => {
     try {
+      // 先中止进行中的 AI 流，避免窗口销毁后 sender.send 抛错且网络请求继续烧 token
+      cancelActiveStream();
       logger.info('Window close event - saving database');
       forceSaveDatabase();
     } catch (e) {
@@ -102,7 +119,12 @@ function createWindow(): void {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    // 与 SYSTEM.OPEN_EXTERNAL handler 同款白名单：仅放行 http(s) / weread 深链
+    if (/^(https?:|weread:)/i.test(url)) {
+      void shell.openExternal(url);
+    } else {
+      logger.warn('Blocked window.open with disallowed protocol', { url });
+    }
     return { action: 'deny' };
   });
 }
@@ -116,7 +138,7 @@ function createMenu(): void {
           label: '同步书架',
           accelerator: 'CmdOrCtrl+S',
           click: () => {
-            mainWindow?.webContents.send('menu:syncBookshelf');
+            mainWindow?.webContents.send(IPC_CHANNELS.MENU.SYNC_BOOKSHELF);
           },
         },
         { type: 'separator' },
@@ -193,60 +215,73 @@ function createMenu(): void {
   Menu.setApplicationMenu(menu);
 }
 
-app.whenReady().then(async () => {
-  logger.info('App starting...');
-
-  try {
-    await initDatabase();
-    registerIpcHandlers();
-
-    const settings = settingsService.getAll();
-    initWereadSettings(settings);
-    initAISettings(settings);
-    initAISDKSettings(settings);
-    logger.info('Settings loaded and applied');
-
-    // 启动微信读书自动同步定时器（如 settings.wereadAutoSync=true 且已配置 wereadApiKey）
-    try {
-      startWereadAutoSync();
-    } catch (e) {
-      logger.warn('Failed to start WeRead auto-sync timer', e);
-    }
-
-    // 初始化本地向量数据库（Vectra，打包后可用）+ Embedding 服务
-    // Vectra 是纯 TS 文件存储，不依赖外部服务，永远可用
-    try {
-      await initVectorDb();
-      await createCollection();
-      logger.info('Vectra local index initialized');
-
-      // 初始化 Embedding 服务（仍用 OpenAI API；用户已配 llmKey）
-      if (settings.llmKey) {
-        initEmbedding({
-          apiKey: settings.llmKey as string,
-          baseUrl: (settings.llmEndpoint as string) || undefined,
-        });
-        logger.info('Embedding service initialized');
-      } else {
-        logger.warn('llmKey not configured, semantic search will be unavailable');
-      }
-    } catch (vectorErr) {
-      logger.warn('Vectra initialization failed, RAG features disabled', vectorErr);
-    }
-
-    createMenu();
-    createWindow();
-  } catch (error) {
-    logger.error('Failed to initialize app', error);
-    app.quit();
-  }
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+// 单实例锁：sql.js 内存数据库不支持多实例并发写同一库文件，
+// 第二个实例启动时聚焦已有窗口并退出
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
     }
   });
-});
+
+  void app.whenReady().then(async () => {
+    logger.info('App starting...');
+
+    try {
+      await initDatabase();
+      registerIpcHandlers();
+
+      const settings = settingsService.getAll();
+      initWereadSettings(settings);
+      initAISettings(settings);
+      initAISDKSettings(settings);
+      logger.info('Settings loaded and applied');
+
+      // 启动微信读书自动同步定时器（如 settings.wereadAutoSync=true 且已配置 wereadApiKey）
+      try {
+        startWereadAutoSync();
+      } catch (e) {
+        logger.warn('Failed to start WeRead auto-sync timer', e);
+      }
+
+      // 初始化本地向量数据库（Vectra，打包后可用）+ Embedding 服务
+      // Vectra 是纯 TS 文件存储，不依赖外部服务，永远可用
+      try {
+        await initVectorDb();
+        await createCollection();
+        logger.info('Vectra local index initialized');
+
+        // 初始化 Embedding 服务（仍用 OpenAI API；用户已配 llmKey）
+        if (settings.llmKey) {
+          initEmbedding({
+            apiKey: settings.llmKey as string,
+            baseUrl: (settings.llmEndpoint as string) || undefined,
+          });
+          logger.info('Embedding service initialized');
+        } else {
+          logger.warn('llmKey not configured, semantic search will be unavailable');
+        }
+      } catch (vectorErr) {
+        logger.warn('Vectra initialization failed, RAG features disabled', vectorErr);
+      }
+
+      createMenu();
+      createWindow();
+    } catch (error) {
+      logger.error('Failed to initialize app', error);
+      app.quit();
+    }
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -257,6 +292,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   logger.info('App quitting...');
   stopWereadAutoSync();
+  knowledgeCardService.shutdown();
   closeDatabase();
   logger.close();
 });

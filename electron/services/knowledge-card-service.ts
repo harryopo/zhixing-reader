@@ -25,6 +25,7 @@ interface ActiveTask {
 class KnowledgeCardService {
   private static instance: KnowledgeCardService | null = null
   private activeTasks: Map<string, ActiveTask> = new Map()
+  private cleanupTimer: NodeJS.Timeout | null = null
   private readonly TASK_TTL_MS = 30 * 60 * 1000
 
   static getInstance(): KnowledgeCardService {
@@ -35,7 +36,25 @@ class KnowledgeCardService {
   }
 
   private constructor() {
-    setInterval(() => this.cleanupStaleTasks(), 5 * 60 * 1000).unref()
+    this.cleanupTimer = setInterval(() => this.cleanupStaleTasks(), 5 * 60 * 1000)
+    this.cleanupTimer.unref()
+  }
+
+  /** 应用退出时调用：中止所有进行中的蒸馏任务并清理定时器 */
+  shutdown(): void {
+    for (const [bookId, task] of this.activeTasks.entries()) {
+      try {
+        task.controller.abort()
+      } catch {
+        // 中止失败不影响退出流程
+      }
+      this.activeTasks.delete(bookId)
+    }
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
+    logger.info('Knowledge card distill service shut down')
   }
 
   private cleanupStaleTasks(): void {

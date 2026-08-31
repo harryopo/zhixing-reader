@@ -193,28 +193,38 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const averageDailyReadingTime = Math.round(totalReadingTime / daysWithData)
 
       let currentStreak = 0
-      let longestStreak = 0
-      let tempStreak = 0
 
       const sortedDates = dailyStats
         .map((s) => s.date)
         .sort()
         .reverse()
 
+      // 当前连击：以今天结尾的连续阅读天数，遇到断档即止
       for (let i = 0; i < sortedDates.length; i++) {
         const currentDate = new Date(sortedDates[i])
         const expectedDate = new Date()
         expectedDate.setDate(expectedDate.getDate() - i)
 
         if (currentDate.toISOString().split('T')[0] === expectedDate.toISOString().split('T')[0]) {
-          tempStreak++
-          currentStreak = Math.max(currentStreak, tempStreak)
+          currentStreak++
         } else {
-          tempStreak = 0
+          break
         }
       }
 
-      longestStreak = currentStreak
+      // 最长连击：历史日期中的最大连续段（独立于"今天"锚点）
+      let longestStreak = 0
+      const uniqueDays = Array.from(new Set(dailyStats.map((s) => String(s.date).slice(0, 10))))
+        .filter((d) => d.length === 10)
+        .sort()
+      let runLength = 0
+      let prevDayMs = Number.NaN
+      for (const day of uniqueDays) {
+        const dayMs = Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)))
+        runLength = dayMs - prevDayMs === 86400000 ? runLength + 1 : 1
+        longestStreak = Math.max(longestStreak, runLength)
+        prevDayMs = dayMs
+      }
 
       set({
         stats: {

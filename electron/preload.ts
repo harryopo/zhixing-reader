@@ -362,8 +362,10 @@ const electronAPI = {
   },
 
   skill: {
-    generate: (methodologyIds: string[]) => invoke(IPC_CHANNELS.SKILL.GENERATE, methodologyIds),
-    exportBatch: (methodologyIds: string[]) => invoke(IPC_CHANNELS.SKILL.EXPORT_BATCH, methodologyIds),
+    generate: (methodologyId: string, bookTitle: string, author?: string) =>
+      invoke(IPC_CHANNELS.SKILL.GENERATE, methodologyId, bookTitle, author),
+    exportBatch: (methodologyIds: string[], bookTitle: string, author?: string) =>
+      invoke(IPC_CHANNELS.SKILL.EXPORT_BATCH, methodologyIds, bookTitle, author),
   },
 
   system: {
@@ -421,6 +423,31 @@ const electronAPI = {
     ipcRenderer.on(IPC_CHANNELS.MENU.NAVIGATE, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.MENU.NAVIGATE, handler)
+    }
+  },
+
+  // 文件菜单「同步书架」事件（CmdOrCtrl+S 触发，renderer 端执行真实同步）
+  onSyncBookshelf: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on(IPC_CHANNELS.MENU.SYNC_BOOKSHELF, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.MENU.SYNC_BOOKSHELF, handler)
+    }
+  },
+
+  // 微信读书后台自动同步结果事件（成功/失败），返回清理函数
+  onWereadAutoSyncStatus: (callback: (status: {
+    ok: boolean
+    at: number
+    error?: string
+    total?: number
+    newCount?: number
+    updatedCount?: number
+  }) => void) => {
+    const handler = (_event: IpcRendererEvent, status: Parameters<typeof callback>[0]) => callback(status)
+    ipcRenderer.on(IPC_CHANNELS.WEREAD.AUTO_SYNC_STATUS, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.WEREAD.AUTO_SYNC_STATUS, handler)
     }
   },
 };

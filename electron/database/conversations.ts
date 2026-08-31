@@ -2,8 +2,11 @@
  * database/conversations — AI 对话与会话消息表操作
  * 从原 database.ts 拆分而来，逻辑保持不变。
  */
-import { getDatabase, saveDatabase } from './connection';
+import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
+
+/** update() 允许写入的列白名单（列名会拼入 SQL，必须过滤） */
+const UPDATABLE_COLUMNS = new Set(['title', 'book_id', 'message_count', 'updated_at']);
 
 export const conversationDb = {
   create(title?: string, bookId?: string): Record<string, unknown> {
@@ -33,7 +36,8 @@ export const conversationDb = {
   },
 
   update(id: string, data: Record<string, unknown>): void {
-    const updatableKeys = Object.keys(data).filter(k => k !== 'id');
+    const updatableKeys = Object.keys(data).filter(k => k !== 'id' && UPDATABLE_COLUMNS.has(k));
+    if (updatableKeys.length === 0) return;
     const setClauses = updatableKeys.map(k => `${k} = ?`).join(', ');
     const values = updatableKeys.map(k => data[k]);
     getDatabase().run(
@@ -44,33 +48,37 @@ export const conversationDb = {
   },
 
   delete(id: string): void {
-    getDatabase().run('DELETE FROM chat_messages WHERE conversation_id = ?', [id]);
-    getDatabase().run('DELETE FROM conversations WHERE id = ?', [id]);
-    saveDatabase();
+    // 两条 DELETE 需原子执行：先删消息再删会话，中途失败整体回滚
+    runTransaction((database) => {
+      database.run('DELETE FROM chat_messages WHERE conversation_id = ?', [id]);
+      database.run('DELETE FROM conversations WHERE id = ?', [id]);
+    });
   },
 
   addMessage(conversationId: string, message: Record<string, unknown>): string {
     const id = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    getDatabase().run(
-      `INSERT INTO chat_messages (id, conversation_id, role, content, intent, tools_used, bloom_level, mastery_assessment, sources)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        conversationId,
-        message.role,
-        message.content,
-        message.intent ?? null,
-        message.tools_used ? JSON.stringify(message.tools_used) : null,
-        message.bloom_level ?? null,
-        message.mastery_assessment ? JSON.stringify(message.mastery_assessment) : null,
-        message.sources ? JSON.stringify(message.sources) : null,
-      ]
-    );
-    getDatabase().run(
-      "UPDATE conversations SET message_count = message_count + 1, updated_at = datetime('now') WHERE id = ?",
-      [conversationId]
-    );
-    saveDatabase();
+    // INSERT 消息与 UPDATE 会话计数需原子执行，避免计数与实际消息数漂移
+    runTransaction((database) => {
+      database.run(
+        `INSERT INTO chat_messages (id, conversation_id, role, content, intent, tools_used, bloom_level, mastery_assessment, sources)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          conversationId,
+          message.role,
+          message.content,
+          message.intent ?? null,
+          message.tools_used ? JSON.stringify(message.tools_used) : null,
+          message.bloom_level ?? null,
+          message.mastery_assessment ? JSON.stringify(message.mastery_assessment) : null,
+          message.sources ? JSON.stringify(message.sources) : null,
+        ]
+      );
+      database.run(
+        "UPDATE conversations SET message_count = message_count + 1, updated_at = datetime('now') WHERE id = ?",
+        [conversationId]
+      );
+    });
     return id;
   },
 

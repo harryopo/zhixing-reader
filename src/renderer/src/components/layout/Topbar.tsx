@@ -294,6 +294,32 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     }
   }, [syncing, refreshNotifData])
 
+  // 文件菜单「同步书架」（CmdOrCtrl+S）：复用顶栏刷新按钮的真实同步流程
+  useEffect(() => {
+    const dispose = window.electronAPI?.onSyncBookshelf?.(() => {
+      void handleSync()
+    })
+    return () => dispose?.()
+  }, [handleSync])
+
+  // 微信读书后台自动同步结果：失败必须让用户知道（常见原因是 Cookie 过期），成功静默更新状态
+  useEffect(() => {
+    const dispose = window.electronAPI?.onWereadAutoSyncStatus?.((status) => {
+      if (status.ok) {
+        localStorage.setItem(
+          LAST_SYNC_KEY,
+          JSON.stringify({ at: status.at, ok: true, count: status.total ?? 0 }),
+        )
+        void refreshNotifData()
+      } else {
+        localStorage.setItem(LAST_SYNC_KEY, JSON.stringify({ at: status.at, ok: false }))
+        toast.error(`微信读书自动同步失败：${status.error || '未知错误'}，请检查 Cookie / API Key 配置`)
+        void refreshNotifData()
+      }
+    })
+    return () => dispose?.()
+  }, [refreshNotifData])
+
   /** 通知按钮：toggle 下拉面板 */
   const handleToggleNotify = () => {
     setNotifyOpen((v) => !v)

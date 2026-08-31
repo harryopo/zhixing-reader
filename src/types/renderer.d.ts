@@ -1,4 +1,4 @@
-import { Book, Highlight, Card, Review, BookSummary, DailyStats, ReviewStats, ReadingDataResponse, RecommendationItem } from '../shared/types'
+import { Book, Highlight, Card, Review, BookSummary, DailyStats, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage } from '../shared/types'
 
 export interface TokenSummary {
   totalRequests: number
@@ -182,9 +182,12 @@ export interface ElectronAPI {
   conversation: {
     getAll: () => Promise<Conversation[]>
     create: (title?: string, bookId?: string) => Promise<Conversation>
+    getById: (id: string) => Promise<Conversation | null>
+    update: (id: string, data: Record<string, unknown>) => Promise<void>
     getMessages: (id: string) => Promise<ChatMessage[]>
     addMessage: (conversationId: string, message: { role: string; content: string; intent?: string }) => Promise<string>
     delete: (id: string) => Promise<void>
+    search: (keyword: string) => Promise<Conversation[]>
   }
   chat: {
     toggleLike: (messageId: string, liked: boolean) => Promise<void>
@@ -238,8 +241,8 @@ export interface ElectronAPI {
     analyze: (bookId: string, bookTitle: string) => Promise<unknown>
   }
   skill: {
-    generate: (methodologyIds: string[]) => Promise<unknown>
-    exportBatch: (methodologyIds: string[]) => Promise<unknown>
+    generate: (methodologyId: string, bookTitle: string, author?: string) => Promise<unknown>
+    exportBatch: (methodologyIds: string[], bookTitle: string, author?: string) => Promise<unknown>
   }
   system: {
     openExternal: (url: string) => Promise<{ opened: boolean }>
@@ -304,6 +307,17 @@ export interface ElectronAPI {
   }
   /** 主进程菜单导航事件（视图菜单 CmdOrCtrl+1/2/3），返回清理函数 */
   onNavigate: (callback: (path: string) => void) => () => void
+  /** 文件菜单「同步书架」事件（CmdOrCtrl+S），返回清理函数 */
+  onSyncBookshelf?: (callback: () => void) => () => void
+  /** 微信读书后台自动同步结果事件，返回清理函数 */
+  onWereadAutoSyncStatus?: (callback: (status: {
+    ok: boolean
+    at: number
+    error?: string
+    total?: number
+    newCount?: number
+    updatedCount?: number
+  }) => void) => () => void
 }
 
 export interface PromptVariable {

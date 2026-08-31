@@ -23,6 +23,13 @@ import { logger } from '../logger';
 import { cancelActiveStream } from '../ai-sdk-service';
 import type { HandleFn } from './types';
 
+/** 窗口可能中途关闭/刷新：sender 已销毁时静默跳过，避免抛 "sender has been destroyed" */
+function safeSend(event: Electron.IpcMainInvokeEvent, channel: string, payload: unknown): void {
+  if (!event.sender.isDestroyed()) {
+    event.sender.send(channel, payload);
+  }
+}
+
 export function registerAIHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.AI.SET_CONFIG, (config: Record<string, unknown>) => {
     setAIConfig(config as unknown as Parameters<typeof setAIConfig>[0]);
@@ -46,13 +53,13 @@ export function registerAIHandlers(handle: HandleFn): void {
     await streamChat(
       params.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
       (chunk: string) => {
-        event.sender.send(IPC_CHANNELS.STREAM.CHUNK, { chunk });
+        safeSend(event, IPC_CHANNELS.STREAM.CHUNK, { chunk });
       },
       (usage) => {
-        event.sender.send(IPC_CHANNELS.STREAM.COMPLETE, { usage });
+        safeSend(event, IPC_CHANNELS.STREAM.COMPLETE, { usage });
       },
       (error: Error) => {
-        event.sender.send(IPC_CHANNELS.STREAM.ERROR, { error: error.message });
+        safeSend(event, IPC_CHANNELS.STREAM.ERROR, { error: error.message });
       },
       { enableReasoning: params?.enableReasoning === true }
     );
@@ -82,18 +89,18 @@ export function registerAIHandlers(handle: HandleFn): void {
       },
       params.userMessage,
       (chunk: string) => {
-        event.sender.send(IPC_CHANNELS.STREAM.CHUNK, { chunk })
+        safeSend(event, IPC_CHANNELS.STREAM.CHUNK, { chunk })
       },
       (usage) => {
-        event.sender.send(IPC_CHANNELS.STREAM.COMPLETE, { usage })
+        safeSend(event, IPC_CHANNELS.STREAM.COMPLETE, { usage })
       },
       (error: Error) => {
-        event.sender.send(IPC_CHANNELS.STREAM.ERROR, { error: error.message })
+        safeSend(event, IPC_CHANNELS.STREAM.ERROR, { error: error.message })
       },
       {
         enableReasoning: params?.enableReasoning === true,
         onReasoningChunk: (chunk: string) => {
-          event.sender.send(IPC_CHANNELS.STREAM.REASONING_CHUNK, { chunk })
+          safeSend(event, IPC_CHANNELS.STREAM.REASONING_CHUNK, { chunk })
         },
       }
     )

@@ -109,6 +109,7 @@ export default function Chat() {
     createSession,
     switchSession,
     deleteSession,
+    clearAllSessions,
     sendMessage,
     stopStreaming,
     setCurrentBook,
@@ -254,8 +255,8 @@ export default function Chat() {
       toast.info('当前没有可清空的会话')
       return
     }
-    // 逐个删除（保留 store 行为一致性）
-    Promise.all(sessions.map((s) => deleteSession(s.id)))
+    // 走主进程单事务通道一次清空（替代逐会话 Promise.all 删除的 N 次 IPC + N 次重渲染）
+    clearAllSessions()
       .then(() => toast.success('已清空全部对话历史'))
       .catch((err) => toast.error(`清空失败: ${err instanceof Error ? err.message : String(err)}`))
   }

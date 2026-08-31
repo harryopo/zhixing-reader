@@ -10,7 +10,7 @@
  * （原 4 KPI 统计卡与近 7 日柱状图已移除——与统计页重合，且未同步时长时恒为 0 观感如假数据）
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
@@ -61,41 +61,46 @@ function overdueDays(nextReviewAt: string): number {
 export default function Home() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [books, setBooks] = useState<BookRow[]>([])
   const [dueCards, setDueCards] = useState<CardRow[]>([])
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!window.electronAPI?.book || !window.electronAPI?.card) {
-        setLoading(false)
-        return
-      }
-      try {
-        const [booksRaw, cardsRaw] = await Promise.all([
-          window.electronAPI.book.getAll(),
-          window.electronAPI.card.getDue(50),
-        ])
-        setBooks(mapBooks(booksRaw as unknown[]) as unknown as BookRow[])
-        setDueCards(mapCards(cardsRaw as unknown[]) as unknown as CardRow[])
-
-        // 最新划线/笔记（非致命：接口不可用时保持空列表）
-        if (window.electronAPI?.highlight?.getAll) {
-          try {
-            const highlightsRaw = await window.electronAPI.highlight.getAll()
-            setHighlights(mapHighlights(highlightsRaw as unknown[]) as unknown as HighlightRow[])
-          } catch (err) {
-            console.warn('加载划线数据失败（非致命）:', err)
-          }
-        }
-      } catch (error) {
-        console.error('加载首页数据失败:', error)
-      } finally {
-        setLoading(false)
-      }
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
+    if (!window.electronAPI?.book || !window.electronAPI?.card) {
+      setLoading(false)
+      return
     }
-    loadData()
+    try {
+      const [booksRaw, cardsRaw] = await Promise.all([
+        window.electronAPI.book.getAll(),
+        window.electronAPI.card.getDue(50),
+      ])
+      setBooks(mapBooks(booksRaw as unknown[]) as unknown as BookRow[])
+      setDueCards(mapCards(cardsRaw as unknown[]) as unknown as CardRow[])
+
+      // 最新划线/笔记（非致命：接口不可用时保持空列表）
+      if (window.electronAPI?.highlight?.getAll) {
+        try {
+          const highlightsRaw = await window.electronAPI.highlight.getAll()
+          setHighlights(mapHighlights(highlightsRaw as unknown[]) as unknown as HighlightRow[])
+        } catch (err) {
+          console.warn('加载划线数据失败（非致命）:', err)
+        }
+      }
+    } catch (error) {
+      console.error('加载首页数据失败:', error)
+      setLoadError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
 
   // 继续阅读：最近阅读的 3 本
   const recentBooks = useMemo(() => {
@@ -121,6 +126,26 @@ export default function Home() {
 
   return (
     <>
+      {loadError && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'calc(var(--spacing) * 3)',
+            padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+            marginBottom: 'calc(var(--spacing) * 4)',
+            borderRadius: 12,
+            border: '1px solid #ef4444',
+            background: 'rgba(239, 68, 68, 0.08)',
+            color: '#ef4444',
+            fontSize: '0.88rem',
+          }}
+        >
+          <span>加载首页数据失败：{loadError}</span>
+          <Button variant="secondary" onClick={() => void loadData()}>重试</Button>
+        </div>
+      )}
       <PageHero
         title="今日阅读"
         subtitle="继续阅读、处理复习与回顾划线"

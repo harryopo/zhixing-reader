@@ -9,6 +9,20 @@ export function safeStr(val: unknown, fallback = ''): string {
   return String(val)
 }
 
+/** 容错解析 DB 中的 JSON 数组字段（tags / steps）：损坏或非数组时回退空数组 */
+export function safeJsonArray(val: unknown): unknown[] {
+  if (Array.isArray(val)) return val
+  if (typeof val === 'string' && val) {
+    try {
+      const parsed = JSON.parse(val)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 export function safeDate(val: unknown): string {
   if (!val) return ''
   try {
@@ -143,7 +157,7 @@ export function mapKnowledgeCard(row: Record<string, unknown>): Record<string, u
     interpretation: safeStr(row.interpretation),
     application: safeStr(row.application),
     relatedCardIds: row.related_card_ids ?? row.relatedCardIds,
-    tags: row.tags ? (typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags) : [],
+    tags: safeJsonArray(row.tags),
     sourceHighlightId: safeStr(row.source_highlight_id ?? row.sourceHighlightId),
     reviewCount: safeNum(row.review_count ?? row.reviewCount),
     masteryLevel: safeNum(row.mastery_level ?? row.masteryLevel),
@@ -166,10 +180,10 @@ export function mapMethodology(row: Record<string, unknown>): Record<string, unk
     nameEn: safeStr(row.name_en ?? row.nameEn),
     triggerScenario: safeStr(row.trigger_scenario ?? row.triggerScenario),
     description: safeStr(row.description),
-    steps: row.steps ? (typeof row.steps === 'string' ? JSON.parse(row.steps) : row.steps) : [],
+    steps: safeJsonArray(row.steps),
     outputFormat: safeStr(row.output_format ?? row.outputFormat),
     examples: safeStr(row.examples),
-    tags: row.tags ? (typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags) : [],
+    tags: safeJsonArray(row.tags),
     sourceHighlightIds: row.source_highlight_ids ?? row.sourceHighlightIds,
     masteryLevel: safeNum(row.mastery_level ?? row.masteryLevel),
     practiceCount: safeNum(row.practice_count ?? row.practiceCount),

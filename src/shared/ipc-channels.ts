@@ -61,6 +61,8 @@ export const IPC_CHANNELS = {
     FETCH_RECOMMENDATIONS: 'weread:fetchRecommendations',
     GET_USER_PROFILE: 'weread:getUserProfile',
     TEST: 'weread:test',
+    // 主→渲染事件：后台自动同步结果（成功/失败），渲染层据此提示或更新状态
+    AUTO_SYNC_STATUS: 'weread:autoSyncStatus',
   },
   READING_DATA: {
     FETCH: 'readingData:fetch',
@@ -233,5 +235,6 @@ export const IPC_CHANNELS = {
   MENU: {
     NAVIGATE: 'menu:navigate',
     ABOUT: 'menu:about',
+    SYNC_BOOKSHELF: 'menu:syncBookshelf',
   },
 } as const;

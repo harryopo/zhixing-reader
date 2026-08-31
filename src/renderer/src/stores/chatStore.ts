@@ -53,18 +53,28 @@ interface RawMessage {
   created_at?: string
 }
 
+/** 容错解析 DB 中的 JSON 文本字段：损坏时回退默认值，不炸整条会话 */
+function safeParse<T>(value: string | undefined | null, fallback: T): T {
+  if (!value) return fallback
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return fallback
+  }
+}
+
 function mapMessage(raw: RawMessage): Message {
   return {
     id: raw.id,
     role: raw.role as Message['role'],
     content: raw.content,
     intent: raw.intent,
-    toolsUsed: typeof raw.tools_used === 'string' ? JSON.parse(raw.tools_used || '[]') : raw.tools_used,
+    toolsUsed: typeof raw.tools_used === 'string' ? safeParse(raw.tools_used, []) : raw.tools_used,
     bloomLevel: raw.bloom_level,
     masteryAssessment: typeof raw.mastery_assessment === 'string'
-      ? JSON.parse(raw.mastery_assessment || 'null')
+      ? safeParse<Message['masteryAssessment']>(raw.mastery_assessment, undefined)
       : raw.mastery_assessment as Message['masteryAssessment'],
-    sources: typeof raw.sources === 'string' ? JSON.parse(raw.sources || '[]') : raw.sources,
+    sources: typeof raw.sources === 'string' ? safeParse(raw.sources, []) : raw.sources,
     liked: raw.liked != null ? Boolean(raw.liked) : false,
     bookmarked: raw.bookmarked != null ? Boolean(raw.bookmarked) : false,
     createdAt: raw.created_at,
@@ -113,6 +123,8 @@ interface ChatState {
   createSession: (bookId?: string) => Promise<void>
   switchSession: (id: string) => Promise<void>
   deleteSession: (id: string) => Promise<void>
+  /** 清空全部会话历史（主进程单事务），成功后重置本地状态 */
+  clearAllSessions: () => Promise<void>
   sendMessage: (content: string) => Promise<void>
   /** Soft-stop: keep partial reply, free UI (main process stream may still finish) */
   stopStreaming: () => void
@@ -145,7 +157,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadSessions: async () => {
     try {
       if (!window.electronAPI?.conversation) return
-      const raw = await window.electronAPI.conversation.getAll() as Record<string, unknown>[]
+      const raw = await window.electronAPI.conversation.getAll() as unknown as Record<string, unknown>[]
       set({ sessions: (raw || []).map(mapSession) })
     } catch (error) {
       console.error('加载会话列表失败:', error)
@@ -154,7 +166,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   createSession: async (bookId?: string) => {
     try {
-      const raw = await window.electronAPI.conversation.create(undefined, bookId) as Record<string, unknown>
+      const raw = await window.electronAPI.conversation.create(undefined, bookId) as unknown as Record<string, unknown>
       const session = mapSession(raw)
       set(state => ({
         sessions: [session, ...state.sessions],
@@ -197,6 +209,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  clearAllSessions: async () => {
+    // 走主进程单事务通道（SYSTEM:CLEAR_HISTORY）一次清空，
+    // 替代逐会话 N 次 IPC 删除 + N 次重渲染
+    await window.electronAPI.system.clearHistory()
+    set({ sessions: [], currentSessionId: null, messages: [] })
+  },
+
   sendMessage: async (content: string) => {
     const { currentSessionId, currentBookId, loading, streaming, messages, enableReasoning } = get()
     if (loading || streaming) {
@@ -207,7 +226,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (!sessionId) {
       try {
-        const raw = await window.electronAPI.conversation.create(undefined, currentBookId || undefined) as Record<string, unknown>
+        const raw = await window.electronAPI.conversation.create(undefined, currentBookId || undefined) as unknown as Record<string, unknown>
         const session = mapSession(raw)
         sessionId = session.id
         set(state => ({

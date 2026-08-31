@@ -163,47 +163,50 @@ export default function Stats() {
         return
       }
 
-      const stats: BookStat[] = []
-      for (const book of books) {
-        let highlightCount = 0
-        let cardCount = 0
-        try {
-          const hRaw = await window.electronAPI.highlight.getByBook(book.id as string) as unknown[]
-          highlightCount = mapHighlights(hRaw).length
-        } catch (_e) {
-          // 单本书划线查询失败不阻断整体加载
-        }
-        try {
-          const cRaw = await window.electronAPI.card.getByBook(book.id as string) as unknown[]
-          cardCount = mapCards(cRaw).length
-        } catch (_e) {
-          // 单本书卡片查询失败不阻断整体加载
-        }
-        const bookAny = book as unknown as {
-          category?: string
-          lastReadAt?: string
-          updatedAt?: string
-          publishDate?: string
-          isFinished?: number | boolean
-          is_finished?: number | boolean
-          finishedAt?: string
-          finished_at?: string
-        }
-        stats.push({
-          id: book.id as string,
-          title: book.title as string,
-          author: book.author as string,
-          cover: book.cover as string,
-          category: bookAny.category || '其他',
-          progress: safeNum(book.progress),
-          highlightCount,
-          cardCount,
-          lastReadAt: bookAny.lastReadAt,
-          updatedAt: bookAny.updatedAt,
-          publishDate: bookAny.publishDate,
-          isFinished: Boolean(bookAny.isFinished ?? bookAny.is_finished),
+      // 逐本书并行查询：串行版本每本书 2 次 IPC 依次等待，书多时首屏阻塞严重；
+      // 并行后单本书查询失败仍不阻断整体加载
+      const stats = await Promise.all(
+        books.map(async (book) => {
+          let highlightCount = 0
+          let cardCount = 0
+          try {
+            const hRaw = await window.electronAPI.highlight.getByBook(book.id as string) as unknown[]
+            highlightCount = mapHighlights(hRaw).length
+          } catch (_e) {
+            // 单本书划线查询失败不阻断整体加载
+          }
+          try {
+            const cRaw = await window.electronAPI.card.getByBook(book.id as string) as unknown[]
+            cardCount = mapCards(cRaw).length
+          } catch (_e) {
+            // 单本书卡片查询失败不阻断整体加载
+          }
+          const bookAny = book as unknown as {
+            category?: string
+            lastReadAt?: string
+            updatedAt?: string
+            publishDate?: string
+            isFinished?: number | boolean
+            is_finished?: number | boolean
+            finishedAt?: string
+            finished_at?: string
+          }
+          return {
+            id: book.id as string,
+            title: book.title as string,
+            author: book.author as string,
+            cover: book.cover as string,
+            category: bookAny.category || '其他',
+            progress: safeNum(book.progress),
+            highlightCount,
+            cardCount,
+            lastReadAt: bookAny.lastReadAt,
+            updatedAt: bookAny.updatedAt,
+            publishDate: bookAny.publishDate,
+            isFinished: Boolean(bookAny.isFinished ?? bookAny.is_finished),
+          }
         })
-      }
+      )
 
       setBookStats(stats)
     } catch (error) {
@@ -835,9 +838,9 @@ function ReadingStatsView({
 
         <Card>
           <CardHead
-            eyebrow="本周节奏"
-            title="每日时段"
-            action={<Badge variant="ok">7 天</Badge>}
+            eyebrow="阅读节奏"
+            title="时段分布"
+            action={<Badge variant="ok">24 小时</Badge>}
           />
           <WeeklyBars
             preferTime={readingData?.preferTime}
@@ -1491,7 +1494,7 @@ function ReviewHeatmap12Weeks({ dailyCards }: { dailyCards: Record<string, numbe
   )
 }
 
-// ===== 本周节奏 7 日柱状图（设计稿 7 日柱状图样式） =====
+// ===== 阅读时段分布柱状图（数据来源为微信读书 24 小时时段分布） =====
 function WeeklyBars({
   preferTime,
   preferTimeWord,
@@ -1501,10 +1504,9 @@ function WeeklyBars({
 }) {
   const bars = useMemo(() => {
     if (!preferTime || preferTime.length === 0) {
-      return Array(7).fill(0)
+      return Array(24).fill(0) as number[]
     }
-    // preferTime 通常为 24 个时段值；取前 7 个作为一周 7 天
-    return preferTime.slice(0, 7)
+    return preferTime
   }, [preferTime])
 
   const maxVal = useMemo(() => Math.max(...bars, 1), [bars])
@@ -1514,9 +1516,9 @@ function WeeklyBars({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateColumns: `repeat(${bars.length}, 1fr)`,
           alignItems: 'end',
-          gap: 'calc(var(--spacing) * 3)',
+          gap: 'calc(var(--spacing) * 1)',
           marginTop: 'calc(var(--spacing) * 4)',
           height: 220,
         }}
@@ -1537,10 +1539,10 @@ function WeeklyBars({
               }}
             >
               <div
-                title={`${WEEKDAY_LABELS[i]}: ${formatReadingTime(val)}`}
+                title={`${i}:00 · ${formatReadingTime(val)}`}
                 style={{
                   width: '100%',
-                  maxWidth: 32,
+                  maxWidth: 14,
                   borderRadius: '999px 999px 10px 10px',
                   background: isMax ? 'var(--chart-5)' : 'var(--chart-1)',
                   height: heightPx,
@@ -1560,7 +1562,7 @@ function WeeklyBars({
                   color: 'var(--muted-foreground)',
                 }}
               >
-                {WEEKDAY_LABELS[i]}
+                {i % 4 === 0 ? `${i}时` : ''}
               </div>
             </div>
           )
