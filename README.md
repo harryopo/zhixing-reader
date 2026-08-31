@@ -2,9 +2,9 @@
 
 > **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS v5 · 微信读书深度同步
 >
-> **v1.0.0 正式版** | 2026-07-28 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
+> **v1.1.0** | 2026-08-28 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
 
-[![Version](https://img.shields.io/badge/version-1.0.0-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-35-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
@@ -67,7 +67,7 @@
 
 | # | 模块 | 路由 | 核心能力 |
 |---|------|------|----------|
-| 1 | 主页 | `/` | 数据卡片 + 今日待复习 + 推荐文章 |
+| 1 | 主页 | `/` | 继续阅读 + 最新划线/笔记 + 复习队列 |
 | 2 | 书架 | `/bookshelf` | 微信读书同步 + 阅读进度 |
 | 3 | 书籍详情 | `/bookshelf/:id` | 笔记/卡片/方法论/讨论 多 Tab |
 | 4 | 笔记 | `/notes` | 全书笔记检索 + 高亮原文 + Markdown 导出 |
@@ -80,7 +80,7 @@
 | 11 | Token 监控 | `/token-usage` | 服务商/功能双维用量 + 成本核算 |
 | 12 | 个人中心 | `/profile` | 阅读画像 + 微信读书资料继承 |
 | 13 | 设置 | `/settings` | AI 多服务商热切换 + 数据导入导出 |
-| 14 | 智能体编排 | `/agent-orchestration` | 六步流水线可视化 + 意图/策略矩阵 + 提示词模板 |
+| 14 | 智能体编排 | `/settings/agent` | 六步流水线可视化 + 意图/策略矩阵 + 提示词模板（设置子页） |
 | 15 | Skill 生成 | 对话/方法论内 | 方法论一键导出为可复用 Skill |
 | 16 | RAG 知识库 | 设置/对话内 | Vectra 本地向量索引 + 语义检索 + 文档溯源 |
 
@@ -181,8 +181,8 @@ zhixing-reader/
 ├── electron/                                # Main 进程
 │   ├── main.ts                              # 入口
 │   ├── preload.ts                           # contextBridge（423 行）
-│   ├── ipc.ts                               # IPC handlers（657 行）
-│   ├── database.ts                          # sql.js DB（1967 行）
+│   ├── ipc/                                 # IPC handlers（按领域 12 文件）
+│   ├── database/                            # sql.js DB（按领域 16 文件）
 │   ├── fsrs-engine.ts                       # ⭐ FSRS v5 适配层（900+ 行）
 │   ├── ai-service.ts                        # AI 卡片/摘要（800+ 行）
 │   ├── ai-sdk-service.ts                    # AI 流式（500+ 行）
@@ -264,7 +264,7 @@ zhixing-reader/
 
 ## 十一、快速开始
 
-1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `ZhixingReader-Setup-1.0.0.exe`（Windows，125MB）
+1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `ZhixingReader-Setup-1.1.0.exe`（Windows）
 2. **配置 AI** — 设置页选择 AI 服务商（火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot），填入 API Key
 3. **连接微信读书** — 设置页填入微信读书 API Key，同步书架与划线数据
 4. **开始使用** — 浏览书架、AI 对话、知识卡片复习、每日英语学习
@@ -279,7 +279,7 @@ zhixing-reader/
 # 安装依赖（使用 npmmirror 镜像）
 npm install
 
-# 开发模式（Vite 端口 5275 + Electron 自动开）
+# 开发模式（Vite 端口 5500 + Electron 自动开）
 npm run dev
 
 # 质量门禁（提交前必跑）
@@ -291,7 +291,7 @@ npm run verify          # 一键跑上面四项
 
 # 打包 Windows NSIS 安装包
 npm run package:win
-# → 生成 installer/ZhixingReader-Setup-1.0.0.exe (125MB)
+# → 生成 installer/ZhixingReader-Setup-1.1.0.exe
 
 # 词典（仅开发者）
 npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
@@ -347,6 +347,7 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
+| 2026-08-28 | v1.1.0 | 维护迭代：间隔复习闭环 / Token 用量实时统计 / 档案画像注入 AI / 首页重构 / 导航与假数据治理 / database·ipc 拆分 | 张子涵 |
 | 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 更新到核心亮点 + 15 大模块 | 张子涵 |
 | 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 张子涵 |
 
@@ -413,4 +414,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-07-28 | 与 v1.0.0 发布版代码一致*
+*最后更新：2026-08-28 | 与 v1.1.0 代码一致*

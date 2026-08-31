@@ -9,7 +9,7 @@
 
 ## 0. 一句话项目身份
 
-> **知行读书**是 Anki 同源 FSRS 算法驱动的 AI 阅读成长智能体（Electron + React + sql.js），打通「微信读书同步 → AI 智能体理解 → 科学间隔复习 → 知识卡片体系化 → 英语学习」完整闭环。参赛作品 v1.0.0，距提交 11 天。
+> **知行读书**是 Anki 同源 FSRS 算法驱动的 AI 阅读成长智能体（Electron + React + sql.js），打通「微信读书同步 → AI 智能体理解 → 科学间隔复习 → 知识卡片体系化 → 英语学习」完整闭环。当前 v1.1.0 维护迭代期（比赛已于 2026-07 结束）。
 
 ---
 
@@ -34,11 +34,11 @@
 |---|------|------|
 | **A1** | 引入原生 Node 模块（node-gyp 编译） | sql.js 已用，原生模块在 Electron 35 + Win11 编译链不稳 |
 | **A2** | 把 API Key、Token 写入代码或日志 | R1 + safeStorage 已有方案 |
-| **A3** | 改 `database.ts` 1967 行核心文件而不读全文 | 拆解是 P1-1 技术债，比赛中禁止 |
-| **A4** | 改 `ipc.ts` 657 行而不读全文 | 同上 |
-| **A5** | 使用 React Router 8.x 升级 | 破坏性变更，比赛前禁止 |
+| **A3** | 改 `electron/database/` 领域文件前不读上下文（连接/schema 依赖方向见文件头注释） | 拆分后仍需先读关联文件再动手 |
+| **A4** | 改 `electron/ipc/` 领域文件前不读 `ipc/types.ts`（HandleFn 包装器约定） | 同上 |
+| **A5** | 升级 React Router 大版本（7.x → 8.x） | 破坏性变更，需专项评估 |
 | **A6** | 删 `.learnings/` 任何已有内容 | 团队沉淀的知识资产 |
-| **A7** | 改 AGENTS.md 已写明的硬约束（端口 5275、`@/` 别名、Chinese UI） | 见 AGENTS.md Gotchas |
+| **A7** | 改 AGENTS.md 已写明的硬约束（端口 5500、`@/` 别名、Chinese UI） | 见 AGENTS.md Gotchas |
 | **A8** | 提交时跳过 lint/typecheck/test | pre-commit hook 强制 |
 | **A9** | `git add -A` / `git add .` | 可能误提交 .env / node_modules |
 | **A10** | commit message 用 `WIP`/`fix bug`/`update code` | commitlint 拦截 |
@@ -134,12 +134,11 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-## 8. 紧急联系（比赛相关）
+## 8. 项目状态（2026-08-28 更新）
 
-- **距大赛提交**：11 天（截止 2026-07-31）
+- **当前版本**：v1.1.0（维护迭代期，比赛已于 2026-07 结束）
 - **自检报告**：[`docs/项目自检_优化方案_2026-07-20.md`](../../docs/%E9%A1%B9%E7%9B%AE%E8%87%AA%E6%A3%80_%E4%BC%98%E5%8C%96%E6%96%B9%E6%A1%88_2026-07-20.md)
-- **P0 bug 清单**：4 个（自检报告 §1.2）
-- **当前阶段**：止血 + 规范建设（Day 1-2）
+- **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
 
 ---
 
@@ -151,14 +150,14 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 | P0-2 rag-service 动态导入 | P0 | **已修**（commit d91036b） | ✅ |
 | P0-3 preload stream 监听器 | P0 | **Day 1-2** | ⏳ |
 | P0-4 IPC 通道统一常量 | P0 | **Day 1-2** | ⏳ |
-| P1-1 database.ts 拆分 | P1 | 比赛后 | ⏸️ |
-| P1-2 ipc.ts 拆分 | P1 | 比赛后 | ⏸️ |
-| P1-3 Vite CJS 弃用 | P1 | 比赛后 | ⏸️ |
-| Phase 2 FSRS 升级 | P0 | Day 3-4 | ⏳ |
-| Phase 3 ECharts 集成 | P1 | Day 5-7 | ⏳ |
+| P1-1 database.ts 拆分 | P1 | **已修**（commit 28811b2，拆为 database/ 16 文件） | ✅ |
+| P1-2 ipc.ts 拆分 | P1 | **已修**（commit a3eb462，拆为 ipc/ 12 文件） | ✅ |
+| P1-3 Vite CJS 弃用 | P1 | 迭代中 | ⏸️ |
+| Phase 2 FSRS 升级 | P0 | **已完成**（v1.0.0 已集成 ts-fsrs 5.4.1） | ✅ |
+| Phase 3 ECharts 集成 | P1 | **已完成**（v1.0.0 AdminDashboard 6 图表） | ✅ |
 | **规范基础设施** | **P0** | **本次任务** | 🔄 |
 
 ---
 
-*最后更新：2026-07-21 | 死代码治理循环工程收尾（A11/A12 + B11-B15 新增）*
+*最后更新：2026-08-28 | v1.1.0 维护迭代（换机恢复 + 去伪存真 + 功能落地 + 文档勘误）*
 *与 AGENTS.md 不一致时，以本文件 + .claude/rules/* 为准（Claude 专属）*

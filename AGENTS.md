@@ -27,8 +27,8 @@ zhixing-reader/
 ├── electron/              # Main 进程：DB、IPC、AI、FSRS、WeChat Read API
 │   ├── main.ts            # 入口（窗口创建 + 初始化序列）
 │   ├── preload.ts         # contextBridge API 暴露面
-│   ├── ipc.ts             # 100+ IPC handler（计划拆分）
-│   ├── database.ts        # sql.js DB + 13 个 db 对象（1967 行 → 计划拆）
+│   ├── ipc/               # IPC handlers（按领域 12 文件，index.ts 统一注册）
+│   ├── database/          # sql.js DB（按领域 16 文件，index.ts 统一出口）
 │   ├── fsrs-engine.ts     # FSRS 间隔重复算法（v1，singleton 函数导出）
 │   ├── agent/             # 智能体（意图分类 / 编排 / 策略）
 │   └── services/          # 业务服务（RAG / 嵌入 / 知识卡片 / Prompt 模板）
@@ -64,7 +64,7 @@ zhixing-reader/
 
 ```bash
 # 日常开发
-npm run dev              # 开发模式（Vite 端口 5275 + Electron 自动开）
+npm run dev              # 开发模式（Vite 端口 5500 + Electron 自动开）
 npm run build            # 三进程编译到 dist/
 npm run start            # 预览生产构建
 
@@ -173,7 +173,7 @@ npm run verify
 
 来自 [AGENTS.md 根级规则](d:/ai/claude%20code/%E5%BE%AE%E4%BF%A1%E8%AF%BB%E4%B9%A6/AGENTS.md)：
 
-1. **端口 5275 硬编码** — 不要单独修改 `electron.vite.config.ts` 或 `electron/main.ts` 的端口（原 5176 因 Windows Hyper-V 保留端口范围 5175-5274 改为 5275）
+1. **端口 5500 硬编码** — 不要单独修改 `electron.vite.config.ts` 或 `electron/main.ts` 的端口（原 5176 因 Windows Hyper-V 保留端口范围 5175-5274 多次调整，现为 5500，两处必须保持一致）
 2. **sql.js 是 WASM** — 默认内存运行，持久化必须显式 read/write
 3. **preload path 解析** — `getPreloadPath()` 尝试多路径，改 build 输出需同步
 4. **Windows-only 打包** — electron-builder 只配 NSIS，无 macOS/Linux
@@ -252,6 +252,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-08-28 | v1.1.0 维护迭代 — 换机恢复 + 去伪存真（假数据/死链治理）+ 间隔复习与 Token 统计落地 + 画像注入 + database/ipc 拆分 + 编排页迁入设置壳层 + 管理后台移出前端；端口勘误 5275→5500 | AI Agent |
 | 2026-07-20 | 初始化（v1）— 加入 .claude/、CI、Vitest、AGENTS.md | AI Agent |
 | 2026-07-21 | 死代码治理循环工程收尾 — 新增第九章"死代码治理经验" + 7 个 IPC 通道清单 + 7 维质量评分基准 | dead-code-governance verifier-subagent |
 | 待补 | husky pre-commit hook 安装 | — |
