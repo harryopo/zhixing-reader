@@ -99,7 +99,7 @@ describe('AI SDK Service — sdkStreamChat', () => {
     })
 
     const receivedChunks: string[] = []
-    let completionUsage: { promptTokens: number; completionTokens: number } | undefined
+    let completionUsage: { promptTokens: number; completionTokens: number; cachedTokens?: number } | undefined
 
     await sdkStreamChat(
       [{ role: 'user', content: 'Hi' }],
@@ -109,7 +109,7 @@ describe('AI SDK Service — sdkStreamChat', () => {
     )
 
     expect(receivedChunks).toEqual(['Hello', ' ', 'World'])
-    expect(completionUsage).toEqual({ promptTokens: 10, completionTokens: 5 })
+    expect(completionUsage).toEqual({ promptTokens: 10, completionTokens: 5, cachedTokens: 0 })
     expect(mockStreamText).toHaveBeenCalledWith(
       expect.objectContaining({
         maxOutputTokens: 1000,

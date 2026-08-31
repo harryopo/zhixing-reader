@@ -13,13 +13,15 @@ export const tokenUsageDb = {
     feature: string;
     inputTokens: number;
     outputTokens: number;
+    cachedTokens?: number;
     durationMs?: number;
   }): void {
     const id = `token_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const totalTokens = usage.inputTokens + usage.outputTokens;
+    const cachedTokens = Math.min(usage.cachedTokens ?? 0, usage.inputTokens);
     getDatabase().run(
-      `INSERT INTO token_usage (id, provider, model, feature, input_tokens, output_tokens, total_tokens, duration_ms)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO token_usage (id, provider, model, feature, input_tokens, output_tokens, total_tokens, cached_tokens, duration_ms)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         usage.provider,
@@ -28,6 +30,7 @@ export const tokenUsageDb = {
         usage.inputTokens,
         usage.outputTokens,
         totalTokens,
+        cachedTokens,
         usage.durationMs || 0,
       ]
     );
@@ -60,6 +63,7 @@ export const tokenUsageDb = {
         COUNT(*) as request_count,
         SUM(input_tokens) as total_input_tokens,
         SUM(output_tokens) as total_output_tokens,
+        SUM(cached_tokens) as total_cached_tokens,
         SUM(total_tokens) as total_tokens,
         SUM(duration_ms) as total_duration_ms
       FROM token_usage
@@ -107,6 +111,7 @@ export const tokenUsageDb = {
     totalInputTokens: number;
     totalOutputTokens: number;
     totalTokens: number;
+    totalCachedTokens: number;
   } {
     const execScalar = (sql: string): number => {
       const result = getDatabase().exec(sql);
@@ -118,6 +123,7 @@ export const tokenUsageDb = {
       totalInputTokens: execScalar('SELECT COALESCE(SUM(input_tokens), 0) FROM token_usage'),
       totalOutputTokens: execScalar('SELECT COALESCE(SUM(output_tokens), 0) FROM token_usage'),
       totalTokens: execScalar('SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage'),
+      totalCachedTokens: execScalar('SELECT COALESCE(SUM(cached_tokens), 0) FROM token_usage'),
     };
   },
 

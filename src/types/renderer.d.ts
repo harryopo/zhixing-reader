@@ -5,6 +5,8 @@ export interface TokenSummary {
   totalInputTokens: number
   totalOutputTokens: number
   totalTokens: number
+  /** 前缀缓存命中的输入 tokens（按缓存折扣价计费），用于命中率观测 */
+  totalCachedTokens: number
 }
 
 /** 到期复习卡片（FSRS 调度字段 + 划线内容） */
@@ -36,6 +38,7 @@ export interface TokenRecord {
   input_tokens: number
   output_tokens: number
   total_tokens: number
+  cached_tokens: number
   cost_usd: number
   duration_ms: number
   created_at: string

@@ -294,7 +294,11 @@ export default function TokenUsagePage() {
     const filteredRecords = records.filter((r) => new Date(r.created_at) >= cutoff)
     const totalCostUsd = filteredRecords.reduce((s, r) => s + (r.cost_usd || 0), 0)
     const avgTokens = totalRequests > 0 ? Math.round(totalTokens / totalRequests) : 0
-    return { totalTokens, totalRequests, totalCostUsd, avgTokens }
+    // 缓存命中率 = 命中输入 tokens / 总输入 tokens（前缀缓存友好化的核心观测指标）
+    const totalInput = filteredRecords.reduce((s, r) => s + (r.input_tokens || 0), 0)
+    const cachedTokens = filteredRecords.reduce((s, r) => s + (r.cached_tokens || 0), 0)
+    const cachedHitRate = totalInput > 0 ? Math.round((cachedTokens / totalInput) * 100) : 0
+    return { totalTokens, totalRequests, totalCostUsd, avgTokens, cachedHitRate }
   }, [chartDailyStats, records, timeRange])
 
   // 模型分布：聚合 providerStats，按显示名分组，取前 3 + 其他
@@ -577,7 +581,11 @@ export default function TokenUsagePage() {
           <Card interactive>
             <div style={eyebrowStyle}>{getUsageEyebrow(timeRange)}</div>
             <Metric value={formatTokens(kpi.totalTokens)} />
-            <Trend kind="default">{formatTokensFull(kpi.totalTokens)} tokens</Trend>
+            <Trend kind={kpi.cachedHitRate > 0 ? 'up' : 'default'}>
+              {kpi.cachedHitRate > 0
+                ? `↑ 缓存命中 ${kpi.cachedHitRate}%`
+                : `${formatTokensFull(kpi.totalTokens)} tokens`}
+            </Trend>
           </Card>
 
           <Card interactive>

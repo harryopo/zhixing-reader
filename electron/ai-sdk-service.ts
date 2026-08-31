@@ -112,11 +112,17 @@ function getModel() {
 /**
  * 聊天流式用量落库 — 修复 Token 统计主链路断裂（streamChat 从不记账）。
  * 0 用量（中断/无输出）不记录，避免垃圾数据。
+ * cachedTokens：服务商前缀缓存命中的输入 tokens（DeepSeek prompt_cache_hit_tokens /
+ * 火山 cached_tokens），按缓存折扣价计费，是命中率观测的基础数据。
  */
-function recordChatUsage(durationMs: number, usage?: { promptTokens: number; completionTokens: number }): void {
+function recordChatUsage(
+  durationMs: number,
+  usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number },
+): void {
   try {
     const inputTokens = usage?.promptTokens ?? 0;
     const outputTokens = usage?.completionTokens ?? 0;
+    const cachedTokens = Math.min(usage?.cachedTokens ?? 0, inputTokens);
     if (inputTokens + outputTokens <= 0) return;
     if (!config) return;
     tokenUsageDb.create({
@@ -125,6 +131,7 @@ function recordChatUsage(durationMs: number, usage?: { promptTokens: number; com
       feature: 'chat',
       inputTokens,
       outputTokens,
+      cachedTokens,
       durationMs,
     });
   } catch (err) {
@@ -151,7 +158,7 @@ export function cancelActiveStream(): boolean {
 export async function sdkStreamChat(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   onChunk: (chunk: string) => void,
-  onComplete: (usage?: { promptTokens: number; completionTokens: number }) => void,
+  onComplete: (usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number }) => void,
   onError: (error: Error) => void,
   _options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void },
 ): Promise<void> {
@@ -185,7 +192,7 @@ export async function sdkStreamChat(
   const startedAt = Date.now();
 
   let completed = false;
-  const safeComplete = (usage?: { promptTokens: number; completionTokens: number }) => {
+  const safeComplete = (usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number }) => {
     if (completed) return;
     completed = true;
     recordChatUsage(Date.now() - startedAt, usage);
@@ -227,18 +234,31 @@ export async function sdkStreamChat(
     // 获取用量
     let promptTokens = 0;
     let completionTokens = 0;
+    let cachedTokens = 0;
     if (hasOutput) {
       try {
         const usage = await result.usage;
         promptTokens = usage?.inputTokens ?? 0;
         completionTokens = usage?.outputTokens ?? 0;
-        logger.info('streamText usage', { promptTokens, completionTokens })
+        // 缓存命中字段：AI SDK 统一字段为 cachedInputTokens（openai-compatible
+        // 会映射 DeepSeek prompt_cache_hit_tokens / 火山 cached_tokens），
+        // 不同 provider 版本字段可能缺失，逐级兜底读取
+        const usageRecord = usage as unknown as {
+          cachedInputTokens?: number;
+          providerMetadata?: Record<string, { cachedPromptTokens?: number }>;
+        };
+        cachedTokens =
+          usageRecord?.cachedInputTokens ??
+          usageRecord?.providerMetadata?.custom?.cachedPromptTokens ??
+          usageRecord?.providerMetadata?.openai?.cachedPromptTokens ??
+          0;
+        logger.info('streamText usage', { promptTokens, completionTokens, cachedTokens })
       } catch (e) {
         logger.warn('Failed to get streamText usage', { error: e instanceof Error ? e.message : String(e) })
       }
     }
 
-    safeComplete({ promptTokens, completionTokens });
+    safeComplete({ promptTokens, completionTokens, cachedTokens });
   } catch (error) {
     if (signal.aborted) {
       logger.info('sdkStreamChat aborted by signal')

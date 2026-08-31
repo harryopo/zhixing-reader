@@ -4,7 +4,7 @@ import { classifyIntent } from './intent-classifier'
 import { selectStrategy, strategyToPromptHint, BloomLevel } from './strategy-selector'
 import { getSystemPrompt } from './system-prompt'
 import { methodologiesDb } from '../database'
-import { getOrCreateState, updateConceptMastery, adjustDifficulty, clearState } from './state-tracker'
+import { getOrCreateState, updateConceptMastery, adjustDifficulty, clearState as clearTrackerState } from './state-tracker'
 import { extractMemoriesFromConversation } from '../services/memory-service'
 import { getPromptTemplate } from '../services/prompt-storage'
 import { ContextManager } from './context-manager'
@@ -28,6 +28,84 @@ contextManager.registerBuilder(new MethodologyContextBuilder())
 contextManager.registerBuilder(new KnowledgeCardContextBuilder())
 contextManager.registerBuilder(new MemoryContextBuilder())
 contextManager.registerBuilder(new UserProfileContextBuilder())
+
+// ============================================================================
+// 会话级 wire 历史视图 —— 服务商前缀缓存命中的关键
+//
+// DeepSeek/豆包等对「请求前缀逐字节一致」的部分按缓存价计费（DeepSeek 命中价
+// 约为全价的 0.8%-2%，豆包 20%）。要做到跨轮命中：
+//   1. system prompt 必须逐字节稳定（策略/难度/掌握概念等每轮变化的内容
+//      移到本轮 user 消息开头，不再拼进 system）；
+//   2. 历史消息必须原样重发上一轮实际发送的字节（而非从 DB 重建的原始消息
+//      ——上轮实际发送的 user 是「教学提示+阅读资料+问题」的包装版）；
+//   3. 历史只增不减：滑动窗口裁剪头部会让整个前缀失效，因此用较大的
+//      条数上限代替激进截断，超限时整段放弃缓存（教学成本一次性）。
+// wire 视图仅存内存（会话重启后首轮 miss 重建，属一次性教学成本）。
+// ============================================================================
+
+type WireMsg = { role: 'user' | 'assistant'; content: string }
+
+const WIRE_HISTORY_LIMIT = 40
+const WIRE_SESSION_LIMIT = 100
+
+const wireHistoryCache = new Map<string, WireMsg[]>()
+
+/** 获取会话 wire 视图；缺失时用渲染端传入的原始历史重建（重启后首轮，接受一次缓存 miss） */
+function getWireHistory(
+  sessionId: string,
+  fallbackHistory: Array<{ role: string; content: string }>,
+  currentUserMessage: string,
+): WireMsg[] {
+  const cached = wireHistoryCache.get(sessionId)
+  if (cached) return [...cached]
+
+  // 重建：排除渲染端已追加在末尾的本轮 user 消息（其 content 与 userMessage 相同）
+  const withoutCurrent = [...fallbackHistory]
+  const lastIdx = withoutCurrent.length - 1
+  if (
+    lastIdx >= 0 &&
+    withoutCurrent[lastIdx].role === 'user' &&
+    withoutCurrent[lastIdx].content === currentUserMessage
+  ) {
+    withoutCurrent.pop()
+  }
+
+  const wire = withoutCurrent
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content && m.content.trim().length > 0)
+    .slice(-WIRE_HISTORY_LIMIT)
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
+  wireHistoryCache.set(sessionId, wire)
+  return [...wire]
+}
+
+/** 追加本轮实际发送的 user 与 assistant 响应到 wire 视图（保持跨轮逐字节一致） */
+function appendWire(sessionId: string, userWire: string, assistantResponse: string): void {
+  const wire = wireHistoryCache.get(sessionId) ?? []
+  wire.push({ role: 'user', content: userWire })
+  if (assistantResponse && assistantResponse.trim().length > 0) {
+    wire.push({ role: 'assistant', content: assistantResponse })
+  }
+  // 超限：从最老处成对裁剪（前缀失效一次性教学成本，之后重新累积）
+  while (wire.length > WIRE_HISTORY_LIMIT) {
+    wire.shift()
+  }
+  wireHistoryCache.set(sessionId, wire)
+}
+
+/** 清理会话 wire 视图（会话删除/重置时调用，防内存泄漏） */
+function clearWireHistory(sessionId: string): void {
+  wireHistoryCache.delete(sessionId)
+}
+
+/** 全量清理：会话数超上限时 FIFO 淘汰，防内存无限增长 */
+function enforceWireCacheLimit(): void {
+  while (wireHistoryCache.size > WIRE_SESSION_LIMIT) {
+    const oldest = wireHistoryCache.keys().next().value
+    if (oldest === undefined) break
+    wireHistoryCache.delete(oldest)
+  }
+}
 
 function estimateTokenCount(messages: Array<{ role: string; content: string }>): number {
   let total = 0
@@ -159,11 +237,17 @@ function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/** 会话状态清理（state-tracker.clearState 的包装，同时清理 wire 历史视图） */
+export function clearState(sessionId: string): void {
+  clearTrackerState(sessionId)
+  clearWireHistory(sessionId)
+}
+
 export async function processMessageStream(
   context: AgentContext,
   userMessage: string,
   onChunk: (chunk: string) => void,
-  onComplete: (usage?: { promptTokens: number; completionTokens: number }) => void,
+  onComplete: (usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number }) => void,
   onError: (error: Error) => void,
   options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void }
 ): Promise<void> {
@@ -216,7 +300,11 @@ export async function processMessageStream(
     totalLength: combinedContext.length,
   })
 
-  // 4. 构建系统提示
+  // 4. system prompt 保持逐字节静态（前缀缓存的前提）：
+  //    策略提示 / 难度提示 / 掌握概念这些每轮变化的内容全部移到本轮 user 消息。
+  const systemPrompt = getSystemPrompt()
+
+  // 5. 组装本轮 user 消息（wire 版本：该字节串将作为「本轮实际发送内容」进入 wire 视图）
   const strategyHint = strategyToPromptHint(strategy)
   const difficultyHint = buildDifficultyHint(difficultyAdjustment)
   const masteredConcepts = Array.from(sessionState.conceptStates.entries())
@@ -224,37 +312,34 @@ export async function processMessageStream(
     .map(([name]) => name)
 
   const masteryContext = masteredConcepts.length > 0
-    ? `\n用户已掌握的概念：${masteredConcepts.join('、')}。可以在此基础上深入或关联。`
+    ? `用户已掌握的概念：${masteredConcepts.join('、')}。可以在此基础上深入或关联。`
     : ''
 
-  // system prompt 只包含人设、策略、难度、掌握概念，不包含 combinedContext
-  const systemPromptWithStrategy = getSystemPrompt() + strategyHint + difficultyHint + masteryContext
+  const hintBlock = [strategyHint, difficultyHint, masteryContext].filter((s) => s && s.trim()).join('\n')
 
-  // 5. 构建消息
-  // 清洗 conversationHistory，过滤空内容/无效角色
-  const cleanedHistory = context.conversationHistory
-    .slice(-8)
-    .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-    .filter(m => m.content && String(m.content).trim().length > 0)
+  const notesBlock = combinedContext.trim().length > 0
+    ? `我的阅读笔记和相关资料：\n${combinedContext}`
+    : '当前没有提供阅读笔记。请基于你已有的知识回答，并明确告知用户你没有笔记可引用，如果用户需要基于笔记的回答请选择书籍后再提问。'
+
+  const userWire = [hintBlock, notesBlock, `问题：${userMessage}`].filter((s) => s && s.trim()).join('\n\n')
+
+  // 6. 组装消息：[静态 system] + [wire 历史原样重发] + [本轮 user]
+  //    历史 wire 视图保证与上一轮实际发送的字节一致 → 服务商前缀缓存命中
+  const wireHistory = getWireHistory(context.sessionId, context.conversationHistory, userMessage)
 
   const messages = [
-    { role: 'system' as const, content: systemPromptWithStrategy },
-    ...cleanedHistory,
-    {
-      role: 'user' as const,
-      content: combinedContext.trim().length > 0
-        ? `我的阅读笔记和相关资料：\n${combinedContext}\n\n问题：${userMessage}`
-        : `问题：${userMessage}\n\n当前没有提供阅读笔记。请基于你已有的知识回答，并明确告知用户你没有笔记可引用，如果用户需要基于笔记的回答请选择书籍后再提问。`
-    },
+    { role: 'system' as const, content: systemPrompt },
+    ...wireHistory,
+    { role: 'user' as const, content: userWire },
   ]
 
-  // 6. 发送消息和处理响应
+  // 7. 发送消息和处理响应
   const estimatedTokens = estimateTokenCount(messages)
   logger.info('Token estimate', { estimatedInputTokens: estimatedTokens })
   logger.info('Sending messages to LLM', {
     messageCount: messages.length,
+    wireLength: wireHistory.length,
     roles: messages.map(m => m.role),
-    contents: messages.map(m => ({ role: m.role, length: m.content.length, preview: m.content.slice(0, 120) })),
   })
 
   let fullResponse = ''
@@ -266,7 +351,11 @@ export async function processMessageStream(
   }
 
   const originalOnComplete = onComplete
-  const wrappedOnComplete = (usage?: { promptTokens: number; completionTokens: number }) => {
+  const wrappedOnComplete = (usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number }) => {
+    // wire 视图记录本轮实际发送的 user 与 assistant 响应（下一轮原样重发 → 前缀缓存命中）
+    appendWire(context.sessionId, userWire, fullResponse)
+    enforceWireCacheLimit()
+
     const concept = extractConceptFromMessage(userMessage)
     const isCorrect = assessResponseQuality(userMessage, fullResponse)
     updateConceptMastery(context.sessionId, concept, isCorrect)
@@ -275,6 +364,7 @@ export async function processMessageStream(
       concept,
       isCorrect,
       sessionId: context.sessionId,
+      cachedTokens: usage?.cachedTokens ?? 0,
     })
 
     if (context.bookId) {
@@ -297,5 +387,3 @@ export async function processMessageStream(
     onReasoningChunk: options?.onReasoningChunk,
   })
 }
-
-export { clearState }

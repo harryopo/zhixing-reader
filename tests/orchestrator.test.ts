@@ -310,7 +310,9 @@ describe('orchestrator — processMessageStream 编排逻辑', () => {
     expect(mockMethodologiesDb.getByBookId).not.toHaveBeenCalled()
   })
 
-  it('对话历史被截断到最近 8 条传给 LLM', async () => {
+  it('对话历史以 wire 视图原样传给 LLM（上限 40 条，替代旧 8 条截断）', async () => {
+    // 清理前序测试累积的 wire 缓存（模块级 Map，sessionId 复用）
+    clearState('s1')
     let capturedMessages: Array<{ role: string; content: string }> = []
     mockStreamChat.mockImplementation(
       async (messages: Array<{ role: string; content: string }>) => {
@@ -328,10 +330,36 @@ describe('orchestrator — processMessageStream 编排逻辑', () => {
       () => {},
       () => {},
     )
-    // system + 最近8条历史 + 1条新user = 10
-    expect(capturedMessages).toHaveLength(10)
+    // system + 15 条 wire 历史（原样重发，≤40 不裁剪）+ 1 条新 user = 17
+    expect(capturedMessages).toHaveLength(17)
     expect(capturedMessages[0].role).toBe('system')
+    expect(capturedMessages[1]).toEqual({ role: 'user', content: 'msg0' })
     expect(capturedMessages[capturedMessages.length - 1].content).toContain('新问题')
+  })
+
+  it('对话历史超过 40 条时 wire 视图裁剪到上限', async () => {
+    clearState('s1')
+    let capturedMessages: Array<{ role: string; content: string }> = []
+    mockStreamChat.mockImplementation(
+      async (messages: Array<{ role: string; content: string }>) => {
+        capturedMessages = messages
+      },
+    )
+    const history = Array.from({ length: 50 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `msg${i}`,
+    }))
+    await processMessageStream(
+      { sessionId: 's1', conversationHistory: history },
+      '新问题',
+      () => {},
+      () => {},
+      () => {},
+    )
+    // system + 40 条 wire（裁剪到上限）+ 1 条新 user = 42
+    expect(capturedMessages).toHaveLength(42)
+    // 裁剪后最老一条是 msg10（50 - 40）
+    expect(capturedMessages[1].content).toBe('msg10')
   })
 
   it('clearState 导出（清理会话）', () => {

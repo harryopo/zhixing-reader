@@ -114,6 +114,7 @@ export function initializeSchema(db: import('sql.js').Database): void {
       input_tokens INTEGER DEFAULT 0,
       output_tokens INTEGER DEFAULT 0,
       total_tokens INTEGER DEFAULT 0,
+      cached_tokens INTEGER DEFAULT 0,
       cost_usd REAL DEFAULT 0,
       duration_ms INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
@@ -311,6 +312,9 @@ export async function initDatabase(): Promise<void> {
   // 数据库迁移：为 chat_messages 表新增 liked / bookmarked 字段（点赞/收藏）
   migrateChatMessagesTable();
 
+  // 数据库迁移：为 token_usage 表新增 cached_tokens 字段（前缀缓存命中率观测）
+  migrateTokenUsageTable();
+
   saveDatabase();
   logger.info(`Database connected: ${dbPath}`);
   logger.info('Database initialized successfully');
@@ -411,6 +415,23 @@ function migrateChatMessagesTable(): void {
     }
   } catch (error) {
     logger.error('Migration failed for chat_messages table', { error: String(error) });
+  }
+}
+
+// token_usage 表迁移：添加 cached_tokens 字段（服务商前缀缓存命中 tokens）
+// 用于观测缓存命中率——命中率优化是 token 成本下降的核心度量
+function migrateTokenUsageTable(): void {
+  try {
+    const database = getDatabase();
+    const cols = database.exec("PRAGMA table_info(token_usage)");
+    const colNames = rowsToObjects(cols).map((c: Record<string, unknown>) => c.name as string);
+
+    if (!colNames.includes('cached_tokens')) {
+      database.run("ALTER TABLE token_usage ADD COLUMN cached_tokens INTEGER DEFAULT 0");
+      logger.info('Migration: added cached_tokens column to token_usage table');
+    }
+  } catch (error) {
+    logger.error('Migration failed for token_usage table', { error: String(error) });
   }
 }
 

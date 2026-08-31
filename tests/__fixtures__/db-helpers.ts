@@ -111,6 +111,7 @@ export function runSchema(db: Database): void {
       input_tokens INTEGER DEFAULT 0,
       output_tokens INTEGER DEFAULT 0,
       total_tokens INTEGER DEFAULT 0,
+      cached_tokens INTEGER DEFAULT 0,
       cost_usd REAL DEFAULT 0,
       duration_ms INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
