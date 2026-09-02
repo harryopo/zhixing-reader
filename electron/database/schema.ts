@@ -128,7 +128,8 @@ export function initializeSchema(db: import('sql.js').Database): void {
       book_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      message_count INTEGER NOT NULL DEFAULT 0
+      message_count INTEGER NOT NULL DEFAULT 0,
+      history_summary TEXT
     );
   `);
 
@@ -315,6 +316,9 @@ export async function initDatabase(): Promise<void> {
   // 数据库迁移：为 token_usage 表新增 cached_tokens 字段（前缀缓存命中率观测）
   migrateTokenUsageTable();
 
+  // 数据库迁移：为 conversations 表新增 history_summary 字段（滚动摘要，Token 优化 Step 3）
+  migrateConversationsTable();
+
   saveDatabase();
   logger.info(`Database connected: ${dbPath}`);
   logger.info('Database initialized successfully');
@@ -432,6 +436,23 @@ function migrateTokenUsageTable(): void {
     }
   } catch (error) {
     logger.error('Migration failed for token_usage table', { error: String(error) });
+  }
+}
+
+// conversations 表迁移：添加 history_summary 字段（滚动摘要，Token 优化 Step 3）
+// 长会话把滑动窗口外的更早轮次增量摘要为一段，持久化于此列，跨重启保留上下文
+function migrateConversationsTable(): void {
+  try {
+    const database = getDatabase();
+    const cols = database.exec("PRAGMA table_info(conversations)");
+    const colNames = rowsToObjects(cols).map((c: Record<string, unknown>) => c.name as string);
+
+    if (!colNames.includes('history_summary')) {
+      database.run("ALTER TABLE conversations ADD COLUMN history_summary TEXT");
+      logger.info('Migration: added history_summary column to conversations table');
+    }
+  } catch (error) {
+    logger.error('Migration failed for conversations table', { error: String(error) });
   }
 }
 

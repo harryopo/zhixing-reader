@@ -2,7 +2,7 @@
  * AI SDK Service — 基于 Vercel AI SDK 的流式/结构化 LLM 调用
  * 逐步替换 ai-service.ts（1441 行）的 fetch + SSE 手写代码
  */
-import { streamText, generateObject } from 'ai';
+import { streamText, generateText, generateObject } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { z } from 'zod';
 import { logger } from './logger';
@@ -299,5 +299,57 @@ export async function sdkGenerateObject<T>(
   });
 
   return result.object;
+}
+
+/** 非流式补全用量落库（与 recordChatUsage 同机制，feature 区分）：0 用量不记，失败不报错 */
+function recordGenerateUsage(
+  usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
+  feature: string,
+  durationMs: number,
+): void {
+  const inputTokens = usage?.inputTokens ?? 0;
+  const outputTokens = usage?.outputTokens ?? 0;
+  if (inputTokens + outputTokens <= 0 || !config) return;
+  try {
+    tokenUsageDb.create({
+      provider: config.provider,
+      model: config.model || 'default',
+      feature,
+      inputTokens,
+      outputTokens,
+      cachedTokens: Math.min(usage?.cachedInputTokens ?? 0, inputTokens),
+      durationMs,
+    });
+  } catch (err) {
+    logger.warn('Failed to record generateText usage', { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+/**
+ * 非流式文本补全 — 用于离线/内部任务（历史滚动摘要等）。
+ * 用量按 feature 落库（默认 'summary'），便于观测摘要成本、核算净节省。
+ */
+export async function sdkGenerateText(
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  options?: { maxOutputTokens?: number; temperature?: number; feature?: string; signal?: AbortSignal },
+): Promise<string> {
+  if (!config) throw new Error('AI SDK not configured');
+  const normalizedMessages = normalizeMessages(messages);
+  const startedAt = Date.now();
+  const result = await generateText({
+    model: getModel(),
+    messages: normalizedMessages,
+    maxOutputTokens: options?.maxOutputTokens ?? 500,
+    temperature: options?.temperature ?? 0.3,
+    abortSignal: options?.signal,
+  });
+
+  recordGenerateUsage(
+    result.usage as { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
+    options?.feature ?? 'summary',
+    Date.now() - startedAt,
+  );
+
+  return result.text;
 }
 

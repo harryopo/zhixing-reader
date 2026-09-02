@@ -15,6 +15,8 @@ const {
   mockGetSystemPrompt,
   mockExtractMemories,
   mockMethodologiesDb,
+  mockConversationDb,
+  mockSummarize,
 } = vi.hoisted(() => ({
   mockStreamChat: vi.fn(),
   mockClassifyIntent: vi.fn(),
@@ -22,6 +24,8 @@ const {
   mockGetSystemPrompt: vi.fn(),
   mockExtractMemories: vi.fn(),
   mockMethodologiesDb: { getByBookId: vi.fn(() => []), update: vi.fn() },
+  mockConversationDb: { getHistorySummary: vi.fn(() => null), setHistorySummary: vi.fn() },
+  mockSummarize: vi.fn(),
 }))
 
 vi.mock('../electron/ai-sdk-service', () => ({
@@ -68,6 +72,12 @@ vi.mock('../electron/services/prompt-storage', () => ({
 
 vi.mock('../electron/database', () => ({
   methodologiesDb: mockMethodologiesDb,
+  conversationDb: mockConversationDb,
+}))
+
+// 历史滚动摘要器（Step 3）：默认返回空串（不折叠），折叠行为在具体用例内单独驱动
+vi.mock('../electron/agent/history-summarizer', () => ({
+  summarizeHistoryIncremental: mockSummarize,
 }))
 
 // ContextManager 用真实实现，但注册的 builder 用 stub
@@ -138,6 +148,8 @@ describe('orchestrator — processMessageStream 编排逻辑', () => {
       },
     )
     mockExtractMemories.mockImplementation(() => {})
+    // 默认不折叠：返回空 → ensureSummaryFresh 视为无变化，wire 不 trim
+    mockSummarize.mockResolvedValue('')
   })
 
   it('正常流程：分类→策略→上下文→流式→完成', async () => {
@@ -360,6 +372,66 @@ describe('orchestrator — processMessageStream 编排逻辑', () => {
     expect(capturedMessages).toHaveLength(42)
     // 裁剪后最老一条是 msg10（50 - 40）
     expect(capturedMessages[1].content).toBe('msg10')
+  })
+
+  it('wire 历史超阈值时折叠最老轮次进摘要并注入 system 块（Step 3）', async () => {
+    clearState('s1')
+    mockConversationDb.getHistorySummary.mockReturnValue(null)
+    mockSummarize.mockResolvedValue('用户目标：理解元认知。已确认事实：X。')
+    let capturedMessages: Array<{ role: string; content: string }> = []
+    mockStreamChat.mockImplementation(
+      async (messages: Array<{ role: string; content: string }>) => {
+        capturedMessages = messages
+      },
+    )
+    // 30 条历史（≤40 不触发 wire 裁剪，但 >24 触发摘要折叠）
+    const history = Array.from({ length: 30 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `msg${i}`,
+    }))
+    await processMessageStream(
+      { sessionId: 's1', conversationHistory: history },
+      '新问题',
+      () => {},
+      () => {},
+      () => {},
+    )
+    // 折叠：keep 12 → toFold = 前 18 条；wire trim 到 msg18..msg29（12 条）
+    // messages = system(主) + system(摘要) + 12 wire + 1 user = 15
+    expect(capturedMessages).toHaveLength(15)
+    expect(capturedMessages[0].role).toBe('system')
+    expect(capturedMessages[1].role).toBe('system')
+    expect(capturedMessages[1].content).toContain('滚动摘要')
+    expect(capturedMessages[1].content).toContain('用户目标：理解元认知')
+    // 折叠后 wire 最老一条是 msg18（30 - 12）
+    expect(capturedMessages[2].content).toBe('msg18')
+    // 摘要持久化到 DB
+    expect(mockConversationDb.setHistorySummary).toHaveBeenCalledWith(
+      's1',
+      '用户目标：理解元认知。已确认事实：X。',
+    )
+  })
+
+  it('已有持久化摘要时（重启后）即使未超阈值也注入摘要块', async () => {
+    clearState('s1')
+    mockConversationDb.getHistorySummary.mockReturnValue('早期对话的摘要：用户在读《认知觉醒》。')
+    let capturedMessages: Array<{ role: string; content: string }> = []
+    mockStreamChat.mockImplementation(
+      async (messages: Array<{ role: string; content: string }>) => {
+        capturedMessages = messages
+      },
+    )
+    await processMessageStream(
+      { sessionId: 's1', conversationHistory: [] },
+      '继续上次的话题',
+      () => {},
+      () => {},
+      () => {},
+    )
+    // system(主) + system(持久摘要) + 0 wire + 1 user = 3
+    expect(capturedMessages).toHaveLength(3)
+    expect(capturedMessages[1].role).toBe('system')
+    expect(capturedMessages[1].content).toContain('用户在读《认知觉醒》')
   })
 
   it('clearState 导出（清理会话）', () => {

@@ -420,4 +420,24 @@ describe('database-persistence — 持久化与生命周期', () => {
       expect(conversationDb.getMessages(convId)).toHaveLength(0)
     })
   })
+
+  // ==========================================================================
+  // Step 3: conversations.history_summary 滚动摘要持久化
+  // ==========================================================================
+  describe('conversationDb history_summary (Step 3)', () => {
+    it('setHistorySummary/getHistorySummary 往返一致，默认 null', () => {
+      const conv = conversationDb.create('摘要会话')
+      const convId = String(conv.id)
+      expect(conversationDb.getHistorySummary(convId)).toBeNull()
+      conversationDb.setHistorySummary(convId, '用户目标：理解 FSRS。')
+      expect(conversationDb.getHistorySummary(convId)).toBe('用户目标：理解 FSRS。')
+      // 增量更新覆盖
+      conversationDb.setHistorySummary(convId, '用户目标：理解 FSRS。已决定：每天复习。')
+      expect(conversationDb.getHistorySummary(convId)).toContain('每天复习')
+    })
+
+    it('不存在的会话 getHistorySummary 返回 null', () => {
+      expect(conversationDb.getHistorySummary('conv_不存在')).toBeNull()
+    })
+  })
 })

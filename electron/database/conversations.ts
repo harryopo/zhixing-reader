@@ -108,6 +108,24 @@ export const conversationDb = {
     return rowsToObjects(result);
   },
 
+  // 滚动摘要（Token 优化 Step 3）：读取会话历史摘要（跨重启持久）
+  getHistorySummary(conversationId: string): string | null {
+    const rows = rowsToObjects(getDatabase().exec(
+      'SELECT history_summary FROM conversations WHERE id = ?', [conversationId]
+    ));
+    const val = rows[0]?.history_summary;
+    return val != null ? String(val) : null;
+  },
+
+  // 滚动摘要：写入/更新会话历史摘要（增量更新，非每次重算）
+  setHistorySummary(conversationId: string, summary: string): void {
+    getDatabase().run(
+      'UPDATE conversations SET history_summary = ? WHERE id = ?',
+      [summary, conversationId]
+    );
+    saveDatabase();
+  },
+
   search(keyword: string): Record<string, unknown>[] {
     const pattern = `%${keyword}%`;
     const result = getDatabase().exec(

@@ -3,7 +3,8 @@ import { logger } from '../logger'
 import { classifyIntent } from './intent-classifier'
 import { selectStrategy, strategyToPromptHint, BloomLevel } from './strategy-selector'
 import { getSystemPrompt } from './system-prompt'
-import { methodologiesDb } from '../database'
+import { methodologiesDb, conversationDb } from '../database'
+import { summarizeHistoryIncremental } from './history-summarizer'
 import { getOrCreateState, updateConceptMastery, adjustDifficulty, clearState as clearTrackerState } from './state-tracker'
 import { extractMemoriesFromConversation } from '../services/memory-service'
 import { getPromptTemplate } from '../services/prompt-storage'
@@ -105,6 +106,74 @@ function enforceWireCacheLimit(): void {
     if (oldest === undefined) break
     wireHistoryCache.delete(oldest)
   }
+}
+
+// ============================================================================
+// 滚动摘要（Token 优化 Step 3）—— 与 wire 视图协同
+//
+// wire 历史超阈值时，把最老轮次「增量折叠」进持久化摘要（conversations.history_summary），
+// 摘要作为固定位置的 system 块注入。收益：① 原文历史被限制在最近若干轮 → 长会话
+// 输入 token 不再线性膨胀；② 摘要持久化 → 跨重启保留早期上下文（wire 仅存内存，重启
+// 后只能从渲染端最近几条重建）。折叠时前缀变化属一次性教学成本，与 wire 超限裁剪同源；
+// 折叠之间 wire 追加式增长 → 前缀缓存持续命中。
+// ============================================================================
+
+const SUMMARY_TRIGGER_COUNT = 24   // wire 超过此条数触发折叠（约 12 轮）
+const SUMMARY_KEEP_RECENT = 12     // 折叠后保留最近条数（约 6 轮原文）
+const SUMMARY_TIMEOUT_MS = 20000   // 摘要调用超时保护（在响应前 await，防挂起阻塞对话）
+
+const summaryCache = new Map<string, string>()
+
+/**
+ * 确保会话摘要最新：wire 历史超阈值时把最老轮次折叠进摘要并 trim。
+ * 摘要失败/超时则保留 wire 不动（下轮再试），绝不「已 trim 但摘要缺失」丢上下文。
+ * 在组装消息前 await 调用（同步折叠，避免与 appendWire 的竞态）。
+ */
+async function ensureSummaryFresh(sessionId: string): Promise<void> {
+  // 摘要缓存缺失（首轮/重启后）时从 DB 恢复持久化摘要
+  if (!summaryCache.has(sessionId)) {
+    let persisted: string | null = null
+    try {
+      persisted = conversationDb.getHistorySummary(sessionId)
+    } catch {
+      persisted = null
+    }
+    summaryCache.set(sessionId, persisted ?? '')
+  }
+
+  const wire = wireHistoryCache.get(sessionId)
+  if (!wire || wire.length <= SUMMARY_TRIGGER_COUNT) return
+
+  const keepRecent = Math.min(SUMMARY_KEEP_RECENT, wire.length - 1)
+  const toFold = wire.slice(0, wire.length - keepRecent)
+  if (toFold.length === 0) return
+
+  const existing = summaryCache.get(sessionId) ?? ''
+  let updated: string
+  try {
+    updated = await summarizeHistoryIncremental(existing, toFold, AbortSignal.timeout(SUMMARY_TIMEOUT_MS))
+  } catch (err) {
+    logger.warn('History summary skipped', { error: String(err) })
+    return
+  }
+  // 摘要失败/无变化：保留 wire 不动，下轮再试
+  if (!updated || !updated.trim() || updated === existing) return
+
+  summaryCache.set(sessionId, updated)
+  try {
+    conversationDb.setHistorySummary(sessionId, updated)
+  } catch (err) {
+    logger.warn('Failed to persist history summary', { error: String(err) })
+  }
+  // trim 已折叠进摘要的最老轮次
+  wireHistoryCache.set(sessionId, wire.slice(wire.length - keepRecent))
+  logger.info('History summary folded', {
+    sessionId,
+    foldedCount: toFold.length,
+    wireBefore: wire.length,
+    wireAfter: wire.length - keepRecent,
+    summaryLength: updated.length,
+  })
 }
 
 function estimateTokenCount(messages: Array<{ role: string; content: string }>): number {
@@ -241,6 +310,7 @@ function escapeRegExp(string: string): string {
 export function clearState(sessionId: string): void {
   clearTrackerState(sessionId)
   clearWireHistory(sessionId)
+  summaryCache.delete(sessionId)
 }
 
 export async function processMessageStream(
@@ -323,12 +393,19 @@ export async function processMessageStream(
 
   const userWire = [hintBlock, notesBlock, `问题：${userMessage}`].filter((s) => s && s.trim()).join('\n\n')
 
-  // 6. 组装消息：[静态 system] + [wire 历史原样重发] + [本轮 user]
-  //    历史 wire 视图保证与上一轮实际发送的字节一致 → 服务商前缀缓存命中
-  const wireHistory = getWireHistory(context.sessionId, context.conversationHistory, userMessage)
+  // 6. 组装消息：[静态 system] + [滚动摘要 system（若有）] + [wire 历史原样重发] + [本轮 user]
+  //    摘要与 wire 视图均字节稳定（仅折叠时变化）→ 共同保障服务商前缀缓存命中
+  getWireHistory(context.sessionId, context.conversationHistory, userMessage)  // 确保 wire 缓存已填充（重启后首轮重建）
+  await ensureSummaryFresh(context.sessionId)  // 超阈值则折叠最老轮次进摘要并 trim wire（同步，避免竞态）
+  const wireHistory = wireHistoryCache.get(context.sessionId) ?? []
+  const historySummary = (summaryCache.get(context.sessionId) ?? '').trim()
+  const summaryBlock = historySummary
+    ? `【更早对话的滚动摘要（原文已折叠，供参考，勿机械复述）】\n${historySummary}`
+    : ''
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
+    ...(summaryBlock ? [{ role: 'system' as const, content: summaryBlock }] : []),
     ...wireHistory,
     { role: 'user' as const, content: userWire },
   ]

@@ -125,7 +125,8 @@ export function runSchema(db: Database): void {
       book_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      message_count INTEGER NOT NULL DEFAULT 0
+      message_count INTEGER NOT NULL DEFAULT 0,
+      history_summary TEXT
     );
   `)
 
