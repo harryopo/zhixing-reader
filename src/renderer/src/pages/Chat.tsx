@@ -14,7 +14,7 @@
  *   - Markdown 渲染 + 代码高亮 + 思考过程面板（components/chat/MessageBubble）
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, Fragment } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Button from '@/components/ui/Button'
@@ -23,7 +23,7 @@ import { EmptyState } from '@/components/ui/Feedback'
 import MessageBubble, { RAGSource } from '@/components/chat/MessageBubble'
 import RetrievalPanel from '@/components/chat/RetrievalPanel'
 import SessionDrawer from '@/components/chat/SessionDrawer'
-import ContextBar from '@/components/chat/ContextBar'
+import BookChip from '@/components/chat/BookChip'
 import { useChatStore } from '../stores/chatStore'
 import { toast } from '../stores/toastStore'
 
@@ -94,7 +94,6 @@ export default function Chat() {
 
   const [input, setInput] = useState('')
   const [books, setBooks] = useState<BookRow[]>([])
-  const [loadingContext, setLoadingContext] = useState(true)
   /** 历史会话抽屉开关（原 240px 常驻左栏已收编为 overlay 抽屉） */
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -122,6 +121,8 @@ export default function Chat() {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // 仅流式输出时跟随滚动；回复完成后不再强制跳底（用户可能正在回看知识库面板）
+    if (!streaming) return
     const container = messagesContainerRef.current
     if (!container) return
 
@@ -135,7 +136,7 @@ export default function Chat() {
         behavior: 'smooth',
       })
     }
-  }, [messages, streamingContent])
+  }, [streaming, streamingContent])
 
   // ===== error toast =====
   useEffect(() => {
@@ -146,10 +147,7 @@ export default function Chat() {
   }, [error, clearError])
 
   const loadContextData = async () => {
-    if (!window.electronAPI?.book) {
-      setLoadingContext(false)
-      return
-    }
+    if (!window.electronAPI?.book) return
     try {
       const raw = (await window.electronAPI.book.getAll()) as unknown as BookRow[]
       const list = (raw || []).map((b) => ({
@@ -163,8 +161,6 @@ export default function Chat() {
       setBooks(list)
     } catch (err) {
       console.warn('加载书籍列表失败:', err)
-    } finally {
-      setLoadingContext(false)
     }
   }
 
@@ -265,6 +261,11 @@ export default function Chat() {
           overflow: 'hidden',
         }}
       >
+        {/* 隐藏输入框自适应高度时的滚动条（内容超限时仍可滚，仅去掉视觉滚动条） */}
+        <style>{`
+          .messages-input textarea { scrollbar-width: none; }
+          .messages-input textarea::-webkit-scrollbar { display: none; }
+        `}</style>
 
           {/* ============ 中栏：消息流 ============ */}
           <section
@@ -329,7 +330,22 @@ export default function Chat() {
               >
                 {messages.length} 条消息
               </span>
-              <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                {/* 关联书籍芯片（原底部 ContextBar 上移头部，下拉切换） */}
+                <BookChip
+                  currentBook={currentBook}
+                  books={books}
+                  onSelect={(id) => setCurrentBook(id)}
+                  onClear={() => setCurrentBook(null)}
+                />
                 <IconButtonSmall label="新建会话" onClick={handleNewChat}>
                   <Icon name="plus" size={14} />
                 </IconButtonSmall>
@@ -364,7 +380,12 @@ export default function Chat() {
                 <>
                   {messages.map((message, idx) => {
                     const msgId = message.id
+                    // 最后一条用户提问：其回复前展示调取知识库面板（完成后不跳位）
+                    const isLastUser =
+                      message.role === 'user' &&
+                      !messages.slice(idx + 1).some((m) => m.role === 'user')
                     return (
+                    <Fragment key={msgId || idx}>
                     <MessageBubble
                       key={msgId || idx}
                       role={message.role}
@@ -394,10 +415,11 @@ export default function Chat() {
                           : undefined
                       }
                     />
+                    {/* Agent 调取知识库可视化：紧跟最后一条提问，位于回复之前 */}
+                    {isLastUser && <RetrievalPanel retrieval={retrieval} />}
+                    </Fragment>
                     )
                   })}
-                  {/* Agent 调取知识库可视化（运行时展示各路检索：书籍/卡片/方法论/记忆/画像） */}
-                  <RetrievalPanel retrieval={retrieval} />
                   {streaming && (
                     <MessageBubble
                       role="assistant"
@@ -417,15 +439,6 @@ export default function Chat() {
                 </>
               )}
             </div>
-
-            {/* 关联书籍上下文条（原 280px 右栏收编；无进度条等假数据） */}
-            <ContextBar
-              currentBook={currentBook}
-              books={books}
-              loading={loadingContext}
-              onSelect={(id) => setCurrentBook(id)}
-              onClear={() => setCurrentBook(null)}
-            />
 
             {/* 输入区 */}
             <div

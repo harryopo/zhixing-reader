@@ -14,11 +14,8 @@ export class BookContextBuilder implements ContextBuilder {
   priority = 90
 
   shouldBuild(context: BuildContext): boolean {
-    if (!context.bookId) return false
-    // 只在首次对话或知识查询/深度讨论时注入上下文
-    if (context.conversationHistory.length === 0) return true
-    const intent = context.intent
-    return intent === 'knowledge_query' || intent === 'deep_discussion'
+    // 用户已关联书籍即注入（含闲聊）：此前按意图 gate 导致"选了书却说没提供任何笔记"
+    return !!context.bookId
   }
 
   async build(context: BuildContext): Promise<ContextBuildResult> {

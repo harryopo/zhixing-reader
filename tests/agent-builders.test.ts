@@ -75,10 +75,10 @@ describe('BookContextBuilder', () => {
       ).toBe(true)
     })
 
-    it('有历史且意图为 casual_chat 时返回 false', () => {
+    it('有历史且意图为 casual_chat 时仍返回 true（选书即注入，修复"选了书却说没笔记"）', () => {
       expect(
         builder.shouldBuild(ctxWithBook({ conversationHistory: [{ role: 'user', content: 'x' }], intent: 'casual_chat' })),
-      ).toBe(false)
+      ).toBe(true)
     })
   })
 
