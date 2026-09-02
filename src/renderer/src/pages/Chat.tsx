@@ -260,7 +260,9 @@ export default function Chat() {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            minHeight: 'calc(100vh - 76px - 220px)',
+            /* 固定视口高度：整页不滚动，仅消息流内部滚动 */
+            height: 'calc(100vh - 76px - 220px)',
+            overflow: 'hidden',
           }}
         >
 
@@ -285,6 +287,7 @@ export default function Chat() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 'calc(var(--spacing) * 2)',
+                flexShrink: 0,
               }}
             >
               <button
@@ -433,6 +436,7 @@ export default function Chat() {
                 display: 'flex',
                 gap: 'calc(var(--spacing) * 3)',
                 alignItems: 'flex-end',
+                flexShrink: 0,
               }}
             >
               <div

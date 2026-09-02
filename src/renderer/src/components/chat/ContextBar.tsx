@@ -3,6 +3,7 @@
  *
  * 有关联书：真实书封 40×56 + 书名/作者 + [更换关联][取消关联]，常驻不折叠。
  * 无关联书：虚线引导条，点击弹出书籍选择 popover。
+ * popover：选完自动关闭、点外部关闭；内部滚动。
  * 刻意不做：阅读进度条（同步未写真实进度，展示即假数据——去伪存真）。
  */
 import { useState, type CSSProperties, type ReactNode } from 'react'
@@ -42,16 +43,15 @@ const barStyle: CSSProperties = {
 const pickerStyle: CSSProperties = {
   position: 'absolute',
   right: 0,
-  top: 'calc(100% + 6px)',
-  width: 320,
-  maxHeight: 280,
-  overflowY: 'auto',
+  /* 向上展开：条位于视口底部，向下会被截断 */
+  bottom: 'calc(100% + 6px)',
+  width: 340,
   background: 'var(--card)',
   border: '1px solid var(--border)',
-  borderRadius: 'calc(var(--radius) + 2px)',
-  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+  borderRadius: 12,
+  boxShadow: '0 12px 32px rgba(0, 0, 0, 0.14)',
   zIndex: 30,
-  padding: 6,
+  padding: 8,
 }
 
 const barBtnBase: CSSProperties = {
@@ -157,26 +157,26 @@ function PickerItem({ book, active, onSelect }: { book: ContextBook; active: boo
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 12,
         width: '100%',
-        padding: '8px 10px',
-        border: 'none',
-        borderRadius: 8,
+        padding: '9px 10px',
+        border: '1px solid transparent',
+        borderRadius: 10,
         background: active ? 'var(--sidebar-accent)' : hovered ? 'var(--muted)' : 'transparent',
         color: 'inherit',
         font: 'inherit',
         textAlign: 'left',
         cursor: 'pointer',
-        transition: 'background 0.15s ease',
+        transition: 'background 0.15s ease, border-color 0.15s ease',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Cover cover={book.cover} title={book.title} width={28} height={38} />
+      <Cover cover={book.cover} title={book.title} width={38} height={52} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
-            fontSize: '0.82rem',
+            fontSize: '0.85rem',
             fontWeight: 600,
             color: 'var(--foreground)',
             whiteSpace: 'nowrap',
@@ -188,33 +188,90 @@ function PickerItem({ book, active, onSelect }: { book: ContextBook; active: boo
         </div>
         <Tiny>{book.author || '未知作者'}</Tiny>
       </div>
-      {active && <Icon name="check" size={14} />}
+      {active && (
+        <span
+          aria-label="当前关联"
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: 'var(--primary)',
+            color: 'var(--primary-foreground)',
+            display: 'grid',
+            placeItems: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Icon name="check" size={12} />
+        </span>
+      )}
     </button>
   )
 }
 
-/** 书籍选择 popover（更换 / 首次关联共用） */
-function BookPicker({ books, currentBookId, onSelect }: {
+/** 书籍选择 popover（更换 / 首次关联共用；选完/点外自动关闭） */
+function BookPicker({ books, currentBookId, onSelect, onClose }: {
   books: ContextBook[]
   currentBookId: string | null
   onSelect: (id: string) => void
+  onClose: () => void
 }) {
   return (
-    <div style={pickerStyle} role="listbox" aria-label="选择关联书籍">
-      {books.length === 0 ? (
-        <Tiny>书架为空，请先在书架页同步书籍</Tiny>
-      ) : (
-        books.map((b) => (
-          <PickerItem key={b.id} book={b} active={b.id === currentBookId} onSelect={onSelect} />
-        ))
-      )}
+    <div style={pickerStyle}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '6px 8px 10px',
+          borderBottom: '1px solid var(--border)',
+          marginBottom: 6,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)' }}>
+            选择关联书籍
+          </div>
+          <Tiny>AI 将基于该书的笔记与划线作答</Tiny>
+        </div>
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          aria-label="关闭书籍选择"
+          onClick={onClose}
+          style={{
+            width: 26,
+            height: 26,
+            display: 'grid',
+            placeItems: 'center',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--muted-foreground)',
+            cursor: 'pointer',
+            borderRadius: 6,
+            flexShrink: 0,
+          }}
+        >
+          <Icon name="close" size={14} />
+        </button>
+      </div>
+      <div style={{ maxHeight: 320, overflowY: 'auto', padding: '0 4px 4px' }}>
+        {books.length === 0 ? (
+          <Tiny>书架为空，请先在书架页同步书籍</Tiny>
+        ) : (
+          books.map((b) => (
+            <PickerItem key={b.id} book={b} active={b.id === currentBookId} onSelect={onSelect} />
+          ))
+        )}
+      </div>
     </div>
   )
 }
 
 /** 已关联书籍的展示态 */
-function AssociatedBook({ book, onTogglePicker, onClear }: {
+function AssociatedBook({ book, pickerOpen, onTogglePicker, onClear }: {
   book: ContextBook
+  pickerOpen: boolean
   onTogglePicker: () => void
   onClear: () => void
 }) {
@@ -242,7 +299,7 @@ function AssociatedBook({ book, onTogglePicker, onClear }: {
       <button
         type="button"
         onClick={onTogglePicker}
-        aria-expanded={false}
+        aria-expanded={pickerOpen}
         style={{
           ...barBtnBase,
           display: 'flex',
@@ -282,11 +339,18 @@ export default function ContextBar({ currentBook, books, loading, onSelect, onCl
     )
   }
 
+  /** 选书后自动关闭 popover（此前重构时遗失了关闭逻辑） */
+  const handleSelect = (id: string) => {
+    onSelect(id)
+    setPickerOpen(false)
+  }
+
   return (
     <div style={barStyle}>
       {currentBook ? (
         <AssociatedBook
           book={currentBook}
+          pickerOpen={pickerOpen}
           onTogglePicker={() => setPickerOpen((v) => !v)}
           onClear={onClear}
         />
@@ -325,7 +389,20 @@ export default function ContextBar({ currentBook, books, loading, onSelect, onCl
       )}
 
       {pickerOpen && (
-        <BookPicker books={books} currentBookId={currentBook?.id ?? null} onSelect={onSelect} />
+        <>
+          {/* 透明点击捕获层：点 popover 外任意处关闭 */}
+          <div
+            onClick={() => setPickerOpen(false)}
+            aria-hidden="true"
+            style={{ position: 'fixed', inset: 0, zIndex: 29 }}
+          />
+          <BookPicker
+            books={books}
+            currentBookId={currentBook?.id ?? null}
+            onSelect={handleSelect}
+            onClose={() => setPickerOpen(false)}
+          />
+        </>
       )}
     </div>
   )
