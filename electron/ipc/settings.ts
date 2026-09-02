@@ -6,7 +6,7 @@ import { shell, app } from 'electron';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { settingsService } from '../services/settings-service';
 import { forceSaveDatabase, clearConversationsAndMessages, resetDatabase } from '../database';
-import { clearCache as clearWeReadApiCache } from '../weread-api';
+import { clearCache as clearWeReadApiCache, setApiKey as setWereadApiKey } from '../weread-api';
 import { refreshWereadAutoSyncTimer } from '../weread-sync-manager';
 import { logger } from '../logger';
 import type { HandleFn } from './types';
@@ -15,6 +15,16 @@ export function registerSettingsHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.SETTINGS.GET, (key: string) => settingsService.get(key));
   handle(IPC_CHANNELS.SETTINGS.SET, (key: string, value: unknown) => {
     settingsService.set(key, value);
+    // 微信读书 API Key 变更时立即应用到 weread-api 内存单例：
+    // 否则 getBookshelf 等同步走的是模块内存 apiKey（可能为空/旧值），需重启才生效——
+    // 这正是“测试连接成功（直接传 key）但立即同步报未设置 Key（读内存）”的断层根因
+    if (key === 'wereadApiKey') {
+      try {
+        setWereadApiKey(typeof value === 'string' ? value : '');
+      } catch (e) {
+        logger.warn('Apply wereadApiKey on settings.set failed', { error: String(e) });
+      }
+    }
     // 微信读书自动同步相关字段变更时，触发 main 进程更新定时器
     // （wereadApiKey 也可能影响定时器是否启动——未配置时定时器不会运行）
     if (key === 'wereadAutoSync' || key === 'wereadAutoSyncInterval' || key === 'wereadApiKey') {

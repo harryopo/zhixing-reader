@@ -209,11 +209,19 @@ export default function SettingsWeRead() {
     }
   }, [clearTestResult, wereadApiKey, testWereadConnection])
 
+  // 立即同步/重新同步前，先把当前输入的 API Key 落库并应用到主进程内存，
+  // 避免“测试连接成功但未点保存 → 同步读空的模块 Key”断层（主进程 SETTINGS.SET 会同步 setApiKey）
+  const ensureWereadKeyApplied = useCallback(async () => {
+    if (!wereadApiKey) return
+    await window.electronAPI.settings.set('wereadApiKey', wereadApiKey)
+  }, [wereadApiKey])
+
   const handleSyncNow = useCallback(async () => {
     if (syncing) return
     setSyncing(true)
     const syncToastId = toast.loading('正在同步微信读书书架...')
     try {
+      await ensureWereadKeyApplied()
       const result = await syncBookshelfToDb()
       toast.remove(syncToastId)
       if (result.total === 0) {
@@ -231,13 +239,14 @@ export default function SettingsWeRead() {
     } finally {
       setSyncing(false)
     }
-  }, [syncing])
+  }, [syncing, ensureWereadKeyApplied])
 
   const handleResyncShelf = useCallback(async () => {
     if (resyncingShelf) return
     setResyncingShelf(true)
     const resyncToastId = toast.loading('正在重新同步书架...')
     try {
+      await ensureWereadKeyApplied()
       // 重新同步 = sortByRecent=true，按最近阅读时间排序后写库
       const result = await syncBookshelfToDb({ sortByRecent: true })
       toast.remove(resyncToastId)
@@ -252,7 +261,7 @@ export default function SettingsWeRead() {
     } finally {
       setResyncingShelf(false)
     }
-  }, [resyncingShelf])
+  }, [resyncingShelf, ensureWereadKeyApplied])
 
   const handleToggleAutoSync = useCallback((enabled: boolean) => {
     void setWereadAutoSync(enabled)
@@ -367,6 +376,7 @@ export default function SettingsWeRead() {
                       type={showApiKey ? 'text' : 'password'}
                       value={wereadApiKey}
                       onChange={(e) => setWereadApiKey(e.target.value)}
+                      onBlur={() => { void ensureWereadKeyApplied() }}
                       placeholder="wrk-xxxxxxxx"
                       style={{ fontFamily: 'var(--font-mono)', paddingRight: 'calc(var(--spacing) * 10)' }}
                       data-dom-id="input-apikey"
