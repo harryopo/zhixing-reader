@@ -321,6 +321,12 @@ export interface ElectronAPI {
     newCount?: number
     updatedCount?: number
   }) => void) => () => void
+  /** 数据库落盘失败事件（磁盘满/权限/被占用），返回清理函数 */
+  onPersistError?: (callback: (info: {
+    message: string
+    willRetry: boolean
+    retryInMs: number
+  }) => void) => () => void
 }
 
 export interface PromptVariable {

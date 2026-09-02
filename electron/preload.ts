@@ -450,6 +450,19 @@ const electronAPI = {
       ipcRenderer.removeListener(IPC_CHANNELS.WEREAD.AUTO_SYNC_STATUS, handler)
     }
   },
+
+  // 数据库落盘失败事件（磁盘满/权限/被占用），返回清理函数
+  onPersistError: (callback: (info: {
+    message: string
+    willRetry: boolean
+    retryInMs: number
+  }) => void) => {
+    const handler = (_event: IpcRendererEvent, info: Parameters<typeof callback>[0]) => callback(info)
+    ipcRenderer.on(IPC_CHANNELS.SYSTEM.PERSIST_ERROR, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.SYSTEM.PERSIST_ERROR, handler)
+    }
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

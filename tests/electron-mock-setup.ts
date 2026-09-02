@@ -32,16 +32,20 @@ const { mockElectron } = vi.hoisted(() => ({
       quit: vi.fn(),
       exit: vi.fn(),
     },
-    BrowserWindow: vi.fn().mockImplementation(() => ({
-      webContents: { send: vi.fn(), on: vi.fn() },
-      isDestroyed: vi.fn(() => false),
-      on: vi.fn(),
-      once: vi.fn(),
-      show: vi.fn(),
-      close: vi.fn(),
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
-    })),
+    BrowserWindow: Object.assign(
+      vi.fn().mockImplementation(() => ({
+        webContents: { send: vi.fn(), on: vi.fn() },
+        isDestroyed: vi.fn(() => false),
+        on: vi.fn(),
+        once: vi.fn(),
+        show: vi.fn(),
+        close: vi.fn(),
+        loadURL: vi.fn(),
+        loadFile: vi.fn(),
+      })),
+      // 静态方法：connection.ts 落盘失败广播 / weread-sync-manager 自动同步广播依赖它
+      { getAllWindows: vi.fn(() => []) },
+    ),
     ipcMain: {
       handle: vi.fn(),
       on: vi.fn(),

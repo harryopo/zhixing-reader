@@ -320,6 +320,17 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     return () => dispose?.()
   }, [refreshNotifData])
 
+  // 数据库落盘失败：必须让用户知道（磁盘满/权限/被占用），避免静默丢数据；主进程会自动重试
+  useEffect(() => {
+    const dispose = window.electronAPI?.onPersistError?.((info) => {
+      const retryHint = info.willRetry
+        ? `，将在 ${Math.max(1, Math.round(info.retryInMs / 1000))} 秒后自动重试`
+        : ''
+      toast.error(`${info.message}${retryHint}`)
+    })
+    return () => dispose?.()
+  }, [])
+
   /** 通知按钮：toggle 下拉面板 */
   const handleToggleNotify = () => {
     setNotifyOpen((v) => !v)

@@ -336,4 +336,53 @@ describe('database-persistence — 持久化与生命周期', () => {
       expect(convs[0].values[0][0]).toBe(0)
     })
   })
+
+  // ==========================================================================
+  // C1-2: persistToDisk 落盘失败重试与用户通知
+  // ==========================================================================
+  describe('persistToDisk 落盘失败重试与通知 (C1-2)', () => {
+    it('写盘失败应吞掉异常、调度重试并广播 persist 错误事件', async () => {
+      const { BrowserWindow } = await import('electron')
+      // 用真实生产库路径（db 非 null）才能触发 persistToDisk 实际执行
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+      injectTestDatabase(null)
+      resetTestDatabaseState()
+      await initDatabase()
+      // 冲掉 initDatabase 遗留的真实定时器与脏标记，再切 fake timers 干净验证重试
+      forceSaveDatabase()
+
+      const fakeWin = { isDestroyed: () => false, webContents: { send: vi.fn() } }
+      vi.useFakeTimers()
+      try {
+        vi.mocked(BrowserWindow.getAllWindows).mockReturnValue(
+          [fakeWin] as unknown as ReturnType<typeof BrowserWindow.getAllWindows>,
+        )
+        // 标记脏数据（走 fake 定时器），再让写盘抛错
+        runTransaction((db) => { db.run('SELECT 1') })
+        vi.mocked(fs.writeFileSync).mockImplementation(() => {
+          throw new Error('ENOSPC: no space left on device')
+        })
+
+        // 失败被吞，不向上抛
+        expect(() => forceSaveDatabase()).not.toThrow()
+        // 广播一次落盘失败事件（willRetry=true）
+        expect(fakeWin.webContents.send).toHaveBeenCalledWith(
+          'system:persistError',
+          expect.objectContaining({ willRetry: true }),
+        )
+
+        // 恢复写盘 + 推进退避定时器（首次 3s）→ 应重试并成功落盘
+        vi.mocked(fs.writeFileSync).mockImplementation(() => undefined)
+        const callsBefore = vi.mocked(fs.writeFileSync).mock.calls.length
+        vi.advanceTimersByTime(3000)
+        expect(vi.mocked(fs.writeFileSync).mock.calls.length).toBeGreaterThan(callsBefore)
+      } finally {
+        vi.useRealTimers()
+        vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([])
+        vi.mocked(fs.writeFileSync).mockImplementation(() => undefined)
+        closeDatabase()
+        resetTestDatabaseState()
+      }
+    })
+  })
 })

@@ -218,6 +218,8 @@ export const IPC_CHANNELS = {
     OPEN_EXTERNAL: 'system:openExternal',
     CLEAR_HISTORY: 'system:clearHistory',
     RESET_DATABASE: 'system:resetDatabase',
+    // 主→渲染事件：数据库落盘失败（磁盘满/权限/被占用），渲染层据此提示用户，避免静默丢数据
+    PERSIST_ERROR: 'system:persistError',
   },
   FSRS: {
     SET_PARAMETERS: 'fsrs:setParameters',
