@@ -57,6 +57,9 @@ export function registerSettingsHandlers(handle: HandleFn): void {
 
   handle(IPC_CHANNELS.SYSTEM.RESET_DATABASE, () => {
     resetDatabase();
+    // resetDatabase 经事务只标记脏数据（3s 防抖落盘），而下方 500ms 后即 app.exit(0)，
+    // 会先于防抖定时器执行导致重置结果未落盘（relaunch 后旧数据复现）——必须强制同步刷盘
+    forceSaveDatabase();
     // 给前端一点时间收到响应后再重启
     setTimeout(() => {
       app.relaunch();
