@@ -176,6 +176,10 @@ export function getDatabaseTableData(
   if (!safeName || safeName !== tableName) {
     throw new Error('Invalid table name')
   }
+  // 纵深防御：拒绝 SQLite 内部表（sqlite_*），与 getDatabaseSchema 的过滤保持一致
+  if (safeName.startsWith('sqlite_')) {
+    throw new Error('Invalid table name')
+  }
   const totalRows = rowsToObjects(db.exec(`SELECT COUNT(*) as count FROM "${safeName}"`))
   const total = Number(totalRows[0]?.count ?? 0)
   const data = rowsToObjects(db.exec(`SELECT * FROM "${safeName}" LIMIT ? OFFSET ?`, [limit, offset]))
