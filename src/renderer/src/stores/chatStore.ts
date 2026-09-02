@@ -103,6 +103,22 @@ function mapSession(raw: Record<string, unknown>): Session {
   }
 }
 
+/** Agent 单路知识库检索结果（「调取知识库」可视化） */
+export interface RetrievalSource {
+  name: string
+  label: string
+  source: string
+  used: boolean
+  itemCount: number
+  method?: string
+  topScore?: number
+  buildTime: number
+  previews?: Array<{ title?: string; snippet?: string; score?: number }>
+  error?: string
+}
+/** Agent 检索状态：start 开始调取 / done 各路结果 */
+export type RetrievalState = { stage: 'start' } | { stage: 'done'; sources: RetrievalSource[] }
+
 interface ChatState {
   sessions: Session[]
   currentSessionId: string | null
@@ -118,6 +134,8 @@ interface ChatState {
   currentBookId: string | null
   /** 深度思考模式开关（开启后下一次 sendMessage 生效） */
   enableReasoning: boolean
+  /** Agent 本轮「调取知识库」检索状态（可视化用），null 表示无 */
+  retrieval: RetrievalState | null
 
   loadSessions: () => Promise<void>
   createSession: (bookId?: string) => Promise<void>
@@ -163,6 +181,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         streamingContent: '',
         streamingReasoning: '',
         reasoningStartTime: enableReasoning ? Date.now() : null,
+        retrieval: { stage: 'start' },
       })
 
       let settled = false
@@ -171,12 +190,14 @@ export const useChatStore = create<ChatState>((set, get) => {
       let removeReasoningListener: (() => void) | undefined
       let removeErrorListener: (() => void) | undefined
       let removeCompleteListener: (() => void) | undefined
+      let removeRetrievalListener: (() => void) | undefined
 
       const cleanupListeners = () => {
         removeChunkListener?.()
         removeReasoningListener?.()
         removeErrorListener?.()
         removeCompleteListener?.()
+        removeRetrievalListener?.()
         activeStreamStop = null
       }
 
@@ -271,6 +292,9 @@ export const useChatStore = create<ChatState>((set, get) => {
           finishWithContent(get().streamingContent, true)
         })
 
+        // 知识库检索过程可视化（start 已乐观置位，此处接收后端两阶段事件）
+        removeRetrievalListener = window.electronAPI.ai.onRetrievalStatus?.((status) => { if (!settled) set({ retrieval: status }) })
+
         activeStreamStop = () => {
           const partial = get().streamingContent
           finishWithContent(partial, true)
@@ -313,6 +337,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     error: null,
     currentBookId: null,
     enableReasoning: false,
+    retrieval: null,
 
     loadSessions: async () => {
       try {

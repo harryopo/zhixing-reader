@@ -22,6 +22,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
 import MessageBubble, { RAGSource } from '@/components/chat/MessageBubble'
+import RetrievalPanel from '@/components/chat/RetrievalPanel'
 import { useChatStore } from '../stores/chatStore'
 import { toast } from '../stores/toastStore'
 
@@ -102,6 +103,7 @@ export default function Chat() {
     streaming,
     streamingContent,
     streamingReasoning,
+    retrieval,
     enableReasoning,
     error,
     currentBookId,
@@ -641,6 +643,8 @@ export default function Chat() {
                     />
                     )
                   })}
+                  {/* Agent 调取知识库可视化（运行时展示各路检索：书籍/卡片/方法论/记忆/画像） */}
+                  <RetrievalPanel retrieval={retrieval} />
                   {streaming && (
                     <MessageBubble
                       role="assistant"
