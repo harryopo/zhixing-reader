@@ -57,7 +57,7 @@ export class UserProfileContextBuilder implements ContextBuilder {
       }
 
       if (sections.length === 0) {
-        return { content: '', priority: this.priority, metadata: { source: 'user-profile-service', buildTime: Date.now() - startTime } }
+        return { content: '', priority: this.priority, metadata: { source: 'user-profile-service', buildTime: Date.now() - startTime, itemCount: 0, method: 'profile' } }
       }
 
       const content = `\n\n## 用户画像\n${sections.join('\n\n')}\n\n基于用户画像调整回答风格和内容深度。`
@@ -65,7 +65,7 @@ export class UserProfileContextBuilder implements ContextBuilder {
       return {
         content,
         priority: this.priority,
-        metadata: { source: 'user-profile-service', buildTime: Date.now() - startTime }
+        metadata: { source: 'user-profile-service', buildTime: Date.now() - startTime, itemCount: sections.length, method: 'profile' }
       }
     } catch (error) {
       logger.error('Failed to build user profile context', error)

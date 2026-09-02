@@ -126,7 +126,7 @@ vi.mock('../electron/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
-import { processMessageStream, clearState } from '../electron/agent/orchestrator'
+import { processMessageStream, clearState, type RetrievalStatus } from '../electron/agent/orchestrator'
 
 describe('orchestrator — processMessageStream 编排逻辑', () => {
   beforeEach(() => {
@@ -432,6 +432,27 @@ describe('orchestrator — processMessageStream 编排逻辑', () => {
     expect(capturedMessages).toHaveLength(3)
     expect(capturedMessages[1].role).toBe('system')
     expect(capturedMessages[1].content).toContain('用户在读《认知觉醒》')
+  })
+
+  it('发射检索可视化事件：start + done（各路来源带中文标签）', async () => {
+    clearState('s1')
+    const events: RetrievalStatus[] = []
+    mockStreamChat.mockImplementation(async () => {})
+    await processMessageStream(
+      { sessionId: 's1', bookId: 'b1', conversationHistory: [] },
+      '问题',
+      () => {},
+      () => {},
+      () => {},
+      { onRetrieval: (status) => events.push(status) },
+    )
+    expect(events[0]).toEqual({ stage: 'start' })
+    const done = events.find(e => e.stage === 'done')
+    expect(done?.stage).toBe('done')
+    const labels = done && done.stage === 'done' ? done.sources.map(s => s.label) : []
+    // builder stub 中 book + methodology 的 shouldBuild 返回 true
+    expect(labels).toContain('书籍笔记')
+    expect(labels).toContain('方法论')
   })
 
   it('clearState 导出（清理会话）', () => {

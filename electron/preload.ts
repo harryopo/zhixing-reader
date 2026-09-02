@@ -31,17 +31,34 @@ interface DistillProgressPayload {
   message?: string
   error?: string
 }
+interface RetrievalSourcePayload {
+  name: string
+  label: string
+  source: string
+  used: boolean
+  itemCount: number
+  method?: string
+  topScore?: number
+  buildTime: number
+  previews?: Array<{ title?: string; snippet?: string; score?: number }>
+  error?: string
+}
+type RetrievalStatusPayload =
+  | { stage: 'start' }
+  | { stage: 'done'; sources: RetrievalSourcePayload[] }
 
 type StreamChunkHandler = (event: IpcRendererEvent, data: StreamChunkPayload) => void
 type StreamCompleteHandler = (event: IpcRendererEvent, data: StreamCompletePayload) => void
 type StreamErrorHandler = (event: IpcRendererEvent, data: StreamErrorPayload) => void
 type DistillProgressHandler = (event: IpcRendererEvent, data: DistillProgressPayload) => void
+type RetrievalStatusHandler = (event: IpcRendererEvent, data: RetrievalStatusPayload) => void
 
 const streamChunkHandlers = new Map<(chunk: string) => void, StreamChunkHandler>()
 const streamCompleteHandlers = new Map<(usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void, StreamCompleteHandler>()
 const streamErrorHandlers = new Map<(error: string) => void, StreamErrorHandler>()
 const streamReasoningChunkHandlers = new Map<(chunk: string) => void, StreamChunkHandler>()
 const distillProgressHandlers = new Map<(progress: DistillProgressPayload) => void, DistillProgressHandler>()
+const retrievalStatusHandlers = new Map<(status: RetrievalStatusPayload) => void, RetrievalStatusHandler>()
 
 const electronAPI = {
   book: {
@@ -262,6 +279,23 @@ const electronAPI = {
         if (h) {
           ipcRenderer.removeListener(IPC_CHANNELS.STREAM.ERROR, h)
           streamErrorHandlers.delete(callback)
+        }
+      }
+    },
+    // Agent 调取知识库过程事件（start 开始 / done 各路检索结果），供对话页可视化
+    onRetrievalStatus: (callback: (status: RetrievalStatusPayload) => void) => {
+      const existing = retrievalStatusHandlers.get(callback)
+      if (existing) {
+        ipcRenderer.removeListener(IPC_CHANNELS.AGENT.RETRIEVAL_STATUS, existing)
+      }
+      const handler: RetrievalStatusHandler = (_event, data) => callback(data)
+      retrievalStatusHandlers.set(callback, handler)
+      ipcRenderer.on(IPC_CHANNELS.AGENT.RETRIEVAL_STATUS, handler)
+      return () => {
+        const h = retrievalStatusHandlers.get(callback)
+        if (h) {
+          ipcRenderer.removeListener(IPC_CHANNELS.AGENT.RETRIEVAL_STATUS, h)
+          retrievalStatusHandlers.delete(callback)
         }
       }
     },

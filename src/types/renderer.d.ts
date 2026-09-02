@@ -44,6 +44,25 @@ export interface TokenRecord {
   created_at: string
 }
 
+/** Agent 单路知识库检索结果（对话页「调取知识库」可视化） */
+export interface RetrievalSourceView {
+  name: string
+  label: string
+  source: string
+  used: boolean
+  itemCount: number
+  method?: string
+  topScore?: number
+  buildTime: number
+  previews?: Array<{ title?: string; snippet?: string; score?: number }>
+  error?: string
+}
+
+/** Agent 检索状态事件：start 开始调取 / done 各路结果 */
+export type RetrievalStatusView =
+  | { stage: 'start' }
+  | { stage: 'done'; sources: RetrievalSourceView[] }
+
 export interface ElectronAPI {
   book: {
     getAll: () => Promise<Book[]>
@@ -181,6 +200,7 @@ export interface ElectronAPI {
     onStreamReasoningChunk?: (callback: (chunk: string) => void) => (() => void)
     onStreamError?: (callback: (error: string) => void) => (() => void)
     onStreamComplete?: (callback: (usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void) => (() => void)
+    onRetrievalStatus?: (callback: (status: RetrievalStatusView) => void) => (() => void)
   }
   conversation: {
     getAll: () => Promise<Conversation[]>

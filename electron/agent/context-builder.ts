@@ -1,6 +1,13 @@
 import { UserIntent } from './intent-classifier'
 import { StrategyPlan } from './strategy-selector'
 
+/** 检索命中条目预览（用于前端「调取知识库」可视化展开） */
+export interface RetrievalPreview {
+  title?: string
+  snippet?: string
+  score?: number
+}
+
 /**
  * 上下文构建结果
  */
@@ -11,6 +18,14 @@ export interface ContextBuildResult {
     source: string
     buildTime: number
     error?: string
+    /** 检索到的条目数（可视化用） */
+    itemCount?: number
+    /** 检索方式：semantic(向量语义) / keyword(关键词) / relevance(相关度排序) / profile(画像) */
+    method?: string
+    /** 最高相关度（0-1，RAG 语义检索时有值） */
+    topScore?: number
+    /** 命中条目预览（标题/片段），供 UI 展开 */
+    previews?: RetrievalPreview[]
   }
 }
 

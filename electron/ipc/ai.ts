@@ -102,6 +102,9 @@ export function registerAIHandlers(handle: HandleFn): void {
         onReasoningChunk: (chunk: string) => {
           safeSend(event, IPC_CHANNELS.STREAM.REASONING_CHUNK, { chunk })
         },
+        onRetrieval: (status) => {
+          safeSend(event, IPC_CHANNELS.AGENT.RETRIEVAL_STATUS, status)
+        },
       }
     )
 

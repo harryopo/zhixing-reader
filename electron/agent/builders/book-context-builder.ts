@@ -25,10 +25,10 @@ export class BookContextBuilder implements ContextBuilder {
     const startTime = Date.now()
 
     try {
-      const highlights = await this.retrieveHighlights(context.bookId!, context.userMessage)
+      const { items: highlights, method, topScore } = await this.retrieveHighlights(context.bookId!, context.userMessage)
 
       if (highlights.length === 0) {
-        return { content: '', priority: this.priority, metadata: { source: 'rag', buildTime: Date.now() - startTime } }
+        return { content: '', priority: this.priority, metadata: { source: 'rag', buildTime: Date.now() - startTime, itemCount: 0, method } }
       }
 
       const contextText = highlights.map(c => {
@@ -39,7 +39,17 @@ export class BookContextBuilder implements ContextBuilder {
       return {
         content: `\n\n## 阅读笔记\n${contextText}`,
         priority: this.priority,
-        metadata: { source: 'rag', buildTime: Date.now() - startTime }
+        metadata: {
+          source: 'rag',
+          buildTime: Date.now() - startTime,
+          itemCount: highlights.length,
+          method,
+          topScore,
+          previews: highlights.slice(0, 3).map(c => ({
+            title: c.chapterTitle || c.bookTitle,
+            snippet: c.content.length > 60 ? `${c.content.slice(0, 60)}…` : c.content,
+          })),
+        }
       }
     } catch (error) {
       logger.error('Failed to build book context', error)
@@ -49,13 +59,17 @@ export class BookContextBuilder implements ContextBuilder {
         metadata: {
           source: 'rag',
           buildTime: Date.now() - startTime,
+          itemCount: 0,
           error: error instanceof Error ? error.message : String(error)
         }
       }
     }
   }
 
-  private async retrieveHighlights(bookId: string, userMessage: string): Promise<HighlightCtx[]> {
+  private async retrieveHighlights(
+    bookId: string,
+    userMessage: string,
+  ): Promise<{ items: HighlightCtx[]; method: 'semantic' | 'keyword'; topScore?: number }> {
     try {
       const ragAvailable = await checkRAGAvailability()
 
@@ -67,11 +81,15 @@ export class BookContextBuilder implements ContextBuilder {
           results: searchResults.length,
           topScore: searchResults[0]?.relevanceScore,
         })
-        return searchResults.map(r => ({
-          content: r.content,
-          bookTitle: r.bookTitle,
-          chapterTitle: r.chapterTitle,
-        }))
+        return {
+          items: searchResults.map(r => ({
+            content: r.content,
+            bookTitle: r.bookTitle,
+            chapterTitle: r.chapterTitle,
+          })),
+          method: 'semantic',
+          topScore: searchResults[0]?.relevanceScore,
+        }
       }
 
       logger.info('RAG unavailable, falling back to keyword matching')
@@ -82,16 +100,24 @@ export class BookContextBuilder implements ContextBuilder {
         return this.getKeywordHighlights(bookId, userMessage)
       } catch (fallbackErr) {
         logger.error('Fallback retrieval also failed', fallbackErr)
-        return []
+        return { items: [], method: 'keyword' }
       }
     }
   }
 
-  private getKeywordHighlights(bookId: string, query: string): HighlightCtx[] {
-    return keywordSearch(query, bookId, 5).map(r => ({
-      content: r.content,
-      bookTitle: r.bookTitle,
-      chapterTitle: r.chapterTitle,
-    }))
+  private getKeywordHighlights(
+    bookId: string,
+    query: string,
+  ): { items: HighlightCtx[]; method: 'semantic' | 'keyword'; topScore?: number } {
+    const results = keywordSearch(query, bookId, 5)
+    return {
+      items: results.map(r => ({
+        content: r.content,
+        bookTitle: r.bookTitle,
+        chapterTitle: r.chapterTitle,
+      })),
+      method: 'keyword',
+      topScore: results[0]?.relevanceScore,
+    }
   }
 }

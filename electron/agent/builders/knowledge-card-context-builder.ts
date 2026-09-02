@@ -27,7 +27,7 @@ export class KnowledgeCardContextBuilder implements ContextBuilder {
       }>
 
       if (cards.length === 0) {
-        return { content: '', priority: this.priority, metadata: { source: 'database', buildTime: Date.now() - startTime } }
+        return { content: '', priority: this.priority, metadata: { source: 'database', buildTime: Date.now() - startTime, itemCount: 0, method: 'relevance' } }
       }
 
       // 按相关性排序：与用户消息相关的卡片优先
@@ -73,7 +73,16 @@ export class KnowledgeCardContextBuilder implements ContextBuilder {
       return {
         content,
         priority: this.priority,
-        metadata: { source: 'database', buildTime: Date.now() - startTime }
+        metadata: {
+          source: 'database',
+          buildTime: Date.now() - startTime,
+          itemCount: relevantCards.length,
+          method: 'relevance',
+          previews: relevantCards.slice(0, 3).map(c => ({
+            title: c.title,
+            snippet: (c.content || '').length > 60 ? `${(c.content || '').slice(0, 60)}…` : (c.content || ''),
+          })),
+        }
       }
     } catch (error) {
       logger.error('Failed to build knowledge card context', error)

@@ -23,7 +23,7 @@ export class MemoryContextBuilder implements ContextBuilder {
       const memorySummary = generateMemorySummary()
 
       if (relevantMemories.length === 0 && !memorySummary) {
-        return { content: '', priority: this.priority, metadata: { source: 'memory-service', buildTime: Date.now() - startTime } }
+        return { content: '', priority: this.priority, metadata: { source: 'memory-service', buildTime: Date.now() - startTime, itemCount: 0, method: 'keyword' } }
       }
 
       const memoryParts: string[] = []
@@ -42,7 +42,15 @@ export class MemoryContextBuilder implements ContextBuilder {
       return {
         content,
         priority: this.priority,
-        metadata: { source: 'memory-service', buildTime: Date.now() - startTime }
+        metadata: {
+          source: 'memory-service',
+          buildTime: Date.now() - startTime,
+          itemCount: relevantMemories.length,
+          method: 'keyword',
+          previews: relevantMemories.slice(0, 3).map(m => ({
+            snippet: m.content.length > 60 ? `${m.content.slice(0, 60)}…` : m.content,
+          })),
+        }
       }
     } catch (error) {
       logger.error('Failed to build memory context', error)

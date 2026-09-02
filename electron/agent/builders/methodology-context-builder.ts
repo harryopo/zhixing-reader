@@ -30,7 +30,7 @@ export class MethodologyContextBuilder implements ContextBuilder {
       }>
 
       if (methodologies.length === 0) {
-        return { content: '', priority: this.priority, metadata: { source: 'database', buildTime: Date.now() - startTime } }
+        return { content: '', priority: this.priority, metadata: { source: 'database', buildTime: Date.now() - startTime, itemCount: 0, method: 'relevance' } }
       }
 
       // 按相关性评分排序
@@ -100,7 +100,16 @@ export class MethodologyContextBuilder implements ContextBuilder {
       return {
         content,
         priority: this.priority,
-        metadata: { source: 'database', buildTime: Date.now() - startTime }
+        metadata: {
+          source: 'database',
+          buildTime: Date.now() - startTime,
+          itemCount: relevantMethodologies.length,
+          method: 'relevance',
+          previews: relevantMethodologies.slice(0, 3).map(m => ({
+            title: m.name,
+            snippet: (m.description || '').length > 60 ? `${(m.description || '').slice(0, 60)}…` : (m.description || ''),
+          })),
+        }
       }
     } catch (error) {
       logger.error('Failed to build methodology context', error)

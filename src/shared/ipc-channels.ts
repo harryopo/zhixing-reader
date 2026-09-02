@@ -99,6 +99,8 @@ export const IPC_CHANNELS = {
     STREAM_CHAT_WITH_CONTEXT: 'agent:streamChatWithContext',
     CANCEL_STREAM: 'agent:cancelStream',
     GET_PIPELINE_INFO: 'agent:getPipelineInfo',
+    // 主→渲染事件：agent 调取知识库过程（start 开始 / done 各路检索结果），用于对话页可视化
+    RETRIEVAL_STATUS: 'agent:retrievalStatus',
   },
   // 流式事件 channel（主进程 -> 渲染进程，由主进程 send 触发）
   STREAM: {

@@ -9,7 +9,7 @@ import { getOrCreateState, updateConceptMastery, adjustDifficulty, clearState as
 import { extractMemoriesFromConversation } from '../services/memory-service'
 import { getPromptTemplate } from '../services/prompt-storage'
 import { ContextManager } from './context-manager'
-import { BuildContext } from './context-builder'
+import { BuildContext, ContextBuildResult } from './context-builder'
 import { MethodologyContextBuilder } from './builders/methodology-context-builder'
 import { KnowledgeCardContextBuilder } from './builders/knowledge-card-context-builder'
 import { MemoryContextBuilder } from './builders/memory-context-builder'
@@ -20,6 +20,62 @@ type AgentContext = {
   sessionId: string
   bookId?: string
   conversationHistory: Array<{ role: string; content: string }>
+}
+
+// ============================================================================
+// 检索可视化（RAG / 知识库调取过程事件化）
+// 把 5 维上下文构建的各路检索结果实时推给前端，让「调取知识库」可见。
+// ============================================================================
+
+/** 单路知识库检索结果（供前端展示） */
+export interface RetrievalSource {
+  name: string
+  label: string
+  source: string
+  used: boolean
+  itemCount: number
+  method?: string
+  topScore?: number
+  buildTime: number
+  previews?: Array<{ title?: string; snippet?: string; score?: number }>
+  error?: string
+}
+
+/** 检索状态事件：start(开始调取) / done(各路结果) */
+export type RetrievalStatus =
+  | { stage: 'start' }
+  | { stage: 'done'; sources: RetrievalSource[] }
+
+const RETRIEVAL_LABELS: Record<string, string> = {
+  book: '书籍笔记',
+  knowledgeCard: '知识卡片',
+  methodology: '方法论',
+  memory: '相关记忆',
+  userProfile: '用户画像',
+}
+
+function toRetrievalSource(r: { name: string; result: ContextBuildResult }): RetrievalSource {
+  const m = r.result.metadata
+  return {
+    name: r.name,
+    label: RETRIEVAL_LABELS[r.name] ?? r.name,
+    source: m?.source ?? '',
+    used: r.result.content.trim().length > 0,
+    itemCount: m?.itemCount ?? 0,
+    method: m?.method,
+    topScore: m?.topScore,
+    buildTime: m?.buildTime ?? 0,
+    previews: m?.previews,
+    error: m?.error,
+  }
+}
+
+/** 转发检索状态事件（抽出以降低 processMessageStream 圈复杂度） */
+function emitRetrieval(
+  options: { onRetrieval?: (status: RetrievalStatus) => void } | undefined,
+  status: RetrievalStatus,
+): void {
+  options?.onRetrieval?.(status)
 }
 
 // 创建上下文管理器实例并注册所有构建器
@@ -319,7 +375,7 @@ export async function processMessageStream(
   onChunk: (chunk: string) => void,
   onComplete: (usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number }) => void,
   onError: (error: Error) => void,
-  options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void }
+  options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void; onRetrieval?: (status: RetrievalStatus) => void }
 ): Promise<void> {
   logger.info('processMessageStream started', {
     sessionId: context.sessionId,
@@ -363,7 +419,11 @@ export async function processMessageStream(
     strategy,
   }
 
+  // 检索可视化：开始调取知识库
+  emitRetrieval(options, { stage: 'start' })
   const { combinedContext, results } = await contextManager.buildAll(buildContext)
+  // 检索可视化：各路知识库检索结果（供前端「调取知识库」面板展示）
+  emitRetrieval(options, { stage: 'done', sources: results.map(toRetrievalSource) })
 
   logger.info('Context build completed', {
     builders: results.map(r => r.name),

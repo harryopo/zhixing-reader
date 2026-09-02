@@ -93,6 +93,11 @@ describe('BookContextBuilder', () => {
       expect(result.content).toContain('笔记内容')
       expect(result.content).toContain('第1章')
       expect(result.metadata?.source).toBe('rag')
+      // 检索可视化元数据（Step: RAG 语义）
+      expect(result.metadata?.itemCount).toBe(1)
+      expect(result.metadata?.method).toBe('semantic')
+      expect(result.metadata?.topScore).toBe(0.9)
+      expect(result.metadata?.previews?.[0]).toMatchObject({ title: '第1章', snippet: '笔记内容' })
     })
 
     it('RAG 不可用时降级到关键词匹配', async () => {
@@ -103,6 +108,9 @@ describe('BookContextBuilder', () => {
       const result = await builder.build(ctxWithBook())
       expect(mockKeywordSearch).toHaveBeenCalled()
       expect(result.content).toContain('关键词笔记')
+      // 降级路径标记为 keyword
+      expect(result.metadata?.method).toBe('keyword')
+      expect(result.metadata?.itemCount).toBe(1)
     })
 
     it('无检索结果时返回空 content', async () => {
@@ -169,6 +177,8 @@ describe('MethodologyContextBuilder', () => {
     expect(result.content).toContain('触发场景')
     expect(result.content).toContain('选概念')
     expect(result.content).toContain('掌握度')
+    expect(result.metadata?.method).toBe('relevance')
+    expect(result.metadata?.itemCount).toBeGreaterThanOrEqual(1)
   })
 
   it('步骤 JSON 解析失败时跳过步骤不报错', () => {
@@ -256,6 +266,7 @@ describe('MemoryContextBuilder', () => {
     const result = builder.build(ctxWithBook())
     expect(result.content).toContain('喜欢认知科学')
     expect(result.content).toContain('元认知很重要')
+    expect(result.metadata?.method).toBe('keyword')
   })
 })
 
