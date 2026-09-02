@@ -66,7 +66,29 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       }
     }
     loadTokenData()
-    const interval = setInterval(loadTokenData, 30000)
+    // 仅在页面可见时轮询：窗口最小化/切到后台时暂停 30s 轮询，恢复可见立即刷新一次并重启，
+    // 避免不可见时空耗 IPC + DB 查询（CPU/电量）
+    let interval: ReturnType<typeof setInterval> | null = null
+    const startPolling = () => {
+      if (interval) return
+      interval = setInterval(loadTokenData, 30000)
+    }
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval)
+        interval = null
+      }
+    }
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling()
+      } else {
+        loadTokenData()
+        startPolling()
+      }
+    }
+    if (!document.hidden) startPolling()
+    document.addEventListener('visibilitychange', onVisibilityChange)
 
     // 监听 TokenUsage 页面清空事件 + AI 对话流完成事件，立即刷新侧边栏 token 用量
     const onCleared = () => { loadTokenData() }
@@ -76,7 +98,8 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
 
     return () => {
       active = false
-      clearInterval(interval)
+      stopPolling()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       window.removeEventListener('token-usage:cleared', onCleared)
       window.removeEventListener('token-usage:updated', onUpdated)
     }
