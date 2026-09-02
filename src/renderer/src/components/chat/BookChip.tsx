@@ -23,9 +23,11 @@ interface BookChipProps {
   onClear: () => void
 }
 
+const PICKER_WIDTH = 340
+
 const pickerStyle: CSSProperties = {
   position: 'fixed',
-  width: 340,
+  width: PICKER_WIDTH,
   background: 'var(--card)',
   border: '1px solid var(--border)',
   borderRadius: 12,
@@ -140,16 +142,17 @@ function PickerItem({ book, active, onSelect }: { book: ChipBook; active: boolea
   )
 }
 
-/** 选择列表（含头部：标题 + 取消关联 + 关闭） */
-function PickerList({ books, currentBookId, onSelect, onClear, onClose }: {
+/** 选择列表（含头部：标题 + 取消关联 + 关闭）；anchor 为视口坐标，由调用方钳制 */
+function PickerList({ books, currentBookId, anchor, onSelect, onClear, onClose }: {
   books: ChipBook[]
   currentBookId: string | null
+  anchor: { top: number; right: number }
   onSelect: (id: string) => void
   onClear: () => void
   onClose: () => void
 }) {
   return (
-    <div style={pickerStyle}>
+    <div style={{ ...pickerStyle, top: anchor.top, right: anchor.right }}>
       <div
         style={{
           display: 'flex',
@@ -284,11 +287,16 @@ export default function BookChip({ currentBook, books, onSelect, onClear }: Book
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
 
-  /** 打开前记录按钮位置（popover 用 fixed 定位逃离 overflow:hidden 卡片） */
+  /** 打开前记录按钮位置（fixed 定位逃离 overflow:hidden 卡片），并钳制在视口内防边缘裁切 */
   const toggle = () => {
     if (!open && btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
-      setAnchor({ top: r.bottom + 6, right: window.innerWidth - r.right })
+      const margin = 12
+      const right = Math.min(
+        Math.max(window.innerWidth - r.right, margin),
+        Math.max(window.innerWidth - PICKER_WIDTH - margin, margin),
+      )
+      setAnchor({ top: r.bottom + 6, right })
     }
     setOpen((v) => !v)
   }
@@ -313,6 +321,7 @@ export default function BookChip({ currentBook, books, onSelect, onClear }: Book
           <PickerList
             books={books}
             currentBookId={currentBook?.id ?? null}
+            anchor={anchor}
             onSelect={handleSelect}
             onClear={onClear}
             onClose={() => setOpen(false)}

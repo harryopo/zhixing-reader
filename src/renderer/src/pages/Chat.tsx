@@ -276,6 +276,8 @@ export default function Chat() {
               background: 'var(--card)',
               display: 'flex',
               flexDirection: 'column',
+              /* 工作区内唯一子元素，撑满全部高度（原三栏 grid 自动拉伸，单栏需显式声明） */
+              flex: 1,
               overflow: 'hidden',
               minHeight: 0,
             }}
