@@ -253,18 +253,18 @@ export default function Chat() {
             </Button>
           </>
         }
+      />
+      {/* ===== 单栏对话工作台：flex 吃满 Hero 以下全部高度，仅消息流内部滚动 ===== */}
+      <div
+        className="chat-workspace"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
       >
-        {/* ===== 单栏对话工作台：历史入抽屉、书籍入上下文条（原三栏重构） ===== */}
-        <div
-          className="page-body chat-workspace"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            /* 固定视口高度：整页不滚动，仅消息流内部滚动 */
-            height: 'calc(100vh - 76px - 220px)',
-            overflow: 'hidden',
-          }}
-        >
 
           {/* ============ 中栏：消息流 ============ */}
           <section
@@ -581,25 +581,24 @@ export default function Chat() {
               )}
             </div>
           </section>
-        </div>
+      </div>
 
-        {/* 历史会话抽屉（overlay，替代原 240px 左栏） */}
-        <SessionDrawer
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          onSwitch={(id) => {
-            void switchSession(id)
-            setDrawerOpen(false)
-          }}
-          onDelete={handleDeleteSession}
-          onCreate={() => {
-            handleNewChat()
-            setDrawerOpen(false)
-          }}
-        />
-      </PageHero>
+      {/* 历史会话抽屉（overlay，替代原 240px 左栏） */}
+      <SessionDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSwitch={(id) => {
+          void switchSession(id)
+          setDrawerOpen(false)
+        }}
+        onDelete={handleDeleteSession}
+        onCreate={() => {
+          handleNewChat()
+          setDrawerOpen(false)
+        }}
+      />
     </>
   )
 }
