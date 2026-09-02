@@ -189,6 +189,7 @@ export interface ElectronAPI {
     update: (id: string, data: Record<string, unknown>) => Promise<void>
     getMessages: (id: string) => Promise<ChatMessage[]>
     addMessage: (conversationId: string, message: { role: string; content: string; intent?: string }) => Promise<string>
+    deleteMessage: (messageId: string) => Promise<void>
     delete: (id: string) => Promise<void>
     search: (keyword: string) => Promise<Conversation[]>
   }

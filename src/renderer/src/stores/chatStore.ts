@@ -126,6 +126,8 @@ interface ChatState {
   /** 清空全部会话历史（主进程单事务），成功后重置本地状态 */
   clearAllSessions: () => Promise<void>
   sendMessage: (content: string) => Promise<void>
+  /** 重新生成：复用最后一条 user 消息，移除其后的 assistant 回复（本地+DB）后重跑补全，不新增 user 消息（避免重复问答对） */
+  regenerate: () => Promise<void>
   /** Soft-stop: keep partial reply, free UI (main process stream may still finish) */
   stopStreaming: () => void
   setCurrentBook: (bookId: string | null) => void
@@ -141,137 +143,20 @@ interface ChatState {
 /** Active stream control for stop button (module-level, not in zustand state) */
 let activeStreamStop: (() => void) | null = null
 
-export const useChatStore = create<ChatState>((set, get) => ({
-  sessions: [],
-  currentSessionId: null,
-  messages: [],
-  loading: false,
-  streaming: false,
-  streamingContent: '',
-  streamingReasoning: '',
-  reasoningStartTime: null,
-  error: null,
-  currentBookId: null,
-  enableReasoning: false,
-
-  loadSessions: async () => {
-    try {
-      if (!window.electronAPI?.conversation) return
-      const raw = await window.electronAPI.conversation.getAll() as unknown as Record<string, unknown>[]
-      set({ sessions: (raw || []).map(mapSession) })
-    } catch (error) {
-      console.error('加载会话列表失败:', error)
-    }
-  },
-
-  createSession: async (bookId?: string) => {
-    try {
-      const raw = await window.electronAPI.conversation.create(undefined, bookId) as unknown as Record<string, unknown>
-      const session = mapSession(raw)
-      set(state => ({
-        sessions: [session, ...state.sessions],
-        currentSessionId: session.id,
-        messages: [],
-      }))
-    } catch (error) {
-      set({ error: (error as Error).message })
-    }
-  },
-
-  switchSession: async (id: string) => {
-    try {
-      const rawMessages = await window.electronAPI.conversation.getMessages(id) as RawMessage[]
-      const session = get().sessions.find(s => s.id === id)
-      set({
-        currentSessionId: id,
-        messages: rawMessages.map(mapMessage),
-        currentBookId: session?.bookId || null,
-      })
-    } catch (error) {
-      set({ error: (error as Error).message })
-    }
-  },
-
-  deleteSession: async (id: string) => {
-    try {
-      await window.electronAPI.conversation.delete(id)
-      set(state => {
-        const sessions = state.sessions.filter(s => s.id !== id)
-        const isCurrentSession = state.currentSessionId === id
-        return {
-          sessions,
-          currentSessionId: isCurrentSession ? null : state.currentSessionId,
-          messages: isCurrentSession ? [] : state.messages,
-        }
-      })
-    } catch (error) {
-      set({ error: (error as Error).message })
-    }
-  },
-
-  clearAllSessions: async () => {
-    // 走主进程单事务通道（SYSTEM:CLEAR_HISTORY）一次清空，
-    // 替代逐会话 N 次 IPC 删除 + N 次重渲染
-    await window.electronAPI.system.clearHistory()
-    set({ sessions: [], currentSessionId: null, messages: [] })
-  },
-
-  sendMessage: async (content: string) => {
-    const { currentSessionId, currentBookId, loading, streaming, messages, enableReasoning } = get()
-    if (loading || streaming) {
-      return
-    }
-
-    let sessionId = currentSessionId
-
-    if (!sessionId) {
-      try {
-        const raw = await window.electronAPI.conversation.create(undefined, currentBookId || undefined) as unknown as Record<string, unknown>
-        const session = mapSession(raw)
-        sessionId = session.id
-        set(state => ({
-          sessions: [session, ...state.sessions],
-          currentSessionId: sessionId,
-        }))
-      } catch (error) {
-        set({ error: (error as Error).message })
-        return
-      }
-    }
-
-    // 创建会话失败时中止，避免下方以 null sessionId 写入消息
-    if (!sessionId) {
-      set({ error: '创建会话失败' })
-      return
-    }
-
-    set({ loading: true, error: null })
-
-    const userMessage: Message = { role: 'user', content }
-    set(state => ({ messages: [...state.messages, userMessage] }))
-
-    try {
-      await window.electronAPI.conversation.addMessage(sessionId, {
-        role: 'user',
-        content,
-      })
-      // bump local message count + title hint
-      set(state => ({
-        sessions: state.sessions.map(s =>
-          s.id === sessionId
-            ? {
-                ...s,
-                messageCount: (s.messageCount || 0) + 1,
-                title: s.title === '新对话' ? content.slice(0, 24) : s.title,
-                updatedAt: new Date().toISOString(),
-              }
-            : s
-        ),
-      }))
-    } catch (error) {
-      console.error('保存用户消息失败:', error)
-    }
-
+export const useChatStore = create<ChatState>((set, get) => {
+  /**
+   * 内部：执行一次 assistant 流式补全（sendMessage 与 regenerate 共用）。
+   * 仅负责流式接收 + 持久化 assistant 回复；user 消息的追加/持久化由调用方负责。
+   * @param sessionId         目标会话 id
+   * @param userContent       本轮 user 消息内容
+   * @param historyForContext 本轮 user 之前的历史消息，用于拼 conversationHistory
+   */
+  const runCompletion = async (
+    sessionId: string,
+    userContent: string,
+    historyForContext: Message[],
+  ): Promise<void> => {
+    const { currentBookId, enableReasoning } = get()
     try {
       set({
         streaming: true,
@@ -393,14 +278,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
 
       const conversationHistory = [
-        ...messages.slice(-5).map(m => ({ role: m.role, content: m.content })),
-        { role: 'user' as const, content },
+        ...historyForContext.slice(-5).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user' as const, content: userContent },
       ]
 
       await window.electronAPI.ai.streamChatWithContext({
         sessionId: sessionId,
         bookId: currentBookId || undefined,
-        userMessage: content,
+        userMessage: userContent,
         conversationHistory,
         enableReasoning,
       })
@@ -414,68 +299,256 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ error: errorMessage, loading: false, streaming: false, streamingContent: '', streamingReasoning: '', reasoningStartTime: null })
       }
     }
-  },
+  }
 
-  stopStreaming: () => {
-    // Hard abort main-process network stream (best-effort)
-    void window.electronAPI?.ai?.cancelStream?.().catch(() => {})
-    if (activeStreamStop) {
-      activeStreamStop()
-    } else {
-      set({ streaming: false, loading: false })
-    }
-  },
+  return {
+    sessions: [],
+    currentSessionId: null,
+    messages: [],
+    loading: false,
+    streaming: false,
+    streamingContent: '',
+    streamingReasoning: '',
+    reasoningStartTime: null,
+    error: null,
+    currentBookId: null,
+    enableReasoning: false,
 
-  setCurrentBook: (bookId: string | null) => {
-    set({ currentBookId: bookId })
-  },
+    loadSessions: async () => {
+      try {
+        if (!window.electronAPI?.conversation) return
+        const raw = await window.electronAPI.conversation.getAll() as unknown as Record<string, unknown>[]
+        set({ sessions: (raw || []).map(mapSession) })
+      } catch (error) {
+        console.error('加载会话列表失败:', error)
+      }
+    },
 
-  clearError: () => {
-    set({ error: null })
-  },
+    createSession: async (bookId?: string) => {
+      try {
+        const raw = await window.electronAPI.conversation.create(undefined, bookId) as unknown as Record<string, unknown>
+        const session = mapSession(raw)
+        set(state => ({
+          sessions: [session, ...state.sessions],
+          currentSessionId: session.id,
+          messages: [],
+        }))
+      } catch (error) {
+        set({ error: (error as Error).message })
+      }
+    },
 
-  setEnableReasoning: (enabled: boolean) => {
-    set({ enableReasoning: enabled })
-  },
+    switchSession: async (id: string) => {
+      try {
+        const rawMessages = await window.electronAPI.conversation.getMessages(id) as RawMessage[]
+        const session = get().sessions.find(s => s.id === id)
+        set({
+          currentSessionId: id,
+          messages: rawMessages.map(mapMessage),
+          currentBookId: session?.bookId || null,
+        })
+      } catch (error) {
+        set({ error: (error as Error).message })
+      }
+    },
 
-  toggleLike: async (messageId: string, liked: boolean) => {
-    // 乐观更新：先改本地状态，再持久化到 DB
-    set(state => ({
-      messages: state.messages.map(m =>
-        m.id === messageId ? { ...m, liked } : m
-      ),
-    }))
-    try {
-      await window.electronAPI.chat.toggleLike(messageId, liked)
-    } catch (error) {
-      // 持久化失败：回滚本地状态
+    deleteSession: async (id: string) => {
+      try {
+        await window.electronAPI.conversation.delete(id)
+        set(state => {
+          const sessions = state.sessions.filter(s => s.id !== id)
+          const isCurrentSession = state.currentSessionId === id
+          return {
+            sessions,
+            currentSessionId: isCurrentSession ? null : state.currentSessionId,
+            messages: isCurrentSession ? [] : state.messages,
+          }
+        })
+      } catch (error) {
+        set({ error: (error as Error).message })
+      }
+    },
+
+    clearAllSessions: async () => {
+      // 走主进程单事务通道（SYSTEM:CLEAR_HISTORY）一次清空，
+      // 替代逐会话 N 次 IPC 删除 + N 次重渲染
+      await window.electronAPI.system.clearHistory()
+      set({ sessions: [], currentSessionId: null, messages: [] })
+    },
+
+    sendMessage: async (content: string) => {
+      const { currentSessionId, currentBookId, loading, streaming, messages } = get()
+      if (loading || streaming) {
+        return
+      }
+
+      let sessionId = currentSessionId
+
+      if (!sessionId) {
+        try {
+          const raw = await window.electronAPI.conversation.create(undefined, currentBookId || undefined) as unknown as Record<string, unknown>
+          const session = mapSession(raw)
+          sessionId = session.id
+          set(state => ({
+            sessions: [session, ...state.sessions],
+            currentSessionId: sessionId,
+          }))
+        } catch (error) {
+          set({ error: (error as Error).message })
+          return
+        }
+      }
+
+      // 创建会话失败时中止，避免下方以 null sessionId 写入消息
+      if (!sessionId) {
+        set({ error: '创建会话失败' })
+        return
+      }
+
+      set({ loading: true, error: null })
+
+      // 上下文历史 = 追加本轮 user 之前的快照（与原实现一致，不含本轮 user）
+      const historyForContext = messages
+
+      const userMessage: Message = { role: 'user', content }
+      set(state => ({ messages: [...state.messages, userMessage] }))
+
+      try {
+        await window.electronAPI.conversation.addMessage(sessionId, {
+          role: 'user',
+          content,
+        })
+        // bump local message count + title hint
+        set(state => ({
+          sessions: state.sessions.map(s =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  messageCount: (s.messageCount || 0) + 1,
+                  title: s.title === '新对话' ? content.slice(0, 24) : s.title,
+                  updatedAt: new Date().toISOString(),
+                }
+              : s
+          ),
+        }))
+      } catch (error) {
+        console.error('保存用户消息失败:', error)
+      }
+
+      await runCompletion(sessionId, content, historyForContext)
+    },
+
+    regenerate: async () => {
+      const { currentSessionId, loading, streaming, messages } = get()
+      if (loading || streaming || !currentSessionId) return
+
+      // 定位最后一条 user 消息
+      let lastUserIdx = -1
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          lastUserIdx = i
+          break
+        }
+      }
+      // 没有可重新生成的 user 消息
+      if (lastUserIdx === -1) return
+
+      const sessionId = currentSessionId
+      const lastUserContent = messages[lastUserIdx].content
+      const historyForContext = messages.slice(0, lastUserIdx)
+      // 末条 user 之后需移除的旧 assistant 回复（仅持久化过的需删 DB）
+      const toDelete = messages.slice(lastUserIdx + 1).filter(m => m.role === 'assistant' && m.id)
+
+      set({ loading: true, error: null })
+
+      // 先删 DB 旧回复（deleteMessage 在事务内同步回退 message_count）
+      for (const m of toDelete) {
+        try {
+          await window.electronAPI.conversation.deleteMessage(m.id as string)
+        } catch (error) {
+          console.error('删除旧回复失败:', error)
+        }
+      }
+
+      // 本地 state 截断到末条 user（移除旧 assistant）+ 同步回退会话计数
+      set(state => ({
+        messages: state.messages.slice(0, lastUserIdx + 1),
+        sessions: state.sessions.map(s =>
+          s.id === sessionId
+            ? {
+                ...s,
+                messageCount: Math.max(0, (s.messageCount || 0) - toDelete.length),
+                updatedAt: new Date().toISOString(),
+              }
+            : s
+        ),
+      }))
+
+      // 复用末条 user 消息重跑补全（不新增 user 消息 → 不产生重复问答对）
+      await runCompletion(sessionId, lastUserContent, historyForContext)
+    },
+
+    stopStreaming: () => {
+      // Hard abort main-process network stream (best-effort)
+      void window.electronAPI?.ai?.cancelStream?.().catch(() => {})
+      if (activeStreamStop) {
+        activeStreamStop()
+      } else {
+        set({ streaming: false, loading: false })
+      }
+    },
+
+    setCurrentBook: (bookId: string | null) => {
+      set({ currentBookId: bookId })
+    },
+
+    clearError: () => {
+      set({ error: null })
+    },
+
+    setEnableReasoning: (enabled: boolean) => {
+      set({ enableReasoning: enabled })
+    },
+
+    toggleLike: async (messageId: string, liked: boolean) => {
+      // 乐观更新：先改本地状态，再持久化到 DB
       set(state => ({
         messages: state.messages.map(m =>
-          m.id === messageId ? { ...m, liked: !liked } : m
+          m.id === messageId ? { ...m, liked } : m
         ),
-        error: (error as Error).message,
       }))
-    }
-  },
+      try {
+        await window.electronAPI.chat.toggleLike(messageId, liked)
+      } catch (error) {
+        // 持久化失败：回滚本地状态
+        set(state => ({
+          messages: state.messages.map(m =>
+            m.id === messageId ? { ...m, liked: !liked } : m
+          ),
+          error: (error as Error).message,
+        }))
+      }
+    },
 
-  toggleBookmark: async (messageId: string, bookmarked: boolean) => {
-    set(state => ({
-      messages: state.messages.map(m =>
-        m.id === messageId ? { ...m, bookmarked } : m
-      ),
-    }))
-    try {
-      await window.electronAPI.chat.toggleBookmark(messageId, bookmarked)
-    } catch (error) {
+    toggleBookmark: async (messageId: string, bookmarked: boolean) => {
       set(state => ({
         messages: state.messages.map(m =>
-          m.id === messageId ? { ...m, bookmarked: !bookmarked } : m
+          m.id === messageId ? { ...m, bookmarked } : m
         ),
-        error: (error as Error).message,
       }))
-    }
-  },
-}))
+      try {
+        await window.electronAPI.chat.toggleBookmark(messageId, bookmarked)
+      } catch (error) {
+        set(state => ({
+          messages: state.messages.map(m =>
+            m.id === messageId ? { ...m, bookmarked: !bookmarked } : m
+          ),
+          error: (error as Error).message,
+        }))
+      }
+    },
+  }
+})
 
 // 调试：将 store 暴露到 window，便于 Playwright/CDP 诊断
 if (typeof window !== 'undefined') {

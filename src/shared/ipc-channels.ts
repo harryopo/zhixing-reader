@@ -86,6 +86,7 @@ export const IPC_CHANNELS = {
     UPDATE: 'conversations:update',
     DELETE: 'conversations:delete',
     ADD_MESSAGE: 'conversations:addMessage',
+    DELETE_MESSAGE: 'conversations:deleteMessage',
     GET_MESSAGES: 'conversations:getMessages',
     SEARCH: 'conversations:search',
   },

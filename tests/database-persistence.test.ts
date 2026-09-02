@@ -25,6 +25,7 @@ import {
   injectTestDatabase,
   resetTestDatabaseState,
   booksDb,
+  conversationDb,
 } from '../electron/database'
 
 // Mock fs 模块（持久化函数依赖 fs.existsSync / fs.writeFileSync / fs.readFileSync）
@@ -383,6 +384,40 @@ describe('database-persistence — 持久化与生命周期', () => {
         closeDatabase()
         resetTestDatabaseState()
       }
+    })
+  })
+
+  // ==========================================================================
+  // C1-4: conversationDb.deleteMessage（重新生成移除旧 assistant 回复）
+  // ==========================================================================
+  describe('conversationDb.deleteMessage (C1-4)', () => {
+    it('删除消息应移除该行并原子回退会话 message_count', () => {
+      const conv = conversationDb.create('测试会话')
+      const convId = String(conv.id)
+      const id1 = conversationDb.addMessage(convId, { role: 'user', content: 'Q' })
+      conversationDb.addMessage(convId, { role: 'assistant', content: 'A' })
+      expect(conversationDb.getMessages(convId)).toHaveLength(2)
+      expect(Number(conversationDb.getById(convId)?.message_count)).toBe(2)
+
+      // 删除 assistant 回复（保留 user 问题）
+      const assistantMsg = conversationDb.getMessages(convId).find(m => m.role === 'assistant')
+      conversationDb.deleteMessage(String(assistantMsg?.id))
+
+      const remaining = conversationDb.getMessages(convId)
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0].id).toBe(id1)
+      expect(Number(conversationDb.getById(convId)?.message_count)).toBe(1)
+    })
+
+    it('message_count 回退不应低于 0（防御重复删除）', () => {
+      const conv = conversationDb.create('测试会话2')
+      const convId = String(conv.id)
+      const id1 = conversationDb.addMessage(convId, { role: 'assistant', content: 'A' })
+      conversationDb.deleteMessage(id1)
+      // 再删一次（已不存在）：SELECT 无行 → 不回退计数
+      conversationDb.deleteMessage(id1)
+      expect(Number(conversationDb.getById(convId)?.message_count)).toBe(0)
+      expect(conversationDb.getMessages(convId)).toHaveLength(0)
     })
   })
 })

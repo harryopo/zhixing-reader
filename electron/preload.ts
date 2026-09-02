@@ -274,6 +274,7 @@ const electronAPI = {
     update: (id: string, data: Record<string, unknown>) => invoke(IPC_CHANNELS.CONVERSATIONS.UPDATE, id, data),
     delete: (id: string) => invoke(IPC_CHANNELS.CONVERSATIONS.DELETE, id),
     addMessage: (conversationId: string, message: Record<string, unknown>) => invoke(IPC_CHANNELS.CONVERSATIONS.ADD_MESSAGE, conversationId, message),
+    deleteMessage: (messageId: string) => invoke(IPC_CHANNELS.CONVERSATIONS.DELETE_MESSAGE, messageId),
     getMessages: (conversationId: string) => invoke(IPC_CHANNELS.CONVERSATIONS.GET_MESSAGES, conversationId),
     search: (keyword: string) => invoke(IPC_CHANNELS.CONVERSATIONS.SEARCH, keyword),
   },

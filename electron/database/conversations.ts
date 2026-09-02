@@ -82,6 +82,24 @@ export const conversationDb = {
     return id;
   },
 
+  // 删除单条消息（「重新生成」移除旧 assistant 回复用）：
+  // DELETE 消息与回退会话计数需原子执行，避免 message_count 与实际漂移（B12）
+  deleteMessage(messageId: string): void {
+    runTransaction((database) => {
+      const rows = database.exec(
+        'SELECT conversation_id FROM chat_messages WHERE id = ?', [messageId]
+      );
+      const convId = rows[0]?.values[0]?.[0] as string | undefined;
+      database.run('DELETE FROM chat_messages WHERE id = ?', [messageId]);
+      if (convId) {
+        database.run(
+          "UPDATE conversations SET message_count = MAX(message_count - 1, 0), updated_at = datetime('now') WHERE id = ?",
+          [convId]
+        );
+      }
+    });
+  },
+
   getMessages(conversationId: string): Record<string, unknown>[] {
     const result = getDatabase().exec(
       'SELECT * FROM chat_messages WHERE conversation_id = ? ORDER BY created_at ASC',

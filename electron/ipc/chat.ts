@@ -13,6 +13,7 @@ export function registerChatHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.CONVERSATIONS.UPDATE, (id: string, data: Record<string, unknown>) => conversationDb.update(id, data));
   handle(IPC_CHANNELS.CONVERSATIONS.DELETE, (id: string) => conversationDb.delete(id));
   handle(IPC_CHANNELS.CONVERSATIONS.ADD_MESSAGE, (conversationId: string, message: Record<string, unknown>) => conversationDb.addMessage(conversationId, message));
+  handle(IPC_CHANNELS.CONVERSATIONS.DELETE_MESSAGE, (messageId: string) => conversationDb.deleteMessage(messageId));
   handle(IPC_CHANNELS.CONVERSATIONS.GET_MESSAGES, (conversationId: string) => conversationDb.getMessages(conversationId));
   handle(IPC_CHANNELS.CONVERSATIONS.SEARCH, (keyword: string) => conversationDb.search(keyword));
 

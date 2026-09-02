@@ -111,6 +111,7 @@ export default function Chat() {
     deleteSession,
     clearAllSessions,
     sendMessage,
+    regenerate,
     stopStreaming,
     setCurrentBook,
     clearError,
@@ -273,16 +274,16 @@ export default function Chat() {
       .catch(() => toast.error('复制失败'))
   }
 
-  // 重新生成：取出最后一条 user 消息重发（chatStore 暂无 regenerate 方法，避免 over-engineer）
+  // 重新生成：复用最后一条 user 消息，移除旧 assistant 回复后重跑（不新增 user 消息，避免重复问答对）
   const handleRegenerate = useCallback(() => {
     if (loading || streaming) return
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
-    if (!lastUserMsg) {
+    const hasUser = messages.some((m) => m.role === 'user')
+    if (!hasUser) {
       toast.info('没有可重新生成的消息')
       return
     }
-    sendMessage(lastUserMsg.content)
-  }, [messages, loading, streaming, sendMessage])
+    void regenerate()
+  }, [messages, loading, streaming, regenerate])
 
   // 切换深度思考模式
   const handleToggleReasoning = useCallback(() => {
