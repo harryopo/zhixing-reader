@@ -2,6 +2,10 @@ import { create } from 'zustand'
 
 export type WeReadSyncFrequency = '1d' | '3d' | '7d'
 
+/** 新用户默认预填：DeepSeek OpenAI 兼容端点（ai-sdk-service 会自动补 /v1）+ 最新 v4-flash */
+export const DEFAULT_LLM_ENDPOINT = 'https://api.deepseek.com'
+export const DEFAULT_LLM_MODEL = 'deepseek-v4-flash'
+
 interface SettingsState {
   wereadApiKey: string
   llmEndpoint: string
@@ -73,9 +77,9 @@ function parseWeReadSyncFrequency(
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   wereadApiKey: '',
-  llmEndpoint: '',
+  llmEndpoint: DEFAULT_LLM_ENDPOINT,
   llmKey: '',
-  llmModel: '',
+  llmModel: DEFAULT_LLM_MODEL,
   // 默认 false：用户必须显式开启自动同步，避免无 API Key 时空跑定时器
   wereadAutoSync: false,
   // 默认 1d：按天维度自动同步，避免过于频繁调用 API
@@ -100,9 +104,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const settings = await window.electronAPI.settings.getAll() as Record<string, unknown>
       set({
         wereadApiKey: (settings.wereadApiKey as string) || '',
-        llmEndpoint: (settings.llmEndpoint as string) || '',
+        llmEndpoint: (settings.llmEndpoint as string) || DEFAULT_LLM_ENDPOINT,
         llmKey: (settings.llmKey as string) || '',
-        llmModel: (settings.llmModel as string) || '',
+        llmModel: (settings.llmModel as string) || DEFAULT_LLM_MODEL,
         wereadAutoSync: settings.wereadAutoSync === true,
         wereadSyncFrequency: parseWeReadSyncFrequency(
           settings.wereadSyncFrequency,

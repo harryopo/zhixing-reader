@@ -14,14 +14,14 @@ import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { Loading, Tiny } from '@/components/ui/Feedback'
-import { useSettingsStore } from '@/stores/settingsStore'
+import { useSettingsStore, DEFAULT_LLM_ENDPOINT, DEFAULT_LLM_MODEL } from '@/stores/settingsStore'
 import { toast } from '@/stores/toastStore'
 
 // ===== 常量 =====
 
 const DEFAULTS = {
-  llmEndpoint: 'https://api.openai.com/v1',
-  llmModel: 'gpt-4o',
+  llmEndpoint: DEFAULT_LLM_ENDPOINT,
+  llmModel: DEFAULT_LLM_MODEL,
   llmMaxTokens: 4096,
   llmTemperature: 0.7,
   ragCollection: 'zhixing_books',
@@ -175,6 +175,46 @@ export default function SettingsAI() {
     return unsub
   }, [])
 
+  // ===== 持久化全部 AI 配置（无 toast，供「保存」与「测试成功自动保存」共用） =====
+  const persistAll = useCallback(async () => {
+    if (!window.electronAPI?.settings?.set) {
+      throw new Error('API 未正确初始化，请重启应用')
+    }
+    // 1. 持久化扩展字段
+    await Promise.all([
+      window.electronAPI.settings.set('llmMaxTokens', maxTokens),
+      window.electronAPI.settings.set('llmTemperature', temperature),
+      window.electronAPI.settings.set('ragCollection', collection),
+      window.electronAPI.settings.set('embeddingModel', embeddingModel),
+      window.electronAPI.settings.set('promptTemplateGeneralEnabled', templates[0].enabled),
+      window.electronAPI.settings.set('promptTemplateKnowledgeEnabled', templates[1].enabled),
+      window.electronAPI.settings.set('promptTemplatePracticeEnabled', templates[2].enabled),
+      window.electronAPI.settings.set('promptTemplateDiscussionEnabled', templates[3].enabled),
+    ])
+    // 2. 调 store.saveSettings（含 llmEndpoint/llmKey/llmModel + ai.setConfig + weread.setApiKey）
+    await saveSettings()
+  }, [
+    maxTokens,
+    temperature,
+    collection,
+    embeddingModel,
+    templates,
+    saveSettings,
+  ])
+
+  // ===== 保存全部配置 =====
+  const handleSave = useCallback(async () => {
+    const tId = toast.loading('正在保存配置...')
+    try {
+      await persistAll()
+      toast.remove(tId)
+      toast.success('配置保存成功！')
+    } catch (err) {
+      toast.remove(tId)
+      toast.error(`保存失败: ${(err as Error).message}`)
+    }
+  }, [persistAll])
+
   // ===== 测试 AI 连接 =====
   const handleTestConnection = useCallback(async () => {
     if (!window.electronAPI?.ai?.test) {
@@ -198,7 +238,14 @@ export default function SettingsAI() {
       const result = useSettingsStore.getState().testResult
       if (result?.type === 'ai') {
         if (result.success) {
-          toast.success(`连接正常 · ${result.message || '测试通过'}`, 3000)
+          // 测试通过即自动保存：直接传 key 测出的成功 ≠ 已落库应用（与微信读书同款断层），
+          // 否则开始对话时主进程读到的仍是未保存的旧配置
+          try {
+            await persistAll()
+            toast.success(`连接正常 · ${result.message || '测试通过'}（配置已自动保存）`, 3000)
+          } catch (saveErr) {
+            toast.warning(`连接正常但自动保存失败：${(saveErr as Error).message}`, 4000)
+          }
         } else {
           toast.error(`连接失败 · ${result.message || '测试未通过'}`, 4000)
         }
@@ -208,43 +255,7 @@ export default function SettingsAI() {
       setConnStatus('fail')
       toast.error(`测试失败: ${(err as Error).message}`, 4000)
     }
-  }, [llmKey, testAIConnection])
-
-  // ===== 保存全部配置 =====
-  const handleSave = useCallback(async () => {
-    if (!window.electronAPI?.settings?.set) {
-      toast.error('API 未正确初始化，请重启应用')
-      return
-    }
-    const tId = toast.loading('正在保存配置...')
-    try {
-      // 1. 持久化扩展字段
-      await Promise.all([
-        window.electronAPI.settings.set('llmMaxTokens', maxTokens),
-        window.electronAPI.settings.set('llmTemperature', temperature),
-        window.electronAPI.settings.set('ragCollection', collection),
-        window.electronAPI.settings.set('embeddingModel', embeddingModel),
-        window.electronAPI.settings.set('promptTemplateGeneralEnabled', templates[0].enabled),
-        window.electronAPI.settings.set('promptTemplateKnowledgeEnabled', templates[1].enabled),
-        window.electronAPI.settings.set('promptTemplatePracticeEnabled', templates[2].enabled),
-        window.electronAPI.settings.set('promptTemplateDiscussionEnabled', templates[3].enabled),
-      ])
-      // 2. 调 store.saveSettings（含 llmEndpoint/llmKey/llmModel + ai.setConfig + weread.setApiKey）
-      await saveSettings()
-      toast.remove(tId)
-      toast.success('配置保存成功！')
-    } catch (err) {
-      toast.remove(tId)
-      toast.error(`保存失败: ${(err as Error).message}`)
-    }
-  }, [
-    maxTokens,
-    temperature,
-    collection,
-    embeddingModel,
-    templates,
-    saveSettings,
-  ])
+  }, [llmKey, testAIConnection, persistAll])
 
   // ===== 重置默认 =====
   const handleReset = useCallback(() => {
