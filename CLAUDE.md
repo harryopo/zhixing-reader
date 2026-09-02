@@ -134,11 +134,12 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-## 8. 项目状态（2026-08-28 更新）
+## 8. 项目状态（2026-09-02 更新）
 
 - **当前版本**：v1.1.0（维护迭代期，比赛已于 2026-07 结束）
-- **自检报告**：[`docs/项目自检_优化方案_2026-07-20.md`](../../docs/%E9%A1%B9%E7%9B%AE%E8%87%AA%E6%A3%80_%E4%BC%98%E5%8C%96%E6%96%B9%E6%A1%88_2026-07-20.md)
+- **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（Step 1-2 已落地，Step 3-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
+- **2026-09-02 进展**：完成 C1 健壮性 6 修（重置落盘竞态 / 落盘失败重试+通知 / 重新生成重复问答对 / Sidebar 轮询暂停 / 蒸馏去 800ms 延时 / admin sqlite_ 守卫），6 个原子 commit，均过 verify
 
 ---
 
@@ -146,18 +147,18 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 | 报告项 | 优先级 | 归属 | 状态 |
 |--------|--------|------|------|
-| P0-1 关窗数据保存 | P0 | **Day 1-2** | ⏳ |
+| P0-1 关窗数据保存 | P0 | **已修**（main.ts close: cancelActiveStream + forceSaveDatabase 双保险；before-quit closeDatabase） | ✅ |
 | P0-2 rag-service 动态导入 | P0 | **已修**（commit d91036b） | ✅ |
-| P0-3 preload stream 监听器 | P0 | **Day 1-2** | ⏳ |
-| P0-4 IPC 通道统一常量 | P0 | **Day 1-2** | ⏳ |
+| P0-3 preload stream 监听器 | P0 | **已修**（流式健壮性 e653c6a：safeSend isDestroyed 守卫 + chatStore 监听器 cleanup） | ✅ |
+| P0-4 IPC 通道统一常量 | P0 | **已修**（shared/ipc-channels.ts 集中定义，ipc/ 领域文件统一引用） | ✅ |
 | P1-1 database.ts 拆分 | P1 | **已修**（commit 28811b2，拆为 database/ 16 文件） | ✅ |
 | P1-2 ipc.ts 拆分 | P1 | **已修**（commit a3eb462，拆为 ipc/ 12 文件） | ✅ |
 | P1-3 Vite CJS 弃用 | P1 | 迭代中 | ⏸️ |
 | Phase 2 FSRS 升级 | P0 | **已完成**（v1.0.0 已集成 ts-fsrs 5.4.1） | ✅ |
 | Phase 3 ECharts 集成 | P1 | **已完成**（v1.0.0 AdminDashboard 6 图表） | ✅ |
-| **规范基础设施** | **P0** | **本次任务** | 🔄 |
+| **规范基础设施** | **P0** | **已完成**（.claude/rules + STANDARDS + CI 门禁就位） | ✅ |
 
 ---
 
-*最后更新：2026-08-28 | v1.1.0 维护迭代（换机恢复 + 去伪存真 + 功能落地 + 文档勘误）*
+*最后更新：2026-09-02 | v1.1.0 维护迭代（C1 健壮性 6 修 + 文档校准）*
 *与 AGENTS.md 不一致时，以本文件 + .claude/rules/* 为准（Claude 专属）*

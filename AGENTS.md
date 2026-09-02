@@ -35,13 +35,14 @@ zhixing-reader/
 │
 ├── src/renderer/          # Renderer 进程：React SPA
 │   └── src/
-│       ├── pages/         # 路由页面（Bookshelf / Review / Chat / Admin / ...）
-│       ├── features/      # 业务模块（bookshelf / chat / review / ...）
-│       ├── components/    # 通用 UI 组件
-│       ├── stores/        # Zustand 状态管理
+│       ├── pages/         # 路由页面（Bookshelf / Review / Chat / Settings / ...）
+│       ├── components/    # 通用 UI 组件（layout / chat / ui 等）
+│       ├── stores/        # Zustand 状态管理（8 个 store）
+│       ├── design/        # 设计系统
+│       ├── utils/         # 渲染层工具
 │       └── styles/        # Tailwind CSS
 │
-├── shared/                # 跨进程共享：类型 + IPC 通道常量
+├── src/shared/            # 跨进程共享：类型 + IPC 通道常量
 ├── resources/             # 静态资源（dictionary.json / icon.png）
 ├── tests/                 # Vitest 单元测试（FSRS 引擎等纯逻辑）
 │

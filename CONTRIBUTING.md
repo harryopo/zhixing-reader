@@ -45,7 +45,7 @@ npm install
 ### 2.3 启动开发模式
 
 ```bash
-# 启动 Vite 开发服务器（端口 5275）+ Electron 主进程
+# 启动 Vite 开发服务器（端口 5500）+ Electron 主进程
 npm run dev
 ```
 
@@ -60,8 +60,8 @@ zhixing-reader/
 ├── electron/              # Main 进程：数据库、IPC、AI、FSRS、微信读书 API
 │   ├── main.ts            # 入口
 │   ├── preload.ts         # contextBridge API（Renderer 桥）
-│   ├── ipc.ts             # IPC handlers
-│   ├── database.ts        # sql.js DB
+│   ├── ipc/               # IPC handlers（按领域 12 文件，index.ts 统一注册）
+│   ├── database/          # sql.js DB（按领域 16 文件，index.ts 统一出口）
 │   ├── fsrs-engine.ts     # FSRS v5 适配层（基于 ts-fsrs 5.4.1）
 │   ├── agent/             # AI 智能体（5 维上下文构建 + 编排）
 │   ├── repositories/      # 数据访问层
@@ -69,14 +69,14 @@ zhixing-reader/
 ├── src/renderer/          # Renderer 进程（React 19）
 │   └── src/
 │       ├── pages/         # 路由页面
-│       ├── features/      # 业务模块
 │       ├── components/    # UI 组件
-│       └── stores/        # Zustand stores
+│       ├── stores/        # Zustand stores
+│       ├── design/        # 设计系统
+│       └── utils/         # 渲染层工具
 ├── src/shared/            # 跨进程共享类型与常量
 ├── resources/             # 静态资源（图标、词典）
 ├── tests/                 # Vitest 单元测试
 ├── docs/                  # 设计文档与调研报告
-├── mcp-server/            # MCP Server 子项目
 └── package.json
 ```
 
