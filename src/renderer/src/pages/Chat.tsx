@@ -18,11 +18,12 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Button from '@/components/ui/Button'
-import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
-import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
+import { EmptyState } from '@/components/ui/Feedback'
 import MessageBubble, { RAGSource } from '@/components/chat/MessageBubble'
 import RetrievalPanel from '@/components/chat/RetrievalPanel'
+import SessionDrawer from '@/components/chat/SessionDrawer'
+import ContextBar from '@/components/chat/ContextBar'
 import { useChatStore } from '../stores/chatStore'
 import { toast } from '../stores/toastStore'
 
@@ -35,14 +36,6 @@ interface BookRow {
   progress: number
   isFinished?: number
   is_finished?: number
-}
-
-interface HighlightRow {
-  id: string
-  bookId: string
-  content: string
-  chapterTitle?: string
-  type?: string
 }
 
 // ===== 常量 =====
@@ -68,29 +61,6 @@ const QUICK_ACTIONS = [
     prompt: '请考考我对这本书内容的理解程度',
   },
 ]
-
-/** 时间相对显示（"2 小时前 / 昨天 / 3 天前 / 上周"） */
-function formatRelativeTime(iso: string): string {
-  if (!iso) return ''
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ''
-  const diff = Date.now() - then
-  const min = Math.floor(diff / 60000)
-  if (min < 60) return `${min || 1} 分钟前`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} 小时前`
-  const day = Math.floor(hr / 24)
-  if (day === 1) return '昨天'
-  if (day < 7) return `${day} 天前`
-  if (day < 14) return '上周'
-  return `${Math.floor(day / 7)} 周前`
-}
-
-/** 截断会话标题用于左侧列表展示 */
-function truncate(s: string, n: number): string {
-  if (!s) return ''
-  return s.length > n ? s.slice(0, n) + '…' : s
-}
 
 // ===== 主组件 =====
 export default function Chat() {
@@ -124,10 +94,9 @@ export default function Chat() {
 
   const [input, setInput] = useState('')
   const [books, setBooks] = useState<BookRow[]>([])
-  const [highlights, setHighlights] = useState<HighlightRow[]>([])
   const [loadingContext, setLoadingContext] = useState(true)
-  const [sessionsCollapsed, setSessionsCollapsed] = useState(false)
-  const [contextCollapsed, setContextCollapsed] = useState(true)
+  /** 历史会话抽屉开关（原 240px 常驻左栏已收编为 overlay 抽屉） */
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bookIdFromUrlApplied = useRef(false)
@@ -148,35 +117,6 @@ export default function Chat() {
       console.warn('按书籍创建会话失败:', err)
     })
   }, [searchParams, setCurrentBook, createSession])
-
-  // ===== 当切换关联书籍时，刷新该书的笔记 =====
-  useEffect(() => {
-    if (!currentBookId) {
-      setHighlights([])
-      return
-    }
-    let cancelled = false
-    window.electronAPI?.highlight
-      ?.getByBook(currentBookId)
-      .then((res) => {
-        if (cancelled) return
-        const list = (res && Array.isArray(res) ? res : []) as unknown as HighlightRow[]
-        setHighlights(list.map((h) => ({
-          id: String(h.id ?? ''),
-          bookId: String(h.bookId ?? ''),
-          content: String(h.content ?? ''),
-          chapterTitle: h.chapterTitle ? String(h.chapterTitle) : undefined,
-          type: h.type ? String(h.type) : undefined,
-        })))
-      })
-      .catch((err) => {
-        console.warn('加载书籍笔记失败:', err)
-        if (!cancelled) setHighlights([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [currentBookId])
 
   // ===== 自动滚动到底部（只滚对话区，不滚整页） =====
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -295,10 +235,6 @@ export default function Chat() {
   // ===== 派生数据 =====
   const currentSession = sessions.find((s) => s.id === currentSessionId)
   const currentBook = books.find((b) => b.id === currentBookId) || null
-  const bookProgressPct = currentBook
-    ? Math.round(Number(currentBook.progress ?? 0) * 100)
-    : 0
-  const bookHighlights = highlights.filter((h) => h.bookId === currentBookId)
 
   const inputDisabled = loading || streaming
 
@@ -318,230 +254,15 @@ export default function Chat() {
           </>
         }
       >
-        {/* ===== 三栏对话工作台 ===== */}
+        {/* ===== 单栏对话工作台：历史入抽屉、书籍入上下文条（原三栏重构） ===== */}
         <div
           className="page-body chat-workspace"
           style={{
-            display: 'grid',
-            gridTemplateColumns: (() => {
-              const sessionWidth = sessionsCollapsed ? '56px' : '220px'
-              const contextWidth = contextCollapsed ? '56px' : '260px'
-              return `${sessionWidth} 1fr ${contextWidth}`
-            })(),
-            gap: 'calc(var(--spacing) * 4)',
+            display: 'flex',
+            flexDirection: 'column',
             minHeight: 'calc(100vh - 76px - 220px)',
-            overflow: 'hidden',
-            transition: 'grid-template-columns 0.25s ease',
           }}
         >
-          {/* ============ 左栏：会话列表 ============ */}
-          <aside
-            className="chat-sessions"
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 'calc(var(--radius) + 4px)',
-              background: 'var(--card)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              minHeight: 0,
-            }}
-          >
-            <div
-              className="sessions-head"
-              style={{
-                padding: sessionsCollapsed ? 'calc(var(--spacing) * 2) calc(var(--spacing) * 1)' : 'calc(var(--spacing) * 4)',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                flexDirection: sessionsCollapsed ? 'column' : 'row',
-                justifyContent: sessionsCollapsed ? 'flex-start' : 'space-between',
-                alignItems: 'center',
-                gap: sessionsCollapsed ? 'calc(var(--spacing) * 2)' : undefined,
-              }}
-            >
-              {!sessionsCollapsed && (
-                <span
-                  className="eyebrow"
-                  style={{
-                    fontSize: '0.78rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    color: 'var(--muted-foreground)',
-                    fontWeight: 600,
-                  }}
-                >
-                  会话
-                </span>
-              )}
-              <IconButtonSmall
-                label={sessionsCollapsed ? '展开会话列表' : '收起会话列表'}
-                onClick={() => setSessionsCollapsed((c) => !c)}
-              >
-                <Icon name={sessionsCollapsed ? 'chevron-right' : 'chevron-left'} size={14} />
-              </IconButtonSmall>
-              <IconButtonSmall label="新建会话" onClick={handleNewChat}>
-                <Icon name="plus" size={14} />
-              </IconButtonSmall>
-            </div>
-            <div
-              className="sessions-list"
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: sessionsCollapsed ? 'calc(var(--spacing) * 1)' : 'calc(var(--spacing) * 2)',
-                minHeight: 0,
-              }}
-            >
-              {sessions.length === 0 ? (
-                <div
-                  style={{
-                    padding: sessionsCollapsed ? 'calc(var(--spacing) * 3) 0' : 'calc(var(--spacing) * 4)',
-                    textAlign: 'center',
-                    color: 'var(--muted-foreground)',
-                    fontSize: sessionsCollapsed ? '0.75rem' : '0.85rem',
-                  }}
-                >
-                  {sessionsCollapsed ? '无' : (
-                    <>
-                      暂无会话
-                      <br />
-                      点击右上角 + 新建
-                    </>
-                  )}
-                </div>
-              ) : (
-                sessions.map((s) => {
-                  const active = s.id === currentSessionId
-                  const firstChar = (s.title || '新').slice(0, 1)
-                  return (
-                    <div
-                      key={s.id}
-                      style={{
-                        position: 'relative',
-                        display: 'flex',
-                        alignItems: 'stretch',
-                        justifyContent: sessionsCollapsed ? 'center' : undefined,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        data-active={active ? 'true' : undefined}
-                        onClick={() => switchSession(s.id)}
-                        title={s.title || '新对话'}
-                        style={{
-                          flex: sessionsCollapsed ? undefined : 1,
-                          width: sessionsCollapsed ? 40 : '100%',
-                          height: sessionsCollapsed ? 40 : undefined,
-                          padding: sessionsCollapsed ? 0 : 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                          textAlign: sessionsCollapsed ? 'center' : 'left',
-                          border: 'none',
-                          background: active ? 'var(--sidebar-accent)' : 'transparent',
-                          color: 'var(--foreground)',
-                          borderRadius: 'var(--radius)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: sessionsCollapsed ? 'row' : 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: sessionsCollapsed ? 0 : '0.3rem',
-                          transition: 'background 0.2s ease',
-                          font: 'inherit',
-                          overflow: 'hidden',
-                          margin: sessionsCollapsed ? '0 auto calc(var(--spacing) * 1)' : undefined,
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!active) e.currentTarget.style.background = 'var(--sidebar-accent)'
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!active) e.currentTarget.style.background = 'transparent'
-                        }}
-                      >
-                        {sessionsCollapsed ? (
-                          <span
-                            style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: '50%',
-                              background: active ? 'var(--primary)' : 'var(--muted)',
-                              color: active ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
-                              display: 'grid',
-                              placeItems: 'center',
-                              fontSize: '0.85rem',
-                              fontWeight: 600,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {firstChar}
-                          </span>
-                        ) : (
-                          <>
-                            <span
-                              style={{
-                                fontSize: '0.88rem',
-                                fontWeight: 500,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                color: active ? 'var(--sidebar-accent-foreground)' : 'inherit',
-                              }}
-                            >
-                              {truncate(s.title || '新对话', 18)}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '0.72rem',
-                                color: 'var(--muted-foreground)',
-                                fontFamily: 'var(--font-mono)',
-                              }}
-                            >
-                              {formatRelativeTime(s.updatedAt || s.createdAt)}
-                            </span>
-                          </>
-                        )}
-                      </button>
-                      {!sessionsCollapsed && (
-                        <button
-                          type="button"
-                          aria-label="删除会话"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteSession(s.id)
-                          }}
-                          style={{
-                            position: 'absolute',
-                            top: 'calc(var(--spacing) * 2)',
-                            right: 'calc(var(--spacing) * 2)',
-                            width: 20,
-                            height: 20,
-                            display: 'grid',
-                            placeItems: 'center',
-                            border: 'none',
-                            background: 'transparent',
-                            color: 'var(--muted-foreground)',
-                            cursor: 'pointer',
-                            borderRadius: 4,
-                            opacity: 0.4,
-                            transition: 'opacity 0.2s ease, color 0.2s ease',
-                            padding: 0,
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.opacity = '1'
-                            e.currentTarget.style.color = 'var(--state-error)'
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.opacity = '0.4'
-                            e.currentTarget.style.color = 'var(--muted-foreground)'
-                          }}
-                        >
-                          <Icon name="close" size={12} />
-                        </button>
-                      )}
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </aside>
 
           {/* ============ 中栏：消息流 ============ */}
           <section
@@ -559,31 +280,57 @@ export default function Chat() {
             <div
               className="messages-head"
               style={{
-                padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 5)',
+                padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 4)',
                 borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 'calc(var(--spacing) * 2)',
-                flexWrap: 'wrap',
               }}
             >
-              <strong style={{ fontSize: '0.95rem', color: 'var(--foreground)' }}>
+              <button
+                type="button"
+                aria-label="打开历史对话"
+                aria-expanded={drawerOpen}
+                title="历史对话"
+                onClick={() => setDrawerOpen(true)}
+                style={{
+                  width: 30,
+                  height: 30,
+                  display: 'grid',
+                  placeItems: 'center',
+                  border: '1px solid var(--border)',
+                  background: 'var(--card)',
+                  color: 'var(--foreground)',
+                  borderRadius: 'var(--radius)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  padding: 0,
+                }}
+              >
+                <Icon name="menu" size={15} />
+              </button>
+              <strong
+                style={{
+                  fontSize: '0.95rem',
+                  color: 'var(--foreground)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {currentSession?.title || 'AI 阅读助手'}
               </strong>
               <span
                 className="tiny"
-                style={{
-                  fontSize: '0.72rem',
-                  color: 'var(--muted-foreground)',
-                }}
+                style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', flexShrink: 0 }}
               >
-                {messages.length} 条消息 · 智能对话
+                {messages.length} 条消息
               </span>
-              {currentBook && (
-                <Badge variant="ok" style={{ marginLeft: 'auto' }}>
-                  <Icon name="bookshelf" size={12} /> {currentBook.title}
-                </Badge>
-              )}
+              <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                <IconButtonSmall label="新建会话" onClick={handleNewChat}>
+                  <Icon name="plus" size={14} />
+                </IconButtonSmall>
+              </span>
             </div>
 
             {/* 消息流 */}
@@ -598,6 +345,9 @@ export default function Chat() {
                 flexDirection: 'column',
                 gap: 'calc(var(--spacing) * 5)',
                 minHeight: 0,
+                width: '100%',
+                maxWidth: 900,
+                margin: '0 auto',
               }}
             >
               {messages.length === 0 && !streaming && !loading ? (
@@ -664,6 +414,15 @@ export default function Chat() {
                 </>
               )}
             </div>
+
+            {/* 关联书籍上下文条（原 280px 右栏收编；无进度条等假数据） */}
+            <ContextBar
+              currentBook={currentBook}
+              books={books}
+              loading={loadingContext}
+              onSelect={(id) => setCurrentBook(id)}
+              onClear={() => setCurrentBook(null)}
+            />
 
             {/* 输入区 */}
             <div
@@ -818,346 +577,24 @@ export default function Chat() {
               )}
             </div>
           </section>
-
-          {/* ============ 右栏：上下文面板 ============ */}
-          <aside
-            className="chat-context"
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 'calc(var(--radius) + 4px)',
-              background: 'var(--card)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              minHeight: 0,
-            }}
-          >
-            <div
-              className="context-head"
-              style={{
-                padding: contextCollapsed ? 'calc(var(--spacing) * 2) calc(var(--spacing) * 1)' : 'calc(var(--spacing) * 4)',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                flexDirection: contextCollapsed ? 'column' : 'row',
-                justifyContent: contextCollapsed ? 'flex-start' : 'space-between',
-                alignItems: 'center',
-                gap: contextCollapsed ? 'calc(var(--spacing) * 2)' : undefined,
-              }}
-            >
-              {!contextCollapsed && (
-                <div>
-                  <span
-                    className="eyebrow"
-                    style={{
-                      fontSize: '0.78rem',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      color: 'var(--muted-foreground)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    上下文
-                  </span>
-                  <strong
-                    style={{
-                      display: 'block',
-                      marginTop: 'calc(var(--spacing) * 1)',
-                      fontSize: '0.92rem',
-                      color: 'var(--foreground)',
-                    }}
-                  >
-                    关联书籍
-                  </strong>
-                </div>
-              )}
-              <IconButtonSmall
-                label={contextCollapsed ? '展开关联书籍' : '收起关联书籍'}
-                onClick={() => setContextCollapsed((c) => !c)}
-              >
-                <Icon name={contextCollapsed ? 'chevron-left' : 'chevron-right'} size={14} />
-              </IconButtonSmall>
-            </div>
-            <div
-              className="context-body"
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: contextCollapsed ? 0 : 'calc(var(--spacing) * 3)',
-                display: contextCollapsed ? 'none' : 'flex',
-                flexDirection: 'column',
-                gap: 'calc(var(--spacing) * 3)',
-                minHeight: 0,
-              }}
-            >
-              {loadingContext ? (
-                <Loading hint="加载上下文..." />
-              ) : currentBook ? (
-                <>
-                  {/* 关联书籍卡片 */}
-                  <div
-                    className="context-book"
-                    style={{
-                      padding: 'calc(var(--spacing) * 3)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius)',
-                      background: 'var(--background)',
-                    }}
-                  >
-                    <div
-                      className="book-cover-mini"
-                      style={{
-                        width: '100%',
-                        aspectRatio: '3 / 4',
-                        borderRadius: 'var(--radius)',
-                        background: currentBook.cover
-                          ? `url(${currentBook.cover}) center/cover`
-                          : 'var(--chart-1)',
-                        display: 'grid',
-                        placeItems: 'center',
-                        color: 'var(--primary-foreground)',
-                        fontWeight: 700,
-                        marginBottom: 'calc(var(--spacing) * 3)',
-                        fontSize: '0.95rem',
-                        textAlign: 'center',
-                        padding: 'calc(var(--spacing) * 2)',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {!currentBook.cover && currentBook.title}
-                    </div>
-                    <div
-                      className="book-title-mini"
-                      style={{
-                        fontSize: '0.88rem',
-                        fontWeight: 600,
-                        color: 'var(--foreground)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {currentBook.title}
-                    </div>
-                    <div
-                      className="book-author-mini"
-                      style={{
-                        fontSize: '0.72rem',
-                        color: 'var(--muted-foreground)',
-                        marginTop: '0.2rem',
-                      }}
-                    >
-                      {currentBook.author || '未知作者'}
-                    </div>
-                    <div
-                      className="book-progress-mini"
-                      style={{ marginTop: 'calc(var(--spacing) * 2)' }}
-                    >
-                      <div
-                        className="progress-track"
-                        style={{
-                          height: 4,
-                          background: 'var(--muted)',
-                          borderRadius: 2,
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <div
-                          className="progress-fill"
-                          style={{
-                            height: '100%',
-                            width: `${bookProgressPct}%`,
-                            background: 'var(--primary)',
-                            borderRadius: 2,
-                            transition: 'width 0.3s ease',
-                          }}
-                        />
-                      </div>
-                      <span
-                        className="progress-text"
-                        style={{
-                          fontSize: '0.72rem',
-                          color: 'var(--muted-foreground)',
-                          fontFamily: 'var(--font-mono)',
-                          marginTop: 'calc(var(--spacing) * 1)',
-                          display: 'block',
-                        }}
-                      >
-                        {bookProgressPct}%
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentBook(null)}
-                      style={{
-                        width: '100%',
-                        marginTop: 'calc(var(--spacing) * 3)',
-                        padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
-                        fontSize: '0.78rem',
-                        color: 'var(--muted-foreground)',
-                        background: 'transparent',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                        cursor: 'pointer',
-                        transition: 'color 0.2s ease, border-color 0.2s ease',
-                        font: 'inherit',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = 'var(--state-error)'
-                        e.currentTarget.style.borderColor = 'var(--state-error)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = 'var(--muted-foreground)'
-                        e.currentTarget.style.borderColor = 'var(--border)'
-                      }}
-                    >
-                      取消关联
-                    </button>
-                  </div>
-
-                  {/* 引用笔记 */}
-                  <div className="context-section">
-                    <div
-                      className="context-label"
-                      style={{
-                        fontSize: '0.78rem',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        color: 'var(--muted-foreground)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      引用笔记 ({bookHighlights.length})
-                    </div>
-                    <div
-                      className="context-list"
-                      style={{
-                        marginTop: 'calc(var(--spacing) * 2)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 'calc(var(--spacing) * 2)',
-                      }}
-                    >
-                      {bookHighlights.length === 0 ? (
-                        <Tiny>这本书暂无笔记</Tiny>
-                      ) : (
-                        bookHighlights.slice(0, 5).map((h) => (
-                          <div
-                            key={h.id}
-                            className="context-note"
-                            style={{
-                              padding: 'calc(var(--spacing) * 2.5)',
-                              border: '1px solid var(--border)',
-                              borderRadius: 'var(--radius)',
-                              fontSize: '0.78rem',
-                              lineHeight: 1.5,
-                              color: 'var(--card-foreground)',
-                              cursor: 'pointer',
-                              transition: 'border-color 0.2s ease',
-                              background: 'var(--background)',
-                              overflow: 'hidden',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 3,
-                              WebkitBoxOrient: 'vertical',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = 'var(--ring)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = 'var(--border)'
-                            }}
-                            title={h.content}
-                          >
-                            {h.content}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <EmptyState
-                    icon={<Icon name="bookshelf" size={24} />}
-                    title="未关联书籍"
-                    description="选择一本书以提供 AI 上下文"
-                  />
-                  {/* 书籍选择列表 */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 'calc(var(--spacing) * 2)',
-                    }}
-                  >
-                    {books.slice(0, 8).map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => setCurrentBook(b.id)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 'calc(var(--spacing) * 3)',
-                          padding: 'calc(var(--spacing) * 2.5) calc(var(--spacing) * 3)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius)',
-                          background: 'var(--background)',
-                          cursor: 'pointer',
-                          transition: 'border-color 0.2s ease',
-                          textAlign: 'left',
-                          font: 'inherit',
-                          color: 'inherit',
-                          width: '100%',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--ring)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--border)'
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 28,
-                            height: 36,
-                            borderRadius: 4,
-                            background: b.cover
-                              ? `url(${b.cover}) center/cover`
-                              : 'var(--chart-1)',
-                            flexShrink: 0,
-                            display: b.cover ? 'block' : 'grid',
-                            placeItems: 'center',
-                            color: 'var(--primary-foreground)',
-                            fontSize: '0.55rem',
-                            fontWeight: 700,
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {!b.cover && b.title.slice(0, 2)}
-                        </div>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div
-                            style={{
-                              fontSize: '0.82rem',
-                              fontWeight: 600,
-                              color: 'var(--foreground)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {b.title}
-                          </div>
-                          <Tiny>{b.author || '未知作者'}</Tiny>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </aside>
         </div>
+
+        {/* 历史会话抽屉（overlay，替代原 240px 左栏） */}
+        <SessionDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          onSwitch={(id) => {
+            void switchSession(id)
+            setDrawerOpen(false)
+          }}
+          onDelete={handleDeleteSession}
+          onCreate={() => {
+            handleNewChat()
+            setDrawerOpen(false)
+          }}
+        />
       </PageHero>
     </>
   )
