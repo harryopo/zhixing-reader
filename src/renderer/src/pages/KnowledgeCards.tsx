@@ -300,11 +300,10 @@ export default function KnowledgeCards() {
       await window.electronAPI.knowledgeCard.distill(bookId, safeStr(book.title))
       toast.remove(loadingId)
       toast.success('知识卡片蒸馏完成')
-      // 短暂延迟再加载数据，确保 distillProgress 事件先被处理
-      setTimeout(async () => {
-        setDistillProgress(null)
-        await loadData()
-      }, 800)
+      // distill 的 Promise 在卡片蒸馏并落库完成后才 resolve，直接清进度 + 刷新即可：
+      // 进度浮层已由 finally 的 distillingBookId=null 关闭，800ms 魔法延时只会让列表晚刷新
+      setDistillProgress(null)
+      await loadData()
     } catch (error) {
       toast.remove(loadingId)
       const errorMsg = error instanceof Error ? error.message : String(error)
