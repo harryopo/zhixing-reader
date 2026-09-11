@@ -2,7 +2,8 @@
 
 > **面向对象**：所有 AI Agent（Claude Code / Cursor / Continue / Trae）
 > **生效日期**：2026-07-20
-> **配套规范**：[CLAUDE.md](CLAUDE.md) + [.learnings/STANDARDS.md](.learnings/STANDARDS.md) + [.claude/rules/](.claude/)
+> **配套规范**：[CLAUDE.md](CLAUDE.md) + [.learnings/LEARNINGS.md](.learnings/LEARNINGS.md) + [.learnings/PROGRESS.md](.learnings/PROGRESS.md)
+> **最近核验**：2026-09-11（对代码实测校准；见第十章变更记录）
 
 ---
 
@@ -14,7 +15,7 @@
 |------|------|
 | 形态 | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | 框架 | electron-vite 2 + React 19 + TypeScript 5.6 strict |
-| 存储 | sql.js (SQLite WASM) + Qdrant（可选向量库）|
+| 存储 | sql.js (SQLite WASM) + Vectra 本地向量索引 |
 | 核心能力 | 微信读书同步、FSRS 间隔重复、AI 智能体对话、知识卡片、词汇学习 |
 | 打包 | electron-builder → Windows NSIS 安装包 |
 
@@ -28,8 +29,8 @@ zhixing-reader/
 │   ├── main.ts            # 入口（窗口创建 + 初始化序列）
 │   ├── preload.ts         # contextBridge API 暴露面
 │   ├── ipc/               # IPC handlers（按领域 12 文件，index.ts 统一注册）
-│   ├── database/          # sql.js DB（按领域 16 文件，index.ts 统一出口）
-│   ├── fsrs-engine.ts     # FSRS 间隔重复算法（v1，singleton 函数导出）
+│   ├── database/          # sql.js DB（16 个领域文件 + index.ts 出口 + schema.ts）
+│   ├── fsrs-engine.ts     # FSRS v5 适配层（基于 ts-fsrs 5.4.1，对外 API 100% 兼容）
 │   ├── agent/             # 智能体（意图分类 / 编排 / 策略）
 │   └── services/          # 业务服务（RAG / 嵌入 / 知识卡片 / Prompt 模板）
 │
@@ -44,15 +45,14 @@ zhixing-reader/
 │
 ├── src/shared/            # 跨进程共享：类型 + IPC 通道常量
 ├── resources/             # 静态资源（dictionary.json / icon.png）
-├── tests/                 # Vitest 单元测试（FSRS 引擎等纯逻辑）
+├── tests/                 # Vitest 单元测试（30 文件 / 688 用例）
 │
-├── .claude/               # Claude Code 专属配置
-│   ├── rules/             # 领域规则（code-style / security / git）
-│   ├── agents/            # Sub-agent 模板（code-reviewer / test-writer）
-│   └── ownership.yaml     # 文件所有权（防冲突）
-├── .learnings/            # 临时学习记录（项目内 .gitignore）
-├── .github/workflows/     # CI/CD（lint+typecheck+test+build）
-├── docs/                  # 设计文档 + 调研报告
+├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
+│   ├── LEARNINGS.md       # 踩坑与最佳实践
+│   └── PROGRESS.md        # 路线图与待办
+├── .workbuddy/memory/     # 会话交接记录（⚠️ 本地文件，不入库）
+├── .github/workflows/     # CI（lint + typecheck + test + build）
+├── docs/                  # 设计文档 + 调研报告（⚠️ .gitignore 排除，不入库）
 │
 ├── AGENTS.md              # ← 你正在读的（所有 Agent 入口）
 ├── CLAUDE.md              # Claude Code 专属配置
@@ -72,15 +72,14 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（含覆盖率）
+npm run test             # Vitest（688 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 打包
 npm run package:win      # Windows NSIS 安装包
-
-# 词典（仅开发者）
-npm run build-dict       # 从 ecdict.db 重新提取 dictionary.json
 ```
+
+> ⚠️ 原有的 `build-dict` / `seed:demo` / `loop:*` 共 6 个脚本已于 2026-09-11 移除 —— 它们指向的 `scripts/` 目录已不在仓库（commit `2361f9e` 清除）。词典现在只能使用已提交的 `resources/dictionary.json`。
 
 **提交顺序**：lint → typecheck → test → build（**全绿才可提交**）。
 
@@ -90,7 +89,7 @@ npm run build-dict       # 从 ecdict.db 重新提取 dictionary.json
 
 ### 4.1 文件所有权（防冲突）
 
-所有并行 Sub-agent 必须遵守 [.claude/ownership.yaml](.claude/ownership.yaml)：
+所有并行 Sub-agent 按下表划分文件所有权（⚠️ `.claude/ownership.yaml` **未落地**，下表为准）：
 
 | Agent | 可写 | 禁止 |
 |-------|------|------|
@@ -114,11 +113,10 @@ npm run build-dict       # 从 ecdict.db 重新提取 dictionary.json
 ### 4.3 Sub-agent 模板
 
 - **code-reviewer** — 7 维度审查（安全/性能/正确性/可维护性/测试/可访问性/文档）
-  - 详细规范：`.claude/rules/review-agent.md`
-  - 提示词模板、审查类目、反馈表达规范
+  - 提示词模板、审查类目、反馈表达规范（⚠️ `.claude/rules/review-agent.md` **未落地**，7 维清单见第 9.3 节）
 - **test-writer** — Vitest 用例生成（红绿循环）
 
-详见 [.claude/agents/](.claude/agents/)。
+> ⚠️ `.claude/` 目录当前**不存在**（`.gitignore` 明确排除 `.claude/`，换机后未恢复）。本节保留约定内容作为协作契约，落地文件待补。
 
 ---
 
@@ -130,7 +128,8 @@ npm run build-dict       # 从 ecdict.db 重新提取 dictionary.json
 |------|------|---------|
 | ESLint 严格模式 | `npm run lint` | 阻塞 commit |
 | TypeScript strict | `npm run typecheck` | 阻塞 commit |
-| Vitest + 覆盖率 | `npm run test` | 覆盖率 < 85% 阻塞 |
+| Vitest | `npm run test` | 未接入覆盖率门禁，仅断言全绿 |
+| 覆盖率（可选）| `npm run test:cov` | 阈值 lines 83 / branches 80 / functions 75 / statements 83 |
 | Build 全通过 | `npm run build` | 阻塞 PR |
 
 **一键验证**：
@@ -143,20 +142,22 @@ npm run verify
 每次 push / PR 自动跑：
 1. ESLint
 2. TypeScript
-3. Vitest（含覆盖率上传 artifact）
+3. Vitest（⚠️ `npm run test` 不带 `--coverage`，CI 的 coverage artifact 目前不会生成）
 4. 三进程 build
 
 详见 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
 
 ### 5.3 15 条硬性规则（违反即阻塞）
 
-完整列表见 [.learnings/STANDARDS.md](.learnings/STANDARDS.md)，速查：
+15 条规则正本（`.learnings/STANDARDS.md`）**未落地**，下表为速查口径：
 
 | 类别 | 规则 |
 |------|------|
 | 🔴 安全 R1-R5 | 禁硬编码密钥 / 必参数化查询 / 错误响应不泄露 stack |
-| 🟡 质量 R6-R10 | 覆盖率 ≥ 85% / 文件 ≤ 500 行 / 圈复杂度 ≤ 15 / 目录 ≤ 4 层 / 0 lint 错误 |
+| 🟡 质量 R6-R10 | 覆盖率阈值见 `vitest.config.ts`（83/80/75/83）/ 文件 ≤ 500 行 / 圈复杂度 ≤ 15 / 目录 ≤ 4 层 / 0 lint 错误 |
 | 🟢 规范 R11-R15 | Feature-First / 命名即文档 / Colocation / 配置外化 / Conventional Commits |
+
+> ⚠️ 实测口径：`max-lines`、`complexity`、`max-depth` 在 `eslint.config.js` 中均为 **warn**（不阻塞）；仅 `max-params`、`prefer-const`、`eqeqeq`、`no-unused-vars` 为 error。故「违反即阻塞」仅对后四类成立。
 
 ---
 
@@ -164,9 +165,9 @@ npm run verify
 
 | 领域 | 规则文件 | 重点 |
 |------|---------|------|
-| 代码风格 | [.claude/rules/code-style.md](.claude/rules/code-style.md) | TS/React/Electron 细节 |
-| 安全 | [.claude/rules/security.md](.claude/rules/security.md) | R1-R5 + IPC 安全 |
-| Git | [.claude/rules/git.md](.claude/rules/git.md) | Conventional Commits + pre-commit |
+| 代码风格 | `.claude/rules/code-style.md` ⚠️未落地 | TS/React/Electron 细节；以 `eslint.config.js` + `tsconfig.json` 实际配置为准 |
+| 安全 | `.claude/rules/security.md` ⚠️未落地 | R1-R5 + IPC 安全；红线见 CLAUDE.md §2 |
+| Git | `.claude/rules/git.md` ⚠️未落地 | Conventional Commits；⚠️ **pre-commit hook 与 commitlint 均未安装** |
 
 ---
 
@@ -188,10 +189,11 @@ npm run verify
 新对话开始时，按以下顺序加载上下文（避免一次性吞下全部）：
 
 ```typescript
-// 1. 必须读：AGENTS.md（本文件）+ CLAUDE.md + .learnings/STANDARDS.md
-// 2. 任务相关：对应的 .claude/rules/*.md
-// 3. 任务代码：目标文件 + 上下游 ±200 行
-// 4. 不读：node_modules、dist、release、resources
+// 1. 必须读：AGENTS.md（本文件）+ CLAUDE.md + .learnings/PROGRESS.md
+// 2. 交接记录：.workbuddy/memory/ 下最新日期文件
+// 3. 任务相关：CLAUDE.md §1 的「必须先读的文件」表
+// 4. 任务代码：目标文件 + 上下游 ±200 行
+// 5. 不读：node_modules、dist、release、resources
 ```
 
 ---
@@ -218,8 +220,8 @@ npm run verify
 | 通道 | 用途 | 文件 |
 |------|------|------|
 | `WEREAD:FETCH_RECOMMENDATIONS` | 微信读书推荐好书（gateway 优先 + 衍生降级）| `weread-api.ts` `fetchRecommendations` |
-| `SYSTEM:CLEAR_HISTORY` | 清理所有对话历史（runTransaction 包裹）| `database.ts` `clearConversationsAndMessages` |
-| `SYSTEM:RESET_DATABASE` | 重置数据库 16 张表 + `app.relaunch` | `database.ts` `resetDatabase` |
+| `SYSTEM:CLEAR_HISTORY` | 清理所有对话历史（runTransaction 包裹）| `database/schema.ts` `clearConversationsAndMessages` |
+| `SYSTEM:RESET_DATABASE` | 重置数据库 15 张表 + `app.relaunch` | `database/schema.ts` `resetDatabase` |
 | `ADMIN:CREATE_CUSTOM_PROMPT` | 新建自定义 AI 模板 | `services/prompt-storage.ts` |
 | `ADMIN:UPDATE_CUSTOM_PROMPT` | 更新自定义 AI 模板 | 同上 |
 | `ADMIN:DELETE_CUSTOM_PROMPT` | 删除自定义 AI 模板 | 同上 |
@@ -235,17 +237,19 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目无测试框架（AGENTS.md 已说明），新增功能需手动走查 |
+| 测试 | 项目已有 Vitest（30 文件 / 688 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
 ### 9.4 相关文件
 
-- spec：`.trae/specs/dead-code-governance/spec.md`
-- 任务清单：`.trae/specs/dead-code-governance/tasks.md`
-- 验收 checklist：`.trae/specs/dead-code-governance/checklist.md`
-- 最终 verify report：`.trae/specs/dead-code-governance/verify-report.md`
-- 经验沉淀：`.learnings/LEARNINGS.md` LRN-20260721-006~010
+> ⚠️ 下列 `.trae/specs/` 四件套**当前不存在**（`.trae/` 目录已不在仓库，换机后未恢复）；沉淀有效的部分见 `.learnings/LEARNINGS.md`。
+
+- spec：`.trae/specs/dead-code-governance/spec.md`（未落地）
+- 任务清单：`.trae/specs/dead-code-governance/tasks.md`（未落地）
+- 验收 checklist：`.trae/specs/dead-code-governance/checklist.md`（未落地）
+- 最终 verify report：`.trae/specs/dead-code-governance/verify-report.md`（未落地）
+- 经验沉淀：`.learnings/LEARNINGS.md` LRN-20260721-006~010 ✅
 
 ---
 
@@ -253,8 +257,13 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-11 | 接手核验校准 — 修正 Qdrant→Vectra、fsrs-engine v1→v5 适配层、database/ 文件数、测试数（667→688）、覆盖率门禁口径（未接入）、`.claude/` 与 `.learnings/STANDARDS.md` 标注未落地、`.trae/` 四件套标注缺失；删除 §9.3「项目无测试框架」错误陈述 | AI Agent（接手） |
+| 2026-09-11 | 遗留问题治理 — ① 补全 **Skill 导出全链路**（新增 `SKILL.EXPORT_FILE` 通道 + 方法论详情页「导出为 Skill」按钮，此前 handler/preload/AI 服务/测试齐全但无 UI）② 删除 6 个指向已消失 `scripts/` 的死脚本 ③ 清理 eslint 失效 grandfather 条目 ④ 明确 `.learnings/`/`.workbuddy/memory/` 为**本地文件不入库**（含内部策略与已知问题，不进公开仓库）⑤ `diagrams/`、`html2pdf-ultra.js` 显式 gitignore ⑥ CI 移除永不产出的 coverage artifact 步骤 | AI Agent（接手） |
 | 2026-08-28 | v1.1.0 维护迭代 — 换机恢复 + 去伪存真（假数据/死链治理）+ 间隔复习与 Token 统计落地 + 画像注入 + database/ipc 拆分 + 编排页迁入设置壳层 + 管理后台移出前端；端口勘误 5275→5500 | AI Agent |
 | 2026-07-20 | 初始化（v1）— 加入 .claude/、CI、Vitest、AGENTS.md | AI Agent |
 | 2026-07-21 | 死代码治理循环工程收尾 — 新增第九章"死代码治理经验" + 7 个 IPC 通道清单 + 7 维质量评分基准 | dead-code-governance verifier-subagent |
-| 待补 | husky pre-commit hook 安装 | — |
-| 待补 | CONTRIBUTING.md | — |
+| 待补 | husky pre-commit hook 安装（当前不存在，勿依赖自动拦截）| — |
+| 待补 | commitlint 配置（当前不存在，R10 仅靠人工遵守）| — |
+| 待补 | `.claude/rules/*` + `.learnings/STANDARDS.md` 正本（被多处引用但不存在）| — |
+| 待补 | `.trae/specs/dead-code-governance/` 四件套 | — |
+| 已处理 | `scripts/` 相关 6 个死脚本已从 `package.json` 移除（2026-09-11）| — |

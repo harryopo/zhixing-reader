@@ -10,7 +10,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS-v5%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-667%20%E7%94%A8%E4%BE%8B%20/%2085%25-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-688%20%E7%94%A8%E4%BE%8B%20/%2030%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
 
 ---
@@ -19,7 +19,7 @@
 
 **知行读书**是一款面向阅读成长场景的桌面应用，把「**微信读书同步 → AI 智能体理解 → 科学间隔复习 → 知识卡片体系化 → 英语学习**」完整闭环装进本地优先的 Electron 容器。
 
-围绕"读了就忘、笔记散乱、想问无门、知道做不到"四大阅读痛点，给出**16 大功能模块 + 5 大核心创新**的完整解决方案。
+围绕"读了就忘、笔记散乱、想问无门、知道做不到"四大阅读痛点，给出**15 大功能模块 + 5 大核心创新**的完整解决方案。
 
 > **面向所有阅读者，帮每一位读者构建起属于自己的自我成长型系统。**
 
@@ -27,8 +27,8 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 52,000+ 行 TypeScript strict 代码 |
-| **测试覆盖** | 667 用例 / 28 文件 / ≥ 85% 覆盖率（ai-service 94.6%）|
-| **存储** | sql.js (SQLite WASM) · 16 张表 · Vectra 本地向量索引 |
+| **测试覆盖** | 688 用例 / 30 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
+| **存储** | sql.js (SQLite WASM) · 15 张表 · Vectra 本地向量索引 |
 | **核心能力** | 微信读书同步 · **FSRS v5** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
 | **打包** | electron-builder → Windows NSIS 安装包（**125MB**）|
@@ -42,11 +42,11 @@
 
 | # | 创新点 | 一句话 | 关键指标 |
 |---|--------|--------|----------|
-| **1** | **方法论自动注入 Agent**（行业首创） | AI 回答时自动引用书中方法论，实时追踪掌握度 | mastery_level 追踪 / 一键导出 Skill |
+| **1** | **方法论自动注入 Agent**（行业首创） | AI 回答时自动引用书中方法论，实时追踪掌握度 | mastery_level 追踪 |
 | **2** | **5 维 ContextBuilder**（预算制懒加载） | 书籍/方法论/卡片/记忆/画像 5 维按需注入 | **Token 节省 33%-55%** |
 | **3** | **FSRS v5 同源科学记忆引擎** | 集成 ts-fsrs 5.4.1（Anki 23.10+ 同源），DSR 三变量模型 | 保持率比 SM-2 **高 20-30%** |
 | **4** | **本地优先架构 · 数据主权还给用户** | sql.js + Vectra + safeStorage 三重本地化，零遥测 | AI 直连不过中转 |
-| **5** | **多模型深度思考归一化 + ECDICT 离线词典** | DeepSeek / OpenAI / Anthropic 推理格式统一 + 13.6MB 离线词典 | 多模型无感切换 / 6 万词条 |
+| **5** | **多模型深度思考归一化 + ECDICT 离线词典** | DeepSeek / OpenAI / Anthropic 推理格式统一 + 15.0MB 离线词典 | 多模型无感切换 / 59,118 词条 |
 
 ### 5 维 ContextBuilder 详细预算
 
@@ -63,7 +63,7 @@
 
 ---
 
-## 三、16 大功能模块
+## 三、15 大功能模块
 
 | # | 模块 | 路由 | 核心能力 |
 |---|------|------|----------|
@@ -81,8 +81,7 @@
 | 12 | 个人中心 | `/profile` | 阅读画像 + 微信读书资料继承 |
 | 13 | 设置 | `/settings` | AI 多服务商热切换 + 数据导入导出 |
 | 14 | 智能体编排 | `/settings/agent` | 六步流水线可视化 + 意图/策略矩阵 + 提示词模板（设置子页） |
-| 15 | Skill 生成 | 对话/方法论内 | 方法论一键导出为可复用 Skill |
-| 16 | RAG 知识库 | 设置/对话内 | Vectra 本地向量索引 + 语义检索 + 文档溯源 |
+| 15 | RAG 知识库 | 设置/对话内 | Vectra 本地向量索引 + 语义检索 + 文档溯源 |
 
 ---
 
@@ -135,25 +134,19 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 2.x | 667 用例，≥ 85% 覆盖率门禁 |
+| **测试** | Vitest | 2.x | 688 用例 / 30 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 25.x | Windows NSIS 安装包 |
-| **词典** | ECDICT | 自建 | 13.6MB JSON，~6 万词条，CEFR 分级 |
+| **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
 ---
 
-## 六、技术架构图
+## 六、系统架构
 
-### 系统架构图
+**五层架构**：Renderer（React SPA）→ Preload（contextBridge 安全桥）→ IPC（12 个领域 handler）→ Service/Agent（RAG / FSRS / 智能体编排）→ Data（sql.js + Vectra + safeStorage）。
 
-![知行读书 · 系统架构图](docs/zhixing-reader-system-architecture.png)
+**Agent 编排**：六步流水线 = 意图分类 → 策略选择 → 难度适配 → 5 维上下文构建 → 提示组装 → 流式生成。
 
-> 五层 Electron 架构 · IPC 安全隔离 · 本地存储 + 知识库双引擎
-
-### Agent 智能体编排流程图
-
-![Agent 智能体编排流程图](docs/zhixing-reader-agent-orchestrator.png)
-
-> 六步流水线 · 意图路由 · 上下文注入 · 工具分发
+> 可编辑架构画板见项目内 `diagrams/`（本地生成，未纳入版本控制）。
 
 ---
 
@@ -170,7 +163,7 @@
 | **0 依赖 < 30KB** | 纯 TypeScript 实现，无第三方依赖，包体积极小 |
 | **API 100% 兼容** | 内部算法替换为 ts-fsrs，对外接口零变更，原有调用方无需修改 |
 
-项目实现了完整的适配层（`electron/fsrs-engine.ts`，900+ 行），包括 Card ↔ FsrsCard 双向转换、step 学习阶段映射、枚举对齐等，确保与 ts-fsrs 正确集成的同时保持对外 API 稳定。升级后 **38 个单元测试** 全部通过（18 个原有冒烟测试 + 20 个适配层测试）。
+项目实现了完整的适配层（`electron/fsrs-engine.ts`，646 行），包括 Card ↔ FsrsCard 双向转换、step 学习阶段映射、枚举对齐等，确保与 ts-fsrs 正确集成的同时保持对外 API 稳定。升级后 **38 个单元测试** 全部通过（18 个原有冒烟测试 + 20 个适配层测试）。
 
 ---
 
@@ -182,8 +175,8 @@ zhixing-reader/
 │   ├── main.ts                              # 入口
 │   ├── preload.ts                           # contextBridge（423 行）
 │   ├── ipc/                                 # IPC handlers（按领域 12 文件）
-│   ├── database/                            # sql.js DB（按领域 16 文件）
-│   ├── fsrs-engine.ts                       # ⭐ FSRS v5 适配层（900+ 行）
+│   ├── database/                            # sql.js DB（按领域 16 文件 + index.ts）
+│   ├── fsrs-engine.ts                       # ⭐ FSRS v5 适配层（ts-fsrs 5.4.1）
 │   ├── ai-service.ts                        # AI 卡片/摘要（800+ 行）
 │   ├── ai-sdk-service.ts                    # AI 流式（500+ 行）
 │   ├── weread-api.ts                        # 微信读书 Skill API（1000+ 行）
@@ -201,15 +194,15 @@ zhixing-reader/
 │   └── types/                               # 实体类型
 ├── src/renderer/                            # Renderer 进程（React）
 │   └── src/
-│       ├── pages/                           # 20 个路由页面
+│       ├── pages/                           # 14 个页面文件 / 22 条路由
 │       ├── components/                      # UI 组件
 │       ├── stores/                          # 8 个 Zustand Store
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
 ├── src/shared/                              # 跨进程共享（类型 + IPC 通道常量）
-├── tests/                                   # Vitest 单元测试（667 用例）
+├── tests/                                   # Vitest 单元测试（688 用例 / 30 文件）
 ├── resources/
-│   ├── dictionary.json                      # ECDICT 13.6MB
+│   ├── dictionary.json                      # ECDICT 15.0MB / 59,118 词条
 │   ├── icon.ico / icon.png
 ├── landing/                                 # 宣传页源码（GitHub Pages 部署）
 ├── AGENTS.md                                # AI Agent 入口
@@ -231,7 +224,7 @@ zhixing-reader/
 |------|------|------|
 | 冷启动 → 主页可交互 | **< 1.0s** | 三进程预加载 |
 | 路由懒加载（Code Splitting） | **80ms/页** | Vite manualChunks |
-| 词典首次加载 | **150ms** | 13.6MB JSON → 内存 |
+| 词典首次加载 | **150ms** | 15.0MB JSON → 内存 |
 | 向量索引首次构建 | **200-500ms** | 取决于划线数 |
 | 意图分类 | **1-5ms** | 本地关键词打分 |
 | 5 维上下文构建 | **50-200ms** | RAG 优先 + 关键词回退 |
@@ -292,10 +285,9 @@ npm run verify          # 一键跑上面四项
 # 打包 Windows NSIS 安装包
 npm run package:win
 # → 生成 installer/ZhixingReader-Setup-1.1.0.exe
-
-# 词典（仅开发者）
-npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 ```
+
+> ⚠️ 原 `build-dict` / `seed:demo` / `loop:*` 共 6 个脚本已于 2026-09-11 移除 —— 它们指向的 `scripts/` 目录已不在仓库。词典请直接使用已提交的 `resources/dictionary.json`。
 
 **提交顺序**：`lint` → `typecheck` → `test` → `build`（**全绿才可提交**）。
 
@@ -303,7 +295,7 @@ npm run build-dict      # 从 ecdict.db 重新提取 dictionary.json
 
 | 规则级别 | 规则 | 说明 |
 |----------|------|------|
-| **error** | `complexity` (≤15) | 函数圈复杂度硬约束 |
+| **warn** | `complexity` (≤15) | 函数圈复杂度提示（存量巨型文件豁免）|
 | **error** | `max-params` (≤6) | 函数参数数量 |
 | **error** | `prefer-const` + `eqeqeq` | 强制 const / 强制 === |
 | **warn** | `max-lines` (≤500) | 单文件行数 |

@@ -2,8 +2,9 @@
 
 > **作用**：Claude Code（Cursor/Trae/Claude Code CLI）启动时自动加载的项目级指令
 > **作用范围**：仅在 Claude 系列 AI 中生效；其他 AI 看 `AGENTS.md`（已存在，更通用）
-> **更新时机**：本文件由 `.learnings/STANDARDS.md` 提炼而来；与项目记忆冲突时，以本文件为准
-> **详细规范**：`.claude/rules/{code-style,security,git}.md`
+> **更新时机**：本文件由团队规范提炼而来；与项目记忆冲突时，以本文件为准
+> **详细规范**：⚠️ `.learnings/STANDARDS.md` 与 `.claude/rules/{code-style,security,git}.md` **均未落地**（不存在），本文与 `eslint.config.js` / `tsconfig.json` / `package.json` 的实际配置为唯一真值
+> **最近核验**：2026-09-11（对代码实测校准）
 
 ---
 
@@ -17,14 +18,14 @@
 
 | 场景 | 先读 |
 |------|------|
-| 改 Electron 主进程 | `electron/main.ts` + `electron/database.ts` + `shared/ipc-channels.ts` |
-| 改 IPC 通道 | `shared/ipc-channels.ts` + `electron/ipc.ts` + `electron/preload.ts` |
-| 改数据库 schema | `electron/database.ts` + `electron/repositories/` + `electron/utils/db.ts` |
+| 改 Electron 主进程 | `electron/main.ts` + `electron/database/index.ts` + `src/shared/ipc-channels.ts` |
+| 改 IPC 通道 | `src/shared/ipc-channels.ts` + `electron/ipc/index.ts` + `electron/ipc/types.ts` + `electron/preload.ts` |
+| 改数据库 schema | `electron/database/schema.ts` + `electron/database/connection.ts` + `electron/repositories/` + `electron/utils/db.ts` |
 | 改 AI 提示词 | `electron/services/prompt-registry.ts` + `prompt-storage.ts` |
 | 改智能体编排 | `electron/agent/orchestrator.ts` + `system-prompt.ts` + `context-builder.ts` |
 | 改 React 页面 | `src/renderer/src/App.tsx`（路由）+ 对应 `pages/` 目录 |
 | 改 Zustand store | `src/renderer/src/stores/` 找对应 store |
-| 改 FSRS 复习 | `electron/fsrs-engine.ts`（自实现）+ `database.ts` 中卡片相关表 |
+| 改 FSRS 复习 | `electron/fsrs-engine.ts`（ts-fsrs 5.4.1 **适配层**，非自实现）+ `electron/database/cards.ts` |
 
 ---
 
@@ -39,9 +40,9 @@
 | **A5** | 升级 React Router 大版本（7.x → 8.x） | 破坏性变更，需专项评估 |
 | **A6** | 删 `.learnings/` 任何已有内容 | 团队沉淀的知识资产 |
 | **A7** | 改 AGENTS.md 已写明的硬约束（端口 5500、`@/` 别名、Chinese UI） | 见 AGENTS.md Gotchas |
-| **A8** | 提交时跳过 lint/typecheck/test | pre-commit hook 强制 |
+| **A8** | 提交时跳过 lint/typecheck/test | ⚠️ **无 pre-commit hook**（husky 未安装），靠人工自觉执行 |
 | **A9** | `git add -A` / `git add .` | 可能误提交 .env / node_modules |
-| **A10** | commit message 用 `WIP`/`fix bug`/`update code` | commitlint 拦截 |
+| **A10** | commit message 用 `WIP`/`fix bug`/`update code` | ⚠️ **commitlint 未安装**，无自动拦截，靠人工遵守 |
 | **A11** | 留死代码占位按钮（onClick 弹 toast.info "即将上线" / navigate 到不存在的页面） | 用户硬约束"按钮必须真实可用"；见 LRN-20260721-010 决策树 |
 | **A12** | 把 installer 产物（installer/、installer-v2/、out/、release/）提交到 git | `.gitignore` 已排除；CI 重新打包 |
 
@@ -60,7 +61,7 @@
 | **B7** | 敏感信息用 `safeStorage.encryptString` + `getSecureKey` | `electron/services/settings-service.ts` |
 | **B8** | API Key 输入必须 ASCII 校验 | `/^[\x20-\x7E]+$/`（已有，参见 ERR-20260529-004） |
 | **B9** | 错误处理分类：cancelled/timeout/network/empty/import/parse/config | 已定义，preload 层抛出 |
-| **B10** | commit message 必填 type（feat/fix/chore/docs/test/refactor/perf/build/ci/style/revert） | commitlint 强校验 |
+| **B10** | commit message 必填 type（feat/fix/chore/docs/test/refactor/perf/build/ci/style/revert） | ⚠️ commitlint **未安装**，无自动校验，人工遵守 |
 | **B11** | 新增功能前先走死代码决策树：有 skill 能力 → 补齐；无 skill 能力 → 不做（不放占位）；已有占位 → 砍或补二选一 | 见 LRN-20260721-010 |
 | **B12** | 批量 DB 写操作（DELETE/UPDATE/INSERT 多条）必须用 `runTransaction(fn)` 包裹 | 见 LRN-20260721-008 |
 | **B13** | CSV 导出必须防御公式注入：`= + - @` 开头的值前置单引号 + UTF-8 BOM | 见 LRN-20260721-007 |
@@ -98,22 +99,25 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 | Codex / GPT | 不在本项目使用 | — |
 | 微信读书 API | 通过 `electron/weread-api.ts` | ✅ 集成 |
 | Anthropic Claude API | 通过 `electron/ai-service.ts` | ✅ 集成 |
-| Qdrant | 通过 `electron/services/vector-db.ts` | ✅ 集成（可选） |
+| Vectra | 通过 `electron/services/vector-db.ts` | ✅ 集成（本地向量索引；Qdrant 已移除）|
 
 ---
 
-## 6. 自动化门禁（pre-commit + CI 强制）
+## 6. 自动化门禁（CI 强制 + 人工本地）
 
 | 命令 | 作用 | 触发 |
 |------|------|------|
-| `npm run lint` | ESLint 0 错误 | 本地 pre-commit + CI |
-| `npm run typecheck` | tsc --noEmit 0 错误 | 本地 pre-commit + CI |
-| `npm run test:run` | vitest 全通过 | 本地 pre-commit + CI |
+| `npm run lint` | ESLint 0 错误 | 手动 + CI |
+| `npm run typecheck` | tsc --noEmit 0 错误 | 手动 + CI |
+| `npm run test` | vitest 全通过（688 用例）| 手动 + CI |
+| `npm run test:cov` | 覆盖率（阈值 83/80/75/83）| 手动（**未接入 CI**）|
 | `npm run build` | electron-vite 编译 | CI |
 | `npm run verify` | 上面四项一键串行 | 手动 |
-| husky pre-commit | 跑上面三项本地拦截 | `git commit` |
-| commitlint | Conventional Commits 校验 | `git commit -m "..."` |
 | GitHub Actions | push/PR 完整流水线 | 远程 |
+| husky pre-commit | ⚠️ **未安装** | — |
+| commitlint | ⚠️ **未安装** | — |
+
+> ⚠️ 实测（2026-09-11）：`package.json` 无 husky / commitlint / lint-staged 依赖，无 `.husky/` 目录，无 `prepare` 脚本。另：脚本名为 `test` 而非 `test:run`。
 
 ---
 
@@ -122,24 +126,29 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 | 温度 | 位置 | 用途 |
 |------|------|------|
 | 🔥 热 | 本对话上下文 | 即时讨论 |
-| 🌡️ 温 | `.learnings/STANDARDS.md` | 速查规范 |
-| 🌡️ 温 | `.learnings/ERRORS.md` | 已解决 bug |
-| 🌡️ 温 | `.learnings/LEARNINGS.md` | 最佳实践 + 教训 |
-| 🌡️ 温 | `.learnings/PROGRESS.md` | 进度跟踪 |
+| 🌡️ 温 | `.learnings/STANDARDS.md` ⚠️未落地 | 速查规范（以 AGENTS.md §5.3 为准）|
+| 🌡️ 温 | `.learnings/ERRORS.md` ⚠️未落地 | 已解决 bug（并入 LEARNINGS.md）|
+| 🌡️ 温 | `.learnings/LEARNINGS.md` | 最佳实践 + 教训 ✅ |
+| 🌡️ 温 | `.learnings/PROGRESS.md` | 进度跟踪 ✅ |
+| 🌡️ 温 | `.workbuddy/memory/*.md` | 会话交接记录 ✅（⚠️ 本地文件，不入库）|
 | 🧊 冷 | `CLAUDE.md`（本文件） | 每次启动加载 |
 | 🧊 冷 | `AGENTS.md` | 所有 AI 通用 |
-| 🧊 冷 | `docs/superpowers/specs/*.md` | 历史设计文档 |
-| 🧊 冷 | `docs/research/*.md` | 调研报告（自检报告已建） |
+| 🧊 冷 | `docs/superpowers/specs/*.md` ⚠️不存在 | 历史设计文档（目录已不在仓库）|
+| 🧊 冷 | `docs/research/*.md` | 调研报告 ✅（⚠️ `docs/` 被 gitignore，不入库）|
 | ❄️ 冻 | 代码本体 + 注释 | 不沉淀 |
 
 ---
 
-## 8. 项目状态（2026-09-02 更新）
+## 8. 项目状态（2026-09-11 更新）
 
 - **当前版本**：v1.1.0（维护迭代期，比赛已于 2026-07 结束）
-- **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（Step 1-2 已落地，Step 3-6 待做）
+- **git 锚点**：master @ `6b3cfbc`（2026-09-02），共 183 commits，tag `v1.0.0`
+- **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
+- **门禁基线（2026-09-11 实测）**：typecheck 0 错误 ✅ / Vitest 688 用例 · 30 文件全通过 ✅ / electron-vite 三进程 build 成功 ✅
 - **2026-09-02 进展**：完成 C1 健壮性 6 修（重置落盘竞态 / 落盘失败重试+通知 / 重新生成重复问答对 / Sidebar 轮询暂停 / 蒸馏去 800ms 延时 / admin sqlite_ 守卫），6 个原子 commit，均过 verify
+- **2026-09-11 进展**：接手全量核验，校准 AGENTS.md / CLAUDE.md / README.md 失真项（详见 `.workbuddy/memory/2026-09-11.md`）
+- **版本控制边界**：`.learnings/`、`.workbuddy/memory/`、`.claude/`、`docs/`、`diagrams/` 均为**本地文件不入库**（含内部策略与已知问题，见 .gitignore）
 
 ---
 
@@ -151,14 +160,14 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 | P0-2 rag-service 动态导入 | P0 | **已修**（commit d91036b） | ✅ |
 | P0-3 preload stream 监听器 | P0 | **已修**（流式健壮性 e653c6a：safeSend isDestroyed 守卫 + chatStore 监听器 cleanup） | ✅ |
 | P0-4 IPC 通道统一常量 | P0 | **已修**（shared/ipc-channels.ts 集中定义，ipc/ 领域文件统一引用） | ✅ |
-| P1-1 database.ts 拆分 | P1 | **已修**（commit 28811b2，拆为 database/ 16 文件） | ✅ |
+| P1-1 database.ts 拆分 | P1 | **已修**（commit 28811b2，拆为 database/ 17 文件） | ✅ |
 | P1-2 ipc.ts 拆分 | P1 | **已修**（commit a3eb462，拆为 ipc/ 12 文件） | ✅ |
 | P1-3 Vite CJS 弃用 | P1 | 迭代中 | ⏸️ |
 | Phase 2 FSRS 升级 | P0 | **已完成**（v1.0.0 已集成 ts-fsrs 5.4.1） | ✅ |
 | Phase 3 ECharts 集成 | P1 | **已完成**（v1.0.0 AdminDashboard 6 图表） | ✅ |
-| **规范基础设施** | **P0** | **已完成**（.claude/rules + STANDARDS + CI 门禁就位） | ✅ |
+| **规范基础设施** | **P0** | **部分未落地**：CI 门禁 ✅；`.claude/rules/` ❌、`.learnings/STANDARDS.md` ❌、husky/commitlint ❌（均不存在）| ⚠️ |
 
 ---
 
-*最后更新：2026-09-02 | v1.1.0 维护迭代（C1 健壮性 6 修 + 文档校准）*
-*与 AGENTS.md 不一致时，以本文件 + .claude/rules/* 为准（Claude 专属）*
+*最后更新：2026-09-11 | 接手核验校准（修正失效文件路径、假门禁描述、脚本名 test:run→test）*
+*与 AGENTS.md 不一致时，两者均以上述实测代码配置为准（`package.json` / `eslint.config.js` / `tsconfig.json` / `vitest.config.ts`）*
