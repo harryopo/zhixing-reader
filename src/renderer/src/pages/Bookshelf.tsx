@@ -10,7 +10,7 @@
  * 业务逻辑全部保留：weread 同步、笔记导入、按最近阅读排序、进度/状态展示
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Button from '@/components/ui/Button'
@@ -85,6 +85,16 @@ function normalizeProgress(raw: number): number {
   return raw
 }
 
+/**
+ * 阅读进度补拉的并发与节流参数。
+ * /shelf/sync 不返回进度，只能按 bookId 单本查 /book/getprogress；
+ * 书架动辄上百本，一次性并发会打满网关，故限流分批 + 批间留间隔。
+ */
+const PROGRESS_CONCURRENCY = 4
+const PROGRESS_BATCH_INTERVAL_MS = 150
+/** 单次会话最多补拉多少本，避免无节制请求 */
+const PROGRESS_MAX_PER_SESSION = 80
+
 function sortByReadTime(books: BookRow[]): BookRow[] {
   return [...books].sort((a, b) => {
     const timeA = a.lastReadAt ? new Date(a.lastReadAt).getTime() : 0
@@ -127,10 +137,64 @@ export default function Bookshelf() {
   const [sort, setSort] = useState<SortKey>('recent')
   const [query, setQuery] = useState(initialQuery)
 
+  /** 已发起过进度补拉的书籍 id（防止重复请求与状态回环） */
+  const progressTriedRef = useRef<Set<string>>(new Set())
+  /** 组件卸载后中止后续批次 */
+  const progressAbortRef = useRef(false)
+
   useEffect(() => {
     loadData()
     loadRecommendations()
+    return () => {
+      progressAbortRef.current = true
+    }
   }, [])
+
+  /**
+   * 后台懒加载阅读进度：只补「读过但进度未知」的书，限流分批，拉到一本刷新一本。
+   * 主进程会把结果回写本地库，因此下一次启动通常直接命中缓存。
+   */
+  const hydrateProgress = useCallback(async (list: BookRow[]) => {
+    if (!window.electronAPI?.weread?.getBookProgress) return
+
+    const pending = list
+      .filter((b) => b.lastReadAt && normalizeProgress(safeNum(b.progress ?? b.reading_progress)) <= 0)
+      .map((b) => b.id)
+      .filter((id) => id && !progressTriedRef.current.has(id))
+      .slice(0, PROGRESS_MAX_PER_SESSION)
+    if (pending.length === 0) return
+
+    for (let i = 0; i < pending.length; i += PROGRESS_CONCURRENCY) {
+      if (progressAbortRef.current) return
+      const batch = pending.slice(i, i + PROGRESS_CONCURRENCY)
+      batch.forEach((id) => progressTriedRef.current.add(id))
+
+      const pairs = await Promise.all(
+        batch.map(async (id) => {
+          try {
+            const p = await window.electronAPI.weread.getBookProgress(id)
+            return typeof p === 'number' && Number.isFinite(p) && p > 0 ? ([id, p] as const) : null
+          } catch {
+            return null // 单本失败不影响其余
+          }
+        }),
+      )
+      if (progressAbortRef.current) return
+
+      const got = pairs.filter((x): x is readonly [string, number] => x !== null)
+      if (got.length > 0) {
+        const map = new Map(got)
+        setBooks((prev) =>
+          prev.map((b) => (map.has(b.id) ? { ...b, progress: map.get(b.id) as number } : b)),
+        )
+      }
+      await new Promise((resolve) => setTimeout(resolve, PROGRESS_BATCH_INTERVAL_MS))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!loading && books.length > 0) void hydrateProgress(books)
+  }, [loading, books.length, hydrateProgress])
 
   const loadData = async () => {
     if (!window.electronAPI?.book || !window.electronAPI?.highlight || !window.electronAPI?.card) {
