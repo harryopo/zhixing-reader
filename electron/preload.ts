@@ -401,6 +401,8 @@ const electronAPI = {
       invoke(IPC_CHANNELS.SKILL.GENERATE, methodologyId, bookTitle, author),
     exportBatch: (methodologyIds: string[], bookTitle: string, author?: string) =>
       invoke(IPC_CHANNELS.SKILL.EXPORT_BATCH, methodologyIds, bookTitle, author),
+    exportFile: (methodologyId: string, bookTitle: string) =>
+      invoke(IPC_CHANNELS.SKILL.EXPORT_FILE, methodologyId, bookTitle),
   },
 
   system: {

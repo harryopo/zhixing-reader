@@ -2,6 +2,8 @@
  * ipc/knowledge — 方法论 / 知识卡片 / 书籍架构 / Skill 生成 handlers
  * 从原 ipc.ts 拆分而来，逻辑保持不变。
  */
+import * as fs from 'fs';
+import { dialog, BrowserWindow } from 'electron';
 import { methodologiesDb, knowledgeCardsDb, bookArchitectureDb, highlightsDb } from '../database';
 import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
@@ -9,6 +11,39 @@ import { knowledgeCardService } from '../services/knowledge-card-service';
 import { fetchAllContent } from '../weread-api';
 import { extractMethodologies, analyzeBookArchitecture, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch } from '../ai-service';
 import type { HandleFn } from './types';
+
+/**
+ * 方法论 DB 记录 → generateSkill 入参。
+ * SKILL.GENERATE / SKILL.EXPORT_FILE 共用，避免映射逻辑重复。
+ * steps 是 JSON 字符串列，解析失败回退空数组（不抛错，避免 IPC 层崩溃）。
+ */
+function toSkillPayload(m: Record<string, unknown>, bookTitle: string) {
+  let steps: string[] = []
+  if (m.steps) {
+    try {
+      const parsed = JSON.parse(String(m.steps))
+      if (Array.isArray(parsed)) steps = parsed.map(String)
+    } catch {
+      logger.warn('Failed to parse methodology steps for skill generation')
+    }
+  }
+  return {
+    name: String(m.name || ''),
+    nameEn: m.name_en ? String(m.name_en) : undefined,
+    triggerScenario: String(m.trigger_scenario || ''),
+    description: String(m.description || ''),
+    steps,
+    outputFormat: String(m.output_format || ''),
+    examples: String(m.examples || ''),
+    bookTitle,
+  }
+}
+
+/** 文件名安全化：剔除 Windows/macOS 非法字符并限长 */
+function toSafeFileName(name: string): string {
+  const cleaned = name.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim()
+  return cleaned.slice(0, 60) || 'methodology'
+}
 
 export function registerKnowledgeHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.METHODOLOGIES.GET_ALL, () => methodologiesDb.getAll());
@@ -176,17 +211,31 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     if (!methodology) {
       throw new Error('方法论不存在');
     }
-    const skillContent = await generateSkill({
-      name: String(methodology.name || ''),
-      nameEn: methodology.name_en ? String(methodology.name_en) : undefined,
-      triggerScenario: String(methodology.trigger_scenario || ''),
-      description: String(methodology.description || ''),
-      steps: methodology.steps ? JSON.parse(String(methodology.steps)) : [],
-      outputFormat: String(methodology.output_format || ''),
-      examples: String(methodology.examples || ''),
-      bookTitle: bookTitle,
-    });
+    const skillContent = await generateSkill(toSkillPayload(methodology, bookTitle));
     return { content: skillContent };
+  });
+
+  // 生成 Skill 并弹保存对话框写盘（方法论详情页「导出为 Skill」）
+  handle(IPC_CHANNELS.SKILL.EXPORT_FILE, async (methodologyId: string, bookTitle: string) => {
+    const methodology = methodologiesDb.getById(methodologyId);
+    if (!methodology) {
+      throw new Error('方法论不存在');
+    }
+    const content = await generateSkill(toSkillPayload(methodology, bookTitle));
+
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const result = await dialog.showSaveDialog(win, {
+      title: '导出为 Skill',
+      defaultPath: `${toSafeFileName(String(methodology.name || '方法论'))}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (result.canceled || !result.filePath) {
+      return { saved: false };
+    }
+
+    fs.writeFileSync(result.filePath, content, 'utf8');
+    logger.info('Skill exported to file', { methodologyId, path: result.filePath });
+    return { saved: true, path: result.filePath };
   });
 
   handle(IPC_CHANNELS.SKILL.EXPORT_BATCH, async (methodologyIds: string[], bookTitle: string, _author?: string) => {

@@ -235,6 +235,8 @@ export const IPC_CHANNELS = {
   SKILL: {
     GENERATE: 'skill:generate',
     EXPORT_BATCH: 'skill:exportBatch',
+    // 生成 + 弹保存对话框写盘（方法论详情页「导出为 Skill」）
+    EXPORT_FILE: 'skill:exportFile',
   },
   // 主进程菜单事件（主进程 -> 渲染进程，由 Menu 点击触发）
   MENU: {

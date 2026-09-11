@@ -375,6 +375,23 @@ export default function Methodologies() {
     }
   }
 
+  // 导出方法论为可复用 Skill 文件（主进程生成 + 弹保存对话框写盘）
+  const handleExportSkill = async (m: MethodologyItem) => {
+    const toastId = toast.loading(`正在生成《${safeStr(m.name)}》的 Skill 文件...`)
+    try {
+      const res = await window.electronAPI.skill.exportFile(m.id, getBookTitle(m.bookId))
+      toast.remove(toastId)
+      if (res?.saved) {
+        toast.success(`Skill 已导出：${res.path ?? ''}`)
+      } else {
+        toast.info('已取消导出')
+      }
+    } catch (error) {
+      toast.remove(toastId)
+      toast.error(`导出失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这个方法论吗？')) return
     try {
@@ -1104,6 +1121,7 @@ export default function Methodologies() {
                 toast.success(`已打开对话，可继续讨论「${name}」`)
               }}
               onPractice={() => navigate('/knowledge-cards')}
+              onExportSkill={() => handleExportSkill(selectedMethod)}
             />
           ) : (
             <EmptyState
@@ -1394,6 +1412,7 @@ interface MethodDetailPanelProps {
   onDelete: () => void
   onInjectChat: () => void
   onPractice: () => void
+  onExportSkill: () => void
 }
 
 function MethodDetailPanel({
@@ -1404,6 +1423,7 @@ function MethodDetailPanel({
   onDelete,
   onInjectChat,
   onPractice,
+  onExportSkill,
 }: MethodDetailPanelProps) {
   const pct = getMasteryProgress(methodology.masteryLevel)
   const lvl = getMasteryLabel(methodology.masteryLevel)
@@ -1743,6 +1763,9 @@ function MethodDetailPanel({
         </Button>
         <Button variant="ghost" onClick={onPractice} data-dom-id="cta-practice-detail">
           <Icon name="play" size={15} /> 开始练习
+        </Button>
+        <Button variant="ghost" onClick={onExportSkill} data-dom-id="cta-export-skill">
+          <Icon name="file" size={15} /> 导出为 Skill
         </Button>
         <Button
           variant="ghost"

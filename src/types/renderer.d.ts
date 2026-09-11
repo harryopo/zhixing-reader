@@ -267,6 +267,7 @@ export interface ElectronAPI {
   skill: {
     generate: (methodologyId: string, bookTitle: string, author?: string) => Promise<unknown>
     exportBatch: (methodologyIds: string[], bookTitle: string, author?: string) => Promise<unknown>
+    exportFile: (methodologyId: string, bookTitle: string) => Promise<{ saved: boolean; path?: string }>
   }
   system: {
     openExternal: (url: string) => Promise<{ opened: boolean }>
