@@ -63,7 +63,12 @@ function createWindow(): void {
     return;
   }
 
-  const iconPath = path.join(__dirname, '../build/icon.png');
+  // 打包后 extraResources 会把 resources/icon.png 复制到 <app>/resources/icon.png；
+  // 开发态 __dirname = <root>/dist/main，故上溯两级取仓库内的 resources/icon.png。
+  // 原实现指向 ../build/icon.png，该路径在任何模式下都不存在，窗口图标一直是缺省值。
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(__dirname, '../../resources/icon.png');
   let icon: NativeImage | undefined;
   try {
     icon = nativeImage.createFromPath(iconPath);

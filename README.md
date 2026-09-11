@@ -1,3 +1,5 @@
+<p align="center"><img src="resources/icon.png" alt="知行读书" width="104" height="104"></p>
+
 # 知行读书 (Zhixing Reader)
 
 > **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS v5 · 微信读书深度同步
