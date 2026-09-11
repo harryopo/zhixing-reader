@@ -76,6 +76,8 @@ scripts/*.log
 .ssh/
 
 # Trae local memory (user memory system, not for repo)
+# 注：同时覆盖 .workbuddy/memory/ —— 会话交接记录含内部参赛策略与已知问题清单，
+#     不进公开仓库（2026-09-11 决策；如需入库请改用私有仓库或单独归档）
 memory/
 
 # pnpm workspace artifacts (not part of project build)
@@ -85,6 +87,10 @@ pnpm-workspace.yaml
 # Local AI / agent config (not for repo)
 .claude/
 .learnings/
+
+# 一次性脚本与生成产物（不入库）
+html2pdf-ultra.js
+diagrams/
 
 # Deliverables and docs (internal, not for public repo)
 deliverables/

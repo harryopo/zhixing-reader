@@ -165,7 +165,7 @@ class DictionaryService {
   private async loadJsonDictionary(): Promise<void> {
     try {
       if (!fs.existsSync(this.jsonPath)) {
-        logger.warn(`dictionary.json not found at ${this.jsonPath}, run scripts/extract-dictionary.js first`);
+        logger.warn(`dictionary.json not found at ${this.jsonPath}; the ECDICT extraction script is no longer bundled, restore resources/dictionary.json instead`);
         this.initialized = true;
         return;
       }

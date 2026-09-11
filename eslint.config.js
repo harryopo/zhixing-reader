@@ -70,9 +70,9 @@ export default tseslint.config(
   },
   // Legacy 巨型文件 grandfather（仅针对 complexity 这类硬规则）
   {
+    // 注：electron/database.ts 与 electron/ipc.ts 已于 database//ipc/ 拆分后删除，
+    //     原条目失效并已移除（2026-09-11 核验）。现存两项仍为巨型文件。
     files: [
-      'electron/database.ts',
-      'electron/ipc.ts',
       'electron/weread-api.ts',
       'electron/services/rag-service.ts',
     ],

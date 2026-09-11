@@ -41,7 +41,10 @@ jobs:
         run: npm run typecheck
         timeout-minutes: 5
 
-      - name: Vitest + Coverage (R6 硬约束)
+      # 注：npm run test 不带 --coverage，故不产生 coverage/ 目录。
+      #     覆盖率门禁需先执行 `pnpm install`（本地 @vitest/coverage-v8 版本落后于 vitest），
+      #     确认 npm run test:cov 通过后再改为 CI 阻塞项（2026-09-11 核验）。
+      - name: Vitest (R6 硬约束)
         run: npm run test
         timeout-minutes: 5
 
@@ -49,10 +52,3 @@ jobs:
         run: npm run build
         timeout-minutes: 8
 
-      - name: Upload coverage report
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 7

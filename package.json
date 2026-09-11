@@ -16,13 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "build-dict": "node scripts/extract-dictionary.js",
-    "seed:demo": "npx tsx scripts/seed-demo-data.ts",
-    "seed:demo:watch": "npx tsx watch scripts/seed-demo-data.ts",
-    "loop:log": "node scripts/loop-log.mjs",
-    "loop:detect": "node scripts/loop-detect.mjs",
-    "loop:detect:gates": "node scripts/loop-detect.mjs --gates"
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.14",
