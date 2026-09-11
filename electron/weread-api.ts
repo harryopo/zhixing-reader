@@ -325,7 +325,9 @@ export async function getBookshelf(): Promise<WereadBook[]> {
       intro: item.intro || '',
       category: item.category || '',
       finishReading: item.finishReading || 0,
-      progress: item.progress || 0,
+      // /shelf/sync 的 books[] 不含 progress；真实进度由 getBookProgress() 单独查询，
+      // 同步流程不得用此占位 0 覆盖库中已缓存的进度（见 utils/sync-bookshelf.ts）
+      progress: item.progress ?? 0,
       totalChapter: 0,
       lastReadTime: item.readUpdateTime || 0,
       readUpdateTime: item.readUpdateTime || 0,
@@ -341,6 +343,33 @@ export async function getBookshelf(): Promise<WereadBook[]> {
 
 export async function getBookshelfWithRetry(): Promise<WereadBook[]> {
   return getBookshelf();
+}
+
+/**
+ * 查询单本书的阅读进度。
+ *
+ * ⚠️ /shelf/sync 的 books[] **不返回** progress 字段（见官方接口文档），
+ * 阅读进度必须走 /book/getprogress 按 bookId 单独查询。
+ * 接口返回 0-100 整数百分比（1 表示 1%，100 表示读完），
+ * 这里统一归一化为 0-1 小数存库，与 reading_progress 列的既有语义一致。
+ */
+export async function getBookProgress(bookId: string): Promise<number> {
+  try {
+    const data = await gatewayRequest<{
+      bookId?: string;
+      book?: { progress?: number; isStartReading?: number; finishTime?: number };
+    }>({
+      api_name: '/book/getprogress',
+      bookId,
+    }, false);
+
+    const raw = data.book?.progress;
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) return 0;
+    return Math.min(1, raw / 100);
+  } catch (error) {
+    logger.error('Failed to get book progress', { bookId, error });
+    throw error;
+  }
 }
 
 export async function fetchBookmarks(bookId: string): Promise<WereadBookmark[]> {

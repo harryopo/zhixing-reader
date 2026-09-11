@@ -60,6 +60,8 @@ export const IPC_CHANNELS = {
     FETCH_ALL_CONTENT_BATCH: 'weread:fetchAllContentBatch',
     FETCH_RECOMMENDATIONS: 'weread:fetchRecommendations',
     GET_USER_PROFILE: 'weread:getUserProfile',
+    // 单本阅读进度（/shelf/sync 不返回，需按 bookId 单独查询）
+    GET_BOOK_PROGRESS: 'weread:getBookProgress',
     TEST: 'weread:test',
     // 主→渲染事件：后台自动同步结果（成功/失败），渲染层据此提示或更新状态
     AUTO_SYNC_STATUS: 'weread:autoSyncStatus',

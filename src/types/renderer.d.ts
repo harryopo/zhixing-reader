@@ -171,6 +171,7 @@ export interface ElectronAPI {
     fetchAllContent: (bookId: string) => Promise<unknown>
     fetchRecommendations: () => Promise<RecommendationItem[]>
     getUserProfile: () => Promise<{ success: boolean; profile?: { nickname: string; avatarUrl: string; vid?: string }; message: string }>
+    getBookProgress: (bookId: string) => Promise<number>
     test: (apiKey: string) => Promise<{ success: boolean; message: string; firstBookTitle?: string }>
   }
   readingData: {

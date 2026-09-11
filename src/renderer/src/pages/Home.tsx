@@ -48,6 +48,16 @@ interface HighlightRow {
   createdAt: string
 }
 
+/**
+ * 标准化进度到 0-1 范围。
+ * 兼容微信读书 0-1 小数与历史数据中可能存在的 0-100 百分比：
+ * 大于 1 的值视为百分比，除以 100。
+ */
+function normalizeProgress(raw: number): number {
+  if (!Number.isFinite(raw) || raw < 0) return 0
+  return raw > 1 ? raw / 100 : raw
+}
+
 /** 估算逾期天数（nextReviewAt 早于今天） */
 function overdueDays(nextReviewAt: string): number {
   if (!nextReviewAt) return 0
@@ -112,6 +122,38 @@ export default function Home() {
       })
       .slice(0, 3)
   }, [books])
+
+  // 依赖用 id 串而非 recentBooks 引用：否则 setBooks 会让 recentBooks 换新引用，形成死循环
+  const recentBookIds = useMemo(() => recentBooks.map((b) => b.id).join(','), [recentBooks])
+
+  // 微信读书 /shelf/sync 不返回阅读进度，只能按 bookId 单独查询。
+  // 首页只为展示的 3 本补拉一次；主进程会把结果回写本地库做缓存。
+  useEffect(() => {
+    const ids = recentBookIds.split(',').filter(Boolean)
+    if (ids.length === 0 || !window.electronAPI?.weread?.getBookProgress) return
+    let cancelled = false
+    void (async () => {
+      const pairs = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const p = await window.electronAPI.weread.getBookProgress(id)
+            return typeof p === 'number' && Number.isFinite(p) ? ([id, p] as const) : null
+          } catch {
+            return null // 单本失败不影响其余，保持库中已有值
+          }
+        }),
+      )
+      if (cancelled) return
+      const fetched = new Map(pairs.filter((x): x is readonly [string, number] => x !== null))
+      if (fetched.size === 0) return
+      setBooks((prev) =>
+        prev.map((b) => (fetched.has(b.id) ? { ...b, progress: fetched.get(b.id) as number } : b)),
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [recentBookIds])
 
   // 最新划线/笔记：按创建时间倒序取 6 条（划线与笔记混合，笔记优先展示内容）
   const recentHighlights = useMemo(() => {
@@ -191,7 +233,7 @@ export default function Home() {
               }}
             >
               {recentBooks.map((book) => {
-                const progressPct = Math.round(safeNum(book.progress) * 100)
+                const progressPct = Math.round(normalizeProgress(safeNum(book.progress)) * 100)
                 return (
                   <button
                     key={book.id}
@@ -231,6 +273,9 @@ export default function Home() {
                       style={{
                         width: 64,
                         flexShrink: 0,
+                        // 父级 flex 是 align-items:stretch，会把封面拉到与信息列等高，
+                        // 从而覆盖 aspect-ratio 导致 3:4 封面被压成窄条（objectFit:cover 还会裁掉两侧）
+                        alignSelf: 'flex-start',
                         aspectRatio: '3 / 4',
                         borderRadius: 'calc(var(--radius) - 2px)',
                         overflow: 'hidden',

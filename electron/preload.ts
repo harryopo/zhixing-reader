@@ -170,6 +170,7 @@ const electronAPI = {
     fetchAllContent: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT, bookId),
     fetchRecommendations: () => invoke(IPC_CHANNELS.WEREAD.FETCH_RECOMMENDATIONS),
     getUserProfile: () => invoke<{ success: boolean; profile?: { nickname: string; avatarUrl: string; vid?: string }; message: string }>(IPC_CHANNELS.WEREAD.GET_USER_PROFILE),
+    getBookProgress: (bookId: string) => invoke<number>(IPC_CHANNELS.WEREAD.GET_BOOK_PROGRESS, bookId),
     test: (apiKey: string) => invoke<{ success: boolean; message: string; firstBookTitle?: string }>(IPC_CHANNELS.WEREAD.TEST, apiKey),
   },
 

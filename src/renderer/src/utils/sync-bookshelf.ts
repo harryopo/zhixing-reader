@@ -110,7 +110,8 @@ export async function syncBookshelfToDb(
             description: wb.intro || null,
             category: wb.category || null,
             publish_date: wb.publishTime || null,
-            reading_progress: wb.progress || 0,
+            // 注意：/shelf/sync 不返回 reading_progress，此处**不能**写 0，
+            // 否则每次同步都会抹掉 getBookProgress() 缓存的真实进度
             last_read_time: lastReadTimeStr,
             is_finished: wb.finishReading || 0,
           })
