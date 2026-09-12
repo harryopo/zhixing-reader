@@ -378,45 +378,58 @@ export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
   try {
     return JSON.parse(jsonStr) as T;
   } catch (parseError) {
-    logger.warn('Initial JSON parse failed, attempting repair...', { 
-      error: String(parseError),
-      jsonSnippet: jsonStr.slice(0, 300)
+    const originalError = parseError instanceof Error ? parseError.message : String(parseError);
+
+    logger.warn('Initial JSON parse failed, attempting repair...', {
+      error: originalError,
+      jsonSnippet: jsonStr.slice(0, 300),
     });
 
     const repaired = repairJSON(jsonStr);
 
     try {
       return JSON.parse(repaired) as T;
-    } catch (repairError) {
-      logger.error('JSON repair failed', { 
-        error: String(repairError),
-        original: jsonStr.slice(0, 500),
-        repaired: repaired.slice(0, 500)
+    } catch {
+      // 上报「原始」错误而不是修复后的错误：修复常把问题挪到别处
+      // （实测出现过原始报 position 1476、修复后改报 position 22，把排查引偏）。
+      // 同时落全量内容 —— 原先只留 500 字预览，看不到真正出错的位置。
+      logger.error('JSON repair failed', {
+        originalError,
+        fullContent: content,
+        fullJsonStr: jsonStr,
+        repairedFull: repaired,
       });
-      throw new Error(`JSON解析失败: ${repairError instanceof Error ? repairError.message : String(repairError)}`);
+      throw new Error(`JSON解析失败: ${originalError}`);
     }
   }
 }
 
-export function repairJSON(jsonStr: string): string {
-  let repaired = jsonStr
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u2033\u2032\u00B4]/g, "'")
-    .replace(/[\u3001]/g, '，')
-    .replace(/[\uFF0C]/g, ',')
-    .replace(/[\uFF1A]/g, ':')
-    .replace(/[\u3010]/g, '[')
-    .replace(/[\u3011]/g, ']')
-    .replace(/[\uFF08]/g, '(')
-    .replace(/[\uFF09]/g, ')');
+/** 仅在字符串字面量「外部」才做的全角 → 半角归一（键名与分隔符位置） */
+const OUTSIDE_STRING_MAP: Record<string, string> = {
+  '\u201C': '"', '\u201D': '"', '\uFF02': '"',
+  '\u2018': "'", '\u2019': "'",
+  '\u2033': "'", '\u2032': "'", '\u00B4': "'",
+  '\uFF0C': ',', '\uFF1A': ':',
+  '\u3010': '[', '\u3011': ']',
+  '\uFF08': '(', '\uFF09': ')',
+};
 
+export function repairJSON(jsonStr: string): string {
+  // ── 第一遍：逐字符扫描，字符串字面量内部一律不改 ──
+  //
+  // 这里曾经先做一次无差别的 .replace(/[\u201C\u201D]/g, '"')，把中文引号也
+  // 换成半角双引号，于是 value 里的「活在“此时此刻”」被改成 活在"此时此刻"，
+  // 一份本来就合法的 JSON 被「修复」成了非法 JSON。
+  // （中文引号在 JSON 字符串里是合法字符，根本无需转义。）
+  //
+  // 结构性全角引号（形如 左引号 a 右引号 冒号 左引号 b 右引号）仍会被转换：
+  // 那种输入里没有半角引号，inString 始终为 false，全部走字符串外分支。
   let result = '';
   let inString = false;
   let escapeNext = false;
 
-  for (let i = 0; i < repaired.length; i++) {
-    const char = repaired[i];
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
 
     if (escapeNext) {
       result += char;
@@ -424,7 +437,7 @@ export function repairJSON(jsonStr: string): string {
       continue;
     }
 
-    if (char === '\\' && inString) {
+    if (inString && char === '\\') {
       result += char;
       escapeNext = true;
       continue;
@@ -436,20 +449,28 @@ export function repairJSON(jsonStr: string): string {
       continue;
     }
 
-    if (inString && (char === '\n' || char === '\r')) {
-      result += '\\n';
+    if (inString) {
+      // 字符串内部：只修非法控制字符，其余（含全角标点）原样保留，
+      // 避免破坏用户可见的正文内容。
+      if (char === '\n') { result += '\\n'; continue; }
+      if (char === '\r') { result += '\\r'; continue; }
+      if (char === '\t') { result += '\\t'; continue; }
+      result += char;
       continue;
     }
 
-    if (inString && char === '\t') {
-      result += '\\t';
-      continue;
-    }
-
-    result += char;
+    result += OUTSIDE_STRING_MAP[char] ?? char;
   }
 
-  repaired = result;
+  let repaired = result;
+
+  // ── 第二遍：补「缺失的逗号」 ──
+  //
+  // LLM 最常见的 JSON 错误：一个值结束后直接换行写下个键，漏了逗号，
+  // 报错正是 Expected ',' or '}' after property value。
+  // 字符串内的裸换行已在第一遍转义，故此处可按行安全匹配；
+  // 只吃空格与 Tab（不含换行/逗号），确保不会与已存在的逗号叠加。
+  repaired = repaired.replace(/([}\]"\d]|true|false|null)([ \t]*\r?\n[ \t]*)"/g, '$1,$2"');
 
   repaired = repaired.replace(/,\s*([}\]])/g, '$1');
 

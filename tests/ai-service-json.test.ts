@@ -119,4 +119,38 @@ describe('ai-service — repairJSON', () => {
     const repaired = repairJSON('{"text":"line1\nline2"}')
     expect(JSON.parse(repaired).text).toBe('line1\nline2')
   })
+
+  // ── 以下三条是 2026-09 实测线上故障后的回归测试 ──
+
+  it('字符串内的中文引号不能被改坏（曾把合法 JSON 修成非法）', () => {
+    // 故障现场：模型返回的 name 值里含中文引号，形如 活在“此时此刻”。
+    // 旧实现先做无差别全角引号替换，把它变成了 活在"此时此刻"，
+    // 于是一份**本来就合法**的 JSON 被「修复」成非法，报 position 22。
+    const raw = '[\n  {\n    "name": "活在“此时此刻”",\n    "note": "人生是连续的刹那"\n  }\n]'
+    const parsed = JSON.parse(repairJSON(raw)) as Array<{ name: string; note: string }>
+    expect(parsed[0].name).toBe('活在“此时此刻”')
+    expect(parsed[0].note).toBe('人生是连续的刹那')
+  })
+
+  it('补全缺失的逗号（LLM 最常见 JSON 错误）', () => {
+    // 报错形态：Expected ',' or '}' after property value
+    const raw = '[\n  {\n    "name": "课题分离"\n    "description": "把自己的课题与别人的课题分开"\n  }\n]'
+    const parsed = JSON.parse(repairJSON(raw)) as Array<{ name: string; description: string }>
+    expect(parsed[0].name).toBe('课题分离')
+    expect(parsed[0].description).toBe('把自己的课题与别人的课题分开')
+  })
+
+  it('缺失逗号与字符串内中文标点可同时修复，且不改动正文', () => {
+    const raw = '{\n  "a": "第一，第二"\n  "b": "第三：第四"\n}'
+    const parsed = JSON.parse(repairJSON(raw)) as { a: string; b: string }
+    // 中文逗号/冒号在字符串内必须原样保留，不能被归一成半角
+    expect(parsed.a).toBe('第一，第二')
+    expect(parsed.b).toBe('第三：第四')
+  })
+
+  it('已含逗号时不会重复插入逗号', () => {
+    const raw = '[\n  {\n    "a": "x",\n    "b": "y"\n  }\n]'
+    const parsed = JSON.parse(repairJSON(raw)) as Array<{ a: string; b: string }>
+    expect(parsed[0]).toEqual({ a: 'x', b: 'y' })
+  })
 })
