@@ -92,8 +92,8 @@ describe('AI SDK Service — sdkStreamChat', () => {
   it('应正确流式输出并回调 onChunk / onComplete', async () => {
     const chunks = ['Hello', ' ', 'World']
     mockStreamText.mockReturnValue({
-      textStream: (async function* () {
-        for (const chunk of chunks) yield chunk
+      fullStream: (async function* () {
+        for (const chunk of chunks) yield { type: 'text-delta', text: chunk }
       })(),
       usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
     })
@@ -118,9 +118,54 @@ describe('AI SDK Service — sdkStreamChat', () => {
     )
   })
 
+  it('深度思考开启时应把 reasoning-delta 转发到 onReasoningChunk', async () => {
+    mockStreamText.mockReturnValue({
+      fullStream: (async function* () {
+        yield { type: 'reasoning-delta', text: '让我想想' }
+        yield { type: 'reasoning-delta', text: '……' }
+        yield { type: 'text-delta', text: '答案' }
+      })(),
+      usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
+    })
+
+    const reasoning: string[] = []
+    const text: string[] = []
+    await sdkStreamChat(
+      [{ role: 'user', content: 'Hi' }],
+      (c) => text.push(c),
+      () => {},
+      () => {},
+      { enableReasoning: true, onReasoningChunk: (c) => reasoning.push(c) },
+    )
+
+    expect(reasoning).toEqual(['让我想想', '……'])
+    expect(text).toEqual(['答案'])
+  })
+
+  it('深度思考关闭时不应下发思考（reasoningEffort=none）', async () => {
+    mockStreamText.mockReturnValue({
+      fullStream: (async function* () {
+        yield { type: 'text-delta', text: 'ok' }
+      })(),
+      usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+    })
+
+    await sdkStreamChat(
+      [{ role: 'user', content: 'Hi' }],
+      () => {}, () => {}, () => {},
+      { enableReasoning: false },
+    )
+
+    expect(mockStreamText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerOptions: { openaiCompatible: { reasoningEffort: 'none' } },
+      }),
+    )
+  })
+
   it('streamText 抛错时应触发 onError', async () => {
     mockStreamText.mockReturnValue({
-      textStream: (async function* () {
+      fullStream: (async function* () {
         throw new Error('Network error')
       })(),
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
@@ -140,7 +185,7 @@ describe('AI SDK Service — sdkStreamChat', () => {
 
   it('streamText 抛非 Error 对象时应包装为 Error', async () => {
     mockStreamText.mockReturnValue({
-      textStream: (async function* () {
+      fullStream: (async function* () {
         throw 'string error' // 非 Error 对象
       })(),
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
@@ -163,10 +208,10 @@ describe('AI SDK Service — sdkStreamChat', () => {
     let resolveSecond: () => void
     const secondPromise = new Promise<void>((r) => { resolveSecond = r })
     mockStreamText.mockReturnValue({
-      textStream: (async function* () {
-        yield 'first'
+      fullStream: (async function* () {
+        yield { type: 'text-delta', text: 'first' }
         await secondPromise // 模拟挂起
-        yield 'second'
+        yield { type: 'text-delta', text: 'second' }
       })(),
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
     })
@@ -203,10 +248,10 @@ describe('AI SDK Service — sdkStreamChat', () => {
     const firstPromise = new Promise<void>((r) => { resolveFirst = r })
 
     mockStreamText.mockReturnValue({
-      textStream: (async function* () {
-        yield 'first-stream-chunk'
+      fullStream: (async function* () {
+        yield { type: 'text-delta', text: 'first-stream-chunk' }
         await firstPromise
-        yield 'first-stream-end'
+        yield { type: 'text-delta', text: 'first-stream-end' }
       })(),
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
     })
@@ -223,8 +268,8 @@ describe('AI SDK Service — sdkStreamChat', () => {
 
     // 第二次调用应触发 abort 前一个 controller
     mockStreamText.mockReturnValue({
-      textStream: (async function* () {
-        yield 'second'
+      fullStream: (async function* () {
+        yield { type: 'text-delta', text: 'second' }
       })(),
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
     })

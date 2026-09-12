@@ -251,15 +251,43 @@ export async function sdkStreamChat(
 
     let hasOutput = false;
     let chunkCount = 0;
-    for await (const chunk of result.textStream) {
-      onChunk(chunk);
-      hasOutput = true;
-      chunkCount++;
-      if (chunkCount <= 5 || chunkCount % 20 === 0) {
-        logger.info(`LLM chunk #${chunkCount}`, { chunkLength: chunk?.length, chunkPreview: chunk?.slice(0, 80) })
+    let reasoningCount = 0;
+
+    // 改用 fullStream：textStream 只给正文，拿不到 reasoning。
+    // 深度思考开启时，把 reasoning-delta 转发到渲染层做流式展示。
+    for await (const part of result.fullStream) {
+      if (part.type === 'text-delta') {
+        // AI SDK 7 的 text-delta 有两种形状（text / delta），逐级兜底
+        const piece = (part as { text?: string; delta?: string }).text
+          ?? (part as { delta?: string }).delta
+          ?? '';
+        if (!piece) continue;
+        onChunk(piece);
+        hasOutput = true;
+        chunkCount++;
+        if (chunkCount <= 5 || chunkCount % 20 === 0) {
+          logger.info(`LLM chunk #${chunkCount}`, { chunkLength: piece.length, chunkPreview: piece.slice(0, 80) })
+        }
+      } else if (part.type === 'reasoning-delta') {
+        const piece = (part as { text?: string }).text ?? '';
+        if (!piece) continue;
+        reasoningCount++;
+        options?.onReasoningChunk?.(piece);
+      } else if (part.type === 'error') {
+        const err = (part as { error?: unknown }).error;
+        // 用户主动中断 / 被新流顶掉时，SDK 也会以 error 事件收尾，
+        // 这种情况按「已取消」处理，不能当成故障弹给用户。
+        if (signal.aborted) {
+          logger.info('fullStream aborted by signal');
+          safeComplete({ promptTokens: 0, completionTokens: 0 });
+          return;
+        }
+        logger.error('fullStream error part', err);
+        safeError(err instanceof Error ? err : new Error(String(err)));
+        return;
       }
     }
-    logger.info('textStream ended', { chunkCount, hasOutput })
+    logger.info('textStream ended', { chunkCount, hasOutput, reasoningCount })
 
     // 流「干净结束」但一个字都没产出 —— 原实现会当作成功上报（usage 全 0），
     // 界面既不报错也不出内容，用户看到的就是「宕机/不回答了」。

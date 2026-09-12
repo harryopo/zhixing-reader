@@ -2,8 +2,8 @@
  * Reasoning — AI 思考过程可折叠面板（T13 新增）
  *
  * 借鉴 vercel/chatbot/components/ai-elements/reasoning.tsx：
- *   - 流式开始时自动展开
- *   - 流式结束后延迟 1s 自动折叠
+ *   - **默认折叠**，由用户点击展开（避免思考内容挤占正文版面）
+ *   - 若用户在流式中途展开，结束后延迟 1s 自动收起
  *   - 显示思考耗时 "已思考 X 秒"
  *   - 内容用 Markdown 渲染（含代码块）
  *   - max-height 200px，超出滚动，隐藏滚动条
@@ -21,16 +21,11 @@ interface ReasoningProps {
 }
 
 function ReasoningBase({ content, isStreaming, duration }: ReasoningProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const [hasAutoClosed, setHasAutoClosed] = useState(false)
   const [computedDuration, setComputedDuration] = useState<number | undefined>(duration)
   const scrollRef = useRef<HTMLDivElement>(null)
   const startTimeRef = useRef<number | null>(null)
-
-  // 流式开始时自动展开
-  useEffect(() => {
-    if (isStreaming && !isOpen) setIsOpen(true)
-  }, [isStreaming, isOpen])
 
   // 计算耗时（若外部未传 duration）
   useEffect(() => {
