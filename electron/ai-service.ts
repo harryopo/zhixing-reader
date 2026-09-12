@@ -191,6 +191,15 @@ interface CallOptions {
   retryConfig?: RetryConfig;
   maxTokensOverride?: number;
   signal?: AbortSignal;
+  /**
+   * 显式关闭服务商侧的「深度思考」。
+   *
+   * 翻译、摘要这类机械任务不需要推理，但 deepseek-flash 等模型**默认就会思考**，
+   * 会把输出预算先烧在 reasoning 上 —— 预算小的时候正文直接为空。
+   * （线上故障：翻译标题给 200 token、每段给 1000 token，全部被 reasoning 吃光，
+   *  返回空字符串并写入数据库，前端因此永远显示「点击翻译」。）
+   */
+  disableReasoning?: boolean;
 }
 
 async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptions): Promise<AIResponse> {
@@ -221,6 +230,7 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
         messages,
         temperature,
         max_tokens: maxTokens,
+        ...(opts.disableReasoning ? { reasoning_effort: 'none' } : {}),
       }),
     },
     {
@@ -1434,7 +1444,7 @@ export async function translateArticle(
     { role: 'user', content: `翻译以下英文标题为中文：\n${titleEn}` },
   ];
 
-  const titleResponse = await callAI(titleMessages, { maxTokensOverride: 200 });
+  const titleResponse = await callAI(titleMessages, { maxTokensOverride: 512, disableReasoning: true });
   const title_zh = titleResponse.content.trim();
   let totalPromptTokens = titleResponse.usage?.promptTokens || 0;
   let totalCompletionTokens = titleResponse.usage?.completionTokens || 0;
@@ -1449,7 +1459,7 @@ export async function translateArticle(
       { role: 'user', content: `翻译以下英文段落为中文：\n${para}` },
     ];
 
-    const paraResponse = await callAI(paraMessages, { maxTokensOverride: 1000 });
+    const paraResponse = await callAI(paraMessages, { maxTokensOverride: 2000, disableReasoning: true });
     contentParagraphs.push(paraResponse.content.trim());
     if (paraResponse.usage) {
       totalPromptTokens += paraResponse.usage.promptTokens || 0;
@@ -1468,5 +1478,15 @@ export async function translateArticle(
   const durationMs = Date.now() - startMs;
   recordTokenUsage('translateArticle', { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens }, durationMs);
   logger.info('Article translated', { durationMs, totalPromptTokens, totalCompletionTokens });
+
+  // 必须校验：模型返回空内容时，原实现会把空字符串写进库并当成功上报，
+  // 前端因此永远看不到译文（也永远不会报错）。宁可显式失败让用户重试。
+  if (!title_zh && !content_zh) {
+    throw new Error(
+      `翻译返回空内容（prompt ${totalPromptTokens} / completion ${totalCompletionTokens} token）。` +
+      '可能是输出预算被深度思考占满或服务商拒绝请求，请重试。'
+    );
+  }
+
   return { title_zh, summary_zh, content_zh };
 }

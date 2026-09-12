@@ -795,6 +795,32 @@ describe('translateArticle', () => {
     //   修复后: `contentParagraphs[0] ? contentParagraphs[0].slice(0,100) + '...' : ''` → ''
     expect(result.summary_zh).toBe('')
   })
+
+  it('37. 标题与正文都返回空 → 必须抛错，不能默默写空字符串入库', async () => {
+    // 线上故障回归：deepseek-flash 默认开启思考，把 200/1000 的输出预算全烧在
+    // reasoning 上，正文返回空字符串。原实现不校验，把空串写进 articles 表并
+    // 当成功上报，前端因此永远显示「点击翻译」且不报错。
+    mockedFetchWithRetry
+      .mockResolvedValueOnce(createOpenAIResponse('')) // 标题空
+      .mockResolvedValueOnce(createOpenAIResponse('')) // 段落空
+
+    await expect(translateArticle('Article-37', 'Paragraph')).rejects.toThrow(/翻译返回空内容/)
+  })
+
+  it('38. 翻译请求显式关闭深度思考（reasoning_effort=none）', async () => {
+    mockedFetchWithRetry
+      .mockResolvedValueOnce(createOpenAIResponse('标题'))
+      .mockResolvedValueOnce(createOpenAIResponse('段落'))
+
+    await translateArticle('Article-38', 'Paragraph')
+
+    const bodies = mockedFetchWithRetry.mock.calls.map((c) => JSON.parse(String((c[1] as { body?: string })?.body ?? '{}')))
+    expect(bodies.length).toBeGreaterThan(0)
+    // 机械任务不应触发思考，否则小预算下正文会被 reasoning 挤空
+    for (const b of bodies) {
+      expect(b.reasoning_effort).toBe('none')
+    }
+  })
 })
 
 describe('cancelActiveStream', () => {
