@@ -153,4 +153,24 @@ describe('ai-service — repairJSON', () => {
     const parsed = JSON.parse(repairJSON(raw)) as Array<{ a: string; b: string }>
     expect(parsed[0]).toEqual({ a: 'x', b: 'y' })
   })
+
+  it('数组被 max_tokens 截断时，抢救出已完整输出的对象', () => {
+    // 故障现场：27 个方法论的 JSON 在最后一个对象的 "steps": [ 处戛然而止，
+    // 整体解析必然失败。丢掉整批太浪费 —— 前面已完整的对象应当可用。
+    const truncated = [
+      '[',
+      '  {"name":"A","tags":["x"]},',
+      '  {"name":"B","tags":["y"]},',
+      '  {"name":"C","steps":[',
+      '    "只有半截',
+    ].join('\n')
+
+    const result = extractAndParseJSON<Array<{ name: string }>>(truncated, true)
+    expect(result.map((r) => r.name)).toEqual(['A', 'B'])
+  })
+
+  it('截断且一个完整对象都没有时，仍抛错（不能假装成功）', () => {
+    const truncated = '[\n  {"name":"A","steps":[\n    "半截'
+    expect(() => extractAndParseJSON<unknown[]>(truncated, true)).toThrow(/JSON解析失败/)
+  })
 })

@@ -215,6 +215,14 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
   const temperature = config.temperature || 0.7;
   const retryConfig = opts.retryConfig || RETRY_CONFIGS.AI_SERVICE;
 
+  // 默认关闭深度思考：非流式 callAI 服务于抽取 / 翻译 / 摘要 / 卡片生成等
+  // **机械任务**，不需要推理。而 deepseek-flash 这类模型默认就会思考，
+  // 把输出预算先烧在 reasoning 上 —— 小预算（200/600）直接返回空内容，
+  // 大预算（8000）则被截断成半截 JSON。
+  // 对话场景走 streamChat / AI SDK 路径，不受此处影响；确需推理的调用
+  // 可显式传 disableReasoning: false 打开。
+  const disableReasoning = opts.disableReasoning !== false;
+
   logger.info(`Calling OpenAI API`, { model, messageCount: messages.length });
 
   const response = await fetchWithRetry(
@@ -230,7 +238,7 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
         messages,
         temperature,
         max_tokens: maxTokens,
-        ...(opts.disableReasoning ? { reasoning_effort: 'none' } : {}),
+        ...(disableReasoning ? { reasoning_effort: 'none' } : {}),
       }),
     },
     {
@@ -370,20 +378,19 @@ export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
   }
 
   const startIdx = isArray ? cleaned.indexOf('[') : cleaned.indexOf('{');
-  const endIdx = isArray ? cleaned.lastIndexOf(']') : cleaned.lastIndexOf('}');
 
-  let jsonStr: string;
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    jsonStr = cleaned.slice(startIdx, endIdx + 1);
-  } else {
-    logger.error('Failed to extract JSON from AI response', { 
+  if (startIdx === -1) {
+    logger.error('Failed to extract JSON from AI response', {
       content: content.slice(0, 1000),
       isArray,
       startIdx,
-      endIdx
     });
     throw new Error('AI响应中未找到有效的JSON格式');
   }
+
+  const jsonStr = isArray
+    ? sliceBalanced(cleaned, startIdx, '[', ']')
+    : sliceBalanced(cleaned, startIdx, '{', '}');
 
   try {
     return JSON.parse(jsonStr) as T;
@@ -400,6 +407,19 @@ export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
     try {
       return JSON.parse(repaired) as T;
     } catch {
+      // 补救：数组被截断时，抢救出已完整的对象，避免整批作废
+      if (isArray) {
+        const salvaged = salvageArrayItems(jsonStr);
+        if (salvaged.length > 0) {
+          logger.warn('JSON 被截断，已抢救出部分完整对象', {
+            originalError,
+            salvagedCount: salvaged.length,
+            contentLength: content.length,
+          });
+          return salvaged as T;
+        }
+      }
+
       // 上报「原始」错误而不是修复后的错误：修复常把问题挪到别处
       // （实测出现过原始报 position 1476、修复后改报 position 22，把排查引偏）。
       // 同时落全量内容 —— 原先只留 500 字预览，看不到真正出错的位置。
@@ -412,6 +432,79 @@ export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
       throw new Error(`JSON解析失败: ${originalError}`);
     }
   }
+}
+
+/**
+ * 从 openIdx 处的开括号开始，按括号配平切出完整的 JSON 片段。
+ *
+ * 原实现用 indexOf(open) + lastIndexOf(close) 定位，**在被截断的数组上会切错**：
+ * 形如 [{...,"tags":["x"]},{...,"steps":["半截 的输入里，
+ * lastIndexOf(']') 命中的是 "tags":["x"] 里的那个 ]，于是 JSON 被从中间切断，
+ * 连已经完整的对象也一起丢掉。
+ *
+ * 这里改为字符串感知的括号配平；未闭合（确实被截断）时返回剩余全部，
+ * 交给后续的修复与抢救逻辑处理。
+ */
+function sliceBalanced(text: string, openIdx: number, open: string, close: string): string {
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = openIdx; i < text.length; i++) {
+    const ch = text[i];
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === '\\') { escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === open) {
+      depth++;
+    } else if (ch === close) {
+      depth--;
+      if (depth === 0) return text.slice(openIdx, i + 1);
+    }
+  }
+  return text.slice(openIdx);
+}
+
+/**
+ * 从被截断的 JSON 数组里抢救出「已完整输出」的对象。
+ *
+ * 模型输出超长被 max_tokens 截断时（实测：JSON 在 "steps": [ 处戛然而止），
+ * 整体解析必然失败，但前面几十个对象都是完整的 —— 丢掉整批太浪费。
+ * 这里按花括号配平逐个切出顶层对象并单独解析，坏的那个跳过。
+ */
+function salvageArrayItems(jsonStr: string): unknown[] {
+  const items: unknown[] = [];
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+  let start = -1;
+
+  for (let i = 0; i < jsonStr.length; i++) {
+    const ch = jsonStr[i];
+
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === '\\') { escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try {
+          items.push(JSON.parse(jsonStr.slice(start, i + 1)));
+        } catch {
+          // 单个对象坏了就跳过，不影响其余
+        }
+        start = -1;
+      }
+    }
+  }
+  return items;
 }
 
 /** 仅在字符串字面量「外部」才做的全角 → 半角归一（键名与分隔符位置） */
@@ -625,9 +718,10 @@ export async function chatWithContext(
 
   const startTime = Date.now();
   try {
-    const response = await callAI(messages);
+    // 对话场景：保留模型自身的推理能力
+    const response = await callAI(messages, { disableReasoning: false });
     const durationMs = Date.now() - startTime;
-    
+
     if (response.usage) {
       recordTokenUsage('chat', response.usage, durationMs);
     }
@@ -652,9 +746,10 @@ export async function explainHighlight(
 
   const startTime = Date.now();
   try {
-    const response = await callAI(messages);
+    // 讲解场景：保留模型自身的推理能力
+    const response = await callAI(messages, { disableReasoning: false });
     const durationMs = Date.now() - startTime;
-    
+
     if (response.usage) {
       recordTokenUsage('explain', response.usage, durationMs);
     }
