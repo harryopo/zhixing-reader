@@ -27,6 +27,27 @@ export function initFromAIConfig(aiConfig: { apiKey: string; baseUrl?: string })
   logger.info('Embedding service initialized from AI config')
 }
 
+// ── 端点可用性冷却 ──
+//
+// 多数聊天服务商（DeepSeek / 火山引擎 等）只提供 chat 端点，**没有 /embeddings**。
+// 而 initFromAIConfig 直接复用了聊天用的 baseUrl，于是每次都去请求
+// <baseUrl>/embeddings 并必然失败 —— 每次对话白等一次网络往返后才回退。
+// 一旦确认不可用，就在冷却期内直接快速失败，把语义检索让位给关键词检索。
+const EMBEDDING_UNAVAILABLE_COOLDOWN_MS = 10 * 60 * 1000;
+let unavailableUntil = 0;
+
+export function isEmbeddingUnavailable(): boolean {
+  return Date.now() < unavailableUntil;
+}
+
+function markUnavailable(): void {
+  unavailableUntil = Date.now() + EMBEDDING_UNAVAILABLE_COOLDOWN_MS;
+}
+
+function markAvailable(): void {
+  unavailableUntil = 0;
+}
+
 // 获取配置
 function getConfig(): EmbeddingConfig {
   if (!config) {
@@ -37,6 +58,9 @@ function getConfig(): EmbeddingConfig {
 
 // 生成单个文本的Embedding
 export async function generateEmbedding(text: string): Promise<number[]> {
+  if (isEmbeddingUnavailable()) {
+    throw new Error('Embedding endpoint unavailable (cooling down)');
+  }
   const cfg = getConfig()
   const baseUrl = cfg.baseUrl || 'https://api.openai.com/v1'
   
@@ -72,9 +96,11 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       throw new Error('No embedding returned from API')
     }
 
+    markAvailable();
     logger.debug(`Generated embedding: ${data.usage.total_tokens} tokens`)
     return data.data[0].embedding
   } catch (error) {
+    markUnavailable();
     logger.error('Failed to generate embedding', error)
     throw error
   }

@@ -1,6 +1,6 @@
 import { logger } from '../logger'
 import { getRepositories } from '../repositories'
-import { generateEmbedding, generateBatchEmbeddings } from './embedding-service'
+import { generateEmbedding, generateBatchEmbeddings, isEmbeddingUnavailable } from './embedding-service'
 import { searchSimilar, upsertPoints, deleteByHighlightId, getCollectionStats } from './vector-db'
 
 interface HighlightForIndexing {
@@ -240,6 +240,9 @@ export async function rebuildIndex(): Promise<{ indexed: number; errors: number 
 }
 
 export async function checkRAGAvailability(): Promise<boolean> {
+  // Embedding 端点已确认不可用时直接判否，交由调用方走关键词检索，
+  // 不再让每次对话都白等一次注定失败的 /embeddings 请求。
+  if (isEmbeddingUnavailable()) return false
   try {
     await getCollectionStats()
     return true

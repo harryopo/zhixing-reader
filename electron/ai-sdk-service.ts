@@ -231,6 +231,21 @@ export async function sdkStreamChat(
     }
     logger.info('textStream ended', { chunkCount, hasOutput })
 
+    // 流「干净结束」但一个字都没产出 —— 原实现会当作成功上报（usage 全 0），
+    // 界面既不报错也不出内容，用户看到的就是「宕机/不回答了」。
+    // 常见成因：输出预算被 reasoning 占满、服务商侧返回空内容、
+    // 或连接被静默中断。此处必须显式报错，不能静默成功。
+    if (chunkCount === 0) {
+      logger.error('textStream ended with no output', {
+        model: config.model,
+        baseUrl: config.baseUrl,
+        messageCount: normalizedMessages.length,
+        maxOutputTokens: config.maxTokens ?? 2000,
+      })
+      safeError(new Error('模型未返回任何内容。可能是输出长度被「深度思考」占满，或服务商拒绝了本次请求；可尝试关闭深度思考、或换个模型/精简提问后重试。'))
+      return
+    }
+
     // 获取用量
     let promptTokens = 0;
     let completionTokens = 0;
