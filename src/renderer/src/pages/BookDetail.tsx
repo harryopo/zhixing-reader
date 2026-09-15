@@ -34,6 +34,15 @@ import {
   formatDate,
   formatDateShort,
 } from '../utils/db-mapper'
+import { getCardMastery } from '../../../shared/fsrs-metrics'
+
+/** 卡片掌握度等级 → Badge 变体（与复习页保持一致） */
+const CARD_MASTERY_BADGE: Record<string, 'success' | 'ok' | 'warning' | 'default'> = {
+  精通: 'success',
+  熟练: 'ok',
+  进阶: 'warning',
+  入门: 'default',
+}
 
 // ===== 类型 =====
 interface BookRow {
@@ -68,10 +77,17 @@ interface HighlightRow {
 interface CardRow {
   id: string
   bookId: string
+  /** 来源划线 id —— 用于和 highlights 做本地 join，展示卡面原文 */
+  highlightId: string
   reviewCount: number
   nextReviewAt: string
   lastReviewAt: string
   createdAt: string
+  /** FSRS 调度状态（mapCard 通过 ...row 透传，用于推导掌握度） */
+  stability: number
+  difficulty: number
+  reps: number
+  lapses: number
 }
 
 // ===== 工具 =====
@@ -550,7 +566,11 @@ export default function BookDetail() {
             <HighlightList items={noteList} emptyHint="还没有笔记" noteMode />
           )}
           {activeTab === 'cards' && (
-            <CardList items={cards} emptyHint="还没有知识卡片" />
+            <CardList
+              items={cards}
+              highlights={highlights}
+              emptyHint="还没有知识卡片"
+            />
           )}
         </div>
       </Card>
@@ -710,7 +730,22 @@ function HighlightList({
 }
 
 /** 知识卡片列表 */
-function CardList({ items, emptyHint }: { items: CardRow[]; emptyHint: string }) {
+function CardList({
+  items,
+  highlights,
+  emptyHint,
+}: {
+  items: CardRow[]
+  highlights: HighlightRow[]
+  emptyHint: string
+}) {
+  // 卡片 → 卡面原文：按 highlightId 做一次本地 join，避免逐卡再走一次 IPC
+  const contentByHighlight = useMemo(() => {
+    const map = new Map<string, HighlightRow>()
+    for (const h of highlights) map.set(h.id, h)
+    return map
+  }, [highlights])
+
   if (items.length === 0) {
     return (
       <EmptyState
@@ -722,35 +757,79 @@ function CardList({ items, emptyHint }: { items: CardRow[]; emptyHint: string })
   }
   return (
     <div className="flex flex-col" style={{ gap: 'calc(var(--spacing) * 4)' }}>
-      {items.map((c) => (
-        <div
-          key={c.id}
-          style={{
-            padding: 'calc(var(--spacing) * 4)',
-            borderLeft: '3px solid var(--chart-5)',
-            background: 'var(--background)',
-            borderRadius: `0 var(--radius) var(--radius) 0`,
-          }}
-        >
+      {items.map((c) => {
+        const source = contentByHighlight.get(c.highlightId)
+        // 掌握度由 FSRS 状态推导（见 src/shared/fsrs-metrics.ts），不读写死的列
+        const mastery = getCardMastery({
+          stability: safeNum(c.stability),
+          difficulty: safeNum(c.difficulty),
+          reps: safeNum(c.reps ?? c.reviewCount),
+          lapses: safeNum(c.lapses),
+        })
+        return (
           <div
+            key={c.id}
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              gap: 'calc(var(--spacing) * 3)',
+              padding: 'calc(var(--spacing) * 4)',
+              borderLeft: '3px solid var(--chart-5)',
+              background: 'var(--background)',
+              borderRadius: '0 var(--radius) var(--radius) 0',
             }}
           >
-            <strong style={{ fontSize: '0.95rem', color: 'var(--foreground)' }}>
-              卡片 #{c.id.slice(0, 6)}
-            </strong>
-            <Badge variant="ok">已复习 {c.reviewCount} 次</Badge>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 'calc(var(--spacing) * 3)',
+              }}
+            >
+              <strong style={{ fontSize: '0.95rem', color: 'var(--foreground)' }}>
+                卡片 #{c.id.slice(0, 6)}
+              </strong>
+              <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)', flexWrap: 'wrap' }}>
+                <Badge variant={CARD_MASTERY_BADGE[mastery.level] ?? 'default'}>
+                  掌握度 {mastery.score}
+                </Badge>
+                <Badge variant="ok">已复习 {c.reviewCount} 次</Badge>
+              </div>
+            </div>
+
+            {/* 卡面原文（来自来源划线） */}
+            {source?.content ? (
+              <blockquote
+                style={{
+                  margin: 'calc(var(--spacing) * 3) 0 0',
+                  padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+                  borderLeft: '2px solid var(--border)',
+                  background: 'var(--muted)',
+                  borderRadius: 'var(--radius)',
+                  fontSize: '0.86rem',
+                  lineHeight: 1.7,
+                  color: 'var(--foreground)',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical' as const,
+                  overflow: 'hidden',
+                }}
+              >
+                {source.content}
+              </blockquote>
+            ) : (
+              <Tiny style={{ marginTop: 'calc(var(--spacing) * 3)' }}>
+                来源划线已不在本机（卡片仍可正常复习）
+              </Tiny>
+            )}
+
+            <Tiny style={{ marginTop: 'calc(var(--spacing) * 2)' }}>
+              {source?.chapterTitle ? source.chapterTitle + ' · ' : ''}
+              创建于 {formatDate(c.createdAt)}
+              {c.nextReviewAt ? ' · 下次复习 ' + formatDate(c.nextReviewAt) : ''}
+              {safeNum(c.lapses) > 0 ? ' · 遗忘 ' + safeNum(c.lapses) + ' 次' : ''}
+            </Tiny>
           </div>
-          <Tiny style={{ marginTop: 'calc(var(--spacing) * 2)' }}>
-            创建于 {formatDate(c.createdAt)}
-            {c.nextReviewAt ? ` · 下次复习 ${formatDate(c.nextReviewAt)}` : ''}
-          </Tiny>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

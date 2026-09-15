@@ -10,7 +10,17 @@ import { useNavigate } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
+import Badge from '../components/ui/Badge'
 import { useReviewStore } from '../stores/reviewStore'
+import { getCardMastery, getRetrievability, getRetentionHint } from '../../../shared/fsrs-metrics'
+
+/** 掌握度等级 → Badge 配色（与方法论页的语义保持一致，变体取自 ui/Badge 的 6 种） */
+const MASTERY_BADGE: Record<string, 'success' | 'ok' | 'warning' | 'default'> = {
+  精通: 'success',
+  熟练: 'ok',
+  进阶: 'warning',
+  入门: 'default',
+}
 
 /** 评分按钮配置：FSRS Rating（Again=1 Hard=2 Good=3 Easy=4） */
 const RATING_BUTTONS = [
@@ -30,6 +40,8 @@ export default function Review() {
     loading,
     error,
     previews,
+    lastMasteryDelta,
+    roundStats,
     fetchDueCards,
     showAnswerCard,
     rateCard,
@@ -69,6 +81,33 @@ export default function Review() {
   }, [loading, currentCard, showAnswer, showAnswerCard, rateCard])
 
   const progress = total > 0 ? Math.round((completed / total) * 100) : 0
+
+  /** 当前卡片的掌握度与保持率（均由 FSRS 状态推导，非写死） */
+  const currentMastery = useMemo(
+    () =>
+      currentCard
+        ? getCardMastery({
+            stability: currentCard.stability ?? 0,
+            difficulty: currentCard.difficulty ?? 0,
+            reps: currentCard.reps ?? 0,
+            lapses: currentCard.lapses ?? 0,
+          })
+        : null,
+    [currentCard],
+  )
+  const currentRetention = useMemo(
+    () =>
+      currentCard
+        ? getRetrievability(currentCard.stability ?? 0, currentCard.elapsedDays ?? 0)
+        : 0,
+    [currentCard],
+  )
+
+  /** 本轮平均稳定性（真实数据，无估算） */
+  const avgStabilityBefore =
+    roundStats.reviewed > 0 ? roundStats.stabilityBeforeSum / roundStats.reviewed : 0
+  const avgStabilityAfter =
+    roundStats.reviewed > 0 ? roundStats.stabilityAfterSum / roundStats.reviewed : 0
 
   return (
     <PageHero
@@ -117,9 +156,35 @@ export default function Review() {
           <div style={{ textAlign: 'center', padding: 'calc(var(--spacing) * 8) 0' }}>
             <div style={{ fontSize: '2rem', marginBottom: 'calc(var(--spacing) * 3)' }}>🎉</div>
             <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem' }}>本轮复习完成</h3>
-            <p style={{ margin: '0 0 calc(var(--spacing) * 4)', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
-              已完成 {completed} 张卡片，FSRS 将根据你的评分安排下次复习时间。
+            <p style={{ margin: '0 0 calc(var(--spacing) * 5)', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
+              已完成 {completed} 张卡片，FSRS 已按你的评分重新安排下次复习时间。
             </p>
+
+            {/* 本轮真实统计：全部取自 cards 表的 stability 前后值与逐卡掌握度对比 */}
+            {roundStats.reviewed > 0 && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 'calc(var(--spacing) * 3)',
+                  maxWidth: 560,
+                  margin: '0 auto calc(var(--spacing) * 5)',
+                }}
+              >
+                <StatCell label="本轮复习" value={`${roundStats.reviewed}`} unit="张" />
+                <StatCell
+                  label="平均记忆稳定性"
+                  value={`${avgStabilityBefore.toFixed(1)} → ${avgStabilityAfter.toFixed(1)}`}
+                  unit="天"
+                />
+                <StatCell
+                  label="掌握度变化"
+                  value={`↑${roundStats.improved} ↓${roundStats.declined}`}
+                  unit="张"
+                />
+              </div>
+            )}
+
             <Button variant="primary" onClick={() => fetchDueCards()}>再拉取一轮</Button>
           </div>
         </Card>
@@ -128,6 +193,53 @@ export default function Review() {
       {/* ===== 复习中 ===== */}
       {!loading && !error && currentCard && !isFinished && (
         <Card>
+          {/* 上一张的掌握度反馈 */}
+          {lastMasteryDelta && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 'calc(var(--spacing) * 3)',
+                marginBottom: 'calc(var(--spacing) * 4)',
+                padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--muted)',
+                fontSize: '0.82rem',
+              }}
+            >
+              <span style={{ color: 'var(--muted-foreground)' }}>上一张的掌握度</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                <span style={{ color: 'var(--muted-foreground)' }}>{lastMasteryDelta.before}</span>
+                <span style={{ color: 'var(--muted-foreground)' }}>→</span>
+                <span
+                  style={{
+                    color:
+                      lastMasteryDelta.after > lastMasteryDelta.before
+                        ? 'var(--primary)'
+                        : lastMasteryDelta.after < lastMasteryDelta.before
+                          ? 'var(--destructive)'
+                          : 'var(--foreground)',
+                  }}
+                >
+                  {lastMasteryDelta.after}
+                </span>
+                <Badge variant={MASTERY_BADGE[lastMasteryDelta.levelAfter] ?? 'default'}>
+                  {lastMasteryDelta.levelAfter}
+                </Badge>
+                {lastMasteryDelta.after !== lastMasteryDelta.before && (
+                  <span style={{ color: 'var(--muted-foreground)', fontWeight: 400 }}>
+                    ({lastMasteryDelta.after > lastMasteryDelta.before ? '+' : ''}
+                    {lastMasteryDelta.after - lastMasteryDelta.before})
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
           {/* 进度条 */}
           <div style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'calc(var(--spacing) * 2)', fontSize: '0.82rem', color: 'var(--muted-foreground)' }}>
@@ -186,8 +298,29 @@ export default function Review() {
                   {currentCard.highlightNote}
                 </div>
               )}
-              <div style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
-                已复习 {currentCard.reps} 次 · 记忆稳定性 {currentCard.stability.toFixed(2)}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'calc(var(--spacing) * 3)',
+                  flexWrap: 'wrap',
+                  fontSize: '0.8rem',
+                  color: 'var(--muted-foreground)',
+                }}
+              >
+                {currentMastery && (
+                  <Badge variant={MASTERY_BADGE[currentMastery.level] ?? 'default'}>
+                    掌握度 {currentMastery.score} · {currentMastery.level}
+                  </Badge>
+                )}
+                <span>
+                  已复习 {currentCard.reps} 次 · 记忆稳定性 {currentCard.stability.toFixed(2)} 天
+                  {currentCard.lapses > 0 ? ` · 遗忘 ${currentCard.lapses} 次` : ''}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
+                当前保持率 {Math.round(currentRetention * 100)}%
+                {currentRetention > 0 ? ` · ${getRetentionHint(currentRetention)}` : ''}
               </div>
             </div>
           ) : (
@@ -252,5 +385,29 @@ export default function Review() {
         </Card>
       )}
     </PageHero>
+  )
+}
+
+/** 完成态统计单元格 */
+function StatCell({ label, value, unit }: { label: string; value: string; unit: string }) {
+  return (
+    <div
+      style={{
+        padding: 'calc(var(--spacing) * 3)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        background: 'var(--muted)',
+      }}
+    >
+      <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginBottom: '0.35rem' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--foreground)' }}>
+        {value}
+        <span style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--muted-foreground)', marginLeft: '0.2rem' }}>
+          {unit}
+        </span>
+      </div>
+    </div>
   )
 }
