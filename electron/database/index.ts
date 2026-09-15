@@ -26,6 +26,8 @@ export {
 
 export {
   initializeSchema,
+  /** 建表 + 幂等迁移的唯一入口；生产 initDatabase 与测试 fixture 共用 */
+  applySchemaAndMigrations,
   initDatabase,
   clearConversationsAndMessages,
   resetDatabase,

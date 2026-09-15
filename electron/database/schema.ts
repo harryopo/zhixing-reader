@@ -291,6 +291,30 @@ export function initializeSchema(db: import('sql.js').Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC);');
 }
 
+/**
+ * 在**当前连接**上建表并执行全部幂等迁移（不读文件、不落盘）。
+ *
+ * 这是 schema 的**唯一真值入口**：`initDatabase`（生产/开发）与
+ * `tests/__fixtures__/db-helpers.ts`（测试）都调用它。
+ *
+ * 背景：测试 fixture 曾自行复制一份 schema。每次生产侧加列，测试侧不知道，
+ * 集成测试就以 "no such column" 失败（2026-08-28 加列、2026-09-15 加词汇记忆状态列
+ * 各踩一次），而报错常被 repository 的 try/catch 吞成 `return null`，很难定位。
+ */
+export function applySchemaAndMigrations(): void {
+  const db = getDatabase();
+
+  // 建表与索引
+  initializeSchema(db);
+
+  // 幂等迁移（每次启动都会跑，靠 PRAGMA table_info 判断列是否存在）
+  migrateCardsTable();        // cards: application_tag / mastery_level
+  migrateBooksTable();        // books: source
+  migrateChatMessagesTable(); // chat_messages: liked / bookmarked
+  migrateTokenUsageTable();   // token_usage: cached_tokens
+  migrateConversationsTable();// conversations: history_summary
+}
+
 export async function initDatabase(): Promise<void> {
   const SQL = await initSqlJs();
   const dbPath = getDatabasePath();
@@ -302,25 +326,7 @@ export async function initDatabase(): Promise<void> {
     setDatabase(new SQL.Database());
   }
 
-  const db = getDatabase();
-
-  // 建表与索引：单一来源，与测试/外部脚本共用同一份 schema 定义
-  initializeSchema(db);
-
-  // 数据库迁移：为 cards 表新增应用标签和掌握度字段
-  migrateCardsTable();
-
-  // 数据库迁移：为 books 表新增 source 字段（区分微信读书/本地导入）
-  migrateBooksTable();
-
-  // 数据库迁移：为 chat_messages 表新增 liked / bookmarked 字段（点赞/收藏）
-  migrateChatMessagesTable();
-
-  // 数据库迁移：为 token_usage 表新增 cached_tokens 字段（前缀缓存命中率观测）
-  migrateTokenUsageTable();
-
-  // 数据库迁移：为 conversations 表新增 history_summary 字段（滚动摘要，Token 优化 Step 3）
-  migrateConversationsTable();
+  applySchemaAndMigrations();
 
   saveDatabase();
   logger.info(`Database connected: ${dbPath}`);
