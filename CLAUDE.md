@@ -109,7 +109,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 |------|------|------|
 | `npm run lint` | ESLint 0 错误 | 手动 + CI |
 | `npm run typecheck` | tsc --noEmit 0 错误 | 手动 + CI |
-| `npm run test` | vitest 全通过（733 用例）| 手动 + CI |
+| `npm run test` | vitest 全通过（741 用例）| 手动 + CI |
 | `npm run test:cov` | 覆盖率（阈值 83/80/75/83）| 手动（**未接入 CI**）|
 | `npm run build` | electron-vite 编译 | CI |
 | `npm run verify` | 上面四项一键串行 | 手动 |
@@ -145,7 +145,8 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 - **git 锚点**：master @ `6b3cfbc`（2026-09-02），共 183 commits，tag `v1.0.0`
 - **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
-- **门禁基线（2026-09-15 实测）**：typecheck 0 错误 ✅ / Vitest **733 用例 · 32 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / 覆盖率 90.4-83.5-93.0-90.4 ✅（`test:cov` 本次修复后才可用）
+- **门禁基线（2026-09-15 实测）**：typecheck 0 错误 ✅ / Vitest **741 用例 · 32 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / 覆盖率 90.4-83.7-93.0-90.4 ✅（`test:cov` 本次修复后才可用）
+- **2026-09-15 生词本正确性修复**：评分档位错位（「困难」被记成 Good，Hard 档不可达）/ 自举写死 Rating.Good / 毕业时冲掉已累积稳定性 / is_mastered 自动置位致词永久退场 / 掌握度改用 FSRS 推导；测试 fixture 改为复用 `applySchemaAndMigrations()`，删除 280 行平行 DDL
 - **2026-09-15 卡片掌握度（复习闭环反馈）**：新增 `src/shared/fsrs-metrics.ts`（`getCardMastery` / `getRetrievability`，纯函数、双端复用、与 ts-fsrs 逐点校验）；复习页与书籍详情卡片列表展示掌握度与保持率，评分后即时反馈掌握度增量，完成态展示真实统计；砍掉不可达的 `CARDS.UPDATE_MASTERY_LEVEL` / `UPDATE_APPLICATION_TAG`；修复 `test:cov`（coverage-v8 2.0.0→2.1.9 版本不匹配）
 - **2026-09-11 FSRS 真值对齐**：ts-fsrs@5.4.1 实测为 **FSRS-6.0 / 21 参数**（原文档写 v5 / 19 参数已校正）；修复 fsrs-engine 中 _nextIntervalVocabulary 公式符号错误导致**词汇复习间隔恒为 1 天**（且把 SM-2 的 efFactor 当记忆稳定性用）；词汇与划线卡片现共用同一 ts-fsrs 实例，记忆状态存于 vocabulary 表 stability/difficulty/lapses 三列（幂等迁移）
 - **2026-09-02 进展**：完成 C1 健壮性 6 修（重置落盘竞态 / 落盘失败重试+通知 / 重新生成重复问答对 / Sidebar 轮询暂停 / 蒸馏去 800ms 延时 / admin sqlite_ 守卫），6 个原子 commit，均过 verify

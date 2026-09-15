@@ -45,7 +45,7 @@ zhixing-reader/
 │
 ├── src/shared/            # 跨进程共享：类型 + IPC 通道常量
 ├── resources/             # 静态资源（dictionary.json / icon.png）
-├── tests/                 # Vitest 单元测试（32 文件 / 733 用例）
+├── tests/                 # Vitest 单元测试（32 文件 / 741 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -72,7 +72,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（733 用例；不含覆盖率）
+npm run test             # Vitest（741 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 打包
@@ -237,7 +237,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（32 文件 / 733 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（32 文件 / 741 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
@@ -257,6 +257,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-15 | 生词本三个正确性缺陷 + 测试 schema 去重 — ① **评分档位错位**：界面用 SM-2 风格 1/3/4/5 传评分，主进程映射表 {1:1,2:2,3:3,4:3,5:4} 把「困难」(3) 记成 Good(3) → ts-fsrs 的 Hard 档在生词本里完全不可达；统一为「界面直接传 Rating 1-4」并删除映射表 ② 新词自举写死 Rating.Good → 刚学就忘和轻松想起拿到相同初始状态 ③ 毕业时无条件重新自举 → 冲掉已累积的稳定性（连续复习 6 次 stability 恒为 2.3065，间隔长不起来） ④ is_mastered 改为仅用户显式设置（原复习满 5 次自动置位会让词被 getDueForReview 永久排除） ⑤ 生词本掌握度由 familiarity_level 代理改为 FSRS 推导（原显示 80%「已掌握」而真实分数 29） ⑥ **测试 fixture 复用生产的 applySchemaAndMigrations()**，删掉 280 行复制粘贴的平行 DDL（该漂移已两次导致 "no such column"）⑦ 测试 733→741 | AI Agent（接手） |
 | 2026-09-15 | 复习闭环「看得见」—— 卡片掌握度 — ① 新增 `src/shared/fsrs-metrics.ts`（main/renderer 双端复用的纯函数）：`getCardMastery()` 由 FSRS 的 stability/difficulty/reps/lapses 推导 0-100 掌握度，`getRetrievability()` 复刻 FSRS-6.0 遗忘曲线并与 ts-fsrs 逐点校验一致 ② 复习页显示掌握度徽标 + 当前保持率，评分后给出「掌握度 X → Y」即时反馈，完成态展示本轮真实统计（复习张数 / 平均稳定性 A→B / 掌握升降）③ 书籍详情卡片列表补上划线摘要与掌握度徽标（原只有「卡片 #a1b2c3」）④ 修正 `card.review` 的返回类型（原声明 `Promise<Review>`，实际是 `{ reviewId, card }`）⑤ 按 B11 决策树**砍掉**不可达的 `CARDS.UPDATE_MASTERY_LEVEL` / `UPDATE_APPLICATION_TAG` 全链路（通道+handler+preload+repository），DB 两列保留但不再写入 ⑥ 修复 `npm run test:cov` —— `@vitest/coverage-v8` 锁在 2.0.0 与 vitest 2.1.9 不匹配导致覆盖率命令直接崩，重新生成 lock 锁到 2.1.9 ⑦ 测试 703→733（32 文件），覆盖率 90.4/83.5/93.0/90.4 全过阈值 | AI Agent（接手） |
 | 2026-09-11 | FSRS 真值对齐 — ① ts-fsrs@5.4.1 实测实现的是 **FSRS-6.0 / 21 参数**（库内 `FSRSVersion` = "using FSRS-6.0"，`default_w.length` = 21，`FSRS6_DEFAULT_DECAY` = 0.1542），全仓库 "FSRS v5 / 19 组权重 / Anki 23.10+ / `(1+factor·t/9S)^decay`" 表述校正 ② **修复词汇间隔恒为 1 天**：`_nextIntervalVocabulary` 公式符号写反（`(1/R)^(1/decay)-1` 恒为负 → 被 clamp 到 1），且把 SM-2 的 efFactor 当记忆稳定性用；现词汇与划线卡片共用同一 ts-fsrs 实例，记忆状态持久化于 vocabulary 表新增的 stability/difficulty/lapses 三列 ③ 修 `w` 长度 <19 被静默忽略（17/19/21 均可下发，与库 checkParameters 对齐）、`getParameters().w` 由 slice(0,17) 恢复为完整 21 ④ 测试 698→703 | AI Agent（接手） |
 | 2026-09-11 | 接手核验校准 — 修正 Qdrant→Vectra、fsrs-engine v1→v5 适配层、database/ 文件数、测试数（667→688）、覆盖率门禁口径（未接入）、`.claude/` 与 `.learnings/STANDARDS.md` 标注未落地、`.trae/` 四件套标注缺失；删除 §9.3「项目无测试框架」错误陈述 | AI Agent（接手） |
