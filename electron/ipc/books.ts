@@ -137,8 +137,6 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.CARDS.CREATE_BATCH, (highlightIds: string[]) => cardsDb.createBatch(highlightIds));
   handle(IPC_CHANNELS.CARDS.CREATE_FOR_EXISTING, () => cardsDb.createForExistingHighlights());
   handle(IPC_CHANNELS.CARDS.UPDATE, (card: Record<string, unknown>) => cardsDb.update(card as unknown as Parameters<typeof cardsDb.update>[0]));
-  handle(IPC_CHANNELS.CARDS.UPDATE_APPLICATION_TAG, (id: string, tag: string) => cardsDb.updateApplicationTag(id, tag));
-  handle(IPC_CHANNELS.CARDS.UPDATE_MASTERY_LEVEL, (id: string, level: number) => cardsDb.updateMasteryLevel(id, level));
   handle(IPC_CHANNELS.CARDS.DELETE, (id: string) => cardsDb.delete(id));
   handle(IPC_CHANNELS.CARDS.GET_DUE, (limit?: number) => cardsDb.getDueCards(limit));
   handle(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, (limit?: number) => cardsDb.getDueCardsWithContent(limit));

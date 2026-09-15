@@ -255,20 +255,22 @@ describe('database-integration — sql.js 集成测试', () => {
       expect(dueCards[0].id).toBe(card.id)
     })
 
-    it('应支持 updateApplicationTag 和 updateMasteryLevel', async () => {
+    it('cards 表保留 application_tag / mastery_level 列（历史兼容，不再由此写入）', async () => {
+      // 2026-09-15：cardsDb.updateApplicationTag / updateMasteryLevel 已随其不可达的
+      // IPC 通道一并移除。掌握度改为由 FSRS 状态实时推导（src/shared/fsrs-metrics.ts），
+      // 不再落库，避免冗余状态与实际调度不一致。此处只断言列仍然存在，
+      // 保证老库升级后 `SELECT *` 的列序与 Repository 映射不被打断。
       booksDb.create({ id: 'book_1', title: 'Book' } as any)
       highlightsDb.create({ id: 'hl_1', book_id: 'book_1', content: 'HL' } as any)
       const card = cardsDb.create('hl_1')
 
-      cardsDb.updateApplicationTag(card.id, 'methodology')
-      cardsDb.updateMasteryLevel(card.id, 3)
+      const cols = getDatabase().exec('PRAGMA table_info(cards)')
+      const colNames = (cols[0]?.values ?? []).map((v) => v[1] as string)
+      expect(colNames).toContain('application_tag')
+      expect(colNames).toContain('mastery_level')
 
-      // getById 经过 cardFromDb 映射只返回 Card 接口字段，
-      // application_tag 和 mastery_level 需要直接从 DB 验证
       const result = getDatabase().exec('SELECT application_tag, mastery_level FROM cards WHERE id = ?', [card.id])
-      const rows = result[0]?.values ?? []
-      expect(rows[0][0]).toBe('methodology')
-      expect(rows[0][1]).toBe(3)
+      expect(result[0]?.values[0]).toEqual([null, 0])
     })
 
     it('应支持 deleteByHighlightId', async () => {

@@ -30,6 +30,33 @@ export interface DueReviewCard {
   highlightNote: string | null
 }
 
+/**
+ * card.review() 的返回值。
+ *
+ * ⚠️ 2026-09-15 修正：这里原先声明为 `Promise<Review>`（一条 reviews 记录），
+ * 但主进程 `reviewsDb.create()` 实际返回 `{ reviewId, card }`，
+ * 其中 card 是 FSRS 调度后的新卡片状态。因调用方一直丢弃返回值所以从未暴露。
+ */
+export interface ReviewedCard {
+  id: string
+  highlightId: string
+  state: number
+  step: number
+  stability: number
+  difficulty: number
+  due: string
+  lastReview: string | null
+  elapsedDays: number
+  scheduledDays: number
+  reps: number
+  lapses: number
+}
+
+export interface ReviewResult {
+  reviewId: string
+  card: ReviewedCard
+}
+
 export interface TokenRecord {
   id: string
   provider: string
@@ -90,14 +117,12 @@ export interface ElectronAPI {
     createBatch: (highlightIds: string[]) => Promise<Card[]>
     createForExisting: () => Promise<{ created: number; skipped: number }>
     update: (card: Record<string, unknown>) => Promise<Card>
-    updateApplicationTag: (id: string, tag: string) => Promise<void>
-    updateMasteryLevel: (id: string, level: number) => Promise<void>
     delete: (id: string) => Promise<void>
     getDue: (limit?: number) => Promise<Card[]>
     getDueWithContent: (limit?: number) => Promise<DueReviewCard[]>
     getByBook: (bookId: string) => Promise<Card[]>
     getStats: () => Promise<ReviewStats>
-    review: (id: string, quality: number) => Promise<Review>
+    review: (id: string, quality: number) => Promise<ReviewResult>
   }
   review: {
     getHistory: (cardId: string) => Promise<Review[]>

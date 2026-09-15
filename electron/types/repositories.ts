@@ -79,8 +79,6 @@ export interface ICardRepository extends IBaseRepository<Card> {
   deleteByHighlightId(highlightId: string): void
   createForExistingHighlights(): { created: number; skipped: number }
   getReviewStats(): { total: number; due: number; new: number; learning: number; review: number }
-  updateApplicationTag(id: string, tag: string): void
-  updateMasteryLevel(id: string, level: number): void
 }
 
 // ============================================================================

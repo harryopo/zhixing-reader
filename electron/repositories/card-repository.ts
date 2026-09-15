@@ -238,17 +238,7 @@ export class SqlCardRepository extends BaseRepository<Card> implements ICardRepo
     return { total, due, new: newCards, learning, review }
   }
 
-  /**
-   * 更新应用标签
-   */
-  updateApplicationTag(id: string, tag: string): void {
-    this.execute('UPDATE cards SET application_tag = ? WHERE id = ?', [tag, id])
-  }
-
-  /**
-   * 更新掌握度
-   */
-  updateMasteryLevel(id: string, level: number): void {
-    this.execute('UPDATE cards SET mastery_level = ? WHERE id = ?', [level, id])
-  }
+  // 注：原 updateApplicationTag / updateMasteryLevel 已于 2026-09-15 移除（renderer 零引用）。
+  // cards.application_tag 与 cards.mastery_level 两列保留但不再写入：
+  // 掌握度改为由 FSRS 状态实时推导（src/shared/fsrs-metrics.ts），避免冗余状态不一致。
 }

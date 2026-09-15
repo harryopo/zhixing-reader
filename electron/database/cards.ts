@@ -236,22 +236,6 @@ export const cardsDb = {
     return { total, due, new: newCards, learning, review };
   },
 
-  updateApplicationTag(id: string, tag: string): void {
-    getDatabase().run(
-      'UPDATE cards SET application_tag = ? WHERE id = ?',
-      [tag, id]
-    );
-    saveDatabase();
-  },
-
-  updateMasteryLevel(id: string, level: number): void {
-    getDatabase().run(
-      'UPDATE cards SET mastery_level = ? WHERE id = ?',
-      [level, id]
-    );
-    saveDatabase();
-  },
-
   getByState(state: CardState, limit?: number): Card[] {
     let sql = 'SELECT * FROM cards WHERE state = ? ORDER BY due ASC';
     const params: unknown[] = [state];

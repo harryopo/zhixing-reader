@@ -25,8 +25,9 @@ export const IPC_CHANNELS = {
     CREATE_BATCH: 'cards:createBatch',
     CREATE_FOR_EXISTING: 'cards:createForExisting',
     UPDATE: 'cards:update',
-    UPDATE_APPLICATION_TAG: 'cards:updateApplicationTag',
-    UPDATE_MASTERY_LEVEL: 'cards:updateMasteryLevel',
+    // 注：原 UPDATE_APPLICATION_TAG / UPDATE_MASTERY_LEVEL 已于 2026-09-15 移除。
+    // 两者在 renderer 中零引用（不可达），且 cards.mastery_level 与"由 FSRS 状态推导的
+    // 掌握度"语义重复 —— 掌握度现在统一由 src/shared/fsrs-metrics.ts 计算，不再手写。
     DELETE: 'cards:delete',
     GET_DUE: 'cards:getDue',
     GET_DUE_WITH_CONTENT: 'cards:getDueWithContent',
