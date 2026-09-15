@@ -556,6 +556,15 @@ export interface VocabReviewResult {
   intervalDays: number
   efFactor: number
   repetitionCount: number
+  /**
+   * 是否"已掌握"。
+   *
+   * 2026-09-15 起 **恒为 false**：掌握与否由用户通过「标记已掌握」显式决定
+   * （`vocabularyDb.markAsMastered`）。此前它在复习满 5 次且 efFactor ≥ 2.5 时自动置位，
+   * 而 `is_mastered = 1` 会让单词被 `getDueForReview` 永久排除 ——
+   * 等于"复习 5 次就再也不出现"，与 FSRS 排定的数百天后复习直接冲突。
+   * 该自动毕业在为旧调度器（间隔恒为 1 天）兜底时尚可理解，现在已无必要且有害。
+   */
   isMastered: boolean
   familiarityLevel: number
   learningStage: number
@@ -597,6 +606,19 @@ function bootstrapVocabularyMemory(
     card = fsrsInstance.next(card, at, toGrade(grade)).card
     at = new Date(card.due)
   }
+  return {
+    stability: card.stability,
+    difficulty: card.difficulty,
+    scheduledDays: card.scheduled_days,
+  }
+}
+
+/** 把 ts-fsrs 的 FsrsCard 归一成自举函数的返回形状（两者的字段命名不同，别混用）。 */
+function toGraduationState(card: FsrsCard): {
+  stability: number
+  difficulty: number
+  scheduledDays: number
+} {
   return {
     stability: card.stability,
     difficulty: card.difficulty,
@@ -652,10 +674,12 @@ export function reviewVocabulary(
 
   // 记忆状态：已有则沿用，没有则按本应用的学习路径自举
   // （stage 2 = 已经过 New→Learning→Learning 两次 Good 毕业）
+  // ⚠️ 自举必须用**本次真实评分**，不能写死 Good —— 否则一个刚学就"完全忘记"的词
+  // 会和"轻松想起"的词拿到完全相同的初始稳定性与难度（2026-09-15 集成测试抓出）。
   const memory: { stability: number; difficulty: number } =
     stability0 > 0
       ? { stability: stability0, difficulty: difficulty0 > 0 ? difficulty0 : 5 }
-      : bootstrapVocabularyMemory(now, Rating.Good, state === CardState.Review ? 3 : 1)
+      : bootstrapVocabularyMemory(now, r, state === CardState.Review ? 3 : 1)
 
   /** 统一构造返回值，避免每处遗漏 FSRS 字段 */
   const build = (
@@ -704,7 +728,18 @@ export function reviewVocabulary(
       if (repetitionCount >= 2) {
         // 毕业进入 Review：由 ts-fsrs 给出首个真实间隔与记忆状态
         learningStage = 2
-        const graduated = bootstrapVocabularyMemory(now, Rating.Good, 3)
+        // 已有记忆状态就沿用它继续推进，不能重新自举 —— 否则前面复习累积的稳定性
+        // 会在毕业这一步被丢弃（2026-09-15 集成测试抓出：连续复习 stability 恒为 2.3065）。
+        const graduated =
+          stability0 > 0
+            ? toGraduationState(
+                advanceVocabularyMemory(
+                  { stability: memory.stability, difficulty: memory.difficulty, lapses, intervalDays, repetitionCount },
+                  Rating.Good,
+                  now,
+                ),
+              )
+            : bootstrapVocabularyMemory(now, Rating.Good, 3)
         const interval = Math.max(1, Math.round(graduated.scheduledDays))
         memory.stability = graduated.stability
         memory.difficulty = graduated.difficulty
@@ -757,13 +792,12 @@ export function reviewVocabulary(
   }
 
   repetitionCount++
-  const isMastered = repetitionCount >= 5 && efFactor >= 2.5 && r >= Rating.Good
   familiarityLevel = Math.min(5, 2 + Math.floor(repetitionCount / 2))
+  // 注意 build() 默认 isMastered: false —— 见 VocabReviewResult.isMastered 的说明
 
   return build({
     nextReviewAt: _addDays(now, interval).toISOString(),
     intervalDays: interval,
-    isMastered,
     familiarityLevel,
     learningStage: 2,
   })

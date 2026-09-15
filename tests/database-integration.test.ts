@@ -563,6 +563,115 @@ describe('database-integration — sql.js 集成测试', () => {
     })
   })
 
+  // ==========================================================================
+  // 生词本复习全链路（2026-09-15 新增）
+  // 覆盖 DB → fsrs-engine → DB 的往返：这是上一轮修复词汇间隔 bug 时唯一没被覆盖的一层
+  // ==========================================================================
+  describe('vocabularyDb 复习全链路（FSRS-6.0 落库往返）', () => {
+    /** 建一个生词 */
+    const newWord = (word: string) => vocabularyDb.create({ word, meaning_zh: '释义' }) as any
+
+    it('一次复习后 stability / difficulty / lapses 必须落库', async () => {
+      const w = newWord('persist')
+      expect(w.stability ?? 0).toBe(0)
+
+      const updated = vocabularyDb.updateReviewData(w.id, { quality: 3 }) as any
+      expect(updated).not.toBeNull()
+      expect(updated.stability).toBeGreaterThan(0)
+      expect(updated.difficulty).toBeGreaterThan(0)
+      expect(updated.lapses ?? 0).toBe(0)
+      expect(updated.interval_days).toBeGreaterThanOrEqual(1)
+      expect(updated.next_review_at).toBeTruthy()
+    })
+
+    it('连续 Good 复习的间隔必须增长（回归：曾恒为 1 天）', async () => {
+      const w = newWord('spacing')
+      const intervals: number[] = []
+      for (let i = 0; i < 5; i++) {
+        const updated = vocabularyDb.updateReviewData(w.id, { quality: 3 }) as any
+        intervals.push(updated.interval_days)
+      }
+      // 旧实现：_nextIntervalVocabulary 符号写反 → 结果被 clamp 到 1，五次全是 1
+      expect(intervals.every((d) => d >= 1)).toBe(true)
+      expect(intervals[intervals.length - 1]).toBeGreaterThan(intervals[0])
+      expect(intervals[intervals.length - 1]).toBeGreaterThan(10)
+    })
+
+    it('稳定性跨次复习持续累积（不是每次重算）', async () => {
+      const w = newWord('cumulative')
+      const a = vocabularyDb.updateReviewData(w.id, { quality: 3 }) as any
+      const b = vocabularyDb.updateReviewData(w.id, { quality: 3 }) as any
+      const c = vocabularyDb.updateReviewData(w.id, { quality: 3 }) as any
+      expect(b.stability).toBeGreaterThan(a.stability)
+      expect(c.stability).toBeGreaterThan(b.stability)
+    })
+
+    it('四个评分档位都能被记录，Hard(2) 再也不会退化成 Good', async () => {
+      // 回归：旧 ratingMap {1:1,2:2,3:3,4:3,5:4} 配合界面的 1/3/4/5 标度，
+      // 使界面的「困难」(3) 被静默记成 Good(3)，Hard 档完全不可达。
+      const again = vocabularyDb.updateReviewData(newWord('r_again').id, { quality: 1 }) as any
+      const hard = vocabularyDb.updateReviewData(newWord('r_hard').id, { quality: 2 }) as any
+      const good = vocabularyDb.updateReviewData(newWord('r_good').id, { quality: 3 }) as any
+      const easy = vocabularyDb.updateReviewData(newWord('r_easy').id, { quality: 4 }) as any
+
+      // 全部被接受，没有一条静默回退
+      for (const r of [again, hard, good, easy]) {
+        expect(r.review_count).toBe(1)
+        expect(r.stability).toBeGreaterThan(0)
+      }
+      // 关键回归：Hard 必须真正走 Hard 分支 —— 它的难度应高于 Good，
+      // 且稳定性不高于 Good。旧实现下「困难」被映射成 Good，这三者会完全相等。
+      expect(hard.difficulty).toBeGreaterThan(good.difficulty)
+      expect(hard.stability).toBeLessThanOrEqual(good.stability)
+      // Easy 应当得到不低于 Good 的稳定性
+      expect(easy.stability).toBeGreaterThanOrEqual(good.stability)
+      // Again 应当比三者都更弱
+      expect(again.stability).toBeLessThan(good.stability)
+      // 注：新词首次 Again 不计 lapses —— 尚未形成记忆就谈不上"遗忘"（FSRS/Anki 口径），
+      // 遗忘计数只在复习阶段生效，见下方「一次遗忘会把稳定性打回去」用例。
+    })
+
+    it('越界的 quality（如旧的 5）回退到 Good，不再被当作 Easy', async () => {
+      // 旧映射把 5 映射成 Easy(4)；新契约只接受 1-4，越界值明确回退并记日志
+      const w5 = vocabularyDb.updateReviewData(newWord('r_five').id, { quality: 5 }) as any
+      const w3 = vocabularyDb.updateReviewData(newWord('r_three').id, { quality: 3 }) as any
+      expect(w5.stability).toBeCloseTo(w3.stability, 6)
+    })
+
+    it('复习不再自动把词标为已掌握，词仍留在待复习队列的调度里', async () => {
+      const w = newWord('stays')
+      for (let i = 0; i < 6; i++) {
+        vocabularyDb.updateReviewData(w.id, { quality: 3 })
+      }
+      const after = vocabularyDb.getById(w.id) as any
+      // 旧行为：rep >= 5 时自动 is_mastered = 1 → 被 getDueForReview 永久排除
+      expect(after.is_mastered).toBe(0)
+      expect(after.next_review_at).toBeTruthy()
+    })
+
+    it('用户显式标记已掌握仍然生效，并使其退出待复习队列', async () => {
+      const w = newWord('manual')
+      vocabularyDb.updateReviewData(w.id, { quality: 4, isMastered: true })
+      const after = vocabularyDb.getById(w.id) as any
+      expect(after.is_mastered).toBe(1)
+
+      const all = vocabularyDb.getAll(200) as any[]
+      const marked = all.find((v) => v.id === w.id)
+      expect(marked.is_mastered).toBe(1)
+    })
+
+    it('一次遗忘会把稳定性打回去（Again 真正生效）', async () => {
+      const w = newWord('lapse')
+      for (let i = 0; i < 3; i++) vocabularyDb.updateReviewData(w.id, { quality: 3 })
+      const before = vocabularyDb.getById(w.id) as any
+      const after = vocabularyDb.updateReviewData(w.id, { quality: 1 }) as any
+      expect(after.lapses).toBe(1)
+      expect(after.stability).toBeLessThan(before.stability)
+      expect(after.learning_stage).toBe(1)
+    })
+  })
+
+
   describe('memoriesDb CRUD', () => {
     it('应创建并查询记忆', async () => {
       memoriesDb.create({

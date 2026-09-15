@@ -468,7 +468,10 @@ describe('FSRS Engine — ts-fsrs Adapter Integration', () => {
       expect(result.isMastered).toBe(false)
     })
 
-    it('stage=2 + Good + 高 rep → 标记 mastered', () => {
+    it('stage=2 + Good + 高 rep → 不再自动标记 mastered（改由用户显式决定）', () => {
+      // 2026-09-15：is_mastered 曾是"复习满 5 次且 efFactor >= 2.5"自动置位，
+      // 而 is_mastered = 1 会让 getDueForReview 永久排除该词 —— 等于复习 5 次就再也不出现，
+      // 与 FSRS 排定的数百天后复习直接冲突。现在它只由用户「标记已掌握」显式设置。
       const result = reviewVocabulary(
         {
           efFactor: 2.5,
@@ -480,7 +483,11 @@ describe('FSRS Engine — ts-fsrs Adapter Integration', () => {
         Rating.Good,
         new Date('2026-07-20T00:00:00.000Z'),
       )
-      expect(result.isMastered).toBe(true)  // rep>=5 && efFactor>=2.5
+      expect(result.repetitionCount).toBe(5)
+      expect(result.isMastered).toBe(false)
+      // 但记忆状态仍在正常累积，词仍会按 FSRS 排定的时间回来
+      expect(result.stability).toBeGreaterThan(0)
+      expect(result.intervalDays).toBeGreaterThan(1)
     })
   })
 

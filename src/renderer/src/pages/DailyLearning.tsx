@@ -497,10 +497,15 @@ export default function DailyLearning() {
 
   // ===== FSRS 复习（全部保留） =====
 
-  const handleReviewWord = async (wordId: string, quality: number) => {
+  /**
+   * 提交复习评分。
+   * `rating` 是 **ts-fsrs 的 Rating**（1=Again / 2=Hard / 3=Good / 4=Easy），
+   * 与生词本复习模式、划线卡片复习页同一口径，不做再映射。
+   */
+  const handleReviewWord = async (wordId: string, rating: number) => {
     try {
-      await window.electronAPI.vocabulary.updateReviewData(wordId, { quality })
-      toast.success(quality >= 3 ? '记住了！' : '继续加油')
+      await window.electronAPI.vocabulary.updateReviewData(wordId, { quality: rating })
+      toast.success(rating >= 3 ? '记住了！' : '继续加油')
       setReviewingWord(null)
       await loadVocabulary()
       await loadDueWords()
@@ -512,7 +517,8 @@ export default function DailyLearning() {
 
   const handleMarkMastered = async (wordId: string) => {
     try {
-      await window.electronAPI.vocabulary.updateReviewData(wordId, { quality: 5, isMastered: true })
+      // is_mastered 是用户显式意图（不再复习）；评分用 Easy，语义上"这次很轻松"
+      await window.electronAPI.vocabulary.updateReviewData(wordId, { quality: 4, isMastered: true })
       toast.success('已标记为掌握')
       await loadVocabulary()
       await loadDueWords()
@@ -1634,7 +1640,8 @@ interface VocabPanelProps {
   setVocabTab: (tab: 'all' | 'review') => void
   setReviewingWord: (word: Vocabulary | null) => void
   onClose: () => void
-  onReviewWord: (wordId: string, quality: number) => void
+  /** rating 为 ts-fsrs Rating：1=Again / 2=Hard / 3=Good / 4=Easy */
+  onReviewWord: (wordId: string, rating: number) => void
   onMarkMastered: (wordId: string) => void
   onDeleteVocab: (wordId: string) => void
   onContextMenu: (word: string, e: React.MouseEvent) => void
@@ -1751,7 +1758,7 @@ function VocabPanel({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
                 <button
                   type="button"
-                  onClick={() => onReviewWord(reviewingWord.id, 1)}
+                  onClick={() => onReviewWord(reviewingWord.id, 1)} /* Again */
                   style={{
                     padding: '0.75rem',
                     background: 'var(--accent)',
@@ -1767,7 +1774,7 @@ function VocabPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onReviewWord(reviewingWord.id, 3)}
+                  onClick={() => onReviewWord(reviewingWord.id, 2)} /* Hard */
                   style={{
                     padding: '0.75rem',
                     background: 'var(--secondary)',
@@ -1783,7 +1790,7 @@ function VocabPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onReviewWord(reviewingWord.id, 4)}
+                  onClick={() => onReviewWord(reviewingWord.id, 3)} /* Good */
                   style={{
                     padding: '0.75rem',
                     background: 'var(--state-success)',

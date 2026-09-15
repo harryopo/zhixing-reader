@@ -18,6 +18,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
+import { getCardMastery, getRetrievability, getRetentionHint } from '../../../shared/fsrs-metrics'
 
 // ===== 类型定义 =====
 interface VocabularyItem {
@@ -39,13 +40,25 @@ interface VocabularyItem {
   familiarity_level?: number
   learning_stage?: number
   created_at: string
+  /** FSRS-6.0 记忆状态（2026-09-15 新增列；掌握度由此推导，不再依赖 familiarity_level） */
+  stability?: number
+  difficulty?: number
+  lapses?: number
 }
 
+/**
+ * 评分档位 —— **直接就是 ts-fsrs 的 Rating 枚举值**，不做任何再映射。
+ *
+ * 2026-09-15 修复：这里原先是 SM-2 风格的 1/3/4/5，而主进程有一张
+ * `{1:1, 2:2, 3:3, 4:3, 5:4}` 映射表，于是「困难」(3) 被静默映射成 Good(3) ——
+ * ts-fsrs 的 Hard 档在生词本里完全不可达，"想不起来"和"想得很顺"拿到一模一样的调度。
+ * 现在两边统一用 1-4。
+ */
 enum ReviewRating {
   AGAIN = 1, // 完全忘记
-  HARD = 3, // 困难想起
-  GOOD = 4, // 正常想起
-  EASY = 5, // 轻松想起
+  HARD = 2, // 困难想起
+  GOOD = 3, // 正常想起
+  EASY = 4, // 轻松想起
 }
 
 // ===== 常量 =====
@@ -94,11 +107,26 @@ function formatDateOnly(val?: string): string {
   }
 }
 
-/** 计算掌握度百分比（基于 familiarity_level 0-5 + is_mastered） */
+/**
+ * 计算掌握度百分比。
+ *
+ * 2026-09-15 修正口径：此前用 `familiarity_level`（0-5）换算，
+ * 而该字段只是复习次数的代理（`min(5, 2 + floor(reps/2))`），与记忆强度无关 ——
+ * 一个复习 4 次、真实记忆稳定性 46 天的词会显示 80%「已掌握」，
+ * 而同一状态下划线卡片的 FSRS 掌握度只有 29 分。两条口径对不上。
+ *
+ * 现在统一改为由 FSRS 状态推导（与复习页、书籍详情卡片页同一个函数）。
+ * `is_mastered` 仍是用户通过「标记已掌握」显式给出的最高优先级覆盖：
+ * 用户说自己会了，就按会了展示，并从待复习队列中移除。
+ */
 function calcMasteryPct(item: VocabularyItem): number {
   if (item.is_mastered === 1) return 100
-  const fam = item.familiarity_level ?? 0
-  return Math.min(100, Math.round((fam / 5) * 100))
+  return getCardMastery({
+    stability: item.stability ?? 0,
+    difficulty: item.difficulty ?? 0,
+    reps: item.repetition_count ?? item.review_count ?? 0,
+    lapses: item.lapses ?? 0,
+  }).score
 }
 
 /** 根据掌握度选状态色 */
@@ -1281,6 +1309,8 @@ function VocabularyDrawer({
   const masteryPct = calcMasteryPct(item)
   const statusColor = masteryStatusColor(masteryPct)
   const statusLabel = masteryStatusLabel(masteryPct)
+  // 由 FSRS 稳定性与已过天数推导的当前保持率（与复习页同一函数）
+  const retentionHint = item.stability ? getRetentionHint(getRetrievability(item.stability, 0)) : ''
 
   // ESC 关闭
   useEffect(() => {
@@ -1547,7 +1577,20 @@ function VocabularyDrawer({
             >
               <MetaItem label="添加日期" value={formatDateOnly(item.created_at)} mono />
               <MetaItem label="复习次数" value={`${item.review_count} 次`} mono />
-              <MetaItem label="熟悉度" value={`Lv.${item.familiarity_level ?? 0}`} mono />
+              <MetaItem
+                label="记忆稳定性"
+                value={item.stability ? `${item.stability.toFixed(1)} 天` : '—'}
+                mono
+              />
+              <MetaItem
+                label="当前保持率"
+                value={
+                  item.stability
+                    ? `${Math.round(getRetrievability(item.stability, 0) * 100)}%`
+                    : '—'
+                }
+                mono
+              />
               <MetaItem label="状态" value={statusLabel} style={{ color: statusColor }} />
             </div>
             {/* 掌握度进度条 */}
@@ -1597,6 +1640,11 @@ function VocabularyDrawer({
                   }}
                 >
                   {masteryStatusLabel(masteryPct)}
+                  {retentionHint && (
+                    <span style={{ fontWeight: 400, color: 'var(--muted-foreground)', marginLeft: '0.4rem' }}>
+                      · {retentionHint}
+                    </span>
+                  )}
                 </span>
                 <span
                   style={{

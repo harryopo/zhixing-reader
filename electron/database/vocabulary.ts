@@ -107,9 +107,20 @@ export const vocabularyDb = {
     }
   },
 
-  // 基于 FSRS 算法更新复习数据
-  // quality: 1-4 评分（1=Again, 2=Hard, 3=Good, 4=Easy）
+  /**
+   * 基于 FSRS-6.0 更新复习数据。
+   *
+   * ⚠️ `quality` 是 **ts-fsrs 的 Rating（1=Again, 2=Hard, 3=Good, 4=Easy）**，
+   * 与 `card.review(id, rating)` 完全同一口径，不做任何再映射。
+   *
+   * 2026-09-15 修复：此前这里有一张 `{1:1, 2:2, 3:3, 4:3, 5:4}` 的映射表，
+   * 而两个生词本界面传的是 SM-2 风格的 1/3/4/5 —— 于是「困难」(3) 被静默映射成
+   * Good(3)，「模糊」(3) 同理，ts-fsrs 的 **Hard 档在生词本里完全不可达**。
+   * 结果是"想不起来的词"和"想得很顺的词"拿到完全一样的调度。
+   * 现在两个界面直接传 FSRS Rating，映射表删除。
+   */
   updateReviewData(id: string, reviewData: {
+    /** ts-fsrs Rating：1=Again / 2=Hard / 3=Good / 4=Easy */
     quality: number;
     efFactor?: number;
     intervalDays?: number;
@@ -123,9 +134,15 @@ export const vocabularyDb = {
       const vocab = this.getById(id);
       if (!vocab) return null;
 
-      // Map quality 1-5 to Rating 1-4
-      const ratingMap: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 3, 5: 4 };
-      const fsrsRating = ratingMap[reviewData.quality] ?? 3;
+      // 直接使用调用方给出的 FSRS Rating；越界值回退到 Good 并记日志，避免静默算错调度
+      const raw = Number(reviewData.quality);
+      if (!Number.isInteger(raw) || raw < 1 || raw > 4) {
+        logger.warn('Invalid vocabulary rating, falling back to Good(3)', {
+          id,
+          quality: reviewData.quality,
+        });
+      }
+      const fsrsRating = (Number.isInteger(raw) && raw >= 1 && raw <= 4 ? raw : 3) as 1 | 2 | 3 | 4;
 
       const result = reviewVocabulary(
         {
@@ -142,7 +159,10 @@ export const vocabularyDb = {
         fsrsRating
       );
 
-      const isMastered = reviewData.isMastered ?? result.isMastered;
+      // is_mastered 是**用户显式**的"不再复习"开关（见 markAsMastered）。
+      // 2026-09-15 起 reviewVocabulary 不再自动置位它 —— 否则一个词复习满 5 次就会被
+      // 永久移出待复习队列，而 FSRS 明明已经把它的下次复习排到数百天之后，本该回来。
+      const isMastered = reviewData.isMastered ?? false;
 
       getDatabase().run(
         `UPDATE vocabulary SET
