@@ -75,7 +75,7 @@
 ## 五、复习与学习
 
 ### Q15：复习算法是什么？和 Anki 一样吗？
-采用 **FSRS v5** 算法（基于 `ts-fsrs@5.4.1`，open-spaced-repetition 官方实现），与 Anki 23.10+ 同源，19 组标准权重的 DSR 模型。卡片数据结构与 Anki 兼容，可导出到 Anki。
+采用 **FSRS-6.0** 算法（基于 `ts-fsrs@5.4.1`，open-spaced-repetition 官方实现；该版本实现的即 FSRS-6.0），与 Anki 24.06+ 同源，21 组标准权重的 DSR 模型。卡片数据结构与 Anki 兼容，可导出到 Anki。
 
 ### Q16：复习评分怎么选？
 - `1` 忘记：完全想不起来

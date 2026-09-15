@@ -62,7 +62,7 @@ zhixing-reader/
 │   ├── preload.ts         # contextBridge API（Renderer 桥）
 │   ├── ipc/               # IPC handlers（按领域 12 文件，index.ts 统一注册）
 │   ├── database/          # sql.js DB（按领域 16 文件，index.ts 统一出口）
-│   ├── fsrs-engine.ts     # FSRS v5 适配层（基于 ts-fsrs 5.4.1）
+│   ├── fsrs-engine.ts     # FSRS-6.0 适配层（基于 ts-fsrs 5.4.1）
 │   ├── agent/             # AI 智能体（5 维上下文构建 + 编排）
 │   ├── repositories/      # 数据访问层
 │   └── services/          # 业务服务

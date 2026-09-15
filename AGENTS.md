@@ -30,7 +30,7 @@ zhixing-reader/
 │   ├── preload.ts         # contextBridge API 暴露面
 │   ├── ipc/               # IPC handlers（按领域 12 文件，index.ts 统一注册）
 │   ├── database/          # sql.js DB（16 个领域文件 + index.ts 出口 + schema.ts）
-│   ├── fsrs-engine.ts     # FSRS v5 适配层（基于 ts-fsrs 5.4.1，对外 API 100% 兼容）
+│   ├── fsrs-engine.ts     # FSRS-6.0 适配层（基于 ts-fsrs 5.4.1，对外 API 100% 兼容）
 │   ├── agent/             # 智能体（意图分类 / 编排 / 策略）
 │   └── services/          # 业务服务（RAG / 嵌入 / 知识卡片 / Prompt 模板）
 │
@@ -45,7 +45,7 @@ zhixing-reader/
 │
 ├── src/shared/            # 跨进程共享：类型 + IPC 通道常量
 ├── resources/             # 静态资源（dictionary.json / icon.png）
-├── tests/                 # Vitest 单元测试（30 文件 / 688 用例）
+├── tests/                 # Vitest 单元测试（30 文件 / 703 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -72,7 +72,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（688 用例；不含覆盖率）
+npm run test             # Vitest（703 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 打包
@@ -237,7 +237,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（30 文件 / 688 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（30 文件 / 703 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
@@ -257,6 +257,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-11 | FSRS 真值对齐 — ① ts-fsrs@5.4.1 实测实现的是 **FSRS-6.0 / 21 参数**（库内 `FSRSVersion` = "using FSRS-6.0"，`default_w.length` = 21，`FSRS6_DEFAULT_DECAY` = 0.1542），全仓库 "FSRS v5 / 19 组权重 / Anki 23.10+ / `(1+factor·t/9S)^decay`" 表述校正 ② **修复词汇间隔恒为 1 天**：`_nextIntervalVocabulary` 公式符号写反（`(1/R)^(1/decay)-1` 恒为负 → 被 clamp 到 1），且把 SM-2 的 efFactor 当记忆稳定性用；现词汇与划线卡片共用同一 ts-fsrs 实例，记忆状态持久化于 vocabulary 表新增的 stability/difficulty/lapses 三列 ③ 修 `w` 长度 <19 被静默忽略（17/19/21 均可下发，与库 checkParameters 对齐）、`getParameters().w` 由 slice(0,17) 恢复为完整 21 ④ 测试 698→703 | AI Agent（接手） |
 | 2026-09-11 | 接手核验校准 — 修正 Qdrant→Vectra、fsrs-engine v1→v5 适配层、database/ 文件数、测试数（667→688）、覆盖率门禁口径（未接入）、`.claude/` 与 `.learnings/STANDARDS.md` 标注未落地、`.trae/` 四件套标注缺失；删除 §9.3「项目无测试框架」错误陈述 | AI Agent（接手） |
 | 2026-09-11 | 遗留问题治理 — ① 补全 **Skill 导出全链路**（新增 `SKILL.EXPORT_FILE` 通道 + 方法论详情页「导出为 Skill」按钮，此前 handler/preload/AI 服务/测试齐全但无 UI）② 删除 6 个指向已消失 `scripts/` 的死脚本 ③ 清理 eslint 失效 grandfather 条目 ④ 明确 `.learnings/`/`.workbuddy/memory/` 为**本地文件不入库**（含内部策略与已知问题，不进公开仓库）⑤ `diagrams/`、`html2pdf-ultra.js` 显式 gitignore ⑥ CI 移除永不产出的 coverage artifact 步骤 | AI Agent（接手） |
 | 2026-08-28 | v1.1.0 维护迭代 — 换机恢复 + 去伪存真（假数据/死链治理）+ 间隔复习与 Token 统计落地 + 画像注入 + database/ipc 拆分 + 编排页迁入设置壳层 + 管理后台移出前端；端口勘误 5275→5500 | AI Agent |

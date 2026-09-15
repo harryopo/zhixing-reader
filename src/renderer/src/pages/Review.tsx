@@ -73,7 +73,7 @@ export default function Review() {
   return (
     <PageHero
       title="间隔复习"
-      subtitle="基于 FSRS v5 间隔重复算法（Anki 同源），按记忆遗忘曲线安排复习节奏。展示划线原文，回忆语境后按实际记住程度评分。"
+      subtitle="基于 FSRS-6.0 间隔重复算法（Anki 同源），按记忆遗忘曲线安排复习节奏。展示划线原文，回忆语境后按实际记住程度评分。"
     >
       {/* ===== 加载态 ===== */}
       {loading && !currentCard && (

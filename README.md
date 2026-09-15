@@ -2,7 +2,7 @@
 
 # 知行读书 (Zhixing Reader)
 
-> **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS v5 · 微信读书深度同步
+> **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS-6.0 · 微信读书深度同步
 >
 > **v1.1.0** | 2026-08-28 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
 
@@ -11,8 +11,8 @@
 [![Electron](https://img.shields.io/badge/Electron-35-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![FSRS](https://img.shields.io/badge/FSRS-v5%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-688%20%E7%94%A8%E4%BE%8B%20/%2030%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
+[![Tests](https://img.shields.io/badge/tests-703%20%E7%94%A8%E4%BE%8B%20/%2030%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
 
 ---
@@ -29,9 +29,9 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 52,000+ 行 TypeScript strict 代码 |
-| **测试覆盖** | 688 用例 / 30 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
+| **测试覆盖** | 703 用例 / 30 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
 | **存储** | sql.js (SQLite WASM) · 15 张表 · Vectra 本地向量索引 |
-| **核心能力** | 微信读书同步 · **FSRS v5** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
+| **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
 | **打包** | electron-builder → Windows NSIS 安装包（**125MB**）|
 | **License** | MIT（自由使用 / 修改 / 商用）|
@@ -46,7 +46,7 @@
 |---|--------|--------|----------|
 | **1** | **方法论自动注入 Agent**（行业首创） | AI 回答时自动引用书中方法论，实时追踪掌握度 | mastery_level 追踪 |
 | **2** | **5 维 ContextBuilder**（预算制懒加载） | 书籍/方法论/卡片/记忆/画像 5 维按需注入 | **Token 节省 33%-55%** |
-| **3** | **FSRS v5 同源科学记忆引擎** | 集成 ts-fsrs 5.4.1（Anki 23.10+ 同源），DSR 三变量模型 | 保持率比 SM-2 **高 20-30%** |
+| **3** | **FSRS-6.0 同源科学记忆引擎** | 集成 ts-fsrs 5.4.1（该版本实现的即 **FSRS-6.0**，Anki 24.06+ 同源），DSR 三变量模型 | 目标保持率 0.9 可配置；对 SM-2 的优势见 [FSRS 基准测试](https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm)（**非本项目实测**）|
 | **4** | **本地优先架构 · 数据主权还给用户** | sql.js + Vectra + safeStorage 三重本地化，零遥测 | AI 直连不过中转 |
 | **5** | **多模型深度思考归一化 + ECDICT 离线词典** | DeepSeek / OpenAI / Anthropic 推理格式统一 + 15.0MB 离线词典 | 多模型无感切换 / 59,118 词条 |
 
@@ -132,12 +132,12 @@
 | **状态** | Zustand | 5.x | 轻量（< 3KB）、hooks-first |
 | **数据库** | sql.js | 1.14 | SQLite WASM，跨平台一致 |
 | **向量索引** | Vectra | 0.15 | 纯 TS 本地向量库 |
-| **间隔重复** | **ts-fsrs** | **5.4.1** | **FSRS v5 DSR，与 Anki 23.10+ 同源** |
+| **间隔重复** | **ts-fsrs** | **5.4.1** | **FSRS-6.0 DSR（21 组权重），与 Anki 24.06+ 同源** |
 | **AI SDK** | Vercel AI SDK + 自研 SSE | 7.x | 多服务商统一接口 + 流式 + 深度思考归一化 |
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 2.x | 688 用例 / 30 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 2.x | 703 用例 / 30 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 25.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -153,9 +153,11 @@
 
 ---
 
-## 七、FSRS v5 算法集成
+## 七、FSRS-6.0 算法集成
 
-知行读书集成了 **ts-fsrs 5.4.1**（open-spaced-repetition 官方库），与 Anki 23.10+ 使用同一套 FSRS v5 (DSR) 算法。该模型基于 **19 组权重参数** 和 **DSR 三变量模型**（Stability 稳定性 / Difficulty 难度 / Retrievability 可提取性），通过完整遗忘曲线公式 `(1 + factor·t/9S)^decay` 精确预测记忆保持率。
+知行读书集成了 **ts-fsrs 5.4.1**（open-spaced-repetition 官方库）。该版本实现的算法是 **FSRS-6.0**，与 Anki 24.06+ 同源。模型基于 **21 组权重参数** 和 **DSR 三变量模型**（Stability 稳定性 / Difficulty 难度 / Retrievability 可提取性），通过遗忘曲线 `R(t, S) = (1 + factor·t/S)^decay` 预测记忆保持率，其中 `decay = -w[20] = -0.1542`、`factor = 0.9^(1/decay) − 1 ≈ 0.9805`（满足 `R(t = S) = 0.9`）。
+
+> ⚠️ 早期版本的本节曾写作「FSRS v5 / 19 组权重参数」，并引用 FSRS-4.5 时代的公式 `(1 + factor·t/9S)^decay`。经对 `node_modules/ts-fsrs` 实测核验，该库导出的为 `FSRS-6.0`、`default_w` 长度 21、`FSRS6_DEFAULT_DECAY = 0.1542`，故于 2026-09-11 校正。
 
 **核心能力**：
 
@@ -166,7 +168,9 @@
 | **0 依赖 < 30KB** | 纯 TypeScript 实现，无第三方依赖，包体积极小 |
 | **API 100% 兼容** | 内部算法替换为 ts-fsrs，对外接口零变更，原有调用方无需修改 |
 
-项目实现了完整的适配层（`electron/fsrs-engine.ts`，646 行），包括 Card ↔ FsrsCard 双向转换、step 学习阶段映射、枚举对齐等，确保与 ts-fsrs 正确集成的同时保持对外 API 稳定。升级后 **38 个单元测试** 全部通过（18 个原有冒烟测试 + 20 个适配层测试）。
+项目实现了完整的适配层（`electron/fsrs-engine.ts`），包括 Card ↔ FsrsCard 双向转换、step 学习阶段映射、枚举对齐等，确保与 ts-fsrs 正确集成的同时保持对外 API 稳定。
+
+**划线卡片与词汇学习共用同一个 ts-fsrs 实例**：两条复习路径都由 FSRS-6.0 调度，记忆状态（stability / difficulty / lapses）持久化后逐次累积。该文件现有 **45 个单元测试** 覆盖，含"词汇间隔必须随复习增长"的回归用例。
 
 ---
 
@@ -179,7 +183,7 @@ zhixing-reader/
 │   ├── preload.ts                           # contextBridge（423 行）
 │   ├── ipc/                                 # IPC handlers（按领域 12 文件）
 │   ├── database/                            # sql.js DB（按领域 16 文件 + index.ts）
-│   ├── fsrs-engine.ts                       # ⭐ FSRS v5 适配层（ts-fsrs 5.4.1）
+│   ├── fsrs-engine.ts                       # ⭐ FSRS-6.0 适配层（ts-fsrs 5.4.1）
 │   ├── ai-service.ts                        # AI 卡片/摘要（800+ 行）
 │   ├── ai-sdk-service.ts                    # AI 流式（500+ 行）
 │   ├── weread-api.ts                        # 微信读书 Skill API（1000+ 行）
@@ -203,7 +207,7 @@ zhixing-reader/
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
 ├── src/shared/                              # 跨进程共享（类型 + IPC 通道常量）
-├── tests/                                   # Vitest 单元测试（688 用例 / 30 文件）
+├── tests/                                   # Vitest 单元测试（703 用例 / 30 文件）
 ├── resources/
 │   ├── dictionary.json                      # ECDICT 15.0MB / 59,118 词条
 │   ├── icon.ico / icon.png
@@ -344,7 +348,7 @@ npm run package:win
 |------|------|------|------|
 | 2026-08-28 | v1.1.0 | 维护迭代：间隔复习闭环 / Token 用量实时统计 / 档案画像注入 AI / 首页重构 / 导航与假数据治理 / database·ipc 拆分 | 张子涵 |
 | 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 更新到核心亮点 + 15 大模块 | 张子涵 |
-| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS v5 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 张子涵 |
+| 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS 间隔重复 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 张子涵 |
 
 历史迭代明细见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -392,7 +396,7 @@ npm run package:win
 
 本项目站在巨人的肩膀上，特别感谢：
 
-- [open-spaced-repetition/ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) —— FSRS v5 算法的 TypeScript 实现（Anki 同源）
+- [open-spaced-repetition/ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) —— FSRS-6.0 算法的 TypeScript 实现（Anki 同源）
 - [Electron](https://www.electronjs.org/) —— 跨平台桌面应用框架
 - [React](https://react.dev/) —— UI 框架
 - [Apache ECharts](https://echarts.apache.org/) —— 数据可视化库
