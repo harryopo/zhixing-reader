@@ -3,8 +3,8 @@
 // 这是 R6（覆盖率 ≥ 85%）的基线测试，后续每改 fsrs-engine.ts 必须更新
 //
 // v2.0 升级（2026-07-20）：基于 ts-fsrs@5.4.1 适配层。
-// 新增 "ts-fsrs Adapter Integration" 套件，验证 Rating/State 枚举映射、step 映射、
-// ts-fsrs 实际被调用、19 元素默认 weights、repeat 预览等。
+// v2.1 校准（2026-09-11）：ts-fsrs@5.4.1 实现的是 FSRS-6.0（21 组权重），
+// 早期注释/用例标题写的 "19 元素 / FSRS v5" 已校正；词汇学习改走同一个 ts-fsrs 实例。
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
@@ -129,10 +129,11 @@ describe('FSRS Engine — Smoke Tests', () => {
       expect(() => setCustomParameters({ maximumInterval: 0 })).toThrow()
     })
 
-    it('should throw on weights array < 17 elements', () => {
+    it('should throw on weights array with unsupported length', () => {
+      // ts-fsrs 只接受 17（v4）/ 19（v5）/ 21（FSRS-6.0）三种长度
       expect(() =>
         setCustomParameters({ w: [0.1, 0.2, 0.3] })
-      ).toThrow(/at least 17 elements/)
+      ).toThrow(/must be 17, 19 or 21/i)
     })
 
     it('should accept valid custom parameters', () => {
@@ -343,33 +344,34 @@ describe('FSRS Engine — ts-fsrs Adapter Integration', () => {
     })
   })
 
-  describe('ts-fsrs 默认 19 元素 weights', () => {
-    it('FSRS v5 default_w 长度为 21 (ts-fsrs 5.4.1)', () => {
-      // ts-fsrs 5.4.1 用 21 个参数（原 SM-2 只有 17 个）
+  describe('ts-fsrs 默认 weights（FSRS-6.0 / 21 参数）', () => {
+    it('default_w 长度为 21 (ts-fsrs 5.4.1 实现 FSRS-6.0)', () => {
       expect(TS_FSRS_DEFAULT_W.length).toBe(21)
     })
 
-    it('getParameters 返回的 w 数组至少 17 元素（向后兼容）', () => {
+    it('getParameters 返回完整的 21 元素权重（与库默认一致）', () => {
+      // 旧实现返回 slice(0,17)，既不完整也不对应任何一版 FSRS
       const params = getParameters()
-      expect(params.w.length).toBeGreaterThanOrEqual(17)
+      expect(params.w).toHaveLength(21)
+      expect(params.w).toEqual([...TS_FSRS_DEFAULT_W])
     })
 
-    it('setCustomParameters 接受 17 元素 w（旧 API 兼容）', () => {
-      const w17 = new Array(17).fill(1.0)
-      expect(() => setCustomParameters({ w: w17 })).not.toThrow()
-      const params = getParameters()
-      expect(params.w).toEqual(w17)
+    it('setCustomParameters 接受 17 / 19 / 21 元素 w', () => {
+      for (const len of [17, 19, 21]) {
+        const w = new Array(len).fill(1.0)
+        expect(() => setCustomParameters({ w })).not.toThrow()
+        expect(getParameters().w).toEqual(w)
+        resetParameters()
+      }
     })
 
-    it('setCustomParameters 接受 19 元素 w（v5 新 API）', () => {
-      const w19 = new Array(19).fill(0.5)
-      expect(() => setCustomParameters({ w: w19 })).not.toThrow()
-      const params = getParameters()
-      expect(params.w).toEqual(w19)
+    it('setCustomParameters 拒绝 18 / 20 元素 w（与 ts-fsrs checkParameters 对齐）', () => {
+      expect(() => setCustomParameters({ w: new Array(18).fill(1.0) })).toThrow()
+      expect(() => setCustomParameters({ w: new Array(20).fill(1.0) })).toThrow()
     })
   })
 
-  describe('ts-fsrs repeat 预览能力（FSRS v5 优势）', () => {
+  describe('ts-fsrs repeat 预览能力（FSRS-6.0 优势）', () => {
     it('验证 ts-fsrs 的 repeat 可一次性返回 4 种评分结果（能力证明）', () => {
       // 这是 ts-fsrs 相比原自实现的优势之一：可同时预览 4 种评分结果
       const f = createFsrs(generatorParameters({
@@ -407,12 +409,12 @@ describe('FSRS Engine — ts-fsrs Adapter Integration', () => {
       // 第三张 Easy → ts-fsrs 行为：Easy 评分让 New 卡片直接毕业到 Review
       // 这是 ts-fsrs v5 与原 SM-2 实现的关键差异之一
       expect(results[2].state).toBe(CardState.Review)
-      // Easy 应该有更高的 stability (TS-FSRS v5 DSR 模型)
+      // Easy 应该有更高的 stability (FSRS-6.0 DSR 模型)
       expect(results[2].stability).toBeGreaterThan(results[0].stability)
     })
   })
 
-  describe('reviewVocabulary 词汇学习（保留原 SM-2 混合算法）', () => {
+  describe('reviewVocabulary 词汇学习（ts-fsrs / FSRS-6.0 调度）', () => {
     it('stage=0 + Good → stage=1, repetitionCount=1, intervalDays=1', () => {
       const result = reviewVocabulary(
         {
@@ -482,6 +484,116 @@ describe('FSRS Engine — ts-fsrs Adapter Integration', () => {
     })
   })
 
+  describe('reviewVocabulary 间隔调度（回归：词汇间隔曾恒为 1 天）', () => {
+    /** 从固定记忆状态连续评分，返回每次拿到的间隔天数 */
+    function intervalsFor(grades: Rating[], seed: Partial<Parameters<typeof reviewVocabulary>[0]> = {}) {
+      let state = {
+        efFactor: 2.5,
+        intervalDays: 2,
+        repetitionCount: 2,
+        learningStage: 2,
+        familiarityLevel: 3,
+        stability: 2.3065,
+        difficulty: 2.1,
+        lapses: 0,
+        ...seed,
+      }
+      let now = new Date('2026-07-20T00:00:00.000Z')
+      const out: number[] = []
+      for (const g of grades) {
+        const r = reviewVocabulary(state, g, now)
+        out.push(r.intervalDays)
+        state = {
+          efFactor: r.efFactor,
+          intervalDays: r.intervalDays,
+          repetitionCount: r.repetitionCount,
+          learningStage: r.learningStage,
+          familiarityLevel: r.familiarityLevel,
+          stability: r.stability,
+          difficulty: r.difficulty,
+          lapses: r.lapses,
+        }
+        now = new Date(r.nextReviewAt)
+      }
+      return out
+    }
+
+    it('stage=2 连续 Good 的间隔必须增长（旧实现恒为 1 天）', () => {
+      const intervals = intervalsFor([Rating.Good, Rating.Good, Rating.Good, Rating.Good])
+      // 旧 _nextIntervalVocabulary 符号写反：s * ((1/0.9)^(1/-0.5) - 1) = s * -0.19 → 被 clamp 到 1
+      expect(intervals.every((d) => d > 1)).toBe(true)
+      expect(intervals[intervals.length - 1]).toBeGreaterThan(intervals[0] * 4)
+    })
+
+    it('稳定性随复习累积（FSRS-6.0 记忆状态真实推进）', () => {
+      let now = new Date('2026-07-20T00:00:00.000Z')
+      let state = {
+        efFactor: 2.5,
+        intervalDays: 2,
+        repetitionCount: 2,
+        learningStage: 2,
+        familiarityLevel: 3,
+        stability: 2.3065,
+        difficulty: 2.1,
+        lapses: 0,
+      }
+      const stabilities: number[] = []
+      for (let i = 0; i < 4; i++) {
+        const r = reviewVocabulary(state, Rating.Good, now)
+        stabilities.push(r.stability)
+        state = {
+          efFactor: r.efFactor,
+          intervalDays: r.intervalDays,
+          repetitionCount: r.repetitionCount,
+          learningStage: r.learningStage,
+          familiarityLevel: r.familiarityLevel,
+          stability: r.stability,
+          difficulty: r.difficulty,
+          lapses: r.lapses,
+        }
+        now = new Date(r.nextReviewAt)
+      }
+      for (let i = 1; i < stabilities.length; i++) {
+        expect(stabilities[i]).toBeGreaterThan(stabilities[i - 1])
+      }
+    })
+
+    it('stage=2 且无持久化 stability（老数据）时能自举，间隔 > 1 天', () => {
+      const intervals = intervalsFor([Rating.Good], { stability: 0, difficulty: 0 })
+      expect(intervals[0]).toBeGreaterThan(1)
+    })
+
+    it('stage=2 + Again → 回到 relearning 且 lapses +1', () => {
+      const r = reviewVocabulary(
+        {
+          efFactor: 2.5,
+          intervalDays: 30,
+          repetitionCount: 4,
+          learningStage: 2,
+          familiarityLevel: 4,
+          stability: 30,
+          difficulty: 5,
+          lapses: 0,
+        },
+        Rating.Again,
+        new Date('2026-07-20T00:00:00.000Z'),
+      )
+      expect(r.learningStage).toBe(1)
+      expect(r.lapses).toBe(1)
+      expect(r.stability).toBeGreaterThan(0)
+    })
+
+    it('自定义 17 元素 w 会真正改变调度（旧实现静默忽略 <19 元素）', () => {
+      const baseline = intervalsFor([Rating.Good, Rating.Good])[1]
+      const w17 = [0.4, 0.6, 2.4, 5.4, 5.8, 0.5, 1.5, 0.1, 1.0, 2.0, 0.5, 1.0, 0.05, 0.2, 1.2, 0.3, 1.5]
+      setCustomParameters({ w: w17 })
+      const customised = intervalsFor([Rating.Good, Rating.Good])[1]
+      resetParameters()
+      // 实测：默认 21 权重 ≈ 46 天，17 元素自定义权重 ≈ 4 天；断言量级差异而非精确值（fuzz 开启）
+      expect(customised).toBeLessThan(baseline / 2)
+    })
+  })
+
   describe('setCustomParameters 行为', () => {
     it('重置后 requestRetention 回到默认 0.9', () => {
       setCustomParameters({ requestRetention: 0.8 })
@@ -490,14 +602,13 @@ describe('FSRS Engine — ts-fsrs Adapter Integration', () => {
       expect(getParameters().requestRetention).toBe(0.9)
     })
 
-    it('重置后 w 回到默认 17 元素', () => {
-      const customW = new Array(17).fill(2.0)
+    it('重置后 w 回到 ts-fsrs 默认的 21 元素', () => {
+      const customW = new Array(21).fill(2.0)
       setCustomParameters({ w: customW })
       expect(getParameters().w).toEqual(customW)
       resetParameters()
-      // reset 后 customW 清除，应回到 ts-fsrs 默认前 17 个
       expect(getParameters().w).not.toEqual(customW)
-      expect(getParameters().w.length).toBe(17)
+      expect(getParameters().w).toEqual([...TS_FSRS_DEFAULT_W])
     })
   })
 

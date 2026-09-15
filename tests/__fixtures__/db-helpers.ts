@@ -1,6 +1,13 @@
 import initSqlJs, { Database } from 'sql.js'
 import { injectTestDatabase, resetTestDatabaseState } from '../../electron/database'
 
+/**
+ * ⚠️ 本文件是 electron/database/schema.ts 的**平行副本**，并不调用 initializeSchema()。
+ * 因此 schema.ts 每次加列都必须同步到这里，否则集成测试会以 "no such column" 的形式失败
+ * （2026-09-11 词汇表新增 stability/difficulty/lapses 时即踩到此坑）。
+ * 长期方案：让本函数直接复用 initializeSchema(db)，消除双份真值。
+ */
+
 export async function createTestDatabase(): Promise<Database> {
   const SQL = await initSqlJs()
   return new SQL.Database()
@@ -247,6 +254,9 @@ export function runSchema(db: Database): void {
       repetition_count INTEGER DEFAULT 0,
       familiarity_level INTEGER DEFAULT 0,
       learning_stage INTEGER DEFAULT 0,
+      stability REAL DEFAULT 0,
+      difficulty REAL DEFAULT 0,
+      lapses INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (source_article_id) REFERENCES articles(id) ON DELETE SET NULL
     );

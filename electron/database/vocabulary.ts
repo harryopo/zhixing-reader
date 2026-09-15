@@ -115,6 +115,9 @@ export const vocabularyDb = {
     intervalDays?: number;
     repetitionCount?: number;
     isMastered?: boolean;
+    stability?: number;
+    difficulty?: number;
+    lapses?: number;
   }): Record<string, unknown> | null {
     try {
       const vocab = this.getById(id);
@@ -131,6 +134,10 @@ export const vocabularyDb = {
           repetitionCount: reviewData.repetitionCount ?? (vocab.repetition_count as number) ?? 0,
           learningStage: (vocab.learning_stage as number) ?? 0,
           familiarityLevel: (vocab.familiarity_level as number) ?? 0,
+          // FSRS-6.0 记忆状态（旧数据为 0，会由引擎按学习路径自举）
+          stability: reviewData.stability ?? (vocab.stability as number) ?? 0,
+          difficulty: reviewData.difficulty ?? (vocab.difficulty as number) ?? 0,
+          lapses: reviewData.lapses ?? (vocab.lapses as number) ?? 0,
         },
         fsrsRating
       );
@@ -147,7 +154,10 @@ export const vocabularyDb = {
           repetition_count = ?,
           is_mastered = ?,
           familiarity_level = ?,
-          learning_stage = ?
+          learning_stage = ?,
+          stability = ?,
+          difficulty = ?,
+          lapses = ?
          WHERE id = ?`,
         [
           result.nextReviewAt,
@@ -157,6 +167,9 @@ export const vocabularyDb = {
           isMastered ? 1 : 0,
           result.familiarityLevel,
           result.learningStage,
+          result.stability,
+          result.difficulty,
+          result.lapses,
           id,
         ]
       );

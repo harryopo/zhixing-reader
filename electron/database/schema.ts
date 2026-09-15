@@ -249,6 +249,9 @@ export function initializeSchema(db: import('sql.js').Database): void {
       repetition_count INTEGER DEFAULT 0,
       familiarity_level INTEGER DEFAULT 0,
       learning_stage INTEGER DEFAULT 0,
+      stability REAL DEFAULT 0,
+      difficulty REAL DEFAULT 0,
+      lapses INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (source_article_id) REFERENCES articles(id) ON DELETE SET NULL
     );
@@ -357,6 +360,10 @@ function migrateCardsTable(): void {
       ['repetition_count', 'ALTER TABLE vocabulary ADD COLUMN repetition_count INTEGER DEFAULT 0'],
       ['familiarity_level', 'ALTER TABLE vocabulary ADD COLUMN familiarity_level INTEGER DEFAULT 0'],
       ['learning_stage', 'ALTER TABLE vocabulary ADD COLUMN learning_stage INTEGER DEFAULT 0'],
+      // FSRS-6.0 记忆状态：词汇复习与划线卡片共用同一套调度，需持久化稳定性/难度/遗忘次数
+      ['stability', 'ALTER TABLE vocabulary ADD COLUMN stability REAL DEFAULT 0'],
+      ['difficulty', 'ALTER TABLE vocabulary ADD COLUMN difficulty REAL DEFAULT 0'],
+      ['lapses', 'ALTER TABLE vocabulary ADD COLUMN lapses INTEGER DEFAULT 0'],
     ];
 
     for (const [colName, sql] of migrations) {
