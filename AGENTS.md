@@ -45,7 +45,7 @@ zhixing-reader/
 │
 ├── src/shared/            # 跨进程共享：类型 + IPC 通道常量
 ├── resources/             # 静态资源（dictionary.json / icon.png）
-├── tests/                 # Vitest 单元测试（39 文件 / 860 用例）
+├── tests/                 # Vitest 单元测试（40 文件 / 875 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -72,7 +72,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（860 用例；不含覆盖率）
+npm run test             # Vitest（875 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 打包
@@ -237,7 +237,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（39 文件 / 860 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（40 文件 / 875 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
@@ -257,7 +257,8 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
-| 2026-09-16 | 数据血缘修复（**量真实数据库找出来的 5 个断点，全部修完**）—— 方法：先查 `%APPDATA%\zhixing-reader\zhixing.db`，列「应该有的 vs 实际有的」，差值为 0 的字段去代码里找断点。① 934 条划线章节名 **0/934**：`fetchAllContent` 明明取了 `chapters` 对照表，三个导入入口全丢掉了；新增 `src/shared/weread-content.ts`（章节名解析只留一份）+ `import-weread-content.ts`（导入逻辑只留一份，改为 upsert 补空）② 90 张知识卡片来源划线 **0/90**：提示词从没问过"来自第几条"，写入时写死 null；新增 `sourceIndex` 让 AI 回答来源并在**每批内**换算成真实划线 id（分批偏移坑）③ 对话意图 **0/21**：orchestrator 算出来了只写日志，现在随 retrieval done 事件下发并落库 ④ 对话引用来源 **0 条**：`RAGSource.chunkId` 是 **Qdrant 时代**的字段名（Qdrant 早已移除），且 builder 把 bookId/highlightId/relevanceScore 全丢了；`shared/types.ts` 新增唯一真值 `RagSourceRef` 一路串到渲染层 ⑤ `daily_stats.reading_time` 恒为 0：ADD_READING_TIME 通道/handler/repository 全在，渲染层从未调用；改为从微信读书 `/readdata/detail?mode=monthly` 同步（累加改覆盖，月度是全量快照）。另修：`getRetrievability` 与 ts-fsrs 逐点对齐、测试 fixture 复用生产 schema。**再补一层**：五个断点修好的只是"以后"，历史数据不会自己变好，而回填入口都藏在设置页按钮里 —— 新增 `electron/services/startup-repair.ts`，应用一打开自动补卡片来源（纯本地）、划线章节名（先查缺口，**没缺口时零请求**，12 小时节流）、阅读时长（6 小时节流），失败不影响启动。启动实测：44 张卡片补上来源、927/934 划线补上章节名（余 7 条正文为空、按定义补不了，已排除以免反复重拉）、阅读时长写入 7 天 3252 秒。测试 790→860（39 文件） | AI Agent（接手） |
+| 2026-09-16 | 每日学习重做（**用户原话：「这些真的能做吗，不能做只是形式的删去」**）—— ① 修掉任务标题前凭空出现的「0」：sql.js 读出来的 `is_read` 是数字 0/1，类型却写着 boolean，于是 `{task.done && <Icon/>}` 在未读时求值为数字 0 并被 React 当文本画出来；在边界处归一化成真 boolean（`normalizeArticle`）② **砍掉 4 项纯形式任务**：整理今日笔记 / AI 对话：探讨今日阅读内容 / 写卡片笔记 2 张 / 总结反思今日（点一下弹 toast 说已完成）—— 它们的共同点是没人知道你做没做 ③ 清单只留 4 类**系统自己知道做没做**的事：阅读（`articles.is_read`）/ 复习（真实卡片队列 actionable）/ 生词（`last_review_at`）/ 对话（`conversations.updated_at`）④ 顺带修两处错：旧的「复习 12 张卡片」取的其实是**生词**到期数却写着卡片、还跳到卡片页 —— 现在用真正的卡片队列并跳复习页 ⑤ 删掉手点勾（localStorage 覆盖），勾本身改成纯状态点，进度环不再能被点出来 ⑥ 左卡片「已用时间 / 预计剩余」是把写死的 30/15/10 分钟加起来编出来的，换成真实的「今天已复习 N 张 / 今天已阅读 N 分钟」⑦ 规则抽成纯模块 `src/shared/daily-tasks.ts`，15 条测试钉住「不许再出现没有判定依据的任务」。测试 860→875（40 文件） | AI Agent（接手） |
+| 2026-09-16 | 数据血缘修复（**量真实数据库找出来的 5 个断点，全部修完**）—— 方法：先查 `%APPDATA%\zhixing-reader\zhixing.db`，列「应该有的 vs 实际有的」，差值为 0 的字段去代码里找断点。① 934 条划线章节名 **0/934**：`fetchAllContent` 明明取了 `chapters` 对照表，三个导入入口全丢掉了；新增 `src/shared/weread-content.ts`（章节名解析只留一份）+ `import-weread-content.ts`（导入逻辑只留一份，改为 upsert 补空）② 90 张知识卡片来源划线 **0/90**：提示词从没问过"来自第几条"，写入时写死 null；新增 `sourceIndex` 让 AI 回答来源并在**每批内**换算成真实划线 id（分批偏移坑）③ 对话意图 **0/21**：orchestrator 算出来了只写日志，现在随 retrieval done 事件下发并落库 ④ 对话引用来源 **0 条**：`RAGSource.chunkId` 是 **Qdrant 时代**的字段名（Qdrant 早已移除），且 builder 把 bookId/highlightId/relevanceScore 全丢了；`shared/types.ts` 新增唯一真值 `RagSourceRef` 一路串到渲染层 ⑤ `daily_stats.reading_time` 恒为 0：ADD_READING_TIME 通道/handler/repository 全在，渲染层从未调用；改为从微信读书 `/readdata/detail?mode=monthly` 同步（累加改覆盖，月度是全量快照）。另修：`getRetrievability` 与 ts-fsrs 逐点对齐、测试 fixture 复用生产 schema。**再补一层**：五个断点修好的只是"以后"，历史数据不会自己变好，而回填入口都藏在设置页按钮里 —— 新增 `electron/services/startup-repair.ts`，应用一打开自动补卡片来源（纯本地）、划线章节名（先查缺口，**没缺口时零请求**，12 小时节流）、阅读时长（6 小时节流），失败不影响启动。启动实测：44 张卡片补上来源、927/934 划线补上章节名（余 7 条正文为空、按定义补不了，已排除以免反复重拉）、阅读时长写入 7 天 3252 秒。测试 790→875（40 文件） | AI Agent（接手） |
 | 2026-09-15 | 算法数字换人话（**"我很多也看不懂"的直接回应**）—— 新增 `src/shared/fsrs-voice.ts`：把 FSRS 状态翻译成「一句陈述 + 一个动作」（`describeForgetting` / `describeNextReview`），全应用共用一张嘴。三条硬约束写进测试逐条守住：① 只说结论不请用户评判算法（否则评分信号被污染，而那是 FSRS 唯一真值输入）② 没数据就闭嘴绝不编日期 ③ 不许用亲切的词撒谎（12 天不能说成"这周"）。界面改动：复习页卡片背面「记忆稳定性 46.35 天 / 当前保持率 87%」→「已经拖了 4 天没复习 · 现在花 10 秒？」；评分后「掌握度 32 → 41」→「好，我 12 天后再来问你」；完成态「平均稳定性 12.3 → 46.4 天」→「最远的一张能记到 9月28日」；生词本抽屉两个数字合并成一句。原始数字收进「为什么这么说」折叠，想核对的人随时能展开。测试 764→790（34 文件） | AI Agent（接手） |
 | 2026-09-15 | 每日新卡上限（**修复"用户为什么不每天打开"的真正原因**）—— 实测用户数据库发现 934 张卡片里只有 10 张被复习过，931 张已逾期堆在三个过去的日期上：微信读书同步把全部划线一次性变成"今天就到期"的卡片，而 getDueCards 是 WHERE due <= now，**全项目没有任何每日上限**。用户每次打开复习页看到"931 张待复习"，一个永远做不完的清单。修复：新卡（state=0）与复习卡分开排队，新卡每天最多放 newCardsPerDay 张（默认 15，可设 0 暂停）；getReviewStats().due 语义修正为只统计已学过且到期的卡（900+ 那个数字的来源）；新增 CARDS.GET_QUEUE_STATS 全链路与首页"今天：复习 3 张 · 新卡 15 张"展示；设置页新增「每日新卡上限」。测试 741→764（33 文件），src/shared/study-limits.ts 100% 覆盖 | AI Agent（接手） |
 | 2026-09-15 | 生词本三个正确性缺陷 + 测试 schema 去重 — ① **评分档位错位**：界面用 SM-2 风格 1/3/4/5 传评分，主进程映射表 {1:1,2:2,3:3,4:3,5:4} 把「困难」(3) 记成 Good(3) → ts-fsrs 的 Hard 档在生词本里完全不可达；统一为「界面直接传 Rating 1-4」并删除映射表 ② 新词自举写死 Rating.Good → 刚学就忘和轻松想起拿到相同初始状态 ③ 毕业时无条件重新自举 → 冲掉已累积的稳定性（连续复习 6 次 stability 恒为 2.3065，间隔长不起来） ④ is_mastered 改为仅用户显式设置（原复习满 5 次自动置位会让词被 getDueForReview 永久排除） ⑤ 生词本掌握度由 familiarity_level 代理改为 FSRS 推导（原显示 80%「已掌握」而真实分数 29） ⑥ **测试 fixture 复用生产的 applySchemaAndMigrations()**，删掉 280 行复制粘贴的平行 DDL（该漂移已两次导致 "no such column"）⑦ 测试 733→741 | AI Agent（接手） |
