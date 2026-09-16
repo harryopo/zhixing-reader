@@ -45,7 +45,7 @@ zhixing-reader/
 │
 ├── src/shared/            # 跨进程共享：类型 + IPC 通道常量
 ├── resources/             # 静态资源（dictionary.json / icon.png）
-├── tests/                 # Vitest 单元测试（40 文件 / 875 用例）
+├── tests/                 # Vitest 单元测试（41 文件 / 888 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -72,7 +72,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（875 用例；不含覆盖率）
+npm run test             # Vitest（888 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 打包
@@ -237,7 +237,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（40 文件 / 875 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（41 文件 / 888 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
@@ -257,6 +257,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-16 | **AI 检索链路修复：中文提问原来是"零上下文"** —— 顺着「向量索引目录只有 79 字节」查下去，发现三个叠加的断点：① **中文切词是错的**：`keywordSearch` 用 `query.split(/[\s,，。？?！!、]+/)` 切词，而**中文句子没有空格**，整句会变成一个"词"（如「作者认为人际关系重要吗」），拿去 `includes` 几乎永远为 false —— 实测用真实数据库对比：**四个日常中文问题，旧切词命中 0 条划线；改成 2 字滑窗 bigram 后命中 33~79 条**。② **空索引被判成"可用"**：`checkRAGAvailability` 只看索引文件能不能打开，不看里面有没有向量（实测 0 条），于是走语义检索拿到空结果；③ **空结果不回退**：语义检索返回 0 条时 builder 直接把空数组返回，不落回关键词检索 —— AI 就带着零条书籍上下文回答，日志还写着 "Using RAG semantic search"。附带查清：语义检索在本机本来也用不了（DeepSeek 没有 /embeddings 接口，日志里 "Failed to generate embedding"），而索引只在「新建划线」这一条 IPC 路径写入，**微信读书导入的 934 条划线从未被索引**，`rebuildIndex()` 也没有任何调用方 —— 也就是说关键词检索一直是唯一的上下文来源，而它是坏的。修完三处后，中文提问能真正检索到自己的划线。新增 12 条测试（`tests/rag-keyword-search.test.ts`）钉住中文命中行为。测试 875→888（41 文件） | AI Agent（接手） |
 | 2026-09-16 | **交互逻辑审计（4 个并行子代理 × 全页面）** —— 起因是用户点名：「交互逻辑有没有问题，特别是一个页面俩三个按钮都指向一个功能的」。审计出的问题分四类，**共修 40 余处**：① **重复入口**：首页 hero 三个按钮两个与导航重复、书架页**三个**「同步」按钮同一个函数、书籍详情「在微信读书打开」同屏两次、顶栏刷新按钮与通知面板「立即同步书架」同一个 handleSync、账户页两个一模一样的开关、智能体页「保存配置」=「保存模板」、关于页「问题反馈」=「常见问题」、方法论「开始练习」两个入口、统计页点当前时段 = 点刷新；② **名不副实**：顶栏「今日复习」跳去没有复习入口的知识卡片页、「刷新数据」实际是全量同步、首页「同步微信读书」只跳设置页、搜索框说能搜笔记卡片其实只搜书名、档案页「分享」只是复制文本；③ **假控件与假数字**（最严重）：设置页存储用量 12.3/45.2/128.5 MB 是**写死的常量**（现已改为向主进程要真实文件大小，量不出显示「—」）、微信读书页 **13 个空控件**（同步范围/同步分类/自动化开关，其中「仅同步所选分类的书籍」是写在界面上的假承诺）、知识卡片「反思」筛选永远 0 结果、没有实现的「更换头像」死按钮、「已是最新版本」写死徽章、清理历史写「共 1,284 条」而实际删的是全部 AI 对话；④ **数据风险**：「重新蒸馏/重新提取」对每张卡都是纯 INSERT、**没有任何 delete** —— 对已有内容的书再点一次会成倍翻（现已支持 replace：AI 成功后才清空旧数据，且界面先弹确认）。另修：对话「清空历史」「删除会话」补二次确认、每条 AI 回复的「重新生成」其实只重跑最后一条（现只保留在最后一条回复上）、收起搜索框不清关键词、复习完成态键盘可静默重评、`data-dom-id` 冲突。测试 875 用例（40 文件）不变 | AI Agent（接手） |
 | 2026-09-16 | 每日学习重做（**用户原话：「这些真的能做吗，不能做只是形式的删去」**）—— ① 修掉任务标题前凭空出现的「0」：sql.js 读出来的 `is_read` 是数字 0/1，类型却写着 boolean，于是 `{task.done && <Icon/>}` 在未读时求值为数字 0 并被 React 当文本画出来；在边界处归一化成真 boolean（`normalizeArticle`）② **砍掉 4 项纯形式任务**：整理今日笔记 / AI 对话：探讨今日阅读内容 / 写卡片笔记 2 张 / 总结反思今日（点一下弹 toast 说已完成）—— 它们的共同点是没人知道你做没做 ③ 清单只留 4 类**系统自己知道做没做**的事：阅读（`articles.is_read`）/ 复习（真实卡片队列 actionable）/ 生词（`last_review_at`）/ 对话（`conversations.updated_at`）④ 顺带修两处错：旧的「复习 12 张卡片」取的其实是**生词**到期数却写着卡片、还跳到卡片页 —— 现在用真正的卡片队列并跳复习页 ⑤ 删掉手点勾（localStorage 覆盖），勾本身改成纯状态点，进度环不再能被点出来 ⑥ 左卡片「已用时间 / 预计剩余」是把写死的 30/15/10 分钟加起来编出来的，换成真实的「今天已复习 N 张 / 今天已阅读 N 分钟」⑦ 规则抽成纯模块 `src/shared/daily-tasks.ts`，15 条测试钉住「不许再出现没有判定依据的任务」。测试 860→875（40 文件） | AI Agent（接手） |
 | 2026-09-16 | 数据血缘修复（**量真实数据库找出来的 5 个断点，全部修完**）—— 方法：先查 `%APPDATA%\zhixing-reader\zhixing.db`，列「应该有的 vs 实际有的」，差值为 0 的字段去代码里找断点。① 934 条划线章节名 **0/934**：`fetchAllContent` 明明取了 `chapters` 对照表，三个导入入口全丢掉了；新增 `src/shared/weread-content.ts`（章节名解析只留一份）+ `import-weread-content.ts`（导入逻辑只留一份，改为 upsert 补空）② 90 张知识卡片来源划线 **0/90**：提示词从没问过"来自第几条"，写入时写死 null；新增 `sourceIndex` 让 AI 回答来源并在**每批内**换算成真实划线 id（分批偏移坑）③ 对话意图 **0/21**：orchestrator 算出来了只写日志，现在随 retrieval done 事件下发并落库 ④ 对话引用来源 **0 条**：`RAGSource.chunkId` 是 **Qdrant 时代**的字段名（Qdrant 早已移除），且 builder 把 bookId/highlightId/relevanceScore 全丢了；`shared/types.ts` 新增唯一真值 `RagSourceRef` 一路串到渲染层 ⑤ `daily_stats.reading_time` 恒为 0：ADD_READING_TIME 通道/handler/repository 全在，渲染层从未调用；改为从微信读书 `/readdata/detail?mode=monthly` 同步（累加改覆盖，月度是全量快照）。另修：`getRetrievability` 与 ts-fsrs 逐点对齐、测试 fixture 复用生产 schema。**再补一层**：五个断点修好的只是"以后"，历史数据不会自己变好，而回填入口都藏在设置页按钮里 —— 新增 `electron/services/startup-repair.ts`，应用一打开自动补卡片来源（纯本地）、划线章节名（先查缺口，**没缺口时零请求**，12 小时节流）、阅读时长（6 小时节流），失败不影响启动。启动实测：44 张卡片补上来源、927/934 划线补上章节名（余 7 条正文为空、按定义补不了，已排除以免反复重拉）、阅读时长写入 7 天 3252 秒。测试 790→875（40 文件） | AI Agent（接手） |
