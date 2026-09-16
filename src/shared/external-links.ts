@@ -36,7 +36,8 @@ export const LICENSE_URL = `${GITHUB_REPO_URL}/blob/master/LICENSE`
 // 应用元信息
 export const APP_META = {
   name: '知行读书',
-  version: 'v1.0.0',
+  // 必须与 package.json 的 version 保持一致（设置页「当前版本」与「检查更新」都用它）
+  version: 'v1.1.0',
   releaseDate: '2026-07-25',
   description: '为阅读成长而生的智能学习工具',
   author: '张子涵',
@@ -57,26 +58,28 @@ export interface FeedbackTileConfig {
   url: string
 }
 
+/**
+ * 反馈与帮助入口。
+ *
+ * 2026-09-16 修正两处：
+ *  ① 「问题反馈」和「常见问题」原来指向**同一个** GitHub Issues 地址（两个卡片同一件事）；
+ *  ② 「使用文档」指向 `docs/settings-tutorial.md`，而 `docs/` 目录被 .gitignore 排除、
+ *     根本没进仓库 —— 线上点开是 404。改成指向仓库 README（线上确实存在）。
+ * 「常见问题」这个入口已删除：项目里没有任何 FAQ 内容，留着只能指去 Issues。
+ */
 export const FEEDBACK_TILES: FeedbackTileConfig[] = [
   {
     title: '问题反馈',
-    hint: '在 GitHub Issues 中提交反馈',
+    hint: '在 GitHub 上提交问题或建议',
     icon: 'message-circle',
     domId: 'cta-feedback',
-    url: FEEDBACK_SURVEY_URL,
+    url: `${GITHUB_REPO_URL}/issues/new`,
   },
   {
     title: '使用文档',
-    hint: '查看功能说明与使用指南',
+    hint: '查看 README 与功能说明',
     icon: 'file',
     domId: 'cta-docs',
-    url: SETTINGS_TUTORIAL_URL,
-  },
-  {
-    title: '常见问题',
-    hint: '在 GitHub Issues 中查找答案',
-    icon: 'question',
-    domId: 'cta-faq',
-    url: GITHUB_ISSUES_URL,
+    url: DOCS_URL,
   },
 ]

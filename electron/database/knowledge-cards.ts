@@ -2,7 +2,7 @@
  * database/knowledge-cards — 知识卡片表操作
  * 从原 database.ts 拆分而来，逻辑保持不变。
  */
-import { getDatabase, saveDatabase } from './connection';
+import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 
 export const knowledgeCardsDb = {
@@ -40,6 +40,24 @@ export const knowledgeCardsDb = {
       [bookId]
     );
     return rowsToObjects(result);
+  },
+
+  /**
+   * 删除某本书的全部知识卡片，返回删除条数（单事务，符合 B12）。
+   *
+   * 用途：**"重新蒸馏"必须是真的替换**。此前蒸馏对每张卡都是纯 INSERT（id 还是新的随机串），
+   * 所以对一本已经有卡片的书再点一次「重新蒸馏」，卡片会**成倍翻**（内容完全一样、id 不同）。
+   * 界面写的是"重新"，数据侧却是"追加" —— 这类"看着一个意思、实际另一个意思"正是本项目
+   * 一直在治的病。删除是破坏性操作，调用方必须先向用户确认。
+   */
+  deleteByBookId(bookId: string): number {
+    const before = getDatabase().exec('SELECT COUNT(*) FROM knowledge_cards WHERE book_id = ?', [bookId]);
+    const count = before.length > 0 ? Number(before[0].values[0][0]) || 0 : 0;
+    if (count === 0) return 0;
+    runTransaction((database) => {
+      database.run('DELETE FROM knowledge_cards WHERE book_id = ?', [bookId]);
+    });
+    return count;
   },
 
   getByType(type: string): Record<string, unknown>[] {

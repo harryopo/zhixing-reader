@@ -357,7 +357,8 @@ export default function SettingsAccount() {
                     >
                       {avatarInitial}
                     </div>
-                    <Button variant="ghost" data-dom-id="cta-change-avatar">更换头像</Button>
+                    {/* 「更换头像」原来是个没有 onClick 的死按钮（全项目没有任何实现）。
+                      按项目规矩（不许留占位按钮）直接删除；头像来自微信读书。 */}
                   </div>
 
                   <div
@@ -502,10 +503,16 @@ export default function SettingsAccount() {
                   gap: 'calc(var(--spacing) * 4)',
                 }}
               >
+                {/* 这里原来有**第二个**「继承微信读书信息」开关：和上面个人信息卡里那个
+                    一模一样（同一个 handler、同一个 settings 键），拨一个另一个跟着动。
+                    保留上面那一个（它在真正相关的字段旁边）。 */}
                 <div className="form-row-info" style={{ minWidth: 0, flex: 1 }}>
                   <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                    继承微信读书信息
+                    微信读书账号
                   </strong>
+                  <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--muted-foreground)', marginTop: '0.2rem' }}>
+                    昵称与头像是否沿用微信读书（在上方「个人信息」里切换）
+                  </span>
                 </div>
                 <button
                   type="button"

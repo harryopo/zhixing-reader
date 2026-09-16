@@ -34,9 +34,26 @@ const FSRS_DEFAULTS = {
 const DEFAULT_NEW_CARDS_PER_DAY = 15
 
 const STORAGE_CAP_MB = 512
-const MOCK_DB_MB = 12.3
-const MOCK_CACHE_MB = 45.2
-const MOCK_VECTOR_MB = 128.5
+
+/**
+ * 真实的存储用量（字节）。
+ *
+ * 2026-09-16 修正：这里原来是 `MOCK_DB_MB = 12.3` / `MOCK_CACHE_MB = 45.2` /
+ * `MOCK_VECTOR_MB = 128.5` 三个**写死的常量**，界面上当成真数据显示，旁边还放了个
+ * 「刷新用量」按钮 —— 点了永远不变。现在改为向主进程要真实文件大小；
+ * 量不出来就显示「—」，**不编数字**。
+ */
+interface StorageUsage {
+  dbBytes: number | null
+  vectorBytes: number | null
+  logBytes: number | null
+}
+
+/** 字节 → MB 文本；null 表示量不出来 */
+function formatMb(bytes: number | null): string {
+  if (bytes === null || !Number.isFinite(bytes)) return '—'
+  return (bytes / 1024 / 1024).toFixed(1)
+}
 
 interface NavItem {
   key: string
@@ -152,6 +169,20 @@ export default function SettingsData() {
   const [loading, setLoading] = useState<boolean>(true)
   const [kpiStats, setKpiStats] = useState<KpiStats>({ totalBooks: 0, totalHighlights: 0, totalCards: 0 })
   const [lastExportAt, setLastExportAt] = useState<string>('')
+  /** 真实存储用量（向主进程要文件大小）；null = 还没取到，量不出来则为 '—' */
+  const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null)
+
+  // 首次进入就量一次真实存储用量（不点「刷新用量」也该看到数字）
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api?.system?.getStorageUsage) return
+    void api.system
+      .getStorageUsage()
+      .then((usage) => setStorageUsage(usage as StorageUsage))
+      .catch(() => {
+        /* 量不出来就显示「—」，不编数字 */
+      })
+  }, [])
 
   // ===== 拉取 FSRS 参数 + UI 值 =====
   useEffect(() => {
@@ -226,13 +257,17 @@ export default function SettingsData() {
     }
     const tId = toast.loading('正在刷新用量数据...')
     try {
-      const result = (await api.admin.getStats()) as { stats?: Record<string, unknown> }
+      const [result, usage] = await Promise.all([
+        api.admin.getStats() as Promise<{ stats?: Record<string, unknown> }>,
+        api.system?.getStorageUsage ? api.system.getStorageUsage() : Promise.resolve(null),
+      ])
       const s = result.stats ?? {}
       setKpiStats({
         totalBooks: safeNum(s.totalBooks),
         totalHighlights: safeNum(s.totalHighlights),
         totalCards: safeNum(s.totalCards),
       })
+      if (usage) setStorageUsage(usage as StorageUsage)
       toast.remove(tId)
       toast.success('用量数据已刷新')
     } catch (err) {
@@ -632,12 +667,14 @@ export default function SettingsData() {
   }, [])
 
   // ===== 派生值 =====
-  const totalUsageMb = useMemo(
-    () => MOCK_DB_MB + MOCK_CACHE_MB + MOCK_VECTOR_MB,
-    [],
-  )
+  const totalUsageMb = useMemo(() => {
+    if (!storageUsage) return null
+    const parts = [storageUsage.dbBytes, storageUsage.vectorBytes, storageUsage.logBytes]
+    if (parts.some((p) => p === null)) return null
+    return (parts as number[]).reduce((s, p) => s + p, 0) / 1024 / 1024
+  }, [storageUsage])
   const usagePct = useMemo(
-    () => Math.min(100, Math.round((totalUsageMb / STORAGE_CAP_MB) * 100)),
+    () => (totalUsageMb === null ? null : Math.min(100, Math.round((totalUsageMb / STORAGE_CAP_MB) * 100))),
     [totalUsageMb],
   )
   const totalRecords = useMemo(
@@ -788,7 +825,7 @@ export default function SettingsData() {
                 title="存储用量看板"
                 action={
                   <span className="status-badge info" role="status">
-                    已占用 {usagePct}%
+                    已占用 {usagePct === null ? '—' : `${usagePct}%`}
                   </span>
                 }
               />
@@ -805,28 +842,30 @@ export default function SettingsData() {
                   <span className="kpi-accent" aria-hidden="true"></span>
                   <div className="eyebrow">数据库大小</div>
                   <span className="kpi-value">
-                    {MOCK_DB_MB.toFixed(1)}
+                    {formatMb(storageUsage?.dbBytes ?? null)}
                     <span className="unit">MB</span>
                   </span>
                   <div className="tiny">SQLite · {totalRecords.toLocaleString('zh-CN')} 条记录</div>
                 </div>
                 <div className="kpi-card" data-accent="2">
                   <span className="kpi-accent" aria-hidden="true"></span>
-                  <div className="eyebrow">缓存大小</div>
+                  {/* 这一格原来写「缓存大小 45.2MB · 图片·网页·临时文件」—— 那个数字是编的，
+                      而且应用根本没有磁盘缓存目录（微信读书接口缓存只在内存里）。改成日志目录的真实大小。 */}
+                  <div className="eyebrow">日志大小</div>
                   <span className="kpi-value">
-                    {MOCK_CACHE_MB.toFixed(1)}
+                    {formatMb(storageUsage?.logBytes ?? null)}
                     <span className="unit">MB</span>
                   </span>
-                  <div className="tiny">图片 · 网页 · 临时文件</div>
+                  <div className="tiny">运行日志 · 可在「清理缓存」下查看路径</div>
                 </div>
                 <div className="kpi-card" data-accent="3">
                   <span className="kpi-accent" aria-hidden="true"></span>
                   <div className="eyebrow">向量库大小</div>
                   <span className="kpi-value">
-                    {MOCK_VECTOR_MB.toFixed(1)}
+                    {formatMb(storageUsage?.vectorBytes ?? null)}
                     <span className="unit">MB</span>
                   </span>
-                  <div className="tiny">Vectra · 索引尚未统计</div>
+                  <div className="tiny">Vectra 本地索引</div>
                 </div>
               </div>
               <div className="usage-bar-wrap" style={{ marginTop: 'calc(var(--spacing) * 3)' }}>
@@ -851,13 +890,13 @@ export default function SettingsData() {
                       fontSize: '0.78rem',
                     }}
                   >
-                    {totalUsageMb.toFixed(1)} MB / {STORAGE_CAP_MB} MB
+                    {totalUsageMb === null ? '—' : totalUsageMb.toFixed(1)} MB / {STORAGE_CAP_MB} MB
                   </span>
                 </div>
                 <div
                   className="usage-bar"
                   role="progressbar"
-                  aria-valuenow={usagePct}
+                  aria-valuenow={usagePct ?? 0}
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-label="存储总用量"
@@ -873,7 +912,7 @@ export default function SettingsData() {
                     className="usage-bar-fill"
                     style={{
                       height: '100%',
-                      width: `${usagePct}%`,
+                      width: `${usagePct ?? 0}%`,
                       borderRadius: 999,
                       background: 'var(--chart-1)',
                       transition: 'width 0.3s ease',
@@ -901,8 +940,11 @@ export default function SettingsData() {
                 </div>
                 <div className="cache-row">
                   <div className="cache-row-info">
-                    <strong>清理历史记录</strong>
-                    <Tiny>操作日志与同步记录 · 共 1,284 条</Tiny>
+                    {/* 原来的说明是「操作日志与同步记录 · 共 1,284 条」—— 两处都不实：
+                        它删的是**全部 AI 对话历史**（conversations + chat_messages），
+                        「1,284 条」是写在 JSX 里的固定数字。改成说清楚到底删什么。 */}
+                    <strong>清空 AI 对话历史</strong>
+                    <Tiny>删除全部对话与消息记录（不可恢复）</Tiny>
                   </div>
                   <Button variant="secondary" onClick={handleClearHistory} data-dom-id="cta-clear-history">
                     清理历史

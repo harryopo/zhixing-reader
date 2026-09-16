@@ -159,6 +159,13 @@ function ShieldIcon({ size = 16 }: { size?: number }) {
 export default function SettingsAbout() {
   const navigate = useNavigate()
   const [checking, setChecking] = useState(false)
+  /**
+   * 检查更新的结果。
+   * 原来那颗绿色徽章写死「已是最新版本」—— 检查出有新版本时 toast 说"发现新版本"，
+   * 徽章却还写着"已是最新版本"，自相矛盾。现在按真实结果渲染。
+   */
+  const [updateState, setUpdateState] = useState<'unknown' | 'latest' | 'outdated'>('unknown')
+  const [latestVersion, setLatestVersion] = useState('')
 
   const handleNavigate = useCallback((path: string) => {
     navigate(path)
@@ -183,9 +190,12 @@ export default function SettingsAbout() {
       toast.remove(toastId)
       const latestTag = (data.tag_name ?? '').trim()
       if (latestTag && latestTag !== APP_META.version) {
+        setUpdateState('outdated')
+        setLatestVersion(latestTag)
         toast.success(`发现新版本 ${latestTag}，即将打开下载页面`)
         await window.electronAPI.system.openExternal(GITHUB_RELEASES_PAGE)
       } else {
+        setUpdateState('latest')
         toast.success('当前已是最新版本')
       }
     } catch (err) {
@@ -450,16 +460,25 @@ export default function SettingsAbout() {
                   style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', flexShrink: 0 }}
                 >
                   <Badge
-                    variant="success"
+                    variant={updateState === 'outdated' ? 'alert' : updateState === 'latest' ? 'success' : 'default'}
                     style={{
-                      background: 'var(--state-success)',
-                      color: 'var(--card)',
+                      background:
+                        updateState === 'latest'
+                          ? 'var(--state-success)'
+                          : updateState === 'outdated'
+                            ? 'var(--chart-2, #ef4444)'
+                            : 'var(--muted)',
+                      color: updateState === 'latest' || updateState === 'outdated' ? 'var(--card)' : 'var(--muted-foreground)',
                       fontSize: '0.78rem',
                       padding: '0.3rem 0.65rem',
                       fontWeight: 600,
                     }}
                   >
-                    已是最新版本
+                    {updateState === 'latest'
+                      ? '已是最新版本'
+                      : updateState === 'outdated'
+                        ? `有新版本 ${latestVersion}`
+                        : '尚未检查'}
                   </Badge>
                   <Button
                     variant="secondary"

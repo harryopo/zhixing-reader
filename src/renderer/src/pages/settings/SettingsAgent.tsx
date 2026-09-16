@@ -1032,9 +1032,8 @@ export default function SettingsAgent() {
           />
 
           <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 4)' }}>
-            <Button variant="primary" onClick={handleSavePrompt} disabled={saving} data-dom-id="cta-save-prompt">
-              <Icon name="check" size={15} /> 保存模板
-            </Button>
+            {/* 这里原来还有一个「保存模板」按钮，和页面顶部那个「保存配置」调的是
+                同一个 handleSavePrompt、保存同一份文本，提示也一样。保留顶部那个。 */}
             <Button variant="ghost" onClick={handleResetPrompt} disabled={saving} data-dom-id="cta-reset-prompt">
               <Icon name="refresh" size={15} /> 重置默认
             </Button>

@@ -356,7 +356,9 @@ const electronAPI = {
     update: (id: string, methodology: Record<string, unknown>) => invoke(IPC_CHANNELS.METHODOLOGIES.UPDATE, id, methodology),
     delete: (id: string) => invoke(IPC_CHANNELS.METHODOLOGIES.DELETE, id),
     search: (keyword: string) => invoke(IPC_CHANNELS.METHODOLOGIES.SEARCH, keyword),
-    extract: (bookId: string, bookTitle: string) => invoke(IPC_CHANNELS.METHODOLOGIES.EXTRACT, bookId, bookTitle),
+    // replace=true 时主进程会先清空这本书的旧方法论（对应界面上的「重新提取」）
+    extract: (bookId: string, bookTitle: string, replace?: boolean) =>
+      invoke(IPC_CHANNELS.METHODOLOGIES.EXTRACT, bookId, bookTitle, replace),
   },
 
   knowledgeCard: {
@@ -369,7 +371,9 @@ const electronAPI = {
     delete: (id: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DELETE, id),
     search: (keyword: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.SEARCH, keyword),
     backfillSource: () => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.BACKFILL_SOURCE),
-    distill: (bookId: string, bookTitle: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL, bookId, bookTitle),
+    // replace=true 时主进程会先清空这本书的旧卡片（对应界面上的「重新蒸馏」）
+    distill: (bookId: string, bookTitle: string, replace?: boolean) =>
+      invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL, bookId, bookTitle, replace),
     cancelDistill: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.CANCEL_DISTILL, bookId),
     isDistilling: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.IS_DISTILLING, bookId),
     generateInterpretation: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) =>
@@ -423,6 +427,8 @@ const electronAPI = {
     openExternal: (url: string) => invoke(IPC_CHANNELS.SYSTEM.OPEN_EXTERNAL, url),
     forceSaveDatabase: () => invoke(IPC_CHANNELS.SYSTEM.FORCE_SAVE_DATABASE),
     clearCache: () => invoke(IPC_CHANNELS.SYSTEM.CLEAR_CACHE),
+    /** 真实存储用量（字节）；量不出来的项为 null */
+    getStorageUsage: () => invoke(IPC_CHANNELS.SYSTEM.GET_STORAGE_USAGE),
     clearHistory: () => invoke(IPC_CHANNELS.SYSTEM.CLEAR_HISTORY),
     resetDatabase: () => invoke(IPC_CHANNELS.SYSTEM.RESET_DATABASE),
   },

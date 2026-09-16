@@ -58,7 +58,7 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.METHODOLOGIES.UPDATE, (id: string, methodology: Record<string, unknown>) => methodologiesDb.update(id, methodology));
   handle(IPC_CHANNELS.METHODOLOGIES.DELETE, (id: string) => methodologiesDb.delete(id));
   handle(IPC_CHANNELS.METHODOLOGIES.SEARCH, (keyword: string) => methodologiesDb.search(keyword));
-  handle(IPC_CHANNELS.METHODOLOGIES.EXTRACT, async (bookId: string, bookTitle: string) => {
+  handle(IPC_CHANNELS.METHODOLOGIES.EXTRACT, async (bookId: string, bookTitle: string, replace?: boolean) => {
     let highlights = highlightsDb.getByBookId(bookId);
 
     if (!highlights || highlights.length === 0) {
@@ -129,6 +129,13 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
       chapterTitle: h.chapter_title ? String(h.chapter_title) : undefined,
     }));
     const methodologies = await extractMethodologies(mappedHighlights, bookTitle);
+
+    // 「重新提取」= 替换：AI 成功了才删旧数据，避免把用户已有方法论弄没
+    if (replace === true) {
+      const removed = methodologiesDb.deleteByBookId(bookId);
+      logger.info(`重新提取：已清除旧方法论 ${removed} 条`, { bookId, bookTitle });
+    }
+
     const results = [];
     for (const m of methodologies) {
       const id = `meth_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -169,8 +176,8 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.BACKFILL_SOURCE, () => ({
     updated: knowledgeCardsDb.backfillSourceHighlights(),
   }));
-  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL, (bookId: string, bookTitle: string) =>
-    knowledgeCardService.distillBook(bookId, bookTitle)
+  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL, (bookId: string, bookTitle: string, replace?: boolean) =>
+    knowledgeCardService.distillBook(bookId, bookTitle, { replace: replace === true })
   );
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.CANCEL_DISTILL, (bookId: string) => {
     const cancelled = knowledgeCardService.cancelDistill(bookId);

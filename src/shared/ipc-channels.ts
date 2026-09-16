@@ -231,6 +231,8 @@ export const IPC_CHANNELS = {
     CLEAR_CACHE: 'system:clearCache',
     OPEN_EXTERNAL: 'system:openExternal',
     CLEAR_HISTORY: 'system:clearHistory',
+    // 真实存储用量（数据库文件 / 向量索引 / 日志）：设置页原来显示的是写死的假数字
+    GET_STORAGE_USAGE: 'system:getStorageUsage',
     RESET_DATABASE: 'system:resetDatabase',
     // 主→渲染事件：数据库落盘失败（磁盘满/权限/被占用），渲染层据此提示用户，避免静默丢数据
     PERSIST_ERROR: 'system:persistError',

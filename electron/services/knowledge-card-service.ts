@@ -158,7 +158,7 @@ class KnowledgeCardService {
   async distillBook(
     bookId: string,
     bookTitle: string,
-    options: { force?: boolean } = {}
+    options: { force?: boolean; replace?: boolean } = {}
   ): Promise<Array<{ id: string } & DistilledKnowledgeCard>> {
     if (this.activeTasks.has(bookId)) {
       throw new Error(`该书正在蒸馏中，请等待完成或先取消`)
@@ -219,6 +219,14 @@ class KnowledgeCardService {
         total: cards.length,
         message: `正在保存 ${cards.length} 张知识卡片...`,
       })
+
+      // 「重新蒸馏」= 替换：先把这本书的旧卡片删掉再写新的。
+      // AI 这一步已经成功了才删，避免"删完发现 AI 失败"把用户的卡片弄没。
+      // 界面上必须先向用户确认（旧卡片上的解读/应用/掌握度会一起消失）。
+      if (options.replace) {
+        const removed = knowledgeCardsDb.deleteByBookId(bookId)
+        logger.info(`重新蒸馏：已清除旧卡片 ${removed} 张`, { bookId, bookTitle })
+      }
 
       const results: Array<{ id: string } & DistilledKnowledgeCard> = []
       for (const c of cards) {

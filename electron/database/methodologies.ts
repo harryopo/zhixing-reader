@@ -2,7 +2,7 @@
  * database/methodologies — 方法论表操作
  * 从原 database.ts 拆分而来，逻辑保持不变。
  */
-import { getDatabase, saveDatabase } from './connection';
+import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 
 export const methodologiesDb = {
@@ -41,6 +41,20 @@ export const methodologiesDb = {
       [bookId]
     );
     return rowsToObjects(result);
+  },
+
+  /**
+   * 删除某本书的全部方法论，返回删除条数（单事务，符合 B12）。
+   * 用途同 knowledge-cards.deleteByBookId：让"重新提取"真的是替换而不是追加。
+   */
+  deleteByBookId(bookId: string): number {
+    const before = getDatabase().exec('SELECT COUNT(*) FROM methodologies WHERE book_id = ?', [bookId]);
+    const count = before.length > 0 ? Number(before[0].values[0][0]) || 0 : 0;
+    if (count === 0) return 0;
+    runTransaction((database) => {
+      database.run('DELETE FROM methodologies WHERE book_id = ?', [bookId]);
+    });
+    return count;
   },
 
   getAll(): Record<string, unknown>[] {

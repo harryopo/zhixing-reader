@@ -3,6 +3,8 @@
  * 从原 ipc.ts 拆分而来，逻辑保持不变。
  */
 import { shell, app } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { settingsService } from '../services/settings-service';
 import { forceSaveDatabase, clearConversationsAndMessages, resetDatabase } from '../database';
@@ -10,6 +12,9 @@ import { clearCache as clearWeReadApiCache, setApiKey as setWereadApiKey } from 
 import { refreshWereadAutoSyncTimer } from '../weread-sync-manager';
 import { logger } from '../logger';
 import type { HandleFn } from './types';
+
+/** 向量索引目录名（与 services/vector-db.ts 的 INDEX_FOLDER_NAME 保持一致） */
+const VECTOR_INDEX_DIR = 'vectra-index';
 
 export function registerSettingsHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.SETTINGS.GET, (key: string) => settingsService.get(key));
@@ -58,6 +63,48 @@ export function registerSettingsHandlers(handle: HandleFn): void {
     }
     await shell.openExternal(url);
     return { opened: true };
+  });
+
+  /**
+   * 真实存储用量。
+   *
+   * 设置页原来那三个数字（12.3 / 45.2 / 128.5 MB）是**写死的常量**，
+   * 旁边还放了个"刷新用量"按钮 —— 点了永远不变。这里改成真的去量文件大小。
+   * 量不出来就返回 null，界面显示「—」，**不编数字**。
+   */
+  handle(IPC_CHANNELS.SYSTEM.GET_STORAGE_USAGE, () => {
+    const dirSize = (dir: string): number | null => {
+      try {
+        if (!fs.existsSync(dir)) return null;
+        let total = 0;
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            const sub = dirSize(full);
+            if (sub !== null) total += sub;
+          } else {
+            total += fs.statSync(full).size;
+          }
+        }
+        return total;
+      } catch {
+        return null;
+      }
+    };
+    const fileSize = (file: string): number | null => {
+      try {
+        return fs.existsSync(file) ? fs.statSync(file).size : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const userData = app.getPath('userData');
+    return {
+      dbBytes: fileSize(path.join(userData, 'zhixing.db')),
+      vectorBytes: dirSize(path.join(userData, VECTOR_INDEX_DIR)),
+      logBytes: dirSize(path.join(userData, 'logs')),
+    };
   });
 
   handle(IPC_CHANNELS.SYSTEM.CLEAR_HISTORY, () => {

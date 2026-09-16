@@ -296,7 +296,8 @@ export interface ElectronAPI {
     update: (id: string, methodology: Record<string, unknown>) => Promise<unknown>
     delete: (id: string) => Promise<void>
     search: (keyword: string) => Promise<unknown[]>
-    extract: (bookId: string, bookTitle: string) => Promise<unknown[]>
+    /** replace=true 表示"重新提取"：主进程会先清空这本书的旧方法论（替换而不是追加） */
+    extract: (bookId: string, bookTitle: string, replace?: boolean) => Promise<unknown[]>
   }
   knowledgeCard: {
     getAll: () => Promise<unknown[]>
@@ -309,7 +310,8 @@ export interface ElectronAPI {
     search: (keyword: string) => Promise<unknown[]>
     /** 一次性找回历史卡片的来源划线；只按「内容精确相等」匹配，绝不猜测 */
     backfillSource: () => Promise<{ updated: number }>
-    distill: (bookId: string, bookTitle: string) => Promise<unknown[]>
+    /** replace=true 表示"重新蒸馏"：主进程会先清空这本书的旧卡片（替换而不是追加） */
+    distill: (bookId: string, bookTitle: string, replace?: boolean) => Promise<unknown[]>
     cancelDistill: (bookId: string) => Promise<{ success: boolean }>
     isDistilling: (bookId: string) => Promise<boolean>
     generateInterpretation: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) => Promise<{ text: string }>
@@ -332,6 +334,12 @@ export interface ElectronAPI {
     openExternal: (url: string) => Promise<{ opened: boolean }>
     forceSaveDatabase: () => Promise<void>
     clearCache: () => Promise<void>
+    /** 真实存储用量（字节）；量不出来的项为 null */
+    getStorageUsage: () => Promise<{
+      dbBytes: number | null
+      vectorBytes: number | null
+      logBytes: number | null
+    }>
     clearHistory: () => Promise<{ success: boolean }>
     resetDatabase: () => Promise<{ success: boolean }>
   }

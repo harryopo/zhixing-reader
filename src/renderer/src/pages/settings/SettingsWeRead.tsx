@@ -46,24 +46,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'about', label: '关于', icon: 'question', path: '/settings/about' },
 ]
 
-/** 同步范围字段 */
-interface SyncScope {
-  shelf: boolean
-  highlight: boolean
-  note: boolean
-  review: boolean
-  essay: boolean
-}
-
-/** 书架分类字段 */
-interface CategoryScope {
-  literature: boolean
-  tech: boolean
-  history: boolean
-  philosophy: boolean
-  other: boolean
-}
-
 /** 自动同步频率选项 */
 const AUTO_SYNC_FREQUENCY_OPTIONS: { value: WeReadSyncFrequency; label: string }[] = [
   { value: '1d', label: '1 天' },
@@ -110,27 +92,11 @@ export default function SettingsWeRead() {
     })),
   )
 
-  // ===== 本地状态（仅 UI，不持久化） =====
+  // ===== 本地状态 =====
   const [showApiKey, setShowApiKey] = useState(false)
-  const [syncScope, setSyncScope] = useState<SyncScope>({
-    shelf: true,
-    highlight: true,
-    note: true,
-    review: false,
-    essay: false,
-  })
-  const [categories, setCategories] = useState<CategoryScope>({
-    literature: true,
-    tech: true,
-    history: false,
-    philosophy: false,
-    other: true,
-  })
-  const [highlightToNote, setHighlightToNote] = useState(true)
-  const [noteToCard, setNoteToCard] = useState(true)
-  const [autoTag, setAutoTag] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [resyncingShelf, setResyncingShelf] = useState(false)
+  // 注：原「同步范围 / 同步分类 / 三个自动化开关」的 5 组 state 已随对应控件一并删除 ——
+  // 它们只是 useState，主进程同步逻辑从不读取，留在界面上是空控件。
 
   // ===== 业务逻辑 =====
   useEffect(() => {
@@ -175,12 +141,9 @@ export default function SettingsWeRead() {
   }, [clearTestResult, saveSettings])
 
   const handleReset = useCallback(() => {
+    // 「重置」是破坏性操作（清空 API Key），先问一句
+    if (!window.confirm('确定重置微信读书配置？（会清空已填写的 API Key，未保存前不会落库）')) return
     setWereadApiKey('')
-    setSyncScope({ shelf: true, highlight: true, note: true, review: false, essay: false })
-    setCategories({ literature: true, tech: true, history: false, philosophy: false, other: true })
-    setHighlightToNote(true)
-    setNoteToCard(true)
-    setAutoTag(false)
     clearTestResult()
     toast.info('已重置为默认值（未保存）')
   }, [setWereadApiKey, clearTestResult])
@@ -240,28 +203,6 @@ export default function SettingsWeRead() {
       setSyncing(false)
     }
   }, [syncing, ensureWereadKeyApplied])
-
-  const handleResyncShelf = useCallback(async () => {
-    if (resyncingShelf) return
-    setResyncingShelf(true)
-    const resyncToastId = toast.loading('正在重新同步书架...')
-    try {
-      await ensureWereadKeyApplied()
-      // 重新同步 = sortByRecent=true，按最近阅读时间排序后写库
-      const result = await syncBookshelfToDb({ sortByRecent: true })
-      toast.remove(resyncToastId)
-      if (result.total === 0) {
-        toast.warning('未获取到书籍，请检查微信读书配置')
-        return
-      }
-      toast.success(`书架已重新同步，共 ${result.total} 本，新导入 ${result.newCount} 本`)
-    } catch (err) {
-      toast.remove(resyncToastId)
-      toast.error(`重新同步失败: ${(err as Error).message}`)
-    } finally {
-      setResyncingShelf(false)
-    }
-  }, [resyncingShelf, ensureWereadKeyApplied])
 
   const handleToggleAutoSync = useCallback((enabled: boolean) => {
     void setWereadAutoSync(enabled)
@@ -450,68 +391,9 @@ export default function SettingsWeRead() {
                   ))}
                 </select>
               </div>
-              <div className="form-field" style={{ marginTop: 'calc(var(--spacing) * 4)' }}>
-                <label className="form-label">同步范围</label>
-                <div
-                  className="chip-group"
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 'calc(var(--spacing) * 2)',
-                  }}
-                >
-                  {(
-                    [
-                      { key: 'shelf', label: '书架', domId: 'sync-scope-shelf' },
-                      { key: 'highlight', label: '划线', domId: 'sync-scope-highlight' },
-                      { key: 'note', label: '笔记', domId: 'sync-scope-note' },
-                      { key: 'review', label: '书评', domId: 'sync-scope-review' },
-                      { key: 'essay', label: '读后感', domId: 'sync-scope-essay' },
-                    ] as const
-                  ).map((item) => {
-                    const checked = syncScope[item.key]
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        data-dom-id={item.domId}
-                        aria-pressed={checked}
-                        onClick={() =>
-                          setSyncScope((s) => ({ ...s, [item.key]: !s[item.key] }))
-                        }
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 'calc(var(--spacing) * 1)',
-                          padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 4)',
-                          borderRadius: '999px',
-                          fontSize: 'var(--font-size-sm)',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          border: checked
-                            ? '1px solid var(--color-primary)'
-                            : '1px solid var(--color-border)',
-                          background: checked ? 'var(--color-primary)' : 'transparent',
-                          color: checked ? '#fff' : 'var(--color-text-secondary)',
-                        }}
-                      >
-                        <span
-                          aria-hidden="true"
-                          style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            background: checked ? '#fff' : 'var(--color-text-muted)',
-                            transition: 'all 0.2s ease',
-                          }}
-                        />
-                        {item.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+              {/* 「同步范围」（书架/划线/笔记/书评/读后感）已删除。
+                  它只改本页的 useState，而 syncBookshelfToDb() 根本不接收范围参数 ——
+                  勾掉"书评"照样会同步书评。留在界面上等于骗人；真要做就得先让主进程支持按范围同步。 */}
               <div
                 className="sync-status"
                 style={{ marginTop: 'calc(var(--spacing) * 4)', marginBottom: 0 }}
@@ -534,145 +416,15 @@ export default function SettingsWeRead() {
               </div>
             </Card>
 
-            {/* ===== Card 3: 书架同步 ===== */}
-            <Card>
-              <CardHead
-                eyebrow="书架同步"
-                title="书籍分类过滤"
-              />
-              <div className="form-field">
-                <label className="form-label">同步分类</label>
-                <div
-                  className="chip-group"
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 'calc(var(--spacing) * 2)',
-                  }}
-                >
-                  {(
-                    [
-                      { key: 'literature', label: '文学', domId: 'cat-literature' },
-                      { key: 'tech', label: '科技', domId: 'cat-tech' },
-                      { key: 'history', label: '历史', domId: 'cat-history' },
-                      { key: 'philosophy', label: '哲学', domId: 'cat-philosophy' },
-                      { key: 'other', label: '其他', domId: 'cat-other' },
-                    ] as const
-                  ).map((item) => {
-                    const checked = categories[item.key]
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        data-dom-id={item.domId}
-                        aria-pressed={checked}
-                        onClick={() =>
-                          setCategories((s) => ({ ...s, [item.key]: !s[item.key] }))
-                        }
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 'calc(var(--spacing) * 1)',
-                          padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 4)',
-                          borderRadius: '999px',
-                          fontSize: 'var(--font-size-sm)',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          border: checked
-                            ? '1px solid var(--color-primary)'
-                            : '1px solid var(--color-border)',
-                          background: checked ? 'var(--color-primary)' : 'transparent',
-                          color: checked ? '#fff' : 'var(--color-text-secondary)',
-                        }}
-                      >
-                        <span
-                          aria-hidden="true"
-                          style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            background: checked ? '#fff' : 'var(--color-text-muted)',
-                            transition: 'all 0.2s ease',
-                          }}
-                        />
-                        {item.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                <Tiny style={{ marginTop: 'calc(var(--spacing) * 3)' }}>
-                  仅同步所选分类的书籍到本地书架
-                </Tiny>
-              </div>
-              <div
-                className="form-row"
-                style={{ borderTop: 'none', paddingTop: 'calc(var(--spacing) * 4)' }}
-              >
-                <div className="form-row-info">
-                  <strong>重新同步书架</strong>
-                  <Tiny>按最近阅读时间排序后重新拉取全量数据写入本地</Tiny>
-                </div>
-                <Button
-                  variant="secondary"
-                  onClick={handleResyncShelf}
-                  disabled={resyncingShelf || !isWereadConfigured}
-                  data-dom-id="cta-resync-shelf"
-                >
-                  {resyncingShelf ? '同步中...' : '重新同步书架'}
-                </Button>
-              </div>
-            </Card>
+            {/* 「书籍分类过滤」整张卡已删除，原因有两个：
+                  ① 分类 chips 写着"仅同步所选分类的书籍到本地书架"，但同步逻辑里没有任何分类过滤，
+                     默认关掉的历史/哲学照样会同步进来 —— 这是写在界面上的假承诺；
+                  ② 右下角那个「重新同步书架」和上一张卡的「立即同步」调的是同一个 syncBookshelfToDb，
+                     唯一差别只是写入顺序，两个按钮同一件事。 */}
 
-            {/* ===== Card 4: 划线与笔记 ===== */}
-            <Card>
-              <CardHead eyebrow="划线与笔记" title="自动化开关" />
-              <div className="form-row" style={{ borderTop: 'none', paddingTop: 0 }}>
-                <div className="form-row-info">
-                  <strong>划线自动生成笔记</strong>
-                  <Tiny>同步划线时自动创建对应笔记</Tiny>
-                </div>
-                <button
-                  type="button"
-                  className="toggle"
-                  data-on={highlightToNote ? 'true' : 'false'}
-                  aria-label="划线自动生成笔记"
-                  aria-pressed={highlightToNote}
-                  onClick={() => setHighlightToNote((s) => !s)}
-                  data-dom-id="toggle-highlight-to-note"
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-row-info">
-                  <strong>笔记自动生成知识卡片</strong>
-                  <Tiny>将同步的笔记自动转化为知识卡片</Tiny>
-                </div>
-                <button
-                  type="button"
-                  className="toggle"
-                  data-on={noteToCard ? 'true' : 'false'}
-                  aria-label="笔记自动生成知识卡片"
-                  aria-pressed={noteToCard}
-                  onClick={() => setNoteToCard((s) => !s)}
-                  data-dom-id="toggle-note-to-card"
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-row-info">
-                  <strong>划线标签自动提取</strong>
-                  <Tiny>AI 自动为划线内容提取标签</Tiny>
-                </div>
-                <button
-                  type="button"
-                  className="toggle"
-                  data-on={autoTag ? 'true' : 'false'}
-                  aria-label="划线标签自动提取"
-                  aria-pressed={autoTag}
-                  onClick={() => setAutoTag((s) => !s)}
-                  data-dom-id="toggle-auto-tag"
-                />
-              </div>
-            </Card>
+            {/* 「自动化开关」整张卡已删除：划线自动生成笔记 / 笔记自动生成知识卡片 /
+                划线标签自动提取 —— 三个开关都只改本地 state，既不落库也没有任何代码消费它们。
+                开关能拨、按钮有反馈、但什么都不会发生，属于纯形式。 */}
           </div>
         </div>
 
