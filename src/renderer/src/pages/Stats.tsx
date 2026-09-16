@@ -733,7 +733,7 @@ function ReadingStatsView({
           gap: 'calc(var(--spacing) * 4)',
         }}
       >
-        <Card interactive>
+        <Card>
           <div
             style={{
               color: 'var(--muted-foreground)',
@@ -755,7 +755,7 @@ function ReadingStatsView({
           )}
         </Card>
 
-        <Card interactive>
+        <Card>
           <div
             style={{
               color: 'var(--muted-foreground)',
@@ -770,7 +770,7 @@ function ReadingStatsView({
           <Trend kind="up">↑ 累计 {kpiData.totalBooks} 本</Trend>
         </Card>
 
-        <Card interactive>
+        <Card>
           <div
             style={{
               color: 'var(--muted-foreground)',
@@ -785,7 +785,7 @@ function ReadingStatsView({
           <Trend>共 {kpiData.totalCards} 张</Trend>
         </Card>
 
-        <Card interactive>
+        <Card>
           <div
             style={{
               color: 'var(--muted-foreground)',
@@ -2107,7 +2107,7 @@ function BooksStatsView({
           gap: 'calc(var(--spacing) * 4)',
         }}
       >
-        <Card interactive>
+        <Card>
           <div
             style={{
               color: 'var(--muted-foreground)',
@@ -2121,7 +2121,7 @@ function BooksStatsView({
           <Metric value={bookStats.length} />
           <Trend kind="default">本架藏书</Trend>
         </Card>
-        <Card interactive>
+        <Card>
           <div
             style={{
               color: 'var(--muted-foreground)',
@@ -2135,7 +2135,7 @@ function BooksStatsView({
           <Metric value={totalHighlights} />
           <Trend kind="up">↑ 跨 {bookStats.length} 本书</Trend>
         </Card>
-        <Card interactive>
+        <Card>
           <div
             style={{
               color: 'var(--muted-foreground)',

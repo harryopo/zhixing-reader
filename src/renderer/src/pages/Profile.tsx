@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -74,6 +75,7 @@ interface TypeSlice {
 }
 
 export default function Profile() {
+  const navigate = useNavigate()
   const { stats, achievements, loading, error, fetchStats } = useProfileStore()
 
   // 成绩勋章显示开关（settingsStore 持久化）
@@ -562,7 +564,7 @@ export default function Profile() {
             gap: 'calc(var(--spacing) * 4)',
           }}
         >
-          <Card interactive>
+          <Card interactive onClick={() => navigate('/stats')}>
             <div
               style={{
                 color: 'var(--muted-foreground)',
@@ -587,7 +589,7 @@ export default function Profile() {
             <Trend kind="up">↑ 日均 {avgDailyMinutes}min</Trend>
           </Card>
 
-          <Card interactive>
+          <Card interactive onClick={() => navigate('/stats')}>
             <div
               style={{
                 color: 'var(--muted-foreground)',
@@ -611,7 +613,7 @@ export default function Profile() {
             </div>
           </Card>
 
-          <Card interactive>
+          <Card interactive onClick={() => navigate('/stats')}>
             <div
               style={{
                 color: 'var(--muted-foreground)',
@@ -638,7 +640,7 @@ export default function Profile() {
             </Trend>
           </Card>
 
-          <Card interactive>
+          <Card interactive onClick={() => navigate('/stats')}>
             <div
               style={{
                 color: 'var(--muted-foreground)',

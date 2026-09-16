@@ -600,7 +600,7 @@ export default function TokenUsagePage() {
             gap: 'calc(var(--spacing) * 4)',
           }}
         >
-          <Card interactive>
+          <Card>
             <div style={eyebrowStyle}>{getUsageEyebrow(timeRange)}</div>
             <Metric value={formatTokens(kpi.totalTokens)} />
             <Trend kind={kpi.cachedHitRate > 0 ? 'up' : 'default'}>
@@ -610,7 +610,7 @@ export default function TokenUsagePage() {
             </Trend>
           </Card>
 
-          <Card interactive>
+          <Card>
             <div style={eyebrowStyle}>会话数</div>
             <Metric value={kpi.totalRequests} />
             <Trend kind={kpi.totalRequests > 0 ? 'up' : 'default'}>
@@ -620,7 +620,7 @@ export default function TokenUsagePage() {
             </Trend>
           </Card>
 
-          <Card interactive>
+          <Card>
             <div style={eyebrowStyle}>平均消耗</div>
             <Metric value={formatTokens(kpi.avgTokens)} />
             <Trend kind="default">tokens/会话</Trend>

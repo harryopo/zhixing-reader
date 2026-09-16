@@ -101,7 +101,8 @@ export default function SettingsAI() {
   const [temperature, setTemperature] = useState<number>(DEFAULTS.llmTemperature)
   const [collection, setCollection] = useState<string>(DEFAULTS.ragCollection)
   const [embeddingModel, setEmbeddingModel] = useState<string>(DEFAULTS.embeddingModel)
-  const [templates, setTemplates] = useState<TemplateRow[]>(DEFAULT_TEMPLATES)
+  // 内置模板清单：只用于展示（开关已删除，见下方渲染处的说明）
+  const templates: TemplateRow[] = DEFAULT_TEMPLATES
 
   // ===== UI 状态 =====
   const [showApiKey, setShowApiKey] = useState(false)
@@ -128,35 +129,16 @@ export default function SettingsAI() {
       try {
         const [
           mt, tp, col, em,
-          tg, tk, tp2, td,
         ] = await Promise.all([
           api.settings.get('llmMaxTokens'),
           api.settings.get('llmTemperature'),
           api.settings.get('ragCollection'),
           api.settings.get('embeddingModel'),
-          api.settings.get('promptTemplateGeneralEnabled'),
-          api.settings.get('promptTemplateKnowledgeEnabled'),
-          api.settings.get('promptTemplatePracticeEnabled'),
-          api.settings.get('promptTemplateDiscussionEnabled'),
         ])
         setMaxTokens(asNumber(mt, DEFAULTS.llmMaxTokens))
         setTemperature(asNumber(tp, DEFAULTS.llmTemperature))
         setCollection(asString(col, DEFAULTS.ragCollection))
         setEmbeddingModel(asString(em, DEFAULTS.embeddingModel))
-        setTemplates((prev) =>
-          prev.map((t) => {
-            const flagMap: Record<string, unknown> = {
-              general: tg,
-              knowledge: tk,
-              practice: tp2,
-              discussion: td,
-            }
-            const flag = flagMap[t.id]
-            if (flag === true || flag === 'true') return { ...t, enabled: true }
-            if (flag === false || flag === 'false') return { ...t, enabled: false }
-            return t
-          }),
-        )
       } catch {
         /* 静默：保持默认值 */
       }
@@ -186,10 +168,6 @@ export default function SettingsAI() {
       window.electronAPI.settings.set('llmTemperature', temperature),
       window.electronAPI.settings.set('ragCollection', collection),
       window.electronAPI.settings.set('embeddingModel', embeddingModel),
-      window.electronAPI.settings.set('promptTemplateGeneralEnabled', templates[0].enabled),
-      window.electronAPI.settings.set('promptTemplateKnowledgeEnabled', templates[1].enabled),
-      window.electronAPI.settings.set('promptTemplatePracticeEnabled', templates[2].enabled),
-      window.electronAPI.settings.set('promptTemplateDiscussionEnabled', templates[3].enabled),
     ])
     // 2. 调 store.saveSettings（含 llmEndpoint/llmKey/llmModel + ai.setConfig + weread.setApiKey）
     await saveSettings()
@@ -198,7 +176,6 @@ export default function SettingsAI() {
     temperature,
     collection,
     embeddingModel,
-    templates,
     saveSettings,
   ])
 
@@ -259,14 +236,15 @@ export default function SettingsAI() {
 
   // ===== 重置默认 =====
   const handleReset = useCallback(() => {
+    // 破坏性操作先确认；并且**不再清空 API Key** ——
+    // 原来这里 setLlmKey('')，用户重置后随手点「保存配置」就会把已存的 Key 覆盖成空字符串。
+    if (!window.confirm('确定恢复默认配置？（不会动已保存的 API Key）')) return
     setLlmEndpoint(DEFAULTS.llmEndpoint)
-    setLlmKey('')
     setLlmModel(DEFAULTS.llmModel)
     setMaxTokens(DEFAULTS.llmMaxTokens)
     setTemperature(DEFAULTS.llmTemperature)
     setCollection(DEFAULTS.ragCollection)
     setEmbeddingModel(DEFAULTS.embeddingModel)
-    setTemplates(DEFAULT_TEMPLATES)
     setConnStatus('idle')
     setShowApiKey(false)
     toast.info('已恢复默认值，请点击「保存配置」生效')
@@ -275,11 +253,6 @@ export default function SettingsAI() {
     setLlmKey,
     setLlmModel,
   ])
-
-  // ===== 模板 toggle =====
-  const toggleTemplate = useCallback((id: string) => {
-    setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, enabled: !t.enabled } : t)))
-  }, [])
 
   // ===== 加载自定义模板列表 =====
   const loadCustomTemplates = useCallback(async () => {
@@ -723,21 +696,15 @@ export default function SettingsAI() {
                     </strong>
                     <Tiny>{t.desc}</Tiny>
                   </div>
-                  <div
-                    className="template-actions"
-                    style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', flexShrink: 0 }}
+                  {/* 这四个开关已删除（2026-09-16）：它们写入 settings 的 promptTemplateXxxEnabled，
+                      而 electron/ 全目录**没有任何读取方** —— 关掉对 AI 毫无影响，是纯形式控件。
+                      要做就得先在主进程按开关筛选提示词模板。 */}
+                  <span
+                    style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', flexShrink: 0 }}
+                    title="内置模板始终可用，无法单独关闭"
                   >
-                    <button
-                      className="toggle"
-                      type="button"
-                      data-on={t.enabled}
-                      onClick={() => toggleTemplate(t.id)}
-                      data-dom-id={`toggle-template-${t.id}`}
-                      aria-label={`启用${t.name}模板`}
-                      aria-pressed={t.enabled}
-                      title={t.enabled ? `当前已启用，点击禁用「${t.name}」` : `当前已禁用，点击启用「${t.name}」`}
-                    />
-                  </div>
+                    内置
+                  </span>
                 </div>
               ))}
               {customTemplates.map((t) => (
