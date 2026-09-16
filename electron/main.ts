@@ -13,6 +13,7 @@ import { initRepositoryFactory } from './repositories';
 import { initVectorDb, createCollection } from './services/vector-db';
 import { initFromAIConfig as initEmbedding } from './services/embedding-service';
 import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
+import { runStartupRepair } from './services/startup-repair';
 import { knowledgeCardService } from './services/knowledge-card-service';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
@@ -284,6 +285,10 @@ if (!app.requestSingleInstanceLock()) {
 
       createMenu();
       createWindow();
+
+      // 启动后自动修复历史数据缺口（卡片来源 / 划线章节名 / 阅读时长）。
+      // 不 await：后两项要走微信读书网络，不能拖慢窗口出现。详见 services/startup-repair.ts
+      void runStartupRepair();
     } catch (error) {
       logger.error('Failed to initialize app', error);
       app.quit();
