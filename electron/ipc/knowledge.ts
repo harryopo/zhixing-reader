@@ -1,16 +1,16 @@
 /**
- * ipc/knowledge — 方法论 / 知识卡片 / 书籍架构 / Skill 生成 handlers
+ * ipc/knowledge — 方法论 / 知识卡片 / Skill 生成 handlers
  * 从原 ipc.ts 拆分而来，逻辑保持不变。
  */
 import * as fs from 'fs';
 import { dialog, BrowserWindow } from 'electron';
-import { methodologiesDb, knowledgeCardsDb, bookArchitectureDb, highlightsDb } from '../database';
+import { methodologiesDb, knowledgeCardsDb, highlightsDb } from '../database';
 import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { knowledgeCardService } from '../services/knowledge-card-service';
 import { fetchAllContent } from '../weread-api';
 import { resolveWereadContent } from '../../src/shared/weread-content';
-import { extractMethodologies, analyzeBookArchitecture, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch } from '../ai-service';
+import { extractMethodologies, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch } from '../ai-service';
 import type { HandleFn } from './types';
 
 /**
@@ -193,38 +193,6 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GENERATE_APPLICATION, async (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) => {
     const text = await generateCardApplication(bookTitle, cardTitle, cardContent, cardType);
     return { text };
-  });
-
-  handle(IPC_CHANNELS.BOOK_ARCHITECTURE.GET_BY_BOOK, (bookId: string) => bookArchitectureDb.getByBookId(bookId));
-  handle(IPC_CHANNELS.BOOK_ARCHITECTURE.CREATE, (architecture: Record<string, unknown>) => {
-    const id = (architecture.id as string) || `arch_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    bookArchitectureDb.create({ ...architecture, id });
-    return { id };
-  });
-  handle(IPC_CHANNELS.BOOK_ARCHITECTURE.UPDATE, (id: string, architecture: Record<string, unknown>) => bookArchitectureDb.update(id, architecture));
-  handle(IPC_CHANNELS.BOOK_ARCHITECTURE.DELETE, (id: string) => bookArchitectureDb.delete(id));
-  handle(IPC_CHANNELS.BOOK_ARCHITECTURE.ANALYZE, async (bookId: string, bookTitle: string) => {
-    const highlights = highlightsDb.getByBookId(bookId);
-    if (!highlights || highlights.length === 0) {
-      throw new Error('该书没有笔记，无法分析架构');
-    }
-    const mappedHighlights = highlights.map(h => ({
-      content: String(h.content || ''),
-      note: h.note ? String(h.note) : undefined,
-      chapterTitle: h.chapter_title ? String(h.chapter_title) : undefined,
-    }));
-    const architecture = await analyzeBookArchitecture(mappedHighlights, bookTitle);
-    const id = `arch_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    bookArchitectureDb.create({
-      id,
-      book_id: bookId,
-      core_proposition: architecture.coreProposition,
-      cognitive_framework: architecture.cognitiveFramework,
-      methodology_architecture: architecture.methodologyArchitecture,
-      knowledge_hierarchy: architecture.knowledgeHierarchy,
-      target_audience: architecture.targetAudience,
-    });
-    return { id, ...architecture };
   });
 
   handle(IPC_CHANNELS.SKILL.GENERATE, async (methodologyId: string, bookTitle: string, _author?: string) => {

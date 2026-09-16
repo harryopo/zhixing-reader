@@ -14,7 +14,6 @@ import {
   Memory,
   Vocabulary,
   Article,
-  BookArchitecture,
   BookSummary,
   DailyStats,
   TokenUsage,
@@ -160,15 +159,6 @@ export interface IArticleRepository extends IBaseRepository<Article> {
   findFavorites(): Article[]
   markAsRead(id: string): void
   toggleFavorite(id: string): void
-}
-
-// ============================================================================
-// 书籍架构 Repository
-// ============================================================================
-
-export interface IBookArchitectureRepository extends IBaseRepository<BookArchitecture> {
-  findByBookId(bookId: string): BookArchitecture | null
-  upsertByBookId(bookId: string, data: Partial<BookArchitecture>): void
 }
 
 // ============================================================================

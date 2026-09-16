@@ -192,6 +192,15 @@ export function initializeSchema(db: import('sql.js').Database): void {
     );
   `);
 
+  /**
+   * 【已废弃 · 2026-09-16】
+   *
+   * book_architecture 整条链路（表 / 5 个 IPC 通道 / repository / AI 分析方法 / 提示词模板）
+   * 已于 2026-09-16 全部删除：渲染层零引用、实测该表 0 行，属于典型的死代码。
+   *
+   * 表本身**保留**：删表需要写迁移，而收益只有一个空表；留着并在 README/AGENTS 里标注废弃更稳。
+   * 它仍在 resetDatabase 的清表清单里（见本文件下方的表名数组）。
+   */
   db.run(`
     CREATE TABLE IF NOT EXISTS book_architecture (
       id TEXT PRIMARY KEY,

@@ -408,14 +408,6 @@ const electronAPI = {
     },
   },
 
-  bookArchitecture: {
-    getByBook: (bookId: string) => invoke(IPC_CHANNELS.BOOK_ARCHITECTURE.GET_BY_BOOK, bookId),
-    create: (data: Record<string, unknown>) => invoke(IPC_CHANNELS.BOOK_ARCHITECTURE.CREATE, data),
-    update: (id: string, data: Record<string, unknown>) => invoke(IPC_CHANNELS.BOOK_ARCHITECTURE.UPDATE, id, data),
-    delete: (id: string) => invoke(IPC_CHANNELS.BOOK_ARCHITECTURE.DELETE, id),
-    analyze: (bookId: string, bookTitle: string) => invoke(IPC_CHANNELS.BOOK_ARCHITECTURE.ANALYZE, bookId, bookTitle),
-  },
-
   skill: {
     generate: (methodologyId: string, bookTitle: string, author?: string) =>
       invoke(IPC_CHANNELS.SKILL.GENERATE, methodologyId, bookTitle, author),

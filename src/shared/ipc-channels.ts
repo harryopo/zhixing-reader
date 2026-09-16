@@ -185,13 +185,6 @@ export const IPC_CHANNELS = {
     /** 一次性找回历史卡片的来源划线（2026-09-16：实测 90 张来源全空） */
     BACKFILL_SOURCE: 'knowledgeCards:backfillSource',
   },
-  BOOK_ARCHITECTURE: {
-    GET_BY_BOOK: 'bookArchitecture:getByBook',
-    CREATE: 'bookArchitecture:create',
-    UPDATE: 'bookArchitecture:update',
-    DELETE: 'bookArchitecture:delete',
-    ANALYZE: 'bookArchitecture:analyze',
-  },
   ARTICLES: {
     GET_ALL: 'articles:getAll',
     GET_BY_ID: 'articles:getById',

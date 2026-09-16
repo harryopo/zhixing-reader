@@ -45,7 +45,6 @@ import {
   chatWithContext,
   explainHighlight,
   extractMethodologies,
-  analyzeBookArchitecture,
   distillKnowledgeCards,
   generateCardInterpretation,
   generateCardApplication,
@@ -508,33 +507,6 @@ describe('extractMethodologies', () => {
   })
 })
 
-describe('analyzeBookArchitecture', () => {
-  it('20. 正常返回书籍架构对象', async () => {
-    const arch = {
-      coreProposition: '核心命题',
-      cognitiveFramework: { layer1: '认知层' },
-      methodologyArchitecture: { methods: ['m1'] },
-      knowledgeHierarchy: { level: 3 },
-      targetAudience: '目标读者',
-    }
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify(arch)))
-
-    const result = await analyzeBookArchitecture(
-      [{ content: 'highlight', note: 'note', chapterTitle: 'ch' }],
-      'test-book-arch-1'
-    )
-
-    expect(result.coreProposition).toBe('核心命题')
-    expect(result.targetAudience).toBe('目标读者')
-    expect(result.cognitiveFramework).toEqual({ layer1: '认知层' })
-    expect(result.methodologyArchitecture).toEqual({ methods: ['m1'] })
-    expect(result.knowledgeHierarchy).toEqual({ level: 3 })
-  })
-
-  it('21. 空 highlights 抛错', async () => {
-    await expect(analyzeBookArchitecture([], 'empty')).rejects.toThrow('No highlights')
-  })
-})
 
 describe('distillKnowledgeCards', () => {
   it('22. 单批蒸馏正常返回卡片（highlights ≤ batchSize）', async () => {

@@ -11,7 +11,6 @@ import {
   conversationDb,
   methodologiesDb,
   knowledgeCardsDb,
-  bookArchitectureDb,
   articlesDb,
   vocabularyDb,
   memoriesDb,
@@ -719,25 +718,6 @@ describe('database-integration — sql.js 集成测试', () => {
     })
   })
 
-
-  describe('bookArchitectureDb CRUD', () => {
-    it('应创建并查询架构', async () => {
-      booksDb.create({ id: 'book_1', title: 'Book' } as any)
-      bookArchitectureDb.create({
-        id: 'arch_1',
-        book_id: 'book_1',
-        core_proposition: 'Core',
-        cognitive_framework: { key: 'value' },
-        methodology_architecture: ['m1', 'm2'],
-        knowledge_hierarchy: ['k1', 'k2'],
-        target_audience: 'Audience',
-      } as any)
-
-      const arch = bookArchitectureDb.getById('arch_1')
-      expect(arch).toBeDefined()
-      expect((arch as any).core_proposition).toBe('Core')
-    })
-  })
 
   describe('articlesDb CRUD', () => {
     it('应创建并查询文章', async () => {

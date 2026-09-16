@@ -320,13 +320,6 @@ export interface ElectronAPI {
     generateApplication: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) => Promise<{ text: string }>
     onDistillProgress?: (callback: (progress: { bookId: string; current: number; total: number; stage: string }) => void) => (() => void)
   }
-  bookArchitecture: {
-    getByBook: (bookId: string) => Promise<unknown>
-    create: (data: Record<string, unknown>) => Promise<unknown>
-    update: (id: string, data: Record<string, unknown>) => Promise<unknown>
-    delete: (id: string) => Promise<void>
-    analyze: (bookId: string, bookTitle: string) => Promise<unknown>
-  }
   skill: {
     generate: (methodologyId: string, bookTitle: string, author?: string) => Promise<unknown>
     exportBatch: (methodologyIds: string[], bookTitle: string, author?: string) => Promise<unknown>

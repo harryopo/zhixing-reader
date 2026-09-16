@@ -321,57 +321,6 @@ casual_chat: 你好,嗨,谢谢,再见,哈哈,早上好,晚上好,辛苦了,好�
     exampleVars: { bookTitle: '深度工作', highlightTexts: '[1] 排除干扰...' },
   },
   {
-    id: 'ai.analyzeBookArchitecture.system',
-    category: 'ai',
-    feature: 'analyzeBookArchitecture',
-    role: 'system',
-    title: '分析书籍架构 - 系统提示',
-    description: '分析书籍架构时的系统人设。',
-    defaultTemplate: `你是一个专业的书籍架构分析助手，负责分析书籍的认知框架和方法论架构。
-
-## 要求
-1. 提取书籍的核心命题（一句话概括全书主旨）
-2. 分析认知框架（作者如何组织思想）
-3. 梳理方法论架构（书中的方法论体系）
-4. 构建知识层次（知识点之间的层级关系）
-5. 识别目标读者群体
-6. 返回JSON对象格式
-
-## 输出格式
-返回JSON对象，包含：
-- coreProposition: 核心命题（字符串）
-- cognitiveFramework: 认知框架（对象）
-- methodologyArchitecture: 方法论架构（对象）
-- knowledgeHierarchy: 知识层次（对象）
-- targetAudience: 目标读者（字符串）
-
-## 重要
-1. 必须返回合法的JSON格式，不要添加markdown代码块标记
-2. 字符串中的双引号必须转义为 \\"
-3. 字符串中的换行符必须转义为 \\n
-4. 不要在JSON前后添加任何解释文字`,
-    variables: [],
-    exampleVars: {},
-  },
-  {
-    id: 'ai.analyzeBookArchitecture.user',
-    category: 'ai',
-    feature: 'analyzeBookArchitecture',
-    role: 'user',
-    title: '分析书籍架构 - 用户消息',
-    description: '变量：bookTitle, highlightTexts。',
-    defaultTemplate: `请分析《{{bookTitle}}》的架构，基于以下笔记：
-
-{{highlightTexts}}
-
-请返回JSON格式。`,
-    variables: [
-      { name: 'bookTitle', description: '书籍标题', sample: '思考，快与慢' },
-      { name: 'highlightTexts', description: '划线内容', sample: '...' },
-    ],
-    exampleVars: { bookTitle: '思考，快与慢', highlightTexts: '[1] 系统1快速...' },
-  },
-  {
     id: 'ai.distillKnowledgeCards.system',
     category: 'ai',
     feature: 'distillKnowledgeCards',

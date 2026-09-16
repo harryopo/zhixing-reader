@@ -848,54 +848,8 @@ export async function extractMethodologies(
   }
 }
 
-export interface BookArchitectureResult {
-  coreProposition?: string
-  cognitiveFramework?: Record<string, unknown>
-  methodologyArchitecture?: Record<string, unknown>
-  knowledgeHierarchy?: Record<string, unknown>
-  targetAudience?: string
-}
-
-export async function analyzeBookArchitecture(
-  highlights: Array<{ content: string; note?: string; chapterTitle?: string }>,
-  bookTitle: string
-): Promise<BookArchitectureResult> {
-  if (!highlights || highlights.length === 0) {
-    throw new Error('No highlights provided for architecture analysis')
-  }
-
-  const highlightTexts = highlights.map((h, i) =>
-    `[${i + 1}] ${h.chapterTitle ? `(${h.chapterTitle}) ` : ''}${h.content}${h.note ? `\n笔记: ${h.note}` : ''}`
-  ).join('\n\n')
-
-  const messages = buildMessages('analyzeBookArchitecture', '', {
-    bookTitle,
-    highlightTexts,
-  })
-
-  const startTime = Date.now()
-  try {
-    const response = await callAI(messages)
-    const durationMs = Date.now() - startTime
-
-    if (response.usage) {
-      recordTokenUsage('analyzeBookArchitecture', response.usage, durationMs)
-    }
-
-    const result = extractAndParseJSON<Record<string, unknown>>(response.content, false)
-
-    return {
-      coreProposition: typeof result.coreProposition === 'string' ? result.coreProposition.trim() : undefined,
-      cognitiveFramework: typeof result.cognitiveFramework === 'object' && result.cognitiveFramework !== null ? result.cognitiveFramework as Record<string, unknown> : undefined,
-      methodologyArchitecture: typeof result.methodologyArchitecture === 'object' && result.methodologyArchitecture !== null ? result.methodologyArchitecture as Record<string, unknown> : undefined,
-      knowledgeHierarchy: typeof result.knowledgeHierarchy === 'object' && result.knowledgeHierarchy !== null ? result.knowledgeHierarchy as Record<string, unknown> : undefined,
-      targetAudience: typeof result.targetAudience === 'string' ? result.targetAudience.trim() : undefined,
-    }
-  } catch (error) {
-    logger.error('Failed to analyze book architecture', error)
-    throw error
-  }
-}
+// analyzeBookArchitecture 已删除（2026-09-16）：book_architecture 全链路是死代码
+// （表 0 行、渲染层零引用），按 B11「能砍则砍」整条移除。
 
 export interface DistilledKnowledgeCard {
   type: 'concept' | 'methodology' | 'quote'

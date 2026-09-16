@@ -36,7 +36,6 @@ export type {
   IMemoryRepository,
   IVocabularyRepository,
   IArticleRepository,
-  IBookArchitectureRepository,
   IBookSummaryRepository,
   IDailyStatsRepository,
   ITokenUsageRepository,

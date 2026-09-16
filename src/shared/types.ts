@@ -334,14 +334,3 @@ export interface KnowledgeCard {
   updatedAt: Date
 }
 
-export interface BookArchitecture {
-  id: string
-  bookId: string
-  coreProposition?: string
-  cognitiveFramework?: Record<string, unknown>
-  methodologyArchitecture?: Record<string, unknown>
-  knowledgeHierarchy?: Record<string, unknown>
-  targetAudience?: string
-  createdAt: Date
-  updatedAt: Date
-}

@@ -166,17 +166,6 @@ export interface Article {
   sourceWebsite?: string
 }
 
-export interface BookArchitecture {
-  id: string
-  bookId: string
-  coreProposition?: string
-  cognitiveFramework?: string
-  methodologyArchitecture?: string
-  knowledgeHierarchy?: string
-  targetAudience?: string
-  createdAt: string
-  updatedAt: string
-}
 
 export interface BookSummary {
   id: string

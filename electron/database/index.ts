@@ -7,7 +7,7 @@
  *   books.ts / highlights.ts / cards.ts / reviews.ts / summaries.ts
  *   daily-stats.ts / token-usage.ts / conversations.ts
  *   articles.ts / vocabulary.ts / methodologies.ts
- *   knowledge-cards.ts / book-architecture.ts / memories.ts
+ *   knowledge-cards.ts / memories.ts
  *
  * 对外 API 与拆分前完全一致，所有 `from '<...>/database'` 导入无需改动。
  */
@@ -45,5 +45,4 @@ export { articlesDb } from './articles';
 export { vocabularyDb } from './vocabulary';
 export { methodologiesDb } from './methodologies';
 export { knowledgeCardsDb } from './knowledge-cards';
-export { bookArchitectureDb } from './book-architecture';
 export { memoriesDb } from './memories';
