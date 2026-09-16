@@ -10,8 +10,6 @@ import { logger } from './logger';
 import { settingsService } from './services/settings-service';
 import { getDatabase } from './database/connection';
 import { initRepositoryFactory } from './repositories';
-import { initVectorDb, createCollection } from './services/vector-db';
-import { initFromAIConfig as initEmbedding } from './services/embedding-service';
 import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
 import { runStartupRepair } from './services/startup-repair';
 import { knowledgeCardService } from './services/knowledge-card-service';
@@ -262,26 +260,11 @@ if (!app.requestSingleInstanceLock()) {
         logger.warn('Failed to start WeRead auto-sync timer', e);
       }
 
-      // 初始化本地向量数据库（Vectra，打包后可用）+ Embedding 服务
-      // Vectra 是纯 TS 文件存储，不依赖外部服务，永远可用
-      try {
-        await initVectorDb();
-        await createCollection();
-        logger.info('Vectra local index initialized');
-
-        // 初始化 Embedding 服务（仍用 OpenAI API；用户已配 llmKey）
-        if (settings.llmKey) {
-          initEmbedding({
-            apiKey: settings.llmKey as string,
-            baseUrl: (settings.llmEndpoint as string) || undefined,
-          });
-          logger.info('Embedding service initialized');
-        } else {
-          logger.warn('llmKey not configured, semantic search will be unavailable');
-        }
-      } catch (vectorErr) {
-        logger.warn('Vectra initialization failed, RAG features disabled', vectorErr);
-      }
+      // 向量语义检索已于 2026-09-16 整套移除（Vectra + embeddings）：
+      // 用户的 AI 服务商没有 /embeddings 接口，索引自始至终是空的（79 字节 / 0 条向量），
+      // 而它的失败是静默的 —— AI 带着零条书籍上下文回答，日志还写着"用了语义检索"。
+      // 现在书籍上下文走本地 BM25 检索（services/rag-service.ts → src/shared/retrieval.ts），
+      // 不需要任何初始化，也不需要网络。
 
       createMenu();
       createWindow();

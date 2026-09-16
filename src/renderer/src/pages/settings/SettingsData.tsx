@@ -674,7 +674,8 @@ export default function SettingsData() {
   // ===== 派生值 =====
   const totalUsageMb = useMemo(() => {
     if (!storageUsage) return null
-    const parts = [storageUsage.dbBytes, storageUsage.vectorBytes, storageUsage.logBytes]
+    // 只统计真正会被应用继续写入的部分（向量库目录已废弃，不再计入总量）
+    const parts = [storageUsage.dbBytes, storageUsage.logBytes]
     if (parts.some((p) => p === null)) return null
     return (parts as number[]).reduce((s, p) => s + p, 0) / 1024 / 1024
   }, [storageUsage])
@@ -838,7 +839,7 @@ export default function SettingsData() {
                 className="kpi-grid"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
                   gap: 'calc(var(--spacing) * 4)',
                   marginBottom: 'calc(var(--spacing) * 5)',
                 }}
@@ -863,16 +864,8 @@ export default function SettingsData() {
                   </span>
                   <div className="tiny">运行日志 · 可在「清理缓存」下查看路径</div>
                 </div>
-                <div className="kpi-card" data-accent="3">
-                  <span className="kpi-accent" aria-hidden="true"></span>
-                  <div className="eyebrow">向量库大小</div>
-                  <span className="kpi-value">
-                    {formatSize(storageUsage?.vectorBytes ?? null).value}
-                    <span className="unit">{formatSize(storageUsage?.vectorBytes ?? null).unit}</span>
-                  </span>
-                  <div className="tiny">Vectra 本地索引</div>
-                </div>
-              </div>
+                {/* 「向量库大小」这一格已删除：Vectra 语义检索 2026-09-16 整套移除，
+                    那个目录不会再增长，继续显示只会让人以为还有这个功能。 */}              </div>
               <div className="usage-bar-wrap" style={{ marginTop: 'calc(var(--spacing) * 3)' }}>
                 <div
                   className="usage-bar-head"

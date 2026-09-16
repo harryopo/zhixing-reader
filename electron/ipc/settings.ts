@@ -13,7 +13,12 @@ import { refreshWereadAutoSyncTimer } from '../weread-sync-manager';
 import { logger } from '../logger';
 import type { HandleFn } from './types';
 
-/** 向量索引目录名（与 services/vector-db.ts 的 INDEX_FOLDER_NAME 保持一致） */
+/**
+ * 向量索引目录名（**遗留**）。
+ *
+ * Vectra 语义检索已于 2026-09-16 整套移除，这个目录不会再被写入；
+ * 这里仍然量它的大小，只是为了让老用户的磁盘占用看得见（不显示在界面上了）。
+ */
 const VECTOR_INDEX_DIR = 'vectra-index';
 
 export function registerSettingsHandlers(handle: HandleFn): void {

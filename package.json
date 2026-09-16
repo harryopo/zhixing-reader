@@ -34,7 +34,6 @@
     "remark-gfm": "^4.0.1",
     "sql.js": "^1.14.1",
     "ts-fsrs": "^5.4.1",
-    "vectra": "^0.15.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.0"
   },
@@ -85,7 +84,6 @@
       "node_modules/follow-redirects/**",
       "node_modules/form-data/**",
       "node_modules/proxy-from-env/**",
-      "node_modules/vectra/**",
       "node_modules/uuid/**",
       "node_modules/wink-bm25-text-search/**",
       "node_modules/wink-nlp/**",
