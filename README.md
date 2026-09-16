@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-888%20%E7%94%A8%E4%BE%8B%20/%2041%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-880%20%E7%94%A8%E4%BE%8B%20/%2042%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
 
 ---
@@ -29,8 +29,8 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 52,000+ 行 TypeScript strict 代码 |
-| **测试覆盖** | 888 用例 / 41 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
-| **存储** | sql.js (SQLite WASM) · 15 张表 · Vectra 本地向量索引 |
+| **测试覆盖** | 880 用例 / 42 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
+| **存储** | sql.js (SQLite WASM) · 15 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
 | **打包** | electron-builder → Windows NSIS 安装包（**125MB**）|
@@ -47,14 +47,14 @@
 | **1** | **方法论自动注入 Agent**（行业首创） | AI 回答时自动引用书中方法论，实时追踪掌握度 | mastery_level 追踪 |
 | **2** | **5 维 ContextBuilder**（预算制懒加载） | 书籍/方法论/卡片/记忆/画像 5 维按需注入 | **Token 节省 33%-55%** |
 | **3** | **FSRS-6.0 同源科学记忆引擎** | 集成 ts-fsrs 5.4.1（该版本实现的即 **FSRS-6.0**，Anki 24.06+ 同源），DSR 三变量模型 | 目标保持率 0.9 可配置；对 SM-2 的优势见 [FSRS 基准测试](https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm)（**非本项目实测**）|
-| **4** | **本地优先架构 · 数据主权还给用户** | sql.js + Vectra + safeStorage 三重本地化，零遥测 | AI 直连不过中转 |
+| **4** | **本地优先架构 · 数据主权还给用户** | sql.js + 本地检索 + safeStorage 三重本地化，零遥测 | AI 直连不过中转 |
 | **5** | **多模型深度思考归一化 + ECDICT 离线词典** | DeepSeek / OpenAI / Anthropic 推理格式统一 + 15.0MB 离线词典 | 多模型无感切换 / 59,118 词条 |
 
 ### 5 维 ContextBuilder 详细预算
 
 | 优先级 | 构建器 | 数据源 | Token 预算 |
 |--------|--------|--------|------------|
-| 90 | 书籍内容 | Vectra 语义搜索 → 关键词回退 | 1500 |
+| 90 | 书籍内容 | 本地 BM25 检索（中文 2 字滑窗，命中用户自己的划线）| 1500 |
 | 80 | 方法论 | 相关性评分 Top 5 | 1000 |
 | 70 | 知识卡片 | 相关性评分 Top 10 | 800 |
 | 50 | 长期记忆 | 相关记忆 3 条 + 摘要 | 500 |
@@ -84,7 +84,7 @@
 | 13 | 个人中心 | `/profile` | 阅读画像 + 微信读书资料继承 |
 | 14 | 设置 | `/settings` | AI 多服务商热切换 + 数据导入导出 |
 | 15 | 智能体编排 | `/settings/agent` | 六步流水线可视化 + 意图/策略矩阵 + 提示词模板（设置子页） |
-| 16 | RAG 知识库 | 设置/对话内 | Vectra 本地向量索引 + 语义检索 + 文档溯源 |
+| 16 | 划线检索 | 设置/对话内 | 本地 BM25 检索（零依赖零网络）+ 引用来源溯源 |
 
 ---
 
@@ -131,13 +131,13 @@
 | **样式** | Tailwind CSS | 4.x | 原子化 CSS + PostCSS + 设计 Token |
 | **状态** | Zustand | 5.x | 轻量（< 3KB）、hooks-first |
 | **数据库** | sql.js | 1.14 | SQLite WASM，跨平台一致 |
-| **向量索引** | Vectra | 0.15 | 纯 TS 本地向量库 |
+| **检索** | 自研 BM25 | - | 纯 TS 倒排索引 + 中文 2 字滑窗，零依赖零网络 |
 | **间隔重复** | **ts-fsrs** | **5.4.1** | **FSRS-6.0 DSR（21 组权重），与 Anki 24.06+ 同源** |
 | **AI SDK** | Vercel AI SDK + 自研 SSE | 7.x | 多服务商统一接口 + 流式 + 深度思考归一化 |
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 2.x | 888 用例 / 41 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 2.x | 880 用例 / 42 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 25.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -145,7 +145,7 @@
 
 ## 六、系统架构
 
-**五层架构**：Renderer（React SPA）→ Preload（contextBridge 安全桥）→ IPC（12 个领域 handler）→ Service/Agent（RAG / FSRS / 智能体编排）→ Data（sql.js + Vectra + safeStorage）。
+**五层架构**：Renderer（React SPA）→ Preload（contextBridge 安全桥）→ IPC（12 个领域 handler）→ Service/Agent（RAG / FSRS / 智能体编排）→ Data（sql.js + safeStorage）。
 
 **Agent 编排**：六步流水线 = 意图分类 → 策略选择 → 难度适配 → 5 维上下文构建 → 提示组装 → 流式生成。
 
@@ -197,7 +197,7 @@ zhixing-reader/
 │   │   ├── system-prompt.ts                 # 4 段动态拼装
 │   │   └── builders/                        # 5 个 ContextBuilder
 │   ├── repositories/                        # 仓储层
-│   ├── services/                            # 业务服务（RAG / 记忆 / 嵌入）
+│   ├── services/                            # 业务服务（RAG / 记忆 / 知识卡片 / 启动修复）
 │   └── types/                               # 实体类型
 ├── src/renderer/                            # Renderer 进程（React）
 │   └── src/
@@ -207,7 +207,7 @@ zhixing-reader/
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
 ├── src/shared/                              # 跨进程共享（类型 + IPC 通道常量）
-├── tests/                                   # Vitest 单元测试（888 用例 / 41 文件）
+├── tests/                                   # Vitest 单元测试（880 用例 / 42 文件）
 ├── resources/
 │   ├── dictionary.json                      # ECDICT 15.0MB / 59,118 词条
 │   ├── icon.ico / icon.png
@@ -232,9 +232,9 @@ zhixing-reader/
 | 冷启动 → 主页可交互 | **< 1.0s** | 三进程预加载 |
 | 路由懒加载（Code Splitting） | **80ms/页** | Vite manualChunks |
 | 词典首次加载 | **150ms** | 15.0MB JSON → 内存 |
-| 向量索引首次构建 | **200-500ms** | 取决于划线数 |
+| 检索索引首次构建 | **200-500ms** | 取决于划线数（实测 934 条划线 → 15,927 词项）|
 | 意图分类 | **1-5ms** | 本地关键词打分 |
-| 5 维上下文构建 | **50-200ms** | RAG 优先 + 关键词回退 |
+| 5 维上下文构建 | **50-200ms** | 本地检索优先，其余构建器按预算懒加载 |
 | **Agent 本地决策合计** | **52-207ms** | 步骤 ①-⑤ 全本地 |
 | AI 流式首 token | **500-2000ms** | 取决于服务商 |
 | 后续 token 速率 | **30-80 token/s** | 中文 |
@@ -249,7 +249,7 @@ zhixing-reader/
 | 微信读书同步数据 | 本地 SQLite | ❌ 否 |
 | AI 请求上下文 | 发送至用户自选的 AI 服务商 | ✅ 仅此一项，**直连不过中转** |
 | 系统生成（卡片/方法论/记忆） | 本地 SQLite | ❌ 否 |
-| 向量索引 | Vectra 本地文件 | ❌ 否 |
+| 检索索引 | 内存构建，不落盘 | ❌ 否 |
 | API Key | safeStorage 加密 | ❌ 否 |
 
 **离线可用场景**：除"微信读书同步"和"AI 对话"外，复习 / 笔记 / 卡片 / 词典 / 生词本全部离线可用。
@@ -334,7 +334,6 @@ npm run package:win
 | ts-fsrs（官方）| https://github.com/open-spaced-repetition/ts-fsrs |
 | FSRS 算法论文 | https://github.com/open-spaced-repetition/fsrs4anki |
 | Anki FSRS 插件 | https://docs.ankiweb.net/deck-options.html#fsrs |
-| Vectra 向量库 | https://github.com/Stevenic/vectra |
 | sql.js | https://github.com/sql-js/sql.js |
 | Vercel AI SDK | https://sdk.vercel.ai/docs |
 | Electron 安全 | https://www.electronjs.org/docs/latest/tutorial/security |
