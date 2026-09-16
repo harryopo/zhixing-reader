@@ -49,10 +49,15 @@ interface StorageUsage {
   logBytes: number | null
 }
 
-/** 字节 → MB 文本；null 表示量不出来 */
-function formatMb(bytes: number | null): string {
-  if (bytes === null || !Number.isFinite(bytes)) return '—'
-  return (bytes / 1024 / 1024).toFixed(1)
+/**
+ * 字节 → 人看的文本；null 表示量不出来。
+ * 小于 0.1 MB 的用 KB 显示 —— 否则向量索引这种"确实有但很小"的目录会显示成 0.0 MB，
+ * 看起来像统计坏了。
+ */
+function formatSize(bytes: number | null): { value: string; unit: string } {
+  if (bytes === null || !Number.isFinite(bytes)) return { value: '—', unit: '' }
+  if (bytes < 1024 * 100) return { value: (bytes / 1024).toFixed(1), unit: 'KB' }
+  return { value: (bytes / 1024 / 1024).toFixed(1), unit: 'MB' }
 }
 
 interface NavItem {
@@ -842,8 +847,8 @@ export default function SettingsData() {
                   <span className="kpi-accent" aria-hidden="true"></span>
                   <div className="eyebrow">数据库大小</div>
                   <span className="kpi-value">
-                    {formatMb(storageUsage?.dbBytes ?? null)}
-                    <span className="unit">MB</span>
+                    {formatSize(storageUsage?.dbBytes ?? null).value}
+                    <span className="unit">{formatSize(storageUsage?.dbBytes ?? null).unit}</span>
                   </span>
                   <div className="tiny">SQLite · {totalRecords.toLocaleString('zh-CN')} 条记录</div>
                 </div>
@@ -853,8 +858,8 @@ export default function SettingsData() {
                       而且应用根本没有磁盘缓存目录（微信读书接口缓存只在内存里）。改成日志目录的真实大小。 */}
                   <div className="eyebrow">日志大小</div>
                   <span className="kpi-value">
-                    {formatMb(storageUsage?.logBytes ?? null)}
-                    <span className="unit">MB</span>
+                    {formatSize(storageUsage?.logBytes ?? null).value}
+                    <span className="unit">{formatSize(storageUsage?.logBytes ?? null).unit}</span>
                   </span>
                   <div className="tiny">运行日志 · 可在「清理缓存」下查看路径</div>
                 </div>
@@ -862,8 +867,8 @@ export default function SettingsData() {
                   <span className="kpi-accent" aria-hidden="true"></span>
                   <div className="eyebrow">向量库大小</div>
                   <span className="kpi-value">
-                    {formatMb(storageUsage?.vectorBytes ?? null)}
-                    <span className="unit">MB</span>
+                    {formatSize(storageUsage?.vectorBytes ?? null).value}
+                    <span className="unit">{formatSize(storageUsage?.vectorBytes ?? null).unit}</span>
                   </span>
                   <div className="tiny">Vectra 本地索引</div>
                 </div>
