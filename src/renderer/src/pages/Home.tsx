@@ -19,6 +19,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny, Muted } from '@/components/ui/Feedback'
 import { mapBooks, mapCards, mapHighlights, safeNum, formatTimeAgo } from '../utils/db-mapper'
+import { describeDailyQueue } from '../../../shared/study-limits'
 
 interface BookRow {
   id: string
@@ -75,6 +76,13 @@ export default function Home() {
   const [books, setBooks] = useState<BookRow[]>([])
   const [dueCards, setDueCards] = useState<CardRow[]>([])
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
+  /** 今日队列构成（复习卡 / 新卡额度），用于把"931 张欠账"翻译成"今天 18 张" */
+  const [queue, setQueue] = useState<{
+    reviewDue: number
+    newAllowance: number
+    newAvailable: number
+    newPerDay: number
+  } | null>(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -84,12 +92,14 @@ export default function Home() {
       return
     }
     try {
-      const [booksRaw, cardsRaw] = await Promise.all([
+      const [booksRaw, cardsRaw, queueRaw] = await Promise.all([
         window.electronAPI.book.getAll(),
         window.electronAPI.card.getDue(50),
+        window.electronAPI.card.getQueueStats?.().catch(() => null) ?? Promise.resolve(null),
       ])
       setBooks(mapBooks(booksRaw as unknown[]) as unknown as BookRow[])
       setDueCards(mapCards(cardsRaw as unknown[]) as unknown as CardRow[])
+      setQueue(queueRaw ?? null)
 
       // 最新划线/笔记（非致命：接口不可用时保持空列表）
       if (window.electronAPI?.highlight?.getAll) {
@@ -441,13 +451,21 @@ export default function Home() {
             <CardHead
               eyebrow="今日待办"
               title="复习队列"
-              action={<Badge>{dueCards.length} 张</Badge>}
+              action={
+                <Badge variant={dueCards.length > 0 ? 'default' : 'ok'}>
+                  {queue ? describeDailyQueue(queue.reviewDue, queue.newAllowance) : `${dueCards.length} 张`}
+                </Badge>
+              }
             />
             {dueCards.length === 0 ? (
               <EmptyState
                 icon={<Icon name="check" size={24} />}
-                title="今日复习已完成"
-                description="所有到期卡片均已复习，明日再来。"
+                title="今天的量已经完成"
+                description={
+                  queue && queue.newAvailable > 0
+                    ? `新卡池还剩 ${queue.newAvailable} 张排队，明天再放 ${queue.newPerDay} 张。`
+                    : '所有到期卡片均已复习，明日再来。'
+                }
               />
             ) : (
               <>
@@ -481,9 +499,17 @@ export default function Home() {
                           >
                             {book?.title || '未关联书籍'}
                           </strong>
-                          <Tiny>已复习 {card.reviewCount} 次 · {overdue > 0 ? `逾期 ${overdue} 天` : '今日到期'}</Tiny>
+                          <Tiny>
+                            {card.reviewCount > 0
+                              ? `已复习 ${card.reviewCount} 次 · ${overdue > 0 ? `逾期 ${overdue} 天` : '今日到期'}`
+                              : '新卡 · 还没学过'}
+                          </Tiny>
                         </div>
-                        {overdue > 0 ? <Badge variant="alert">逾期 {overdue} 天</Badge> : <Badge variant="ok">今日</Badge>}
+                        {card.reviewCount > 0 ? (
+                          overdue > 0 ? <Badge variant="alert">逾期 {overdue} 天</Badge> : <Badge variant="ok">今日</Badge>
+                        ) : (
+                          <Badge variant="default">新卡</Badge>
+                        )}
                       </div>
                     )
                   })}

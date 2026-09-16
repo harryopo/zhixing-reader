@@ -30,6 +30,9 @@ const FSRS_DEFAULTS = {
   maxInterval: 365,
 } as const
 
+/** FSRS 参数配置里新增的「每日学习量」默认值（与 src/shared/study-limits.ts 保持一致） */
+const DEFAULT_NEW_CARDS_PER_DAY = 15
+
 const STORAGE_CAP_MB = 512
 const MOCK_DB_MB = 12.3
 const MOCK_CACHE_MB = 45.2
@@ -139,6 +142,8 @@ export default function SettingsData() {
   const [fsrsMaxInterval, setFsrsMaxInterval] = useState<number>(FSRS_DEFAULTS.maxInterval)
   const [fsrsDirty, setFsrsDirty] = useState<boolean>(false)
   const [fsrsSaving, setFsrsSaving] = useState<boolean>(false)
+  /** 每日新卡上限：0 = 暂停新卡（只复习已学过的） */
+  const [newCardsPerDay, setNewCardsPerDay] = useState<number>(DEFAULT_NEW_CARDS_PER_DAY)
 
   // ===== KPI 与用量数据 =====
   const [loading, setLoading] = useState<boolean>(true)
@@ -152,11 +157,12 @@ export default function SettingsData() {
       if (!api) return
       try {
         // 1. UI 值（settings.get）
-        const [lv, dc, mi, lastExp] = await Promise.all([
+        const [lv, dc, mi, lastExp, ncpd] = await Promise.all([
           api.settings.get('fsrsRequestLevel'),
           api.settings.get('fsrsDifficultyDecay'),
           api.settings.get('fsrsMaxInterval'),
           api.settings.get('lastDataExportAt'),
+          api.settings.get('newCardsPerDay'),
         ])
         const level = asNumber(lv, FSRS_DEFAULTS.level)
         const decay = asNumber(dc, FSRS_DEFAULTS.decay)
@@ -165,6 +171,7 @@ export default function SettingsData() {
         setFsrsDecay(decay)
         setFsrsMaxInterval(maxInterval)
         setLastExportAt(asString(lastExp, ''))
+        setNewCardsPerDay(asNumber(ncpd, DEFAULT_NEW_CARDS_PER_DAY))
         // 2. 引擎实际状态（fsrs.getParameters）— 校准 maxInterval 与引擎一致
         try {
           const params = (await api.fsrs.getParameters()) as Record<string, unknown>
@@ -259,6 +266,7 @@ export default function SettingsData() {
         api.settings.set('fsrsRequestLevel', fsrsLevel),
         api.settings.set('fsrsDifficultyDecay', fsrsDecay),
         api.settings.set('fsrsMaxInterval', fsrsMaxInterval),
+        api.settings.set('newCardsPerDay', newCardsPerDay),
         api.fsrs.setParameters({
           requestRetention: levelToRetention(fsrsLevel),
           maximumInterval: fsrsMaxInterval,
@@ -273,7 +281,7 @@ export default function SettingsData() {
     } finally {
       setFsrsSaving(false)
     }
-  }, [fsrsLevel, fsrsDecay, fsrsMaxInterval])
+  }, [fsrsLevel, fsrsDecay, fsrsMaxInterval, newCardsPerDay])
 
   // ===== 重置 FSRS 参数 =====
   const handleResetFsrs = useCallback(async () => {
@@ -288,6 +296,7 @@ export default function SettingsData() {
       setFsrsLevel(FSRS_DEFAULTS.level)
       setFsrsDecay(FSRS_DEFAULTS.decay)
       setFsrsMaxInterval(FSRS_DEFAULTS.maxInterval)
+      setNewCardsPerDay(DEFAULT_NEW_CARDS_PER_DAY)
       setFsrsDirty(false)
       toast.remove(tId)
       toast.success('已恢复 FSRS 默认参数')
@@ -909,6 +918,33 @@ export default function SettingsData() {
                   gap: 'calc(var(--spacing) * 4)',
                 }}
               >
+                {/* 每日新卡上限 —— 2026-09-15 新增：解决"900+ 张划线一次性全到期"造成的放弃感 */}
+                <div className="form-field">
+                  <label className="form-label" htmlFor="new-cards-per-day">
+                    每日新卡上限
+                    <span
+                      className="info-tip"
+                      title="每天最多放出多少张从未学过的卡片。微信读书同步会把所有划线一次性导入，若不限量，待复习会瞬间变成几百张、永远做不完。设为 0 则暂停新卡、只复习已学过的。"
+                      aria-label="每日新卡上限说明"
+                    >
+                      i
+                    </span>
+                  </label>
+                  <input
+                    className="form-input mono"
+                    id="new-cards-per-day"
+                    type="number"
+                    min={0}
+                    max={200}
+                    step={1}
+                    value={newCardsPerDay}
+                    onChange={(e) => {
+                      setNewCardsPerDay(Number(e.target.value))
+                      setFsrsDirty(true)
+                    }}
+                    data-dom-id="input-new-cards-per-day"
+                  />
+                </div>
                 {/* 请求级别 */}
                 <div className="form-field">
                   <label className="form-label" htmlFor="fsrs-level">

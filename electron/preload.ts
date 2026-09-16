@@ -94,6 +94,7 @@ const electronAPI = {
     getDueWithContent: (limit?: number) => invoke(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, limit),
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.CARDS.GET_BY_BOOK, bookId),
     getStats: () => invoke(IPC_CHANNELS.CARDS.GET_STATS),
+    getQueueStats: () => invoke(IPC_CHANNELS.CARDS.GET_QUEUE_STATS),
     review: (id: string, quality: number) => invoke(IPC_CHANNELS.REVIEWS.CREATE, id, quality),
   },
 

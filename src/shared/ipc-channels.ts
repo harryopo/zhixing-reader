@@ -33,6 +33,8 @@ export const IPC_CHANNELS = {
     GET_DUE_WITH_CONTENT: 'cards:getDueWithContent',
     GET_BY_BOOK: 'cards:getByBook',
     GET_STATS: 'cards:getStats',
+    /** 今日队列构成：复习卡 / 新卡额度，避免界面把 900+ 张划线显示成"你欠的复习" */
+    GET_QUEUE_STATS: 'cards:getQueueStats',
   },
   REVIEWS: {
     CREATE: 'reviews:create',

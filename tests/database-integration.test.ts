@@ -284,6 +284,136 @@ describe('database-integration — sql.js 集成测试', () => {
     })
   })
 
+  // ==========================================================================
+  // 每日学习量控制（2026-09-15 新增）
+  // 回归：934 条划线一次性导入后全部"立即到期"，复习页显示 900+ 张待复习，
+  //       用户面对永远做不完的清单直接放弃。新卡必须按天限量放行。
+  // ==========================================================================
+  describe('cardsDb 每日新卡上限', () => {
+    /** books.id 有 UNIQUE 约束，同一测试里会被调用多次，这里做成幂等 */
+    const ensureBook = () => {
+      if (!booksDb.getById('book_1')) booksDb.create({ id: 'book_1', title: 'Book' } as any)
+    }
+
+    /** 造 n 张新卡（state = 0，从未学过） */
+    const makeNewCards = (n: number, prefix = 'lim') => {
+      ensureBook()
+      const ids: string[] = []
+      for (let i = 0; i < n; i++) {
+        const hid = `hl_${prefix}_${i}`
+        highlightsDb.create({ id: hid, book_id: 'book_1', content: `HL ${i}` } as any)
+        ids.push(cardsDb.create(hid).id)
+      }
+      return ids
+    }
+
+    it('新卡不会一次性全部涌入到期队列（回归：曾返回全部）', async () => {
+      makeNewCards(100)
+      const queue = cardsDb.getDueCards(200, 15)
+      expect(queue).toHaveLength(15)
+      // 旧实现是 WHERE due <= now，100 张新卡会全部返回
+      expect(queue.length).toBeLessThan(100)
+      expect(queue.every((c) => c.state === 0)).toBe(true)
+    })
+
+    it('每日上限为 0 时完全不放新卡', async () => {
+      makeNewCards(20, 'zero')
+      expect(cardsDb.getDueCards(100, 0)).toHaveLength(0)
+    })
+
+    it('今天学过一部分后，剩余额度相应减少', async () => {
+      const ids = makeNewCards(30, 'quota')
+      // 先按 15 张的额度学掉 5 张
+      const first = cardsDb.getDueCards(100, 15)
+      expect(first).toHaveLength(15)
+      for (const c of first.slice(0, 5)) reviewsDb.create(c.id, 3)
+
+      // 这些卡已不是新卡，所以它们离开新卡池；剩余额度 = 15 - 5 = 10
+      const second = cardsDb.getDueCards(100, 15)
+      const newOnes = second.filter((c) => c.state === 0)
+      expect(newOnes).toHaveLength(10)
+    })
+
+    it('额度耗尽后不再放新卡（同一天内重复打开也一样）', async () => {
+      const ids = makeNewCards(40, 'exhaust')
+      const batch = cardsDb.getDueCards(100, 15)
+      for (const c of batch) reviewsDb.create(c.id, 3)
+      const again = cardsDb.getDueCards(100, 15)
+      expect(again.filter((c) => c.state === 0)).toHaveLength(0)
+      expect(ids.length).toBe(40)
+    })
+
+    it('新卡额度为 0 时，只放复习卡、完全挡住新卡', async () => {
+      ensureBook()
+      // 造 3 张"已学过且已过期"的复习卡。
+      // 注意不能只靠 reviewsDb.create：Again 之后卡片处于 Learning，
+      // 到期时间是 1 分钟后，此刻并不算 due（这是 ts-fsrs 的正确行为）。
+      const reviewIds: string[] = []
+      for (let i = 0; i < 3; i++) {
+        const hid = `hl_rev_${i}`
+        // content 必须各不相同：highlightsDb.create 会按 (book_id, content) 去重
+        highlightsDb.create({ id: hid, book_id: 'book_1', content: `复习卡内容 ${i}` } as any)
+        const card = cardsDb.create(hid)
+        reviewsDb.create(card.id, 3)
+        const reviewed = cardsDb.getById(card.id)
+        cardsDb.update({
+          ...reviewed,
+          state: 2,
+          due: new Date(Date.now() - 86400000).toISOString(),
+          lastReview: new Date(Date.now() - 2 * 86400000).toISOString(),
+        })
+        reviewIds.push(card.id)
+      }
+      makeNewCards(50, 'prio')
+
+      const queue = cardsDb.getDueCards(100, 0)
+      // 复习卡照常出现（新卡额度拦不住它们）
+      expect(queue.filter((c) => c.state !== 0)).toHaveLength(3)
+      // 新卡被完全挡住
+      expect(queue.filter((c) => c.state === 0)).toHaveLength(0)
+
+      // 额度恢复后新卡才出现，且排在复习卡之后。
+      // 注意是 12 而不是 15：上面给 3 张卡做了"今天的首次评分"，
+      // 它们已经占用了当天的 3 个新卡名额（这正是每日上限该有的语义）。
+      const stats = cardsDb.getDueQueueStats(15)
+      expect(stats.newIntroducedToday).toBe(3)
+      expect(stats.newAllowance).toBe(12)
+
+      const withNew = cardsDb.getDueCards(100, 15)
+      expect(withNew.filter((c) => c.state === 0)).toHaveLength(12)
+      expect(withNew.slice(0, 3).every((c) => c.state !== 0)).toBe(true)
+    })
+
+    it('getDueQueueStats 正确拆分复习卡与新卡', async () => {
+      ensureBook()
+      const hid = 'hl_stats'
+      highlightsDb.create({ id: hid, book_id: 'book_1', content: '统计用的复习卡' } as any)
+      const card = cardsDb.create(hid)
+      reviewsDb.create(card.id, 1)
+
+      makeNewCards(50, 'stats')
+      const stats = cardsDb.getDueQueueStats(15)
+
+      expect(stats.newPerDay).toBe(15)
+      expect(stats.newAvailable).toBeGreaterThanOrEqual(50)
+      expect(stats.newIntroducedToday).toBeGreaterThanOrEqual(1)
+      expect(stats.newAllowance).toBeLessThanOrEqual(15)
+      // actionable 才是界面上该出现的数字，远端总数不再冒充"待办"
+      expect(stats.actionable).toBe(stats.reviewDue + stats.newAllowance)
+      expect(stats.actionable).toBeLessThan(stats.newAvailable + stats.reviewDue)
+    })
+
+    it('getReviewStats 的 due 不再把从未学过的卡片算成"到期"', async () => {
+      makeNewCards(60, 'revstats')
+      const s = cardsDb.getReviewStats()
+      // 60 张全是新卡，复习卡为 0 → due 必须是 0
+      expect(s.due).toBe(0)
+      expect(s.new).toBeGreaterThanOrEqual(60)
+      expect(s.total).toBeGreaterThanOrEqual(60)
+    })
+  })
+
+
   describe('reviewsDb CRUD', () => {
     it('应创建 review 并更新 daily_stats', async () => {
       booksDb.create({ id: 'book_1', title: 'Book' } as any)

@@ -122,6 +122,15 @@ export interface ElectronAPI {
     getDueWithContent: (limit?: number) => Promise<DueReviewCard[]>
     getByBook: (bookId: string) => Promise<Card[]>
     getStats: () => Promise<ReviewStats>
+    /** 今日队列构成：复习卡数量、新卡额度与新卡池余量 */
+    getQueueStats: () => Promise<{
+      reviewDue: number
+      newAvailable: number
+      newIntroducedToday: number
+      newPerDay: number
+      newAllowance: number
+      actionable: number
+    }>
     review: (id: string, quality: number) => Promise<ReviewResult>
   }
   review: {

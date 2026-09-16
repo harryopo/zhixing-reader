@@ -8,7 +8,19 @@ import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb } from '../d
 import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { indexHighlight as indexHighlightRAG } from '../services/rag-service';
+import { settingsService } from '../services/settings-service';
+import { DEFAULT_NEW_CARDS_PER_DAY } from '../../src/shared/study-limits';
 import type { HandleFn } from './types';
+
+/** 读取用户配置的每日新卡上限（未设置时用默认值） */
+function newCardsPerDay(): unknown {
+  try {
+    const raw = settingsService.get('newCardsPerDay');
+    return raw ?? DEFAULT_NEW_CARDS_PER_DAY;
+  } catch {
+    return DEFAULT_NEW_CARDS_PER_DAY;
+  }
+}
 
 export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.BOOKS.GET_ALL, () => booksDb.getAll());
@@ -138,8 +150,9 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.CARDS.CREATE_FOR_EXISTING, () => cardsDb.createForExistingHighlights());
   handle(IPC_CHANNELS.CARDS.UPDATE, (card: Record<string, unknown>) => cardsDb.update(card as unknown as Parameters<typeof cardsDb.update>[0]));
   handle(IPC_CHANNELS.CARDS.DELETE, (id: string) => cardsDb.delete(id));
-  handle(IPC_CHANNELS.CARDS.GET_DUE, (limit?: number) => cardsDb.getDueCards(limit));
-  handle(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, (limit?: number) => cardsDb.getDueCardsWithContent(limit));
+  handle(IPC_CHANNELS.CARDS.GET_DUE, (limit?: number) => cardsDb.getDueCards(limit, newCardsPerDay()));
+  handle(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, (limit?: number) => cardsDb.getDueCardsWithContent(limit, newCardsPerDay()));
+  handle(IPC_CHANNELS.CARDS.GET_QUEUE_STATS, () => cardsDb.getDueQueueStats(newCardsPerDay()));
   handle(IPC_CHANNELS.CARDS.GET_BY_BOOK, (bookId: string) => cardsDb.getByBookId(bookId));
   handle(IPC_CHANNELS.CARDS.GET_STATS, () => cardsDb.getReviewStats());
 

@@ -70,6 +70,7 @@ export default defineConfig({
         'electron/services/template-engine.ts',
         // 共享纯逻辑（main + renderer 双端复用）
         'src/shared/fsrs-metrics.ts',
+        'src/shared/study-limits.ts',
         // renderer（colocated __tests__ 已有测试）
         'src/renderer/src/stores/toastStore.ts',
         'src/renderer/src/stores/reviewStore.ts',
