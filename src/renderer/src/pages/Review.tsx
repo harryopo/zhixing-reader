@@ -12,7 +12,8 @@ import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { useReviewStore } from '../stores/reviewStore'
-import { getCardMastery, getRetrievability, getRetentionHint } from '../../../shared/fsrs-metrics'
+import { getCardMastery, getRetrievability } from '../../../shared/fsrs-metrics'
+import { describeForgetting, describeNextReview, voiceTone } from '../../../shared/fsrs-voice'
 
 /** 掌握度等级 → Badge 配色（与方法论页的语义保持一致，变体取自 ui/Badge 的 6 种） */
 const MASTERY_BADGE: Record<string, 'success' | 'ok' | 'warning' | 'default'> = {
@@ -103,11 +104,27 @@ export default function Review() {
     [currentCard],
   )
 
-  /** 本轮平均稳定性（真实数据，无估算） */
-  const avgStabilityBefore =
-    roundStats.reviewed > 0 ? roundStats.stabilityBeforeSum / roundStats.reviewed : 0
-  const avgStabilityAfter =
-    roundStats.reviewed > 0 ? roundStats.stabilityAfterSum / roundStats.reviewed : 0
+  /**
+   * 这张卡的「遗忘播报」——界面上的主文案。
+   * 用一句人话替代 stability / difficulty / 保持率 三个数字。
+   */
+  const currentVoice = useMemo(
+    () =>
+      currentCard
+        ? describeForgetting({
+            stability: currentCard.stability ?? 0,
+            elapsedDays: currentCard.elapsedDays ?? 0,
+            due: currentCard.due,
+            reps: currentCard.reps ?? 0,
+            lapses: currentCard.lapses ?? 0,
+          })
+        : null,
+    [currentCard],
+  )
+
+  // 说明：roundStats 里仍然累计了 stability 的前后和，
+  // 但界面不再展示「平均稳定性 12.3 → 46.4 天」——那个数字对读者没有意义。
+  // 原始值可在「为什么这么说」里按卡片查看。
 
   return (
     <PageHero
@@ -157,10 +174,14 @@ export default function Review() {
             <div style={{ fontSize: '2rem', marginBottom: 'calc(var(--spacing) * 3)' }}>🎉</div>
             <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem' }}>本轮复习完成</h3>
             <p style={{ margin: '0 0 calc(var(--spacing) * 5)', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
-              已完成 {completed} 张卡片，FSRS 已按你的评分重新安排下次复习时间。
+              过完 {completed} 张。剩下的交给时间 —— 我会在它们快被忘掉的时候再叫你来。
             </p>
 
-            {/* 本轮真实统计：全部取自 cards 表的 stability 前后值与逐卡掌握度对比 */}
+            {/*
+              本轮统计。
+              原来这里写的是「平均记忆稳定性 12.3 → 46.4 天」，用户看不懂；
+              换成两个可以理解的量：复习张数，以及最远那张能记到哪天（一个具体日期）。
+            */}
             {roundStats.reviewed > 0 && (
               <div
                 style={{
@@ -171,15 +192,15 @@ export default function Review() {
                   margin: '0 auto calc(var(--spacing) * 5)',
                 }}
               >
-                <StatCell label="本轮复习" value={`${roundStats.reviewed}`} unit="张" />
+                <StatCell label="这一轮过了" value={`${roundStats.reviewed}`} unit="张" />
                 <StatCell
-                  label="平均记忆稳定性"
-                  value={`${avgStabilityBefore.toFixed(1)} → ${avgStabilityAfter.toFixed(1)}`}
-                  unit="天"
+                  label="最远的一张能记到"
+                  value={roundStats.furthestDue ? formatDueDay(roundStats.furthestDue) : '—'}
+                  unit=""
                 />
                 <StatCell
-                  label="掌握度变化"
-                  value={`↑${roundStats.improved} ↓${roundStats.declined}`}
+                  label="比上次记得更牢"
+                  value={`${roundStats.improved}`}
                   unit="张"
                 />
               </div>
@@ -193,7 +214,7 @@ export default function Review() {
       {/* ===== 复习中 ===== */}
       {!loading && !error && currentCard && !isFinished && (
         <Card>
-          {/* 上一张的掌握度反馈 */}
+          {/* 上一张的反馈：一句承诺，而不是「掌握度 32 → 41」 */}
           {lastMasteryDelta && (
             <div
               role="status"
@@ -211,31 +232,29 @@ export default function Review() {
                 fontSize: '0.82rem',
               }}
             >
-              <span style={{ color: 'var(--muted-foreground)' }}>上一张的掌握度</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-                <span style={{ color: 'var(--muted-foreground)' }}>{lastMasteryDelta.before}</span>
-                <span style={{ color: 'var(--muted-foreground)' }}>→</span>
-                <span
-                  style={{
-                    color:
-                      lastMasteryDelta.after > lastMasteryDelta.before
-                        ? 'var(--primary)'
-                        : lastMasteryDelta.after < lastMasteryDelta.before
-                          ? 'var(--destructive)'
-                          : 'var(--foreground)',
-                  }}
-                >
-                  {lastMasteryDelta.after}
-                </span>
+              {/* 承诺句：把"掌握度 32 → 41"换成"我什么时候再来问你" */}
+              <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>
+                {describeNextReview(lastMasteryDelta.nextReviewAt)}
+              </span>
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.78rem',
+                  color: 'var(--muted-foreground)',
+                }}
+                title={`掌握度 ${lastMasteryDelta.before} → ${lastMasteryDelta.after}`}
+              >
+                {lastMasteryDelta.after !== lastMasteryDelta.before && (
+                  <span>
+                    {lastMasteryDelta.after > lastMasteryDelta.before ? '↑' : '↓'}
+                    {Math.abs(lastMasteryDelta.after - lastMasteryDelta.before)}
+                  </span>
+                )}
                 <Badge variant={MASTERY_BADGE[lastMasteryDelta.levelAfter] ?? 'default'}>
                   {lastMasteryDelta.levelAfter}
                 </Badge>
-                {lastMasteryDelta.after !== lastMasteryDelta.before && (
-                  <span style={{ color: 'var(--muted-foreground)', fontWeight: 400 }}>
-                    ({lastMasteryDelta.after > lastMasteryDelta.before ? '+' : ''}
-                    {lastMasteryDelta.after - lastMasteryDelta.before})
-                  </span>
-                )}
               </span>
             </div>
           )}
@@ -298,30 +317,68 @@ export default function Review() {
                   {currentCard.highlightNote}
                 </div>
               )}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'calc(var(--spacing) * 3)',
-                  flexWrap: 'wrap',
-                  fontSize: '0.8rem',
-                  color: 'var(--muted-foreground)',
-                }}
-              >
-                {currentMastery && (
-                  <Badge variant={MASTERY_BADGE[currentMastery.level] ?? 'default'}>
-                    掌握度 {currentMastery.score} · {currentMastery.level}
-                  </Badge>
-                )}
-                <span>
-                  已复习 {currentCard.reps} 次 · 记忆稳定性 {currentCard.stability.toFixed(2)} 天
-                  {currentCard.lapses > 0 ? ` · 遗忘 ${currentCard.lapses} 次` : ''}
-                </span>
-              </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
-                当前保持率 {Math.round(currentRetention * 100)}%
-                {currentRetention > 0 ? ` · ${getRetentionHint(currentRetention)}` : ''}
-              </div>
+              {/* 主文案：一句人话。数字收进下面的「为什么这么说」里 */}
+              {currentVoice && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 'calc(var(--spacing) * 3)',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <strong
+                    style={{
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      color:
+                        voiceTone(currentVoice.bucket) === 'urgent'
+                          ? 'var(--destructive)'
+                          : 'var(--foreground)',
+                    }}
+                  >
+                    {currentVoice.sentence}
+                  </strong>
+                  {currentVoice.imperative && (
+                    <span style={{ fontSize: '0.82rem', color: 'var(--muted-foreground)' }}>
+                      {currentVoice.imperative}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* 数字：默认收起来，想核对的人随时能展开 */}
+              <details style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
+                <summary
+                  style={{ cursor: 'pointer', listStyle: 'revert', width: 'fit-content' }}
+                  data-dom-id="cta-why-say-so"
+                >
+                  为什么这么说
+                </summary>
+                <div
+                  style={{
+                    marginTop: '0.4rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'calc(var(--spacing) * 3)',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {currentMastery && (
+                    <Badge variant={MASTERY_BADGE[currentMastery.level] ?? 'default'}>
+                      掌握度 {currentMastery.score} · {currentMastery.level}
+                    </Badge>
+                  )}
+                  <span>
+                    已复习 {currentCard.reps} 次 · 记忆稳定性 {currentCard.stability.toFixed(2)} 天
+                    {currentCard.lapses > 0 ? ` · 遗忘 ${currentCard.lapses} 次` : ''}
+                  </span>
+                  <span>
+                    当前保持率 {Math.round(currentRetention * 100)}%
+                  </span>
+                  {currentVoice?.dueLabel && <span>排定复习日 {currentVoice.dueLabel}</span>}
+                </div>
+              </details>
             </div>
           ) : (
             <div style={{ marginTop: 'calc(var(--spacing) * 4)', textAlign: 'center' }}>
@@ -386,6 +443,13 @@ export default function Review() {
       )}
     </PageHero>
   )
+}
+
+/** ISO 时间 → 「9月28日」（完成态展示用，不暴露算法量） */
+function formatDueDay(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return `${d.getMonth() + 1}月${d.getDate()}日`
 }
 
 /** 完成态统计单元格 */

@@ -72,6 +72,7 @@ const INITIAL = {
     improved: 0,
     declined: 0,
     unchanged: 0,
+    furthestDue: null as string | null,
   },
 }
 
@@ -112,6 +113,9 @@ describe('reviewStore — 掌握度反馈链路', () => {
     expect(s.roundStats.stabilityBeforeSum).toBeCloseTo(46.35, 5)
     expect(s.roundStats.stabilityAfterSum).toBeCloseTo(159.46, 5)
     expect(s.completed).toBe(1)
+    // 承诺句需要知道"下次什么时候再来问"
+    expect(s.lastMasteryDelta?.nextReviewAt).toBe(after.due)
+    expect(s.roundStats.furthestDue).toBe(after.due)
   })
 
   it('遗忘（Again）后掌握度下降计入 declined', async () => {
@@ -130,9 +134,11 @@ describe('reviewStore — 掌握度反馈链路', () => {
     const c1 = dueCard({ id: 'card_1', stability: 10, reps: 3 })
     const c2 = dueCard({ id: 'card_2', stability: 20, reps: 4 })
     const api = installApi({ dueCards: [c1, c2] })
+    const due1 = '2026-10-01T00:00:00.000Z'
+    const due2 = '2026-12-25T00:00:00.000Z'
     api.review
-      .mockResolvedValueOnce({ reviewId: 'r1', card: dueCard({ stability: 30, reps: 4 }) })
-      .mockResolvedValueOnce({ reviewId: 'r2', card: dueCard({ stability: 60, reps: 5 }) })
+      .mockResolvedValueOnce({ reviewId: 'r1', card: dueCard({ stability: 30, reps: 4, due: due1 }) })
+      .mockResolvedValueOnce({ reviewId: 'r2', card: dueCard({ stability: 60, reps: 5, due: due2 }) })
     useReviewStore.setState({ dueCards: [c1, c2] as never })
     await useReviewStore.getState().rateCard(3)
     expect(useReviewStore.getState().currentIndex).toBe(1)
@@ -143,6 +149,8 @@ describe('reviewStore — 掌握度反馈链路', () => {
     expect(s.roundStats.stabilityBeforeSum).toBeCloseTo(30, 5)
     expect(s.roundStats.stabilityAfterSum).toBeCloseTo(90, 5)
     expect(s.currentIndex).toBe(1)
+    // furthestDue 取两张里更晚的那个（完成态「最远的一张能记到」用它）
+    expect(s.roundStats.furthestDue).toBe(due2)
   })
 
   it('评分失败时记录错误且不推进进度', async () => {

@@ -18,7 +18,8 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
-import { getCardMastery, getRetrievability, getRetentionHint } from '../../../shared/fsrs-metrics'
+import { getCardMastery } from '../../../shared/fsrs-metrics'
+import { describeForgetting } from '../../../shared/fsrs-voice'
 
 // ===== 类型定义 =====
 interface VocabularyItem {
@@ -1309,8 +1310,20 @@ function VocabularyDrawer({
   const masteryPct = calcMasteryPct(item)
   const statusColor = masteryStatusColor(masteryPct)
   const statusLabel = masteryStatusLabel(masteryPct)
-  // 由 FSRS 稳定性与已过天数推导的当前保持率（与复习页同一函数）
-  const retentionHint = item.stability ? getRetentionHint(getRetrievability(item.stability, 0)) : ''
+  /**
+   * 这个词的「遗忘播报」——与复习页共用同一个模块，全应用只有一张嘴。
+   * elapsedDays 由 last_review_at 现算：生词表没有存这个派生量。
+   */
+  const elapsedDays = item.last_review_at
+    ? Math.max(0, Math.floor((Date.now() - new Date(item.last_review_at).getTime()) / 86400000))
+    : 0
+  const voice = describeForgetting({
+    stability: item.stability ?? 0,
+    elapsedDays: Number.isFinite(elapsedDays) ? elapsedDays : 0,
+    due: item.next_review_at ?? null,
+    reps: item.repetition_count ?? item.review_count ?? 0,
+    lapses: item.lapses ?? 0,
+  })
 
   // ESC 关闭
   useEffect(() => {
@@ -1577,19 +1590,14 @@ function VocabularyDrawer({
             >
               <MetaItem label="添加日期" value={formatDateOnly(item.created_at)} mono />
               <MetaItem label="复习次数" value={`${item.review_count} 次`} mono />
+              {/*
+                这里原本是「记忆稳定性 46.3 天 / 当前保持率 87%」两个数字。
+                读者无从判断 46.3 是好是坏，也做不了任何动作 —— 换成一句结论。
+              */}
               <MetaItem
-                label="记忆稳定性"
-                value={item.stability ? `${item.stability.toFixed(1)} 天` : '—'}
-                mono
-              />
-              <MetaItem
-                label="当前保持率"
-                value={
-                  item.stability
-                    ? `${Math.round(getRetrievability(item.stability, 0) * 100)}%`
-                    : '—'
-                }
-                mono
+                label="什么时候该再看"
+                value={voice ? voice.sentence : '—'}
+                style={{ color: statusColor }}
               />
               <MetaItem label="状态" value={statusLabel} style={{ color: statusColor }} />
             </div>
@@ -1640,9 +1648,9 @@ function VocabularyDrawer({
                   }}
                 >
                   {masteryStatusLabel(masteryPct)}
-                  {retentionHint && (
+                  {voice.imperative && (
                     <span style={{ fontWeight: 400, color: 'var(--muted-foreground)', marginLeft: '0.4rem' }}>
-                      · {retentionHint}
+                      · {voice.imperative}
                     </span>
                   )}
                 </span>

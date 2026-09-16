@@ -71,6 +71,7 @@ export default defineConfig({
         // 共享纯逻辑（main + renderer 双端复用）
         'src/shared/fsrs-metrics.ts',
         'src/shared/study-limits.ts',
+        'src/shared/fsrs-voice.ts',
         // renderer（colocated __tests__ 已有测试）
         'src/renderer/src/stores/toastStore.ts',
         'src/renderer/src/stores/reviewStore.ts',

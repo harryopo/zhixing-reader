@@ -19,6 +19,8 @@ export interface MasteryDelta {
   after: number
   levelBefore: MasteryLevel
   levelAfter: MasteryLevel
+  /** 调度后的下次复习时间，供「好，我 N 天后再来问你」这类承诺句使用 */
+  nextReviewAt: string
 }
 
 /** 本轮复习的真实累计统计（不使用任何估算值） */
@@ -33,6 +35,9 @@ export interface RoundStats {
   improved: number
   declined: number
   unchanged: number
+  /** 本轮被安排得最远的那张卡的复习日期（ISO）；无则 null。
+   *  比"平均记忆稳定性 46.35 天"更像人话：一个具体日期。 */
+  furthestDue: string | null
 }
 
 const EMPTY_ROUND: RoundStats = {
@@ -42,6 +47,19 @@ const EMPTY_ROUND: RoundStats = {
   improved: 0,
   declined: 0,
   unchanged: 0,
+  furthestDue: null,
+}
+
+/** 取两张卡里更晚的那个到期时间（缺失/非法值自动忽略） */
+function furthest(a: string | null | undefined, b: string | null | undefined): string | null {
+  const ta = a ? new Date(a).getTime() : Number.NaN
+  const tb = b ? new Date(b).getTime() : Number.NaN
+  const va = Number.isFinite(ta) ? ta : null
+  const vb = Number.isFinite(tb) ? tb : null
+  if (va === null && vb === null) return null
+  if (va === null) return b ?? null
+  if (vb === null) return a ?? null
+  return va >= vb ? (a ?? null) : (b ?? null)
 }
 
 /**
@@ -165,6 +183,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
           after: after.score,
           levelBefore: before.level,
           levelAfter: after.level,
+          nextReviewAt: updated?.due ?? '',
         },
         roundStats: {
           reviewed: stats.reviewed + 1,
@@ -173,6 +192,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
           improved: stats.improved + (trend === 'up' ? 1 : 0),
           declined: stats.declined + (trend === 'down' ? 1 : 0),
           unchanged: stats.unchanged + (trend === 'same' ? 1 : 0),
+          furthestDue: furthest(stats.furthestDue, updated?.due),
         },
       })
       if (!isCompleted) {
