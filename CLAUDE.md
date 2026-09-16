@@ -109,7 +109,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 |------|------|------|
 | `npm run lint` | ESLint 0 错误 | 手动 + CI |
 | `npm run typecheck` | tsc --noEmit 0 错误 | 手动 + CI |
-| `npm run test` | vitest 全通过（764 用例）| 手动 + CI |
+| `npm run test` | vitest 全通过（790 用例）| 手动 + CI |
 | `npm run test:cov` | 覆盖率（阈值 83/80/75/83）| 手动（**未接入 CI**）|
 | `npm run build` | electron-vite 编译 | CI |
 | `npm run verify` | 上面四项一键串行 | 手动 |
@@ -145,7 +145,8 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 - **git 锚点**：master @ `6b3cfbc`（2026-09-02），共 183 commits，tag `v1.0.0`
 - **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
-- **门禁基线（2026-09-15 实测）**：typecheck 0 错误 ✅ / Vitest **764 用例 · 33 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / 覆盖率 90.5-84.1-93.2-90.5 ✅
+- **门禁基线（2026-09-15 实测）**：typecheck 0 错误 ✅ / Vitest **790 用例 · 34 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / 覆盖率 90.79-84.54-93.47-90.79 ✅
+- **2026-09-15 算法数字换人话**：新增 `src/shared/fsrs-voice.ts`（`describeForgetting` / `describeNextReview`），全应用共用一张嘴；复习页与生词本不再显示「稳定性 46.35 天」「保持率 87%」，改为「已经拖了 4 天没复习 · 现在花 10 秒？」这类陈述+动作；原始数字收进「为什么这么说」折叠。测试 764→790
 - **2026-09-15 每日新卡上限**：实测发现 934 张卡片中 931 张一次性全部逾期（同步导入即到期 + 无每日上限），是"用户不每天打开"的真正原因。新卡与复习卡拆成两个队列，新卡每天限量放行（默认 15，可配置）；`getReviewStats().due` 不再把未学过的卡算成到期
 - **2026-09-15 生词本正确性修复**：评分档位错位（「困难」被记成 Good，Hard 档不可达）/ 自举写死 Rating.Good / 毕业时冲掉已累积稳定性 / is_mastered 自动置位致词永久退场 / 掌握度改用 FSRS 推导；测试 fixture 改为复用 `applySchemaAndMigrations()`，删除 280 行平行 DDL
 - **2026-09-15 卡片掌握度（复习闭环反馈）**：新增 `src/shared/fsrs-metrics.ts`（`getCardMastery` / `getRetrievability`，纯函数、双端复用、与 ts-fsrs 逐点校验）；复习页与书籍详情卡片列表展示掌握度与保持率，评分后即时反馈掌握度增量，完成态展示真实统计；砍掉不可达的 `CARDS.UPDATE_MASTERY_LEVEL` / `UPDATE_APPLICATION_TAG`；修复 `test:cov`（coverage-v8 2.0.0→2.1.9 版本不匹配）
