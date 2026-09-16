@@ -228,7 +228,13 @@ export default function TokenUsagePage() {
     }
     setLoading(true)
     try {
-      const { startDate, endDate } = getFilterRangeDates(filterDateRange)
+      // 拉取范围取「顶部时段」与「调用记录范围」里**更宽**的那个。
+      // 原因：KPI 的缓存命中率是按顶部时段算的，而它用的原始记录来自这次查询 ——
+      // 如果用户把调用记录范围设成 7 天、顶部时段选"本月"，KPI 只统计到 7 天的数据，
+      // 卡片标注的周期与真实口径对不上。列表仍按调用记录范围在本地过滤（见 visibleRecords）。
+      const wideRange: FilterDateRange =
+        FILTER_DAYS_MAP[filterDateRange] >= DAYS_MAP[timeRange] ? filterDateRange : 'all'
+      const { startDate, endDate } = getFilterRangeDates(wideRange)
       const [s, r, p, f, d] = await Promise.all([
         window.electronAPI.tokenUsage.getTotalStats(),
         window.electronAPI.tokenUsage.getByDateRange(startDate, endDate),
@@ -283,6 +289,20 @@ export default function TokenUsagePage() {
     return dates
   }, [dailyStats, timeRange])
 
+  /**
+   * 调用记录列表实际展示哪些行：按「调用记录范围」在本地过滤。
+   * records 是更宽的范围（见 loadAll），所以这里必须再筛一次，
+   * 否则列表会多出用户没要的时间段。
+   */
+  const visibleRecords = useMemo(() => {
+    const days = FILTER_DAYS_MAP[filterDateRange]
+    if (days >= 3650) return records
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - days + 1)
+    cutoff.setHours(0, 0, 0, 0)
+    return records.filter((r) => new Date(r.created_at) >= cutoff)
+  }, [records, filterDateRange])
+
   // KPI 聚合：基于 chartDailyStats（token/request）+ records 过滤后累加 cost_usd
   const kpi = useMemo(() => {
     const totalTokens = chartDailyStats.reduce((s, d) => s + d.total_tokens, 0)
@@ -291,6 +311,7 @@ export default function TokenUsagePage() {
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - days + 1)
     cutoff.setHours(0, 0, 0, 0)
+    // 用 records（可能是更宽范围拉回来的）按顶部时段过滤 —— 这就是卡片标注的那个周期
     const filteredRecords = records.filter((r) => new Date(r.created_at) >= cutoff)
     const totalCostUsd = filteredRecords.reduce((s, r) => s + (r.cost_usd || 0), 0)
     const avgTokens = totalRequests > 0 ? Math.round(totalTokens / totalRequests) : 0
@@ -384,14 +405,15 @@ export default function TokenUsagePage() {
     return Array.from(set)
   }, [featureStats])
 
-  // 客户端二次筛选：按 provider + feature 过滤 records
+  // 客户端二次筛选：先按「调用记录范围」收窄，再按 provider + feature 过滤
+  // （records 可能是为了 KPI 口径而按更宽范围拉回来的，见 loadAll）
   const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
+    return visibleRecords.filter((r) => {
       if (filterProvider && r.provider !== filterProvider) return false
       if (filterFeature && r.feature !== filterFeature) return false
       return true
     })
-  }, [records, filterProvider, filterFeature])
+  }, [visibleRecords, filterProvider, filterFeature])
 
   const handleClearAll = async () => {
     setClearing(true)
@@ -989,7 +1011,7 @@ export default function TokenUsagePage() {
             >
               <div style={filterFieldStyle}>
                 <label style={filterLabelStyle} htmlFor="filter-date-range">
-                  日期范围
+                  调用记录范围
                 </label>
                 <select
                   id="filter-date-range"
@@ -1124,8 +1146,9 @@ function RequestLogTable({ records, loading }: { records: TokenRecord[]; loading
           return (
             <div
               key={record.id}
-              tabIndex={0}
-              role="button"
+              // 这一行原来是 role="button" + tabIndex + 手型光标 + 悬停描边，
+              // 但**没有任何点击行为**（键盘回车也没反应）—— 视觉和语义都在承诺一个不存在的功能。
+              // 现在老老实实当一行数据。
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 0.8fr 0.7fr',
@@ -1135,7 +1158,6 @@ function RequestLogTable({ records, loading }: { records: TokenRecord[]; loading
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)',
                 padding: 'calc(var(--spacing) * 3.5) calc(var(--spacing) * 4)',
-                cursor: 'pointer',
                 transition: 'border-color 0.2s ease',
               }}
               onMouseEnter={(e) => {

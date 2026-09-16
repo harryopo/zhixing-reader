@@ -65,11 +65,17 @@ interface BookStat {
 
 // ===== 常量 =====
 
-/** 设计稿时段 chip 配置（本周/本月/全年） */
+/**
+ * 顶部时段 chip（控制 KPI 与趋势图）。
+ *
+ * 2026-09-16：标签从「本周 / 本月 / 全年」改成「近 7 天 / 近 30 天 / 近 12 个月」——
+ * 页面下方「年度书单」卡还有一排「7天 / 30天 / 90天 / 全部」，两套范围互不相干，
+ * 旧标签（本周 vs 7天、本月 vs 30天）语义几乎重叠，用户分不清谁管谁。
+ */
 const PERIOD_CHIPS: { key: ReadingMode; label: string; domId: string }[] = [
-  { key: 'weekly', label: '本周', domId: 'period-weekly' },
-  { key: 'monthly', label: '本月', domId: 'period-monthly' },
-  { key: 'annually', label: '全年', domId: 'period-annually' },
+  { key: 'weekly', label: '近 7 天', domId: 'period-weekly' },
+  { key: 'monthly', label: '近 30 天', domId: 'period-monthly' },
+  { key: 'annually', label: '近 12 个月', domId: 'period-annually' },
 ]
 
 /** 周标签（周一到周日） */
@@ -84,7 +90,7 @@ const DONUT_PALETTE = [
   'var(--chart-4)',
 ]
 
-/** 日期范围选项（4 个按钮） */
+/** 「年度书单」卡自己的统计范围（只影响这一张卡，与顶部时段 chip 无关） */
 const STATS_DATE_RANGES: { key: StatsDateRange; label: string }[] = [
   { key: '7d', label: '7天' },
   { key: '30d', label: '30天' },
@@ -864,7 +870,11 @@ function ReadingStatsView({
           eyebrow="年度书单"
           title={`${new Date().getFullYear()} 已读`}
           action={
-            <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 1)', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 1)', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* 说清楚这排只管下面这张表，不然和顶部时段 chip 打架 */}
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', marginRight: 4 }}>
+                本表范围
+              </span>
               {STATS_DATE_RANGES.map((r) => {
                 const isActive = statsDateRange === r.key
                 return (
@@ -1594,6 +1604,8 @@ function WeeklyBars({
 
 // ===== 年度书单表格（设计稿 5 列 grid） =====
 function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
+  // 这个子组件不在主组件里，拿不到外面的 navigate，得自己取一个
+  const navigate = useNavigate()
   const finishedBooks = useMemo(() => {
     return bookStats
       .filter((s) => {
@@ -1646,9 +1658,13 @@ function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
       </div>
       {finishedBooks.map((book) => {
         return (
-          <div
+          <button
             key={book.id}
+            type="button"
             data-dom-id={`yearly-book-${book.id}`}
+            // 这行原来有手型光标和悬停描边，却**没有 onClick**（看着能点，点了没反应）。
+            // 补成真的能跳：点书名进那本书的详情页。
+            onClick={() => navigate(`/bookshelf/${book.id}`)}
             style={{
               display: 'grid',
               gridTemplateColumns: '1.5fr 0.8fr 0.7fr 0.8fr',
@@ -1661,6 +1677,9 @@ function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
               cursor: 'pointer',
               transition: 'border-color 0.2s ease',
               textAlign: 'left',
+              font: 'inherit',
+              color: 'inherit',
+              width: '100%',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'var(--ring)'
@@ -1699,7 +1718,7 @@ function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
             >
               {formatFinishDate(book.updatedAt)}
             </span>
-          </div>
+          </button>
         )
       })}
     </div>
