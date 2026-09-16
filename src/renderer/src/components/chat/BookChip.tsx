@@ -6,6 +6,7 @@
  * 选完自动关闭、点外部关闭、头部可取消关联。
  */
 import { useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Icon from '@/components/ui/Icon'
 import { Tiny } from '@/components/ui/Feedback'
 
@@ -151,6 +152,7 @@ function PickerList({ books, currentBookId, anchor, onSelect, onClear, onClose }
   onClear: () => void
   onClose: () => void
 }) {
+  const navigate = useNavigate()
   return (
     <div style={{ ...pickerStyle, top: anchor.top, right: anchor.right }}>
       <div
@@ -213,7 +215,28 @@ function PickerList({ books, currentBookId, anchor, onSelect, onClear, onClose }
       </div>
       <div style={{ maxHeight: 320, overflowY: 'auto', padding: '0 4px 4px' }}>
         {books.length === 0 ? (
-          <Tiny>书架为空，请先在书架页同步书籍</Tiny>
+          // 原来这里只有一句文字，没有出口 —— 用户看着"请先在书架页同步"却点不动
+          <div style={{ padding: '8px 4px', textAlign: 'center' }}>
+            <Tiny>书架还是空的</Tiny>
+            <button
+              type="button"
+              data-dom-id="cta-go-bookshelf"
+              onClick={() => { onClose(); navigate('/bookshelf') }}
+              style={{
+                marginTop: 8,
+                padding: '6px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                background: 'var(--primary)',
+                color: 'var(--primary-foreground)',
+                cursor: 'pointer',
+                font: 'inherit',
+                fontSize: '0.8rem',
+              }}
+            >
+              去书架同步
+            </button>
+          </div>
         ) : (
           books.map((b) => (
             <PickerItem key={b.id} book={b} active={b.id === currentBookId} onSelect={onSelect} />

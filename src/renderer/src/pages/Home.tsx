@@ -378,6 +378,7 @@ export default function Home() {
                 icon={<Icon name="notes" size={24} />}
                 title="还没有划线与笔记"
                 description="同步微信读书后在书籍详情页点击「导入笔记」即可收集划线"
+                action={<Button variant="primary" onClick={() => navigate('/bookshelf')}>打开书架</Button>}
               />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column' }}>

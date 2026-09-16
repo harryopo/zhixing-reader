@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { PromptWithOverride, PromptVariable } from '../../../../types/renderer'
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -48,6 +48,8 @@ export default function PromptCenter() {
   const [prompts, setPrompts] = useState<PromptWithOverride[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  /** 每次「恢复默认 / 全部恢复」后 +1，用来把编辑区同步回最新模板 */
+  const [promptsVersion, setPromptsVersion] = useState(0)
   const [vars, setVars] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -77,12 +79,38 @@ export default function PromptCenter() {
 
   const selected = useMemo(() => prompts.find(p => p.id === selectedId) || null, [prompts, selectedId])
 
+  /**
+   * 草稿同步。
+   *
+   * 依赖里必须带 promptsVersion：原来只依赖 selectedId，
+   * 「恢复默认」之后 selectedId 没变 → 编辑区还显示旧的自定义文本，
+   * 页脚写着"未保存的修改"，看起来像没恢复成功。
+   */
   useEffect(() => {
     if (selected) {
       setDraft(selected.currentTemplate)
       setVars({ ...selected.exampleVars })
     }
-  }, [selectedId])
+  }, [selectedId, promptsVersion])
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  /** 插入变量：真的插到**光标位置**（原来无脑追加到末尾，与上方的文案不符） */
+  const insertVariable = (name: string) => {
+    const token = '{{' + name + '}}'
+    const el = textareaRef.current
+    if (!el) {
+      setDraft((d) => d + token)
+      return
+    }
+    const start = el.selectionStart ?? draft.length
+    const end = el.selectionEnd ?? start
+    setDraft(draft.slice(0, start) + token + draft.slice(end))
+    requestAnimationFrame(() => {
+      el.focus()
+      el.setSelectionRange(start + token.length, start + token.length)
+    })
+  }
 
   const filtered = useMemo(() => {
     let result = prompts
@@ -104,12 +132,19 @@ export default function PromptCenter() {
     if (!selected) return
     setSaving(true)
     try {
-      const result = await window.electronAPI.admin.savePrompt(selected.id, draft)
-      if (result) {
-        setMessage({ type: 'success', text: '已保存，下次对话生效' })
-        await loadPrompts()
-        setTimeout(() => setMessage(null), 3000)
+      // 注意：preload 只在外层 success:false 时抛错，而 savePrompt 的失败是**内层**
+      // { success: false, message }（例如 Prompt x not found）—— 原来写 `if (result)`，
+      // 对象恒真，于是失败也会提示"已保存"。
+      const result = (await window.electronAPI.admin.savePrompt(selected.id, draft)) as
+        | { success?: boolean; message?: string }
+        | undefined
+      if (result && result.success === false) {
+        setMessage({ type: 'error', text: result.message ?? '保存失败' })
+        return
       }
+      setMessage({ type: 'success', text: '已保存，下次对话生效' })
+      await loadPrompts()
+      setTimeout(() => setMessage(null), 3000)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
     } finally {
@@ -124,6 +159,8 @@ export default function PromptCenter() {
       await window.electronAPI.admin.resetPrompt(selected.id)
       setMessage({ type: 'success', text: '已恢复默认' })
       await loadPrompts()
+      // 让编辑区跟着刷新（原来 selectedId 没变，草稿同步 effect 不会重跑）
+      setPromptsVersion((v) => v + 1)
       setTimeout(() => setMessage(null), 3000)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
@@ -136,6 +173,7 @@ export default function PromptCenter() {
       const result = await window.electronAPI.admin.resetAllPrompts()
       setMessage({ type: 'success', text: `已恢复 ${(result as { count?: number } | null)?.count ?? 0} 个提示词到默认` })
       await loadPrompts()
+      setPromptsVersion((v) => v + 1)
       setTimeout(() => setMessage(null), 3000)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
@@ -255,7 +293,12 @@ export default function PromptCenter() {
               filtered.map(p => (
                 <button
                   key={p.id}
-                  onClick={() => setSelectedId(p.id)}
+                  onClick={() => {
+                    // 切换条目会覆盖草稿 —— 有未保存修改时先问一句
+                    // （原来直接 setSelectedId，改了一半的提示词就这么没了）
+                    if (selected && draft !== selected.currentTemplate && !confirm('当前修改还没保存，切换会丢失。确定切换？')) return
+                    setSelectedId(p.id)
+                  }}
                   className={`w-full text-left px-3 py-2.5 border-b border-gray-50 transition-colors ${
                     selectedId === p.id ? 'bg-emerald-50/60' : 'hover:bg-gray-50'
                   }`}
@@ -327,9 +370,7 @@ export default function PromptCenter() {
                       {selected.variables.map((v: PromptVariable) => (
                         <button
                           key={v.name}
-                          onClick={() => {
-                            setDraft(d => d + `{{${v.name}}}`)
-                          }}
+                          onClick={() => insertVariable(v.name)}
                           className="px-2 py-0.5 text-[10px] bg-white border border-amber-200 text-amber-700 rounded hover:bg-amber-100"
                           title={v.description}
                         >
@@ -341,6 +382,7 @@ export default function PromptCenter() {
                 )}
 
                 <textarea
+                  ref={textareaRef}
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
                   className="w-full h-64 px-3 py-2 text-[12px] text-gray-700 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 resize-none font-mono leading-relaxed"
