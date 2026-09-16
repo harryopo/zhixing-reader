@@ -194,6 +194,9 @@ export default function Chat() {
       toast.info('当前没有可清空的会话')
       return
     }
+    // 清空是不可逆的（主进程会把整个会话表清掉），必须先问一句。
+    // 全项目只有生词本删除和设置页的重置问了，这里之前是直接删。
+    if (!window.confirm(`确定清空全部 ${sessions.length} 个对话？（不可恢复）`)) return
     // 走主进程单事务通道一次清空（替代逐会话 Promise.all 删除的 N 次 IPC + N 次重渲染）
     clearAllSessions()
       .then(() => toast.success('已清空全部对话历史'))
@@ -201,9 +204,19 @@ export default function Chat() {
   }
 
   const handleDeleteSession = async (id: string) => {
+    // 删除单个会话同样不可恢复 —— 抽屉里那个 ✕ 就在卡片角上，很容易误点
+    if (!window.confirm('确定删除这个对话？（不可恢复）')) return
     await deleteSession(id)
     toast.info('对话已删除')
   }
+
+  /** 最后一条 AI 回复的 id：只有它才能"重新生成"（见 handleRegenerate 的说明） */
+  const lastAssistantId = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') return messages[i].id
+    }
+    return undefined
+  })()
 
   const handleCopyMessage = (content: string) => {
     navigator.clipboard
@@ -212,7 +225,14 @@ export default function Chat() {
       .catch(() => toast.error('复制失败'))
   }
 
-  // 重新生成：复用最后一条 user 消息，移除旧 assistant 回复后重跑（不新增 user 消息，避免重复问答对）
+  /**
+   * 重新生成：复用**最后一条** user 消息，移除其后的 assistant 回复后重跑
+   * （不新增 user 消息，避免重复问答对）。
+   *
+   * 注意：这个实现只认"最后一条提问"，跟点的是哪条回复无关 ——
+   * 所以按钮**只能出现在最后一条 AI 回复上**（见下面 lastAssistantId 的用法）。
+   * 之前每条回复下面都有这个按钮，点历史回复会偷偷把最新那条回复删掉重写。
+   */
   const handleRegenerate = useCallback(() => {
     if (loading || streaming) return
     const hasUser = messages.some((m) => m.role === 'user')
@@ -348,9 +368,8 @@ export default function Chat() {
                   onSelect={(id) => setCurrentBook(id)}
                   onClear={() => setCurrentBook(null)}
                 />
-                <IconButtonSmall label="新建会话" onClick={handleNewChat}>
-                  <Icon name="plus" size={14} />
-                </IconButtonSmall>
+                {/* 这里原来还有一个「＋ 新建会话」，和页头的「新建会话」是同一个函数、同一屏可见。
+                    抽屉里也还有一个「新对话」。留页头那一个（最显眼）+ 抽屉里那一个（会话列表旁）。 */}
               </span>
             </div>
 
@@ -405,7 +424,12 @@ export default function Chat() {
                       liked={message.liked}
                       bookmarked={message.bookmarked}
                       onCopy={() => handleCopyMessage(message.content)}
-                      onRegenerate={message.role === 'assistant' ? handleRegenerate : undefined}
+                      // 只有最后一条 AI 回复能重新生成（实现上只会重跑最后一条提问）
+                      onRegenerate={
+                        message.role === 'assistant' && message.id === lastAssistantId
+                          ? handleRegenerate
+                          : undefined
+                      }
                       onToggleLike={
                         msgId && message.role === 'assistant'
                           ? (liked) => toggleLike(msgId, liked)
@@ -618,47 +642,4 @@ export default function Chat() {
   )
 }
 
-// ===== 子组件：小型图标按钮 =====
-function IconButtonSmall({
-  children,
-  label,
-  onClick,
-}: {
-  children: React.ReactNode
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      style={{
-        width: 28,
-        height: 28,
-        display: 'grid',
-        placeItems: 'center',
-        border: '1px solid var(--border)',
-        background: 'var(--card)',
-        color: 'var(--foreground)',
-        borderRadius: 'var(--radius)',
-        cursor: 'pointer',
-        transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease',
-        flexShrink: 0,
-        padding: 0,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--sidebar-accent)'
-        e.currentTarget.style.color = 'var(--sidebar-accent-foreground)'
-        e.currentTarget.style.borderColor = 'var(--sidebar-border)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'var(--card)'
-        e.currentTarget.style.color = 'var(--foreground)'
-        e.currentTarget.style.borderColor = 'var(--border)'
-      }}
-    >
-      {children}
-    </button>
-  )
-}
+// （原来的 IconButtonSmall 只被那个重复的「＋ 新建会话」按钮使用，随它一起删除）
