@@ -350,13 +350,26 @@ export default function Methodologies() {
   const handleExtract = async (bookId: string) => {
     const book = books.find((b) => b.id === bookId)
     if (!book) return
+
+    // 这本已经提取过了 → 点的是「重新提取」，语义是**替换**（旧方法论会被清空）
+    const existing = methodologies.filter((m) => m.bookId === bookId).length
+    if (existing > 0) {
+      const ok = window.confirm(
+        `《${safeStr(book.title)}》已有 ${existing} 条方法论。\n\n重新提取会先清空它们再重新生成，确定继续？`,
+      )
+      if (!ok) return
+    }
+
     setExtractingBookId(bookId)
     const toastId = toast.loading(`正在从《${safeStr(book.title)}》提取方法论，请耐心等待...`)
     try {
-      await window.electronAPI.methodology.extract(bookId, safeStr(book.title))
+      // replace=true：主进程会先清空这本书的旧方法论（界面上的「重新提取」）
+      await window.electronAPI.methodology.extract(bookId, safeStr(book.title), existing > 0)
       await loadData()
       toast.remove(toastId)
-      toast.success('方法论提取完成，已自动注入智能体')
+      toast.success(
+        existing > 0 ? `重新提取完成，已替换原有 ${existing} 条方法论` : '方法论提取完成，已自动注入智能体',
+      )
     } catch (error) {
       toast.remove(toastId)
       const errorMsg = error instanceof Error ? error.message : String(error)
@@ -424,13 +437,9 @@ export default function Methodologies() {
           >
             <IconAI size={15} /> AI提取方法论
           </Button>
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/knowledge-cards')}
-            data-dom-id="cta-practice"
-          >
-            <Icon name="play" size={15} /> 开始练习
-          </Button>
+          {/* 「开始练习」已删除：它跳的是知识卡片页，而那一页没有任何练习功能，
+              全项目也没有练习页。真正的"练习"是让 AI 用上这条方法论 ——
+              详情面板里的「注入AI对话」才是那个入口（用上之后 practice_count 会 +1）。 */}
         </>
       }
     >
@@ -1120,7 +1129,6 @@ export default function Methodologies() {
                 }
                 toast.success(`已打开对话，可继续讨论「${name}」`)
               }}
-              onPractice={() => navigate('/knowledge-cards')}
               onExportSkill={() => handleExportSkill(selectedMethod)}
             />
           ) : (
@@ -1411,7 +1419,6 @@ interface MethodDetailPanelProps {
   onClose: () => void
   onDelete: () => void
   onInjectChat: () => void
-  onPractice: () => void
   onExportSkill: () => void
 }
 
@@ -1422,7 +1429,6 @@ function MethodDetailPanel({
   onClose,
   onDelete,
   onInjectChat,
-  onPractice,
   onExportSkill,
 }: MethodDetailPanelProps) {
   const pct = getMasteryProgress(methodology.masteryLevel)
@@ -1760,9 +1766,6 @@ function MethodDetailPanel({
       >
         <Button variant="primary" onClick={onInjectChat} data-dom-id="cta-inject-chat">
           <Icon name="chat" size={15} /> 注入AI对话
-        </Button>
-        <Button variant="ghost" onClick={onPractice} data-dom-id="cta-practice-detail">
-          <Icon name="play" size={15} /> 开始练习
         </Button>
         <Button variant="ghost" onClick={onExportSkill} data-dom-id="cta-export-skill">
           <Icon name="file" size={15} /> 导出为 Skill

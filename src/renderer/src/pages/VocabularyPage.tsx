@@ -1689,7 +1689,9 @@ function VocabularyDrawer({
           >
             <Button
               variant="primary"
-              data-dom-id="cta-review"
+              // 原来这里和页头的「批量复习」共用 data-dom-id="cta-review"，
+              // 同一个名字下面是两个完全不同的动作（一个进复习模式、一个记一次 Good 评分）
+              data-dom-id="cta-review-word"
               onClick={() => onAddReview(item.id)}
               style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}
             >

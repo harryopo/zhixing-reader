@@ -427,25 +427,14 @@ export default function BookDetail() {
             className="flex flex-wrap"
             style={{ gap: 'calc(var(--spacing) * 3)', marginTop: 'calc(var(--spacing) * 5)' }}
           >
-            <Button
-              variant="primary"
-              data-dom-id="cta-read-2"
-              onClick={() => void openInWeRead()}
-              disabled={!!book?.source && book.source !== 'weread'}
-              title={
-                book?.source && book.source !== 'weread'
-                  ? '本书非微信读书来源，无法在微信读书打开'
-                  : '本应用不同步全书正文，将打开微信读书网页版'
-              }
-            >
-              {book?.source && book.source !== 'weread' ? '本地书籍（暂不支持阅读）' : '在微信读书打开'}
-            </Button>
+            {/* 这里原来还有一个「在微信读书打开」，与页面顶部 hero 的按钮是同一个函数，
+                两个按钮在同一屏相距不到 200px。保留 hero 那一个。 */}
             <Button
               variant="secondary"
               data-dom-id="cta-add-review"
-              onClick={() => navigate('/knowledge-cards')}
+              onClick={() => navigate(`/knowledge-cards?bookId=${book.id}`)}
             >
-              知识卡片
+              本书知识卡片
             </Button>
             <Button
               variant="secondary"

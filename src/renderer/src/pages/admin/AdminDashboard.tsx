@@ -83,6 +83,9 @@ export default function AdminDashboard() {
   const loadData = useCallback(async (silent = false) => {
     if (isLoadingRef.current) return
     isLoadingRef.current = true
+    // silent=false 既可能是首屏加载也可能是点「刷新」：这里同时点亮 refreshing，
+    // 否则那个按钮永远显示"↻ 刷新"、永远不禁用（setRefreshing(true) 此前从未被调用）。
+    if (!silent) setRefreshing(true)
     try {
       if (!silent) setLoading(true)
       setError(null)

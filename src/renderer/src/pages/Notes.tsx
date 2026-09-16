@@ -193,7 +193,14 @@ export default function Notes() {
           </Button>
           <Button
             variant="ghost"
-            onClick={() => setSearchOpen((v) => !v)}
+            onClick={() => {
+              // 收起搜索框时必须**同时清空关键词**：否则列表还被过滤着，
+              // 而搜索框（和清除按钮）都藏在收起的面板里，用户只会看到"没找到"却找不到原因。
+              setSearchOpen((open) => {
+                if (open) setSearchQuery('')
+                return !open
+              })
+            }}
             data-dom-id="cta-search"
           >
             <Icon name="search" size={16} /> 搜索
@@ -348,9 +355,6 @@ export default function Notes() {
                   key={h.id}
                   highlight={h}
                   bookTitle={getBookTitle(h.bookId)}
-                  onEdit={() =>
-                    toast.info('本地编辑原文会破坏微信读书同步一致性，请到微信读书修改后重新导入')
-                  }
                 />
                 ))
               )}
@@ -442,10 +446,9 @@ function BookButton({ active, title, count, isAll, onClick }: BookButtonProps) {
 interface NoteItemProps {
   highlight: HighlightRow
   bookTitle: string
-  onEdit?: () => void
 }
 
-function NoteItem({ highlight, bookTitle, onEdit }: NoteItemProps) {
+function NoteItem({ highlight, bookTitle }: NoteItemProps) {
   const chapter =
     highlight.chapterTitle && highlight.chapterTitle !== '未知章节'
       ? highlight.chapterTitle
@@ -507,7 +510,8 @@ function NoteItem({ highlight, bookTitle, onEdit }: NoteItemProps) {
             flexShrink: 0,
           }}
         >
-          <IconButton28 icon="edit" label="编辑笔记" onClick={onEdit} />
+          {/* 「编辑笔记」原来点了只弹一句 toast（"本地编辑原文会破坏微信读书同步一致性"），
+              不做任何编辑 —— 属于项目明令禁止的占位按钮。按"能砍则砍"直接删除。 */}
         </div>
       </div>
 
@@ -584,49 +588,7 @@ function NoteItem({ highlight, bookTitle, onEdit }: NoteItemProps) {
   )
 }
 
-// ===== 子组件: 28px icon button（设计稿笔记卡片右上角编辑/删除按钮） =====
-function IconButton28({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: 'edit' | 'trash'
-  label: string
-  onClick?: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      style={{
-        width: 28,
-        height: 28,
-        display: 'grid',
-        placeItems: 'center',
-        border: '1px solid var(--border)',
-        background: 'var(--card)',
-        color: 'var(--foreground)',
-        borderRadius: 'var(--radius)',
-        cursor: 'pointer',
-        padding: 0,
-        transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--sidebar-accent)'
-        e.currentTarget.style.color = 'var(--sidebar-accent-foreground)'
-        e.currentTarget.style.borderColor = 'var(--sidebar-border)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'var(--card)'
-        e.currentTarget.style.color = 'var(--foreground)'
-        e.currentTarget.style.borderColor = 'var(--border)'
-      }}
-    >
-      <Icon name={icon} size={14} />
-    </button>
-  )
-}
+// （原来的 IconButton28 只被那个"编辑笔记"占位按钮使用，随它一起删除）
 
 // ===== 子组件: 紧凑搜索框 =====
 function CompactSearch({

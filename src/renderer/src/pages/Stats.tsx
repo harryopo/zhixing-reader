@@ -495,9 +495,9 @@ export default function Stats() {
                   type="button"
                   data-dom-id={chip.domId}
                   onClick={() => {
-                    // setMode 内部已触发 fetchReadingData(mode)，无需重复调用
-                    // 之前同时调 handleRefreshReadingData() 会用旧闭包 readingMode 再发一次请求，造成竞态
-                    setMode(chip.key)
+                    // setMode 内部会触发 fetchReadingData(mode)；点当前已选中的那个时段
+                    // 等于白跑一次网络请求（效果和右上角「刷新阅读数据」完全一样）—— 直接跳过。
+                    if (!isActive) setMode(chip.key)
                   }}
                   style={{
                     display: 'inline-flex',

@@ -120,6 +120,7 @@ function coverColor(index: number): string {
 export default function Bookshelf() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const urlQuery = searchParams.get('q') ?? ''
 
   const [books, setBooks] = useState<BookRow[]>([])
   const [highlights, setHighlights] = useState<Record<string, unknown>[]>([])
@@ -133,10 +134,19 @@ export default function Bookshelf() {
   const [loadingRecs, setLoadingRecs] = useState(false)
 
   // 筛选与排序
-  const initialQuery = searchParams.get('q') ?? ''
   const [filter, setFilter] = useState<FilterKey>('all')
   const [sort, setSort] = useState<SortKey>('recent')
-  const [query, setQuery] = useState(initialQuery)
+  const [query, setQuery] = useState(urlQuery)
+
+  /**
+   * 顶栏搜索框是 navigate('/bookshelf?q=xx')。
+   * 如果用户**已经**在书架页，跳同一个路由不会重新挂载组件，
+   * useState 的初值也只取一次 —— 于是搜了等于没搜（列表没反应）。
+   * 所以这里要跟着 URL 参数同步。
+   */
+  useEffect(() => {
+    setQuery(urlQuery)
+  }, [urlQuery])
 
   /** 已发起过进度补拉的书籍 id（防止重复请求与状态回环） */
   const progressTriedRef = useRef<Set<string>>(new Set())
@@ -431,13 +441,8 @@ export default function Bookshelf() {
                 ? '点击上方按钮同步微信读书书架'
                 : '尝试调整筛选条件或搜索关键词'
             }
-            action={
-              books.length === 0 ? (
-                <Button variant="primary" onClick={handleSync} disabled={syncing}>
-                  <Icon name="refresh" size={16} /> 开始同步
-                </Button>
-              ) : undefined
-            }
+            /* 这里原来还有一个「开始同步」按钮，和 hero 的「同步微信读书」是同一个 handler ——
+               空书架时同一屏会出现两个同步按钮。文案本身已经写着"点击上方按钮"，所以直接去掉。 */
             style={{
               background: 'var(--card)',
               border: '1px solid var(--border)',
@@ -777,11 +782,7 @@ export default function Bookshelf() {
               icon={<Icon name="bookshelf" size={24} />}
               title="暂无推荐"
               description="同步微信读书书架后，将基于您的阅读偏好生成推荐"
-              action={
-                <Button variant="primary" onClick={handleSync} disabled={syncing}>
-                  <Icon name="refresh" size={16} /> 同步微信读书
-                </Button>
-              }
+              /* 同上：这个位置原来也放了一个同步按钮，与 hero 重复 */
             />
           ) : (
             <div

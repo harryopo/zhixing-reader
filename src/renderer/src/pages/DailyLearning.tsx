@@ -290,7 +290,9 @@ export default function DailyLearning() {
     void loadTodaySignals()
     // 检查是否首次使用右键添加功能
     const hasSeenGuide = localStorage.getItem('vocab-rightclick-guide')
-    if (!hasSeenGuide) {
+    // 「稍后再说」只压住本次会话：下次启动还会提醒
+    const deferredThisSession = sessionStorage.getItem('vocab-rightclick-guide-later')
+    if (!hasSeenGuide && !deferredThisSession) {
       const timer = setTimeout(() => setShowGuide(true), 1500)
       return () => clearTimeout(timer)
     }
@@ -506,9 +508,20 @@ export default function DailyLearning() {
     setContextMenu(null)
   }, [])
 
-  const dismissGuide = useCallback(() => {
+  /**
+   * 关闭右键引导。
+   *
+   * 两个按钮原来调的是同一个函数（都是"关掉 + 永久记住"），
+   * 「稍后再说」和「知道了」在行为上没有任何区别 —— 摆两个按钮等于骗人。
+   * 现在分开：知道了 = 以后不再提示；稍后再说 = 本次会话不再弹，下次启动还会提醒。
+   */
+  const dismissGuide = useCallback((remember: boolean) => {
     setShowGuide(false)
-    localStorage.setItem('vocab-rightclick-guide', 'true')
+    if (remember) {
+      localStorage.setItem('vocab-rightclick-guide', 'true')
+    } else {
+      sessionStorage.setItem('vocab-rightclick-guide-later', 'true')
+    }
   }, [])
 
   const handleAddToVocabularyFromMenu = async () => {
@@ -587,6 +600,8 @@ export default function DailyLearning() {
   }
 
   const handleDeleteVocab = async (wordId: string) => {
+    // 删词不可恢复，先问一句（右键菜单里的"删除"离"复制单词"只有一行距离）
+    if (!window.confirm('确定从生词本删除这个词？')) return
     try {
       await window.electronAPI.vocabulary.delete(wordId)
       toast.success('已删除')
@@ -1200,8 +1215,8 @@ export default function DailyLearning() {
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'calc(var(--spacing) * 3)' }}>
-                <Button variant="ghost" onClick={dismissGuide}>稍后再说</Button>
-                <Button variant="primary" onClick={dismissGuide}>知道了</Button>
+                <Button variant="ghost" onClick={() => dismissGuide(false)}>稍后再说</Button>
+                <Button variant="primary" onClick={() => dismissGuide(true)}>知道了</Button>
               </div>
             </div>
           </div>
@@ -1646,8 +1661,8 @@ export default function DailyLearning() {
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'calc(var(--spacing) * 3)' }}>
-              <Button variant="ghost" onClick={dismissGuide}>稍后再说</Button>
-              <Button variant="primary" onClick={dismissGuide}>知道了</Button>
+              <Button variant="ghost" onClick={() => dismissGuide(false)}>稍后再说</Button>
+              <Button variant="primary" onClick={() => dismissGuide(true)}>知道了</Button>
             </div>
           </div>
         </div>

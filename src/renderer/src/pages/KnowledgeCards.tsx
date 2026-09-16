@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef, CSSProperties } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -116,13 +117,14 @@ const typeConfig: Record<CardType, { label: string; badgeStyle: CSSProperties }>
   },
 }
 
-// 类型筛选 chips（设计稿 5 个：全部/概念/方法/引用/反思）
+// 类型筛选 chips。
+// 2026-09-16：「反思」已删除 —— 数据库 CHECK 只允许 concept/methodology/quote 三类，
+// 这个筛选**永远筛不出任何卡片**，点了跟没点一样（筛选器在撒谎）。
 const TYPE_FILTERS: { key: FilterType; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'concept', label: '概念' },
   { key: 'methodology', label: '方法' },
   { key: 'quote', label: '引用' },
-  { key: 'reflection', label: '反思' },
 ]
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -161,12 +163,19 @@ function classifyErrorMessage(msg: string): {
 
 // ===== 主组件 =====
 export default function KnowledgeCards() {
+  /**
+   * 支持 ?bookId=xxx 深链：书籍详情页的「知识卡片」按钮点进来要**停在那本书**上。
+   * 之前那个按钮只能跳到全局列表（页面根本不认参数），用户还得自己在下拉里再选一次书 ——
+   * 按钮的承诺和实际行为对不上。
+   */
+  const [searchParams] = useSearchParams()
+
   const [activeTab, setActiveTab] = useState<TabKey>('cards')
   const [cards, setCards] = useState<KnowledgeCardItem[]>([])
   const [books, setBooks] = useState<BookRow[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedBook, setSelectedBook] = useState('')
+  const [selectedBook, setSelectedBook] = useState(() => searchParams.get('bookId') ?? '')
   const [selectedType, setSelectedType] = useState<FilterType>('all')
   const [selectedTag, setSelectedTag] = useState('')
   const [distillingBookId, setDistillingBookId] = useState<string | null>(null)
@@ -284,6 +293,16 @@ export default function KnowledgeCards() {
       return
     }
 
+    // 这本已经有卡片了 → 点的是「重新蒸馏」，语义是**替换**。
+    // 旧卡片上的解读、应用、掌握度会一起消失，必须先问清楚。
+    const existing = cards.filter((c) => c.bookId === bookId).length
+    if (existing > 0) {
+      const ok = window.confirm(
+        `《${safeStr(book.title)}》已有 ${existing} 张卡片。\n\n重新蒸馏会先清空它们再重新生成（解读、应用、掌握度都会丢失），确定继续？`,
+      )
+      if (!ok) return
+    }
+
     setDistillingBookId(bookId)
     setDistillProgress({
       bookId,
@@ -297,9 +316,10 @@ export default function KnowledgeCards() {
     const loadingId = toast.loading(`正在从《${safeStr(book.title)}》蒸馏知识卡片，请耐心等待...`)
 
     try {
-      await window.electronAPI.knowledgeCard.distill(bookId, safeStr(book.title))
+      // replace=true：主进程会先清空这本书的旧卡片（界面上的「重新蒸馏」）
+      await window.electronAPI.knowledgeCard.distill(bookId, safeStr(book.title), existing > 0)
       toast.remove(loadingId)
-      toast.success('知识卡片蒸馏完成')
+      toast.success(existing > 0 ? `重新蒸馏完成，已替换原有 ${existing} 张卡片` : '知识卡片蒸馏完成')
       // distill 的 Promise 在卡片蒸馏并落库完成后才 resolve，直接清进度 + 刷新即可：
       // 进度浮层已由 finally 的 distillingBookId=null 关闭，800ms 魔法延时只会让列表晚刷新
       setDistillProgress(null)
@@ -593,13 +613,10 @@ export default function KnowledgeCards() {
         subtitle={subtitle}
         actions={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => setActiveTab('distill')}
-              data-dom-id="cta-ai-gen"
-            >
-              <Icon name="agent" size={16} /> AI 批量生成
-            </Button>
+            {/* 「AI 批量生成」已删除：它只是 setActiveTab('distill') —— 和下面那排
+                tab 芯片里的「蒸馏中心」是同一个动作，而且它自己不生成任何东西
+                （真正的生成按钮在蒸馏中心里，要选一本书）。
+                同一个"去蒸馏中心"留一个入口就够了。 */}
             <Button
               variant="ghost"
               onClick={handleExportCards}

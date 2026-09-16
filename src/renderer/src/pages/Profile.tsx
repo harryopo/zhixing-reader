@@ -408,7 +408,9 @@ export default function Profile() {
               {syncingProfile ? '同步中...' : '同步微信读书'}
             </Button>
             <Button variant="secondary" data-dom-id="cta-edit" onClick={openEditModal}>编辑资料</Button>
-            <Button variant="ghost" data-dom-id="cta-share" onClick={handleShare}>分享</Button>
+            {/* 这个按钮实际只是把一段文本写进剪贴板（没有分享面板/链接/文件），
+            原来叫「分享」名不副实，改成它真正做的事。 */}
+        <Button variant="ghost" data-dom-id="cta-share" onClick={handleShare}>复制档案摘要</Button>
           </>
         }
       >

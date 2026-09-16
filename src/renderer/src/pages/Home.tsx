@@ -198,22 +198,14 @@ export default function Home() {
           <Button variant="secondary" onClick={() => void loadData()}>重试</Button>
         </div>
       )}
+      {/* 2026-09-16：hero 区的三个按钮全部删除。
+          原来它们是「今日卡片 → 知识卡片页」「打开书架 → 书架页」「同步微信读书 → 设置页」：
+          前两个与左侧导航、下方板块的按钮完全重复（一个页面里三个按钮指向两个地方），
+          第三个文案写着"同步"却只是跳到设置页（真正能同步的按钮在顶栏）。
+          现在每个板块自己带按钮，全局入口交给左侧导航与顶栏。 */}
       <PageHero
         title="今日阅读"
         subtitle="继续阅读、处理复习与回顾划线"
-        actions={
-          <>
-            <Button variant="primary" onClick={() => navigate('/knowledge-cards')} data-dom-id="cta-start-reading">
-              <Icon name="cards" size={16} /> 今日卡片
-            </Button>
-            <Button variant="secondary" onClick={() => navigate('/bookshelf')} data-dom-id="cta-open-bookshelf">
-              <Icon name="bookshelf" size={16} /> 打开书架
-            </Button>
-            <Button variant="ghost" onClick={() => navigate('/settings/weread')} data-dom-id="cta-sync-weread">
-              <Icon name="refresh" size={16} /> 同步微信读书
-            </Button>
-          </>
-        }
       >
         {/* ===== Layer 1: 继续阅读 ===== */}
         <Card>

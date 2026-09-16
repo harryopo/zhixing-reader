@@ -66,7 +66,9 @@ export default function Review() {
   // 键盘快捷键：空格显示答案，1-4 评分（仅显示答案后生效）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (loading || !currentCard) return
+      // 一轮做完（completed >= total）之后键盘必须彻底失效：
+      // 否则按空格+数字会**静默给最后一张卡再评一次**，把「这一轮过了 N 张」也改掉。
+      if (loading || !currentCard || completed >= total) return
       if (e.code === 'Space' && !showAnswer) {
         e.preventDefault()
         showAnswerCard()
@@ -79,7 +81,7 @@ export default function Review() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [loading, currentCard, showAnswer, showAnswerCard, rateCard])
+  }, [loading, currentCard, showAnswer, showAnswerCard, rateCard, completed, total])
 
   const progress = total > 0 ? Math.round((completed / total) * 100) : 0
 
