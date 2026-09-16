@@ -421,12 +421,23 @@ export default function SettingsData() {
         ),
       )
       const cards = cardsPerBook.flat()
+      // 2026-09-16：补齐知识卡片 / 方法论 / 生词。
+      // 原来备份里只有 books / highlights / cards（cards 还是 **FSRS 复习卡片**，不是知识卡片），
+      // 而导入时连 cards 都不读 —— 界面写着「完整备份」，恢复后卡片全没。
+      const [knowledgeCards, methodologies, vocabulary] = await Promise.all([
+        api.knowledgeCard?.getAll ? api.knowledgeCard.getAll().catch(() => []) : Promise.resolve([]),
+        api.methodology?.getAll ? api.methodology.getAll().catch(() => []) : Promise.resolve([]),
+        api.vocabulary?.getAll ? api.vocabulary.getAll().catch(() => []) : Promise.resolve([]),
+      ])
       const payload = {
-        version: '1.0',
+        version: '1.1',
         exportedAt: new Date().toISOString(),
         books,
         highlights,
         cards,
+        knowledgeCards,
+        methodologies,
+        vocabulary,
       }
       const filename = `zhixing-backup-${new Date().toISOString().split('T')[0]}.json`
       downloadBlob(filename, JSON.stringify(payload, null, 2), 'application/json')
@@ -439,7 +450,10 @@ export default function SettingsData() {
         /* 非致命 */
       }
       toast.remove(tId)
-      toast.success(`已导出 ${books.length} 本书 / ${highlights.length} 条划线 / ${cards.length} 张卡片`)
+      toast.success(
+        `已导出 ${books.length} 本书 / ${highlights.length} 条划线 / ${cards.length} 张复习卡` +
+          ` / ${knowledgeCards.length} 张知识卡片 / ${methodologies.length} 条方法论 / ${vocabulary.length} 个生词`,
+      )
     } catch (err) {
       toast.remove(tId)
       toast.error(`导出失败: ${(err as Error).message}`)
@@ -545,7 +559,11 @@ export default function SettingsData() {
         const data = JSON.parse(text) as {
           books?: Array<Record<string, unknown>>
           highlights?: Array<Record<string, unknown>>
+          /** FSRS 复习卡片（备份里保留但恢复时走"按划线重建"，见下） */
           cards?: Array<Record<string, unknown>>
+          knowledgeCards?: Array<Record<string, unknown>>
+          methodologies?: Array<Record<string, unknown>>
+          vocabulary?: Array<Record<string, unknown>>
         }
         let bookCount = 0
         let highlightCount = 0
@@ -567,8 +585,55 @@ export default function SettingsData() {
             /* 跳过冲突记录 */
           }
         }
+        // 复习卡片：按划线重建（备份里没有复习进度，只能重建为新卡）
+        let cardCount = 0
+        try {
+          const created = (await api.card?.createForExisting?.()) as { created?: number } | undefined
+          cardCount = created?.created ?? 0
+        } catch {
+          /* 非致命 */
+        }
+
+        // 知识卡片 / 方法论 / 生词：逐条 create，冲突记录跳过并计数
+        let kcCount = 0
+        for (const c of data.knowledgeCards ?? []) {
+          try {
+            await api.knowledgeCard?.create?.(c)
+            kcCount++
+          } catch {
+            /* 跳过冲突记录 */
+          }
+        }
+        let methodCount = 0
+        for (const m of data.methodologies ?? []) {
+          try {
+            await api.methodology?.create?.(m)
+            methodCount++
+          } catch {
+            /* 跳过冲突记录 */
+          }
+        }
+        let vocabCount = 0
+        for (const v of data.vocabulary ?? []) {
+          try {
+            await api.vocabulary?.create?.(v)
+            vocabCount++
+          } catch {
+            /* 跳过冲突记录 */
+          }
+        }
+
         toast.remove(tId)
-        toast.success(`已导入 ${bookCount} 本书 / ${highlightCount} 条划线`)
+        const restored = bookCount + highlightCount + cardCount + kcCount + methodCount + vocabCount
+        const summary =
+          `已导入 ${bookCount} 本书 / ${highlightCount} 条划线 / ${cardCount} 张复习卡` +
+          ` / ${kcCount} 张知识卡片 / ${methodCount} 条方法论 / ${vocabCount} 个生词`
+        // 一条都没进来时必须报 warning —— 原来全部失败也会弹「成功」
+        if (restored === 0) {
+          toast.warning(`没有导入任何数据：${summary}`)
+        } else {
+          toast.success(summary)
+        }
         // 触发 KPI 刷新
         try {
           const result = (await api.admin.getStats()) as { stats?: Record<string, unknown> }
@@ -695,7 +760,9 @@ export default function SettingsData() {
       {
         id: 'export-all',
         title: '导出全部数据',
-        desc: '完整备份 · 含书架、笔记、卡片',
+        // 说清楚到底备份了什么：原来写「完整备份 · 含书架、笔记、卡片」，
+        // 实际只有书架/划线/复习卡片，知识卡片与方法论根本没进文件
+        desc: '含书架、划线、复习卡、知识卡片、方法论、生词（不含复习进度与对话）',
         formatBadge: 'JSON',
         formatBadgeTone: 'neutral',
         statusText: '就绪',
@@ -734,7 +801,7 @@ export default function SettingsData() {
       {
         id: 'import-data',
         title: '导入数据',
-        desc: '从 JSON 备份恢复 · 自动合并',
+        desc: '从 JSON 备份恢复 · 重复记录自动跳过',
         formatBadge: '文件选择',
         formatBadgeTone: 'info',
         statusText: '待选择',
@@ -1227,7 +1294,7 @@ export default function SettingsData() {
                       此操作将删除所有数据且不可恢复
                     </strong>
                     <Tiny style={{ color: 'var(--state-error)' }}>
-                      将清空本地 SQLite 数据库、向量索引与全部缓存，且无法撤销。请务必先导出备份。
+                      将清空本地 SQLite 数据库与全部缓存，且无法撤销。请务必先导出备份。
                     </Tiny>
                   </div>
                 </div>
