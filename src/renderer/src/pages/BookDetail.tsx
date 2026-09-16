@@ -25,6 +25,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
+import { importWereadContentForBook, describeImportResult } from '../utils/import-weread-content'
 import {
   mapBooks,
   mapHighlights,
@@ -138,80 +139,12 @@ export default function BookDetail() {
     setImporting(true)
     const importToastId = toast.loading('正在从微信读书导入笔记...')
     try {
-      const content = (await window.electronAPI.weread.fetchAllContent(id)) as {
-        bookmarks: Array<{
-          bookmarkId: string
-          bookId: string
-          chapterUid: number
-          chapterTitle: string
-          markText: string
-          style: number
-          range: string
-          createTime: number
-        }>
-        notes: Array<{
-          reviewId: string
-          bookId: string
-          chapterUid: number
-          chapterTitle: string
-          abstract: string
-          content: string
-          range: string
-          createTime: number
-        }>
-      }
-
-      let newCount = 0
-      let totalCount = 0
-      if (content.bookmarks && content.bookmarks.length > 0) {
-        for (const bm of content.bookmarks) {
-          try {
-            const isNew = await window.electronAPI.highlight.create({
-              bookId: id,
-              content: bm.markText,
-              chapterTitle: bm.chapterTitle,
-              chapterUid: bm.chapterUid,
-              type: 'highlight',
-              source: 'weread',
-              createdAt: bm.createTime,
-            })
-            totalCount++
-            if (isNew) newCount++
-          } catch (e) {
-            console.error('导入划线失败:', e)
-          }
-        }
-      }
-      if (content.notes && content.notes.length > 0) {
-        for (const note of content.notes) {
-          try {
-            const isNew = await window.electronAPI.highlight.create({
-              bookId: id,
-              content: note.abstract,
-              note: note.content,
-              chapterTitle: note.chapterTitle,
-              chapterUid: note.chapterUid,
-              type: 'note',
-              source: 'weread',
-              createdAt: note.createTime,
-            })
-            totalCount++
-            if (isNew) newCount++
-          } catch (e) {
-            console.error('导入笔记失败:', e)
-          }
-        }
-      }
-
+      const result = await importWereadContentForBook(id)
       await loadBookData(id)
       toast.remove(importToastId)
-      if (newCount > 0) {
-        toast.success(`导入完成！新增 ${newCount} 条笔记（已自动生成复习卡片）`)
-      } else if (totalCount > 0) {
-        toast.info('笔记已是最新，无需重复导入')
-      } else {
-        toast.info('没有找到笔记')
-      }
+      const { kind, text } = describeImportResult(result)
+      if (kind === 'success') toast.success(text)
+      else toast.info(text)
     } catch (error) {
       toast.remove(importToastId)
       toast.error(`导入失败: ${error instanceof Error ? error.message : String(error)}`)

@@ -75,6 +75,7 @@ const electronAPI = {
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.GET_BY_BOOK, bookId),
     getById: (id: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.GET_BY_ID, id),
     create: (highlight: Record<string, unknown>) => invoke(IPC_CHANNELS.HIGHLIGHTS.CREATE, highlight),
+    backfillChapterTitles: (bookId?: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.BACKFILL_CHAPTER_TITLES, bookId),
     update: (id: string, highlight: Record<string, unknown>) => invoke(IPC_CHANNELS.HIGHLIGHTS.UPDATE, id, highlight),
     delete: (id: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.DELETE, id),
     getAll: () => invoke(IPC_CHANNELS.HIGHLIGHTS.GET_ALL),

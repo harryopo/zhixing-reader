@@ -72,6 +72,8 @@ export default defineConfig({
         'src/shared/fsrs-metrics.ts',
         'src/shared/study-limits.ts',
         'src/shared/fsrs-voice.ts',
+        'src/shared/weread-content.ts',
+        'electron/services/chapter-title-backfill.ts',
         // renderer（colocated __tests__ 已有测试）
         'src/renderer/src/stores/toastStore.ts',
         'src/renderer/src/stores/reviewStore.ts',

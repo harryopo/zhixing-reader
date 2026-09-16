@@ -144,6 +144,8 @@ export default function SettingsData() {
   const [fsrsSaving, setFsrsSaving] = useState<boolean>(false)
   /** 每日新卡上限：0 = 暂停新卡（只复习已学过的） */
   const [newCardsPerDay, setNewCardsPerDay] = useState<number>(DEFAULT_NEW_CARDS_PER_DAY)
+  /** 章节名一次性修复的执行状态 */
+  const [backfilling, setBackfilling] = useState<boolean>(false)
 
   // ===== KPI 与用量数据 =====
   const [loading, setLoading] = useState<boolean>(true)
@@ -250,6 +252,33 @@ export default function SettingsData() {
   const handleChangeMaxInterval = useCallback((v: number) => {
     setFsrsMaxInterval(v)
     setFsrsDirty(true)
+  }, [])
+
+  // ===== 补全历史划线的章节名（2026-09-16 新增） =====
+  const handleBackfillChapterTitles = useCallback(async () => {
+    const api = window.electronAPI
+    if (!api?.highlight?.backfillChapterTitles) {
+      toast.error('API 未正确初始化，请重启应用')
+      return
+    }
+    setBackfilling(true)
+    const tId = toast.loading('正在修复章节名，请稍候...')
+    try {
+      const result = await api.highlight.backfillChapterTitles()
+      toast.remove(tId)
+      if (result.updated > 0) {
+        toast.success(`修复完成：${result.books} 本书，补全 ${result.updated} 条章节名`)
+      } else if (result.failedBooks > 0) {
+        toast.error(`${result.failedBooks} 本书拉取失败，请检查微信读书连接后重试`)
+      } else {
+        toast.info('没有需要修复的划线，章节名都是完整的')
+      }
+    } catch (err) {
+      toast.remove(tId)
+      toast.error(`修复失败: ${(err as Error).message}`)
+    } finally {
+      setBackfilling(false)
+    }
   }, [])
 
   // ===== 保存 FSRS 参数 =====
@@ -897,6 +926,34 @@ export default function SettingsData() {
                   </div>
                 ))}
               </div>
+            </Card>
+
+            {/* ===== 数据修复：补全历史划线的章节名 =====
+                2026-09-16 实测：934 条划线的章节名全为空——导入时把微信读书
+                一起返回的章节对照表丢掉了。导入入口已修好，但只对以后生效，
+                这里是给已有数据用的一次性修复（幂等，可重复点）。 */}
+            <Card>
+              <CardHead
+                eyebrow="数据与存储"
+                title="划线章节名修复"
+                action={
+                  <Button
+                    variant="ghost"
+                    onClick={handleBackfillChapterTitles}
+                    disabled={backfilling}
+                    data-dom-id="cta-backfill-chapter-titles"
+                  >
+                    {backfilling ? '正在修复...' : '开始修复'}
+                  </Button>
+                }
+              />
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted-foreground)', lineHeight: 1.7 }}>
+                从微信读书的划线接口拿不到章节名，要靠另一次「章节列表」请求补上。
+                早期版本的导入漏掉了这一步，导致所有划线的章节名都是空的。
+                <br />
+                点「开始修复」会重新拉取一次你在微信读书里有划线的书，把章节名补回去。
+                <strong>只会补充空着的，不会覆盖已有的，重复点也安全。</strong>
+              </p>
             </Card>
 
             {/* ===== Card D: FSRS 参数配置 ===== */}

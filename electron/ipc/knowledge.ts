@@ -9,6 +9,7 @@ import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { knowledgeCardService } from '../services/knowledge-card-service';
 import { fetchAllContent } from '../weread-api';
+import { resolveWereadContent } from '../../src/shared/weread-content';
 import { extractMethodologies, analyzeBookArchitecture, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch } from '../ai-service';
 import type { HandleFn } from './types';
 
@@ -63,19 +64,25 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     if (!highlights || highlights.length === 0) {
       logger.info(`No highlights found for book "${bookTitle}", attempting to fetch from WeRead...`);
       try {
-        const content = await fetchAllContent(bookId) as {
+        const raw = await fetchAllContent(bookId) as {
           bookmarks: Array<{ bookmarkId: string; chapterTitle: string; markText: string; chapterUid: number; createTime: number }>;
           notes: Array<{ reviewId: string; chapterTitle: string; abstract: string; content: string; chapterUid: number; createTime: number }>;
+          chapters?: Array<{ chapterUid: number; title: string; level?: number }>;
         };
 
+        // 用共用的解析器补全章节名 —— 此前这里直接取 bm.chapterTitle，
+        // 而微信读书划线接口经常不给章节名（要靠 chapters 对照表），
+        // 结果渲染层、主进程三处导入全都写出空章节名（实测 934 条 0 条有值）。
+        const { bookmarks, notes } = resolveWereadContent(raw);
+
         let _importedCount = 0;
-        if (content.bookmarks && content.bookmarks.length > 0) {
-          for (const bm of content.bookmarks) {
+        if (bookmarks.length > 0) {
+          for (const bm of bookmarks) {
             try {
               highlightsDb.create({
                 book_id: bookId,
                 content: bm.markText,
-                chapter_title: bm.chapterTitle,
+                chapter_title: bm.resolvedChapterTitle,
                 chapter_uid: bm.chapterUid,
                 type: 'highlight',
                 source: 'weread',
@@ -85,14 +92,14 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
             } catch (e) { logger.error('导入划线失败:', e); }
           }
         }
-        if (content.notes && content.notes.length > 0) {
-          for (const note of content.notes) {
+        if (notes.length > 0) {
+          for (const note of notes) {
             try {
               highlightsDb.create({
                 book_id: bookId,
                 content: note.abstract,
                 note: note.content,
-                chapter_title: note.chapterTitle,
+                chapter_title: note.resolvedChapterTitle,
                 chapter_uid: note.chapterUid,
                 type: 'note',
                 source: 'weread',

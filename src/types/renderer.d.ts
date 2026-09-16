@@ -102,6 +102,13 @@ export interface ElectronAPI {
   }
   highlight: {
     getByBook: (bookId: string) => Promise<Highlight[]>
+    /** 一次性补全历史划线的章节名；不传 bookId 则处理所有缺章节名的书 */
+    backfillChapterTitles: (bookId?: string) => Promise<{
+      books: number
+      scanned: number
+      updated: number
+      failedBooks: number
+    }>
     getById: (id: string) => Promise<Highlight>
     create: (highlight: Record<string, unknown>) => Promise<Highlight>
     update: (id: string, highlight: Record<string, unknown>) => Promise<Highlight>

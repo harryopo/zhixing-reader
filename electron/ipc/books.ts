@@ -9,6 +9,7 @@ import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { indexHighlight as indexHighlightRAG } from '../services/rag-service';
 import { settingsService } from '../services/settings-service';
+import { backfillChapterTitles } from '../services/chapter-title-backfill';
 import { DEFAULT_NEW_CARDS_PER_DAY } from '../../src/shared/study-limits';
 import type { HandleFn } from './types';
 
@@ -76,6 +77,9 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.HIGHLIGHTS.DELETE, (id: string) => highlightsDb.delete(id));
   handle(IPC_CHANNELS.HIGHLIGHTS.GET_ALL, () => highlightsDb.getAll());
   handle(IPC_CHANNELS.HIGHLIGHTS.SEARCH, (keyword: string) => highlightsDb.search(keyword));
+  // 一次性补全历史划线的章节名（见 services/chapter-title-backfill.ts）
+  handle(IPC_CHANNELS.HIGHLIGHTS.BACKFILL_CHAPTER_TITLES, (bookId?: string) =>
+    backfillChapterTitles(bookId));
   handle(IPC_CHANNELS.HIGHLIGHTS.EXPORT, async () => {
     const rawHighlights = await highlightsDb.getAll();
     if (!Array.isArray(rawHighlights) || rawHighlights.length === 0) {

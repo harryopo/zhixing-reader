@@ -128,6 +128,37 @@ export const highlightsDb = {
     saveDatabase();
   },
 
+  /**
+   * 找出「有划线但章节名为空」的书籍 id。
+   * 用于一次性补全历史数据（2026-09-16：实测 934 条划线章节名全空）。
+   */
+  getBookIdsMissingChapterTitle(): string[] {
+    const result = getDatabase().exec(
+      `SELECT DISTINCT book_id FROM highlights
+       WHERE (chapter_title IS NULL OR TRIM(chapter_title) = '')
+         AND book_id IS NOT NULL AND book_id != ''`
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map((row) => String(row[0]));
+  },
+
+  /**
+   * 批量更新章节名（单事务，符合 B12）。
+   * 与逐条 update 的区别：不会每条都触发一次落盘。
+   */
+  updateChapterTitles(updates: Array<{ id: string; chapterTitle: string }>): number {
+    const valid = updates.filter((u) => u && u.id && u.chapterTitle);
+    if (valid.length === 0) return 0;
+    runTransaction((database) => {
+      const stmt = database.prepare(
+        "UPDATE highlights SET chapter_title = ?, updated_at = datetime('now') WHERE id = ?"
+      );
+      for (const u of valid) stmt.run([u.chapterTitle, u.id]);
+      stmt.free();
+    });
+    return valid.length;
+  },
+
   delete(id: string): void {
     getDatabase().run('DELETE FROM highlights WHERE id = ?', [id]);
     saveDatabase();

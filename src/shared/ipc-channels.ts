@@ -17,6 +17,8 @@ export const IPC_CHANNELS = {
     GET_ALL: 'highlights:getAll',
     SEARCH: 'highlights:search',
     EXPORT: 'highlights:export',
+    /** 一次性补全历史划线的章节名（2026-09-16：实测 934 条全空） */
+    BACKFILL_CHAPTER_TITLES: 'highlights:backfillChapterTitles',
   },
   CARDS: {
     GET_BY_HIGHLIGHT: 'cards:getByHighlight',
