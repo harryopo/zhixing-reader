@@ -23,6 +23,7 @@ import { getBookshelf, getApiKey } from './weread-api';
 import { booksDb } from './database';
 import { logger } from './logger';
 import { settingsService } from './services/settings-service';
+import { syncReadingTimeToLocal } from './services/reading-time-sync';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 export type WeReadSyncFrequency = '1d' | '3d' | '7d';
@@ -128,6 +129,10 @@ async function syncWereadBookshelfBackground(): Promise<void> {
         logger.warn(`WeRead auto-sync: sync book failed for "${wb.title}"`, { error: String(e) });
       }
     }
+
+    // 顺带刷新本地阅读时长（每天一次，只有 1 次额外请求）。
+    // 阅读时长的真值来源是微信读书，本地 daily_stats 只是它的缓存。
+    await syncReadingTimeToLocal();
 
     logger.info(`WeRead auto-sync done: total=${wereadBooks.length} new=${newCount} updated=${updatedCount}`);
     settingsService.set(SYNC_AT_KEY, Date.now());

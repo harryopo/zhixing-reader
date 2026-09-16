@@ -54,7 +54,9 @@ export const IPC_CHANNELS = {
     INCREMENT_BOOKS: 'dailyStats:incrementBooks',
     INCREMENT_HIGHLIGHTS: 'dailyStats:incrementHighlights',
     INCREMENT_CARDS: 'dailyStats:incrementCards',
-    ADD_READING_TIME: 'dailyStats:addReadingTime',
+    // 注：原 ADD_READING_TIME（累加阅读时长）已于 2026-09-16 移除。
+    // 阅读时长的唯一真值来源是微信读书的阅读统计，由主进程在取阅读数据时
+    // 用 upsertReadingTime 覆盖写入；累加语义会与它冲突，且该通道从未被调用过。
   },
   WEREAD: {
     SET_API_KEY: 'weread:setApiKey',

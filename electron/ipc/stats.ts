@@ -18,9 +18,6 @@ export function registerStatsHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.DAILY_STATS.INCREMENT_CARDS, (count?: number) =>
     dailyStatsDb.incrementCardsReviewed(count)
   );
-  handle(IPC_CHANNELS.DAILY_STATS.ADD_READING_TIME, (seconds: number) =>
-    dailyStatsDb.addReadingTime(seconds)
-  );
 
   handle(IPC_CHANNELS.TOKEN_USAGE.GET_RECENT, (limit?: number) => {
     return tokenUsageDb.getRecent(limit);

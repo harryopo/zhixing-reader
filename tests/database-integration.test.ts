@@ -452,17 +452,57 @@ describe('database-integration — sql.js 集成测试', () => {
   })
 
   describe('dailyStatsDb CRUD', () => {
-    it('应支持 incrementBooksRead / incrementHighlightsAdded / incrementCardsReviewed / addReadingTime', async () => {
+    it('应支持 incrementBooksRead / incrementHighlightsAdded / incrementCardsReviewed', async () => {
       dailyStatsDb.incrementBooksRead()
       dailyStatsDb.incrementHighlightsAdded(3)
       dailyStatsDb.incrementCardsReviewed(2)
-      dailyStatsDb.addReadingTime(60)
 
       const today = dailyStatsDb.getToday()
       expect((today as any).books_read).toBe(1)
       expect((today as any).highlights_added).toBe(3)
       expect((today as any).cards_reviewed).toBe(2)
-      expect((today as any).reading_time).toBe(60)
+    })
+
+    // ========================================================================
+    // 阅读时长（2026-09-16 语义修正）
+    // 真值来源是微信读书的阅读统计；本地 daily_stats.reading_time 是它的缓存。
+    // 原 addReadingTime（累加）已移除 —— 同一列有两个语义相反的写入方迟早算错。
+    // ========================================================================
+    it('upsertReadingTime 覆盖写入指定日期，而不是累加', async () => {
+      dailyStatsDb.upsertReadingTime('2026-09-05', 167)
+      dailyStatsDb.upsertReadingTime('2026-09-05', 300)
+      const rows = dailyStatsDb.getRange('2026-09-05', '2026-09-05')
+      expect((rows[0] as any).reading_time).toBe(300)
+    })
+
+    it('upsertReadingTime 能写入今天（getToday 读得到）', async () => {
+      const today = new Date().toISOString().split('T')[0]
+      dailyStatsDb.upsertReadingTime(today, 1459)
+      expect((dailyStatsDb.getToday() as any).reading_time).toBe(1459)
+    })
+
+    it('upsertReadingTime 与其它计数并存，互不覆盖', async () => {
+      const today = new Date().toISOString().split('T')[0]
+      dailyStatsDb.incrementCardsReviewed(4)
+      dailyStatsDb.upsertReadingTime(today, 600)
+      const t = dailyStatsDb.getToday() as any
+      expect(t.cards_reviewed).toBe(4)
+      expect(t.reading_time).toBe(600)
+    })
+
+    it('日期格式非法时整条忽略（不写脏数据）', async () => {
+      dailyStatsDb.upsertReadingTime('not-a-date', 100)
+      dailyStatsDb.upsertReadingTime('', 100)
+      expect(dailyStatsDb.getRange('0000-01-01', '9999-12-31')).toHaveLength(0)
+    })
+
+    it('秒数非法时按 0 写入 —— 微信读书本来就会返回某天 0 秒', async () => {
+      // 实测 /readdata/detail 的 readTimes 里确实存在值为 0 的日期（那天没读）。
+      // 所以「写入 0」是正确行为，表示"这天没读"，而不是脏数据。
+      dailyStatsDb.upsertReadingTime('2026-09-06', Number.NaN)
+      const rows = dailyStatsDb.getRange('2026-09-06', '2026-09-06')
+      expect(rows).toHaveLength(1)
+      expect((rows[0] as any).reading_time).toBe(0)
     })
 
     it('应支持 getRange 查询', async () => {

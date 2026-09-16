@@ -51,12 +51,25 @@ export const dailyStatsDb = {
     saveDatabase();
   },
 
-  addReadingTime(seconds: number): void {
-    const today = new Date().toISOString().split('T')[0];
+  /**
+   * 写入某一天的阅读时长（**覆盖**，不是累加）。
+   *
+   * 2026-09-16 语义修正：`reading_time` 的**唯一真值来源是微信读书**
+   * （`/readdata/detail` 的 readTimes）。本应用没有内置阅读器 ——
+   * 书是在微信读书里读的，App 自己测不出「读了多少分钟」。
+   * 所以这里是用微信读书的统计值覆盖本地记录，不做加法。
+   *
+   * 原先的 `addReadingTime`（累加）已随之移除：同一列有两个语义相反的写入方，
+   * 迟早会算出错误数字；而且它整条链路（通道/handler/preload）从未被调用过。
+   */
+  upsertReadingTime(date: string, seconds: number): void {
+    const day = String(date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+    const value = Math.max(0, Math.round(Number(seconds) || 0));
     getDatabase().run(
       `INSERT INTO daily_stats (id, date, reading_time) VALUES (?, ?, ?)
-       ON CONFLICT(date) DO UPDATE SET reading_time = reading_time + ?`,
-      [`daily_${today}`, today, seconds, seconds]
+       ON CONFLICT(date) DO UPDATE SET reading_time = ?`,
+      [`daily_${day}`, day, value, value]
     );
     saveDatabase();
   },

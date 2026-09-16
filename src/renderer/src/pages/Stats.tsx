@@ -288,6 +288,15 @@ export default function Stats() {
     }
   }
 
+  /**
+   * 阅读数据是否已经到达。
+   *
+   * daily_stats.reading_time 的真值来自微信读书，由主进程在取阅读数据时覆盖写入。
+   * 本页的 KPI 与 7 天柱状图读的是本地表，所以必须等阅读数据先落地再拉区间，
+   * 否则首次进入页面会显示刷新前的旧值（0）。
+   */
+  const hasReadingData = Boolean(readingData)
+
   // 日期范围切换时，重新调用 dailyStats.getRange 获取每日阅读统计
   // 加 isCancelled cleanup 防止快速切换时旧请求覆盖新数据
   useEffect(() => {
@@ -316,7 +325,7 @@ export default function Stats() {
     return () => {
       isCancelled = true
     }
-  }, [statsDateRange])
+  }, [statsDateRange, hasReadingData])
 
   // 复习热力 12 周：拉取每日复习次数（daily_stats.cards_reviewed，由每次 FSRS 评分累加）
   const [heatmapDaily, setHeatmapDaily] = useState<Record<string, number>>({})

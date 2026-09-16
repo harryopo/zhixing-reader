@@ -3,6 +3,7 @@
  * 从原 ipc.ts 拆分而来，逻辑保持不变。
  */
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
+import { syncReadingTimeToLocal } from '../services/reading-time-sync';
 import { booksDb } from '../database';
 import { logger } from '../logger';
 import {
@@ -50,5 +51,13 @@ export function registerWereadHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.READING_DATA.FETCH_WEEKLY, (baseTime?: number) => fetchReadingData('weekly', baseTime));
   handle(IPC_CHANNELS.READING_DATA.FETCH_MONTHLY, (baseTime?: number) => fetchReadingData('monthly', baseTime));
   handle(IPC_CHANNELS.READING_DATA.FETCH_ANNUALLY, (baseTime?: number) => fetchReadingData('annually', baseTime));
-  handle(IPC_CHANNELS.READING_DATA.FETCH_OVERALL, () => fetchReadingData('overall'));
+
+  // 总体统计：顺带把微信读书的每日阅读时长写回本地 daily_stats，
+  // 让统计页的 KPI / 7 天图（读本地表）与实际阅读数据一致。
+  // 挂在 overall 上是有意的：它只在页面首次加载和手动刷新时调用，不会频繁触发。
+  handle(IPC_CHANNELS.READING_DATA.FETCH_OVERALL, async () => {
+    const data = await fetchReadingData('overall');
+    void syncReadingTimeToLocal();
+    return data;
+  });
 }
