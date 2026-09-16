@@ -19,7 +19,9 @@ const SOURCE_ICONS: Record<string, IconName> = {
 }
 
 const METHOD_LABELS: Record<string, string> = {
-  semantic: '语义检索',
+  // 检索现在只有本地 BM25 一条路（2026-09-16 起）
+  local: '本地检索',
+  semantic: '语义检索（已停用）',
   keyword: '关键词',
   relevance: '相关度',
   profile: '画像',

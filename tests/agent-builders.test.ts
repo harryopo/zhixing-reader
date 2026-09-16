@@ -8,17 +8,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
 
-// Mock rag-service（book builder 依赖）— vi.hoisted 避免 hoist 引用问题
-const { mockSemanticSearch, mockCheckRAGAvailability, mockKeywordSearch } = vi.hoisted(() => ({
-  mockSemanticSearch: vi.fn(),
-  mockCheckRAGAvailability: vi.fn(),
-  mockKeywordSearch: vi.fn(),
+// Mock rag-service（book builder 依赖本地检索）— vi.hoisted 避免 hoist 引用问题
+//
+// 2026-09-16：检索只剩一条路（本地 BM25）。原来的 semanticSearch / checkRAGAvailability /
+// keywordSearch 三件套已整套删除，mock 也随之收敛成一个 retrieveHighlights。
+const { mockRetrieveHighlights } = vi.hoisted(() => ({
+  mockRetrieveHighlights: vi.fn(),
 }))
 
 vi.mock('../electron/services/rag-service', () => ({
-  semanticSearch: mockSemanticSearch,
-  checkRAGAvailability: mockCheckRAGAvailability,
-  keywordSearch: mockKeywordSearch,
+  retrieveHighlights: mockRetrieveHighlights,
 }))
 
 vi.mock('../electron/agent/system-prompt', () => ({
@@ -83,81 +82,52 @@ describe('BookContextBuilder', () => {
   })
 
   describe('build', () => {
-    it('RAG 可用时走语义搜索', async () => {
-      mockCheckRAGAvailability.mockResolvedValue(true)
-      mockSemanticSearch.mockResolvedValue([
-        { content: '笔记内容', bookTitle: '书名', chapterTitle: '第1章', relevanceScore: 0.9 },
+    it("检索到划线时写进上下文，并标记 method=local", async () => {
+      mockRetrieveHighlights.mockResolvedValue([
+        {
+          highlightId: 'hl_1',
+          bookId: 'b1',
+          content: '笔记内容',
+          bookTitle: '书名',
+          chapterTitle: '第1章',
+          relevanceScore: 0.9,
+        },
       ])
       const result = await builder.build(ctxWithBook())
-      expect(mockSemanticSearch).toHaveBeenCalled()
+      expect(mockRetrieveHighlights).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ bookId: 'b1' }),
+      )
       expect(result.content).toContain('笔记内容')
       expect(result.content).toContain('第1章')
       expect(result.metadata?.source).toBe('rag')
-      // 检索可视化元数据（Step: RAG 语义）
+      expect(result.metadata?.method).toBe('local')
       expect(result.metadata?.itemCount).toBe(1)
-      expect(result.metadata?.method).toBe('semantic')
       expect(result.metadata?.topScore).toBe(0.9)
       expect(result.metadata?.previews?.[0]).toMatchObject({ title: '第1章', snippet: '笔记内容' })
     })
 
-    it('RAG 不可用时降级到关键词匹配', async () => {
-      mockCheckRAGAvailability.mockResolvedValue(false)
-      mockKeywordSearch.mockReturnValue([
-        { content: '关键词笔记', bookTitle: '书名', chapterTitle: '第2章' },
-      ])
-      const result = await builder.build(ctxWithBook())
-      expect(mockKeywordSearch).toHaveBeenCalled()
-      expect(result.content).toContain('关键词笔记')
-      // 降级路径标记为 keyword
-      expect(result.metadata?.method).toBe('keyword')
-      expect(result.metadata?.itemCount).toBe(1)
-    })
-
-    it('语义检索返回 0 条时**回退关键词**，不再静默给空上下文', async () => {
-      // 2026-09-16 修正：原来这里断言"语义返回空 → content 为空"，
-      // 而那个行为是 bug —— 索引为空时语义检索永远返回 0 条，
-      // AI 就带着零条书籍上下文回答，日志还写着"用了语义检索"。
-      // 现在的约定是：语义 0 条 → 回退关键词检索。
-      mockCheckRAGAvailability.mockResolvedValue(true)
-      mockSemanticSearch.mockResolvedValue([])
-      mockKeywordSearch.mockReturnValue([
-        { content: '关键词找到的笔记', bookTitle: '书名', chapterTitle: '第3章' },
-      ])
-      const result = await builder.build(ctxWithBook())
-      expect(mockSemanticSearch).toHaveBeenCalled()
-      expect(mockKeywordSearch).toHaveBeenCalled()
-      expect(result.content).toContain('关键词找到的笔记')
-      expect(result.metadata?.method).toBe('keyword')
-    })
-
-    it('两条路都查不到时才返回空 content', async () => {
-      mockCheckRAGAvailability.mockResolvedValue(true)
-      mockSemanticSearch.mockResolvedValue([])
-      mockKeywordSearch.mockReturnValue([])
+    it("检索不到时上下文为空（不给 AI 编内容）", async () => {
+      mockRetrieveHighlights.mockResolvedValue([])
       const result = await builder.build(ctxWithBook())
       expect(result.content).toBe('')
     })
 
-    it('RAG 抛错时降级到关键词匹配', async () => {
-      mockCheckRAGAvailability.mockResolvedValue(true)
-      mockSemanticSearch.mockRejectedValue(new Error('RAG boom'))
-      mockKeywordSearch.mockReturnValue([
-        { content: '降级笔记', bookTitle: '书', chapterTitle: '章' },
-      ])
+    it("检索抛错时降级为空上下文，对话照常进行", async () => {
+      mockRetrieveHighlights.mockRejectedValue(new Error('检索炸了'))
       const result = await builder.build(ctxWithBook())
-      expect(result.content).toContain('降级笔记')
+      expect(result.content).toBe('')
     })
 
     // ========================================================================
     // 引用来源（2026-09-16 新增）
     // metadata.previews 只有 title/snippet/score，是给「调取知识库」面板看过程用的；
     // 消息气泡的「引用来源」需要能定位回具体划线的真实片段。
-    // 此前这一层就把 highlightId / bookId / relevanceScore 丢掉了，
-    // 导致 chat_messages.sources 永远为空（实测 21 条消息 0 条有值）。
+    // 此前这一层把 highlightId / bookId / relevanceScore 丢掉了，
+    // 导致 chat_messages.sources 永远为空。
     // ========================================================================
-    it('语义检索路径：metadata.sources 带齐 highlightId / bookId / 相关度', async () => {
-      mockCheckRAGAvailability.mockResolvedValue(true)
-      mockSemanticSearch.mockResolvedValue([
+    it("metadata.sources 带齐 highlightId / bookId / 相关度", async () => {
+      mockRetrieveHighlights.mockResolvedValue([
         {
           highlightId: 'hl_1',
           bookId: 'b1',
@@ -180,25 +150,8 @@ describe('BookContextBuilder', () => {
       ])
     })
 
-    it('关键词降级路径同样带上引用来源', async () => {
-      mockCheckRAGAvailability.mockResolvedValue(false)
-      mockKeywordSearch.mockReturnValue([
-        {
-          highlightId: 'hl_k',
-          bookId: 'b1',
-          content: '关键词命中',
-          bookTitle: '书',
-          chapterTitle: '章',
-          relevanceScore: 0.1,
-        },
-      ])
-      const result = await builder.build(ctxWithBook())
-      expect(result.metadata?.sources?.[0]).toMatchObject({ highlightId: 'hl_k', bookId: 'b1' })
-    })
-
-    it('缺少 highlightId 的命中项被剔除（不能进「引用来源」）', async () => {
-      mockCheckRAGAvailability.mockResolvedValue(true)
-      mockSemanticSearch.mockResolvedValue([
+    it("缺少 highlightId 的命中项被剔除（不能进「引用来源」）", async () => {
+      mockRetrieveHighlights.mockResolvedValue([
         { content: '来源不明', bookTitle: '书', relevanceScore: 0.5 },
         { highlightId: 'hl_ok', bookId: 'b1', content: '有身份', bookTitle: '书', relevanceScore: 0.6 },
       ])

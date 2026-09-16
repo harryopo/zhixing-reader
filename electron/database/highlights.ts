@@ -8,6 +8,16 @@ import { rowsToObjects } from '../utils/db';
 import { logger } from '../logger';
 import { cardsDb } from './cards';
 
+/**
+ * 进程内的写计数器：每次增删改都 +1。
+ *
+ * 为什么签名不能只看「条数 + MAX(updated_at)」：
+ * ' + q + 'updated_at' + q + ' 精度只到秒，**同一秒内**的插入与更新（例如导入划线后立刻回填章节名）
+ * 会让签名完全相同 —— 检索索引就不会重建，用户会看到"新导入的划线搜不到"。
+ * 计数器由本模块的写方法维护，进程重启后归零（索引缓存那时也一起重建了，无需持久化）。
+ */
+let writeRevision = 0;
+
 export const highlightsDb = {
   getByBookId(bookId: string): Record<string, unknown>[] {
     const result = getDatabase().exec(
@@ -32,6 +42,7 @@ export const highlightsDb = {
   },
 
   create(highlight: Record<string, unknown>): boolean {
+    writeRevision++;
     const bookId = highlight.book_id as string;
     const content = highlight.content as string;
 
@@ -58,6 +69,7 @@ export const highlightsDb = {
   },
 
   createBatch(highlights: Array<Record<string, unknown>>): number {
+    writeRevision++;
     let newCount = 0;
     const newHighlightIds: string[] = [];
     runTransaction((database) => {
@@ -118,6 +130,7 @@ export const highlightsDb = {
   },
 
   update(id: string, highlight: Record<string, unknown>): void {
+    writeRevision++;
     const updatableKeys = Object.keys(highlight).filter(k => k !== 'id');
     const setClauses = updatableKeys.map(k => `${k} = ?`).join(', ');
     const values = updatableKeys.map(k => highlight[k]);
@@ -152,6 +165,7 @@ export const highlightsDb = {
    * 与逐条 update 的区别：不会每条都触发一次落盘。
    */
   updateChapterTitles(updates: Array<{ id: string; chapterTitle: string }>): number {
+    writeRevision++;
     const valid = updates.filter((u) => u && u.id && u.chapterTitle);
     if (valid.length === 0) return 0;
     // 同一行可能被匹配到两次（微信读书的划线、想法常常正文相同），
@@ -168,12 +182,31 @@ export const highlightsDb = {
     return byId.size;
   },
 
+  /**
+   * 检索索引的版本签名：条数 + 最新更新时间。
+   *
+   * 任何增删改（含章节名回填）都会让它变化，检索层据此判断要不要重建索引。
+   * 放在 DB 层是因为 SQL 属于这一层（项目约定）。
+   */
+  getRetrievalSignature(): string {
+    const result = getDatabase().exec(
+      "SELECT COUNT(*), IFNULL(MAX(updated_at), '') FROM highlights"
+    );
+    const [count, latest] =
+      result.length === 0 || result[0].values.length === 0
+        ? [0, '']
+        : [result[0].values[0][0], result[0].values[0][1]];
+    return `${String(count)}:${String(latest)}:${writeRevision}`;
+  },
+
   delete(id: string): void {
+    writeRevision++;
     getDatabase().run('DELETE FROM highlights WHERE id = ?', [id]);
     saveDatabase();
   },
 
   deleteBatch(ids: string[]): void {
+    writeRevision++;
     runTransaction((database) => {
       const stmt = database.prepare('DELETE FROM highlights WHERE id = ?');
       for (const id of ids) {
@@ -184,6 +217,7 @@ export const highlightsDb = {
   },
 
   deleteByBookId(bookId: string): void {
+    writeRevision++;
     getDatabase().run('DELETE FROM highlights WHERE book_id = ?', [bookId]);
     saveDatabase();
   },

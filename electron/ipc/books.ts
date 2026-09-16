@@ -7,7 +7,6 @@ import { dialog, BrowserWindow } from 'electron';
 import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb } from '../database';
 import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
-import { indexHighlight as indexHighlightRAG } from '../services/rag-service';
 import { settingsService } from '../services/settings-service';
 import { backfillChapterTitles } from '../services/chapter-title-backfill';
 import { DEFAULT_NEW_CARDS_PER_DAY } from '../../src/shared/study-limits';
@@ -59,16 +58,9 @@ export function registerBookHandlers(handle: HandleFn): void {
         logger.error('Auto-create FSRS card failed', { highlightId: id, error: String(cardErr) });
       }
 
-      const books = booksDb.getAll();
-      const book = books.find(b => b.id === bookId);
-      indexHighlightRAG({
-        id,
-        bookId: bookId as string,
-        bookTitle: (book?.title as string) || 'Unknown',
-        content: highlight.content as string,
-        chapterTitle: (highlight.chapter_title ?? highlight.chapterTitle) as string | undefined,
-        createdAt: new Date().toISOString(),
-      }).catch(() => {})
+      // 这里原来会给新建的划线建一条向量索引（Vectra + embeddings）。
+      // 语义检索已整套移除（本机服务商没有 /embeddings 接口，索引一直是空的），
+      // 现在检索走本地 BM25，索引按 DB 签名自动重建 —— 不需要在这里做任何事。
     }
 
     return created;

@@ -1,5 +1,5 @@
 import { logger } from '../../logger'
-import { semanticSearch, checkRAGAvailability, keywordSearch } from '../../services/rag-service'
+import { retrieveHighlights as retrieveLocalHighlights } from '../../services/rag-service'
 import { CONTEXT_OVERFLOW_HINT } from '../system-prompt'
 import { ContextBuilder, BuildContext, ContextBuildResult } from '../context-builder'
 
@@ -82,73 +82,29 @@ export class BookContextBuilder implements ContextBuilder {
     }
   }
 
+  /**
+   * 取与问题最相关的划线段落。
+   *
+   * 只有一条路：本地 BM25 检索。原来的「语义检索 + 关键词兜底」两条路已经删除 ——
+   * 语义那条在本机从来没通（服务商不支持 embeddings），而它的失败是**静默的**：
+   * 返回空数组、日志写 Using RAG semantic search，AI 就带着零条上下文回答。
+   */
   private async retrieveHighlights(
     bookId: string,
     userMessage: string,
-  ): Promise<{ items: HighlightCtx[]; method: 'semantic' | 'keyword'; topScore?: number }> {
-    try {
-      const ragAvailable = await checkRAGAvailability()
-
-      if (ragAvailable) {
-        logger.info('Using RAG semantic search')
-        const searchResults = await semanticSearch(userMessage, { limit: 5, bookId })
-        logger.info('RAG retrieval', {
-          query: userMessage.substring(0, 50),
-          results: searchResults.length,
-          topScore: searchResults[0]?.relevanceScore,
-        })
-
-        // 语义检索返回 0 条时必须回退到关键词检索。
-        // 原来这里是直接 return 空数组 —— 只要索引是空的（或向量里没有这本书的内容），
-        // AI 就会带着**零条**书籍上下文回答，而日志还写着"用了语义检索"，完全看不出来。
-        if (searchResults.length === 0) {
-          logger.info('Semantic search returned 0 results, falling back to keyword matching')
-          return this.getKeywordHighlights(bookId, userMessage)
-        }
-
-        return {
-          items: searchResults.map(r => ({
-            highlightId: r.highlightId,
-            bookId: r.bookId,
-            content: r.content,
-            bookTitle: r.bookTitle,
-            chapterTitle: r.chapterTitle,
-            relevanceScore: r.relevanceScore,
-          })),
-          method: 'semantic',
-          topScore: searchResults[0]?.relevanceScore,
-        }
-      }
-
-      logger.info('RAG unavailable, falling back to keyword matching')
-      return this.getKeywordHighlights(bookId, userMessage)
-    } catch (err) {
-      logger.error('Failed to retrieve book context, falling back to keywords', err)
-      try {
-        return this.getKeywordHighlights(bookId, userMessage)
-      } catch (fallbackErr) {
-        logger.error('Fallback retrieval also failed', fallbackErr)
-        return { items: [], method: 'keyword' }
-      }
-    }
-  }
-
-  private getKeywordHighlights(
-    bookId: string,
-    query: string,
-  ): { items: HighlightCtx[]; method: 'semantic' | 'keyword'; topScore?: number } {
-    const results = keywordSearch(query, bookId, 5)
+  ): Promise<{ items: HighlightCtx[]; method: string; topScore?: number }> {
+    const hits = await retrieveLocalHighlights(userMessage, { bookId, limit: 5 })
     return {
-      items: results.map(r => ({
-        highlightId: r.highlightId,
-        bookId: r.bookId,
-        content: r.content,
-        bookTitle: r.bookTitle,
-        chapterTitle: r.chapterTitle,
-        relevanceScore: r.relevanceScore,
+      items: hits.map((h) => ({
+        highlightId: h.highlightId,
+        bookId: h.bookId,
+        content: h.content,
+        bookTitle: h.bookTitle,
+        chapterTitle: h.chapterTitle,
+        relevanceScore: h.relevanceScore,
       })),
-      method: 'keyword',
-      topScore: results[0]?.relevanceScore,
+      method: 'local',
+      topScore: hits[0]?.relevanceScore,
     }
   }
 }

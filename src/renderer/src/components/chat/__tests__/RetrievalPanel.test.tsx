@@ -34,7 +34,8 @@ describe('RetrievalPanel — 调取知识库可视化', () => {
     const state: RetrievalState = {
       stage: 'done',
       sources: [
-        { name: 'book', label: '书籍笔记', source: 'rag', used: true, itemCount: 3, method: 'semantic', topScore: 0.87, buildTime: 12 },
+        // 2026-09-16：检索方式只剩本地 BM25 一条路（semantic 整套删除）
+        { name: 'book', label: '书籍笔记', source: 'rag', used: true, itemCount: 3, method: 'local', topScore: 0.87, buildTime: 12 },
         { name: 'memory', label: '相关记忆', source: 'memory-service', used: false, itemCount: 0, method: 'keyword', buildTime: 3 },
       ],
     }
@@ -42,7 +43,7 @@ describe('RetrievalPanel — 调取知识库可视化', () => {
     expect(screen.getByText('调取知识库')).toBeInTheDocument()
     expect(screen.getByText('1/2 路命中')).toBeInTheDocument()
     expect(screen.getByText('书籍笔记')).toBeInTheDocument()
-    expect(screen.getByText('语义检索')).toBeInTheDocument()
+    expect(screen.getByText('本地检索')).toBeInTheDocument()
     expect(screen.getByText('3 条命中 · 87%')).toBeInTheDocument()
     expect(screen.getByText('无命中')).toBeInTheDocument()
   })
@@ -57,7 +58,7 @@ describe('RetrievalPanel — 调取知识库可视化', () => {
           source: 'rag',
           used: true,
           itemCount: 1,
-          method: 'semantic',
+          method: 'local',
           topScore: 0.9,
           buildTime: 10,
           previews: [{ title: '第1章', snippet: '元认知是对思考的思考' }],
