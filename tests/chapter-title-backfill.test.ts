@@ -132,4 +132,26 @@ describe('backfillChapterTitles — 补全历史划线的章节名', () => {
     expect(mockedFetch).not.toHaveBeenCalled()
     expect(r).toEqual({ books: 0, scanned: 0, updated: 0, failedBooks: 0 })
   })
+
+  it('正文为空的划线不算缺口（否则那几本书会被反复重拉）', async () => {
+    // 实测真实数据里有 7 条正文为空的划线。章节名的匹配口径是「正文 → 章节」，
+    // 空正文按定义永远匹配不上；若算作缺口，这几本书每一轮都会重新拉接口。
+    seedBook('b1', [{ content: 'X' }])
+    highlightsDb.update('hl_b1_0', { content: '' })
+
+    const r = await backfillChapterTitles()
+    expect(mockedFetch).not.toHaveBeenCalled()
+    expect(r).toEqual({ books: 0, scanned: 0, updated: 0, failedBooks: 0 })
+  })
+
+  it('同一行被匹配到两次时只算一条（返回的是真实改动行数）', () => {
+    seedBook('b1', [{ content: 'A' }])
+    const n = highlightsDb.updateChapterTitles([
+      { id: 'hl_b1_0', chapterTitle: '第一章' },
+      { id: 'hl_b1_0', chapterTitle: '第一章' },
+    ])
+    expect(n).toBe(1)
+    expect(highlightsDb.getByBookId('b1')[0].chapter_title).toBe('第一章')
+  })
 })
+

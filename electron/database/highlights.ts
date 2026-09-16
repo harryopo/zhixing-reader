@@ -131,11 +131,16 @@ export const highlightsDb = {
   /**
    * 找出「有划线但章节名为空」的书籍 id。
    * 用于一次性补全历史数据（2026-09-16：实测 934 条划线章节名全空）。
+   *
+   * **必须排除正文为空的划线**：章节名的补全口径是「划线原文 → 章节」，
+   * 正文为空的行**按定义不可能被匹配上**。实测有 7 条这样的空行，
+   * 若不排除，这 7 本书会被每一轮补全反复重新拉取，永远收敛不了。
    */
   getBookIdsMissingChapterTitle(): string[] {
     const result = getDatabase().exec(
       `SELECT DISTINCT book_id FROM highlights
        WHERE (chapter_title IS NULL OR TRIM(chapter_title) = '')
+         AND content IS NOT NULL AND TRIM(content) != ''
          AND book_id IS NOT NULL AND book_id != ''`
     );
     if (result.length === 0) return [];
@@ -149,14 +154,18 @@ export const highlightsDb = {
   updateChapterTitles(updates: Array<{ id: string; chapterTitle: string }>): number {
     const valid = updates.filter((u) => u && u.id && u.chapterTitle);
     if (valid.length === 0) return 0;
+    // 同一行可能被匹配到两次（微信读书的划线、想法常常正文相同），
+    // 去重后统计，否则返回的「更新条数」会比实际改动的行数多。
+    const byId = new Map<string, string>();
+    for (const u of valid) byId.set(u.id, u.chapterTitle);
     runTransaction((database) => {
       const stmt = database.prepare(
         "UPDATE highlights SET chapter_title = ?, updated_at = datetime('now') WHERE id = ?"
       );
-      for (const u of valid) stmt.run([u.chapterTitle, u.id]);
+      for (const [id, chapterTitle] of byId) stmt.run([chapterTitle, id]);
       stmt.free();
     });
-    return valid.length;
+    return byId.size;
   },
 
   delete(id: string): void {
