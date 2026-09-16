@@ -54,6 +54,21 @@ class SettingsService {
     return { ...this.settings }
   }
 
+  /**
+   * 本机能否用系统加密保存密钥。
+   *
+   * 2026-09-16：本机实测 safeStorage.isEncryptionAvailable() 返回 false，
+   * 于是 setSecureKey 走的是**明文写进 settings.json** 的分支 —— 而界面从未提过这件事。
+   * 这个只读方法让渲染层能如实告诉用户"你的密钥是明文存的"。
+   */
+  isEncryptionAvailable(): boolean {
+    try {
+      return safeStorage.isEncryptionAvailable()
+    } catch {
+      return false
+    }
+  }
+
   getSecureKey(keyName: string): string | null {
     try {
       if (!fs.existsSync(this.secureDir)) {

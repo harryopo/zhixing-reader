@@ -248,6 +248,11 @@ if (!app.requestSingleInstanceLock()) {
       registerIpcHandlers();
 
       const settings = settingsService.getAll();
+
+      // 记录本机是否真的能用系统加密（false 时密钥是明文存在 settings.json 里的）。
+      // 渲染层读这个键，在 AI 配置页 / 微信读书页如实提示用户。
+      settingsService.set('secureStorageAvailable', settingsService.isEncryptionAvailable());
+
       initWereadSettings(settings);
       initAISettings(settings);
       initAISDKSettings(settings);

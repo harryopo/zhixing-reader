@@ -106,6 +106,12 @@ export default function SettingsAI() {
 
   // ===== UI 状态 =====
   const [showApiKey, setShowApiKey] = useState(false)
+  /**
+   * 本机是否能用系统加密保存密钥。
+   * false 时密钥是**明文**写进 settings.json 的 —— 必须如实告诉用户（原来界面只字未提）。
+   * 该值由主进程启动时写入 settings（见 main.ts）。
+   */
+  const [secureStorage, setSecureStorage] = useState(true)
   const [connStatus, setConnStatus] = useState<ConnStatus>('idle')
 
   // ===== 自定义模板状态 =====
@@ -144,6 +150,13 @@ export default function SettingsAI() {
       }
     }
     loadExtras()
+  }, [])
+
+  useEffect(() => {
+    void window.electronAPI?.settings
+      ?.get?.('secureStorageAvailable')
+      .then((v) => setSecureStorage(v !== false))
+      .catch(() => { /* 读不到就按"可用"处理，不吓唬用户 */ })
   }, [])
 
   // ===== 监听 store 测试结果，同步连接状态 =====
@@ -558,6 +571,15 @@ export default function SettingsAI() {
                     </button>
                   </div>
                 </div>
+                {!secureStorage && (
+                  <div
+                    className="form-hint"
+                    data-dom-id="hint-plaintext-key"
+                    style={{ color: 'var(--state-warning, #d97706)', marginTop: '0.4rem' }}
+                  >
+                    本机系统加密不可用，API Key 以**明文**保存在 settings.json 中，请勿把该文件分享给他人。
+                  </div>
+                )}
                 {/* 模型 */}
                 <div className="form-field">
                   <label className="form-label" htmlFor="llm-model">模型</label>
