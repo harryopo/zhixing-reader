@@ -54,8 +54,8 @@ describe('BookContextBuilder', () => {
   })
 
   describe('shouldBuild', () => {
-    it('无 bookId 时返回 false', () => {
-      expect(builder.shouldBuild(ctxWithBook({ bookId: undefined }))).toBe(false)
+    it('无 bookId 时也返回 true（此时跨全部书籍检索）', () => {
+      expect(builder.shouldBuild(ctxWithBook({ bookId: undefined }))).toBe(true)
     })
 
     it('有 bookId 且首次对话（无历史）时返回 true', () => {
@@ -176,8 +176,8 @@ describe('MethodologyContextBuilder', () => {
     teardownTestDatabase()
   })
 
-  it('shouldBuild：无 bookId 返回 false', () => {
-    expect(builder.shouldBuild(ctxWithBook({ bookId: undefined }))).toBe(false)
+  it('shouldBuild：无 bookId 也返回 true（跨全部检索）', () => {
+    expect(builder.shouldBuild(ctxWithBook({ bookId: undefined }))).toBe(true)
   })
 
   it('shouldBuild：有 bookId 返回 true', () => {
@@ -201,7 +201,7 @@ describe('MethodologyContextBuilder', () => {
       steps: ['选概念', '解释', '查漏', '简化'],
       mastery_level: 30,
     })
-    const result = builder.build(ctxWithBook())
+    const result = builder.build(ctxWithBook({ userMessage: '费曼方法怎么用' }))
     expect(result.content).toContain('费曼方法')
     expect(result.content).toContain('Feynman')
     expect(result.content).toContain('触发场景')
@@ -220,7 +220,7 @@ describe('MethodologyContextBuilder', () => {
       name: '坏步骤方法',
       steps: 'not-valid-json',
     })
-    const result = builder.build(ctxWithBook())
+    const result = builder.build(ctxWithBook({ userMessage: '坏步骤方法怎么用' }))
     expect(result.content).toContain('坏步骤方法')
     // 步骤非数组时不输出「步骤:」行
     expect(result.content).not.toContain('步骤: ')
@@ -240,8 +240,8 @@ describe('KnowledgeCardContextBuilder', () => {
     teardownTestDatabase()
   })
 
-  it('shouldBuild：无 bookId 返回 false', () => {
-    expect(builder.shouldBuild(ctxWithBook({ bookId: undefined }))).toBe(false)
+  it('shouldBuild：无 bookId 也返回 true（跨全部检索）', () => {
+    expect(builder.shouldBuild(ctxWithBook({ bookId: undefined }))).toBe(true)
   })
 
   it('无知识卡片时返回空 content', () => {
@@ -317,3 +317,105 @@ describe('UserProfileContextBuilder', () => {
     expect(result.content).toBe('')
   })
 })
+
+// ============================================================================
+// 未关联书籍时的全局检索（2026-09-16 新增）
+//
+// 实测发现：从首页进入「AI 对话」时是没有选书的，而 book / knowledgeCard /
+// methodology 三个构建器原来都要求 !!context.bookId —— 于是默认路径上
+// 「调取知识库」只剩「相关记忆 + 用户画像」两路，934 条划线、90 张卡片
+// 一条都进不了提示词（AI 只能回答「你提供的笔记里没有相关内容」）。
+// 这几条钉住：没选书时也必须检索，且只注入真正命中的。
+// ============================================================================
+describe('未关联书籍时的全局检索（默认对话路径）', () => {
+  beforeEach(async () => {
+    await setupTestDatabase()
+    booksDb.create({ id: 'b1', title: '被讨厌的勇气' } as never)
+    booksDb.create({ id: 'b2', title: '认知觉醒' } as never)
+  })
+
+  afterEach(() => {
+    teardownTestDatabase()
+  })
+
+  it('BookContextBuilder：不带 bookId 调检索，并把「来自全部书籍」写进上下文', async () => {
+    mockRetrieveHighlights.mockResolvedValue([
+      {
+        highlightId: 'hl_9',
+        bookId: 'b1',
+        bookTitle: '被讨厌的勇气',
+        chapterTitle: '第二夜',
+        content: '一切烦恼都来自人际关系',
+        relevanceScore: 12.3,
+      },
+    ])
+    const result = await new BookContextBuilder().build(
+      ctxWithBook({ bookId: undefined, userMessage: '作者怎么看人际关系' }),
+    )
+    expect(mockRetrieveHighlights).toHaveBeenCalledWith('作者怎么看人际关系', { limit: 5 })
+    expect(result.content).toContain('一切烦恼都来自人际关系')
+    expect(result.content).toContain('[第二夜]')
+    expect(result.content).toContain('全部书籍')
+    expect(result.metadata?.itemCount).toBe(1)
+  })
+
+  it('KnowledgeCardContextBuilder：没选书时跨全部卡片检索，只带相关那张', () => {
+    knowledgeCardsDb.create({
+      id: 'kc1',
+      book_id: 'b1',
+      type: 'concept',
+      title: '课题分离',
+      content: '把别人的课题还给别人',
+      interpretation: '人际关系的烦恼来自干涉他人的课题',
+      tags: '[]',
+    } as never)
+    knowledgeCardsDb.create({
+      id: 'kc2',
+      book_id: 'b2',
+      type: 'concept',
+      title: '舒适区边缘',
+      content: '在拉伸区练习',
+      tags: '[]',
+    } as never)
+
+    const result = new KnowledgeCardContextBuilder().build(
+      ctxWithBook({ bookId: undefined, userMessage: '人际关系里的课题分离是什么意思' }),
+    )
+    expect(result.content).toContain('课题分离')
+    expect(result.content).not.toContain('舒适区边缘')
+    expect(result.metadata?.itemCount).toBe(1)
+  })
+
+  it('KnowledgeCardContextBuilder：完全不相关时不注入（原来是按库顺序硬塞 10 张）', () => {
+    knowledgeCardsDb.create({
+      id: 'kc1',
+      book_id: 'b1',
+      type: 'concept',
+      title: '课题分离',
+      content: '把别人的课题还给别人',
+      tags: '[]',
+    } as never)
+    const result = new KnowledgeCardContextBuilder().build(
+      ctxWithBook({ bookId: undefined, userMessage: '今天天气怎么样' }),
+    )
+    expect(result.content).toBe('')
+    expect(result.metadata?.itemCount).toBe(0)
+  })
+
+  it('MethodologyContextBuilder：没选书时跨全部方法论检索', () => {
+    methodologiesDb.create({
+      id: 'm1',
+      book_id: 'b1',
+      name: '费曼学习法',
+      description: '用教别人的方式检验自己',
+      steps: ['选概念', '讲给外行'],
+      mastery_level: 20,
+    })
+    const result = new MethodologyContextBuilder().build(
+      ctxWithBook({ bookId: undefined, userMessage: '费曼学习法怎么用' }),
+    )
+    expect(result.content).toContain('费曼学习法')
+    expect(result.metadata?.itemCount).toBe(1)
+  })
+})
+

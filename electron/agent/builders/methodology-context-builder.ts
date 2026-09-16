@@ -1,101 +1,124 @@
 import { logger } from '../../logger'
 import { methodologiesDb } from '../../database'
+import { buildIndex, searchIndex, type RetrievalDoc } from '../../../src/shared/retrieval'
 import { ContextBuilder, BuildContext, ContextBuildResult } from '../context-builder'
+
+/** methodologies 表读出来的行（rowsToObjects 保留数据库列名，即 snake_case） */
+type MethodologyRow = {
+  id?: string
+  book_id?: string
+  name?: string
+  name_en?: string
+  trigger_scenario?: string
+  description?: string
+  steps?: string
+  output_format?: string
+  examples?: string
+  mastery_level?: number
+}
+
+/**
+ * 把方法论行转成检索文档，并留下 id -> 行 的索引（命中后要拿回原行渲染）
+ */
+function toDocs(items: MethodologyRow[]): { docs: RetrievalDoc[]; byId: Map<string, MethodologyRow> } {
+  const byId = new Map<string, MethodologyRow>()
+  const docs = items.map((m, index) => {
+    const id = m.id ?? 'methodology_' + index
+    byId.set(id, m)
+    return {
+      id,
+      bookId: m.book_id ?? '',
+      bookTitle: '',
+      chapterTitle: m.name,
+      content: [m.name, m.name_en, m.trigger_scenario, m.description, m.steps, m.examples]
+        .filter(Boolean)
+        .join('\n'),
+    }
+  })
+  return { docs, byId }
+}
 
 /**
  * 方法论上下文构建器
- * 从数据库中加载用户已提取的方法论，构建为上下文
+ *
+ * 2026-09-16 两处修正（与知识卡片同一类问题）：
+ *   1. **不再要求先关联书籍**：首页进来的对话默认没选书，原来这一路被整段跳过，
+ *      AI 完全拿不到用户自己提取的方法论。现在没选书就跨全部方法论检索。
+ *   2. **打分改用与划线检索同一套中文分词（BM25）**：原来是拿用户整句去
+ *      `includes(...)`，中文没有空格 → 几乎永远为 false → 「相关方法论」实际按数据库
+ *      顺序取前 5 条注入。现在只注入真正命中的；一条都没命中就不注入。
  */
 export class MethodologyContextBuilder implements ContextBuilder {
   name = 'methodology'
   priority = 80
 
-  shouldBuild(context: BuildContext): boolean {
-    return !!context.bookId
+  shouldBuild(): boolean {
+    return true
   }
 
   build(context: BuildContext): ContextBuildResult {
     const startTime = Date.now()
 
     try {
-      const methodologies = methodologiesDb.getByBookId(context.bookId!) as Array<{
-        name: string
-        name_en?: string
-        trigger_scenario?: string
-        description?: string
-        steps?: string
-        output_format?: string
-        examples?: string
-        mastery_level?: number
-      }>
+      const methodologies = (
+        context.bookId ? methodologiesDb.getByBookId(context.bookId) : methodologiesDb.getAll()
+      ) as MethodologyRow[]
 
       if (methodologies.length === 0) {
-        return { content: '', priority: this.priority, metadata: { source: 'database', buildTime: Date.now() - startTime, itemCount: 0, method: 'relevance' } }
+        return {
+          content: '',
+          priority: this.priority,
+          metadata: { source: 'database', buildTime: Date.now() - startTime, itemCount: 0, method: 'relevance' },
+        }
       }
 
-      // 按相关性评分排序
-      const userMessage = context.userMessage.toLowerCase()
-      const scoredMethodologies = methodologies.map(m => {
-        let score = 0
+      const { docs, byId } = toDocs(methodologies)
+      const hits = searchIndex(buildIndex(docs), context.userMessage, { limit: 5 })
+      const relevantMethodologies = hits
+        .map((hit) => byId.get(hit.highlightId)) // 注意：searchIndex 把 doc.id 改名成 highlightId 返回
+        .filter((m): m is MethodologyRow => !!m)
 
-        // 名称匹配（权重最高）
-        const name = (m.name || '').toLowerCase()
-        const nameEn = (m.name_en || '').toLowerCase()
-        if (name.includes(userMessage) || nameEn.includes(userMessage)) {
-          score += 10
+      if (relevantMethodologies.length === 0) {
+        return {
+          content: '',
+          priority: this.priority,
+          metadata: { source: 'database', buildTime: Date.now() - startTime, itemCount: 0, method: 'relevance' },
         }
+      }
 
-        // 触发场景匹配
-        const triggerScenario = (m.trigger_scenario || '').toLowerCase()
-        if (triggerScenario.includes(userMessage)) {
-          score += 8
-        }
-
-        // 描述匹配
-        const description = (m.description || '').toLowerCase()
-        if (description.includes(userMessage)) {
-          score += 5
-        }
-
-        // 关键词匹配（分词）
-        const keywords = userMessage.split(/\s+/).filter(k => k.length > 1)
-        for (const keyword of keywords) {
-          if (name.includes(keyword) || nameEn.includes(keyword)) score += 3
-          if (triggerScenario.includes(keyword)) score += 2
-          if (description.includes(keyword)) score += 1
-        }
-
-        return { methodology: m, score }
-      })
-
-      // 按分数降序排序，取前5个（方法论通常较少，限制更严格）
-      const relevantMethodologies = scoredMethodologies
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5)
-        .map(item => item.methodology)
-
-      const methodTexts = relevantMethodologies.map(m => {
-        const parts = [`【${m.name}】${m.name_en ? ` (${m.name_en})` : ''}`]
-        if (m.trigger_scenario) parts.push(`触发场景: ${m.trigger_scenario}`)
-        if (m.description) parts.push(`描述: ${m.description}`)
-        if (m.steps) {
-          try {
-            const steps = JSON.parse(m.steps)
-            if (Array.isArray(steps) && steps.length > 0) {
-              parts.push(`步骤: ${steps.join(' → ')}`)
+      const methodTexts = relevantMethodologies
+        .map((m) => {
+          const parts = ['【' + (m.name ?? '') + '】' + (m.name_en ? ' (' + m.name_en + ')' : '')]
+          if (m.trigger_scenario) parts.push('触发场景: ' + m.trigger_scenario)
+          if (m.description) parts.push('描述: ' + m.description)
+          if (m.steps) {
+            try {
+              const steps = JSON.parse(m.steps)
+              if (Array.isArray(steps) && steps.length > 0) {
+                parts.push('步骤: ' + steps.join(' → '))
+              }
+            } catch {
+              /* 步骤不是合法 JSON 数组时跳过，不影响其余内容 */
             }
-          } catch { /* skip */ }
-        }
-        if (m.examples) parts.push(`示例: ${m.examples}`)
-        if (m.mastery_level && m.mastery_level > 0) {
-          parts.push(`掌握度: ${m.mastery_level}%`)
-        }
-        return parts.join('\n')
-      }).join('\n\n---\n\n')
+          }
+          if (m.examples) parts.push('示例: ' + m.examples)
+          if (m.mastery_level && m.mastery_level > 0) {
+            parts.push('掌握度: ' + m.mastery_level + '%')
+          }
+          return parts.join('\n')
+        })
+        .join('\n\n---\n\n')
 
-      const content = `\n\n## 用户已提取的方法论\n${methodTexts}\n\n当用户提问时，优先参考这些方法论来回答。如果用户的问题与某个方法论相关，请引用该方法论并给出具体指导。`
+      const content =
+        '\n\n## 用户已提取的方法论\n' +
+        methodTexts +
+        '\n\n当用户提问时，优先参考这些方法论来回答。如果用户的问题与某个方法论相关，请引用该方法论并给出具体指导。'
 
-      logger.info('Methodology context loaded', { count: relevantMethodologies.length, total: methodologies.length })
+      logger.info('Methodology context loaded', {
+        count: relevantMethodologies.length,
+        total: methodologies.length,
+        scope: context.bookId ?? '(全部)',
+      })
 
       return {
         content,
@@ -105,11 +128,14 @@ export class MethodologyContextBuilder implements ContextBuilder {
           buildTime: Date.now() - startTime,
           itemCount: relevantMethodologies.length,
           method: 'relevance',
-          previews: relevantMethodologies.slice(0, 3).map(m => ({
+          previews: relevantMethodologies.slice(0, 3).map((m) => ({
             title: m.name,
-            snippet: (m.description || '').length > 60 ? `${(m.description || '').slice(0, 60)}…` : (m.description || ''),
+            snippet:
+              (m.description ?? '').length > 60
+                ? (m.description ?? '').slice(0, 60) + '…'
+                : m.description ?? '',
           })),
-        }
+        },
       }
     } catch (error) {
       logger.error('Failed to build methodology context', error)
@@ -119,8 +145,8 @@ export class MethodologyContextBuilder implements ContextBuilder {
         metadata: {
           source: 'database',
           buildTime: Date.now() - startTime,
-          error: error instanceof Error ? error.message : String(error)
-        }
+          error: error instanceof Error ? error.message : String(error),
+        },
       }
     }
   }

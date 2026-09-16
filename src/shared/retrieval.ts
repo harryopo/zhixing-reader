@@ -24,6 +24,14 @@ const TITLE_BOOST = 3
 const MAX_DOC_FREQ_RATIO = 0.5
 /** 只保留得分达到最高分 20% 以上的结果，避免擦边命中污染上下文 */
 const DEFAULT_RELATIVE_CUTOFF = 0.2
+/**
+ * 噪声词过滤的下限：「人人都有的词」至少要在 3 篇文档里出现才算数。
+ *
+ * 只看比例会把小语料判死 —— 知识卡片 / 方法论这类只有几条几十条的语料里，
+ * 一个词出现在一大半文档中**正是**唯一的相关信号（实测：1 张卡片时按比例过滤，
+ * 命中数恒为 0）。加了这层下限后，真实划线语料（934 条）的行为完全不变。
+ */
+const NOISE_MIN_DOC_FREQ = 3
 
 export interface RetrievalDoc {
   id: string
@@ -149,6 +157,7 @@ export function searchIndex(
     const df = index.docFreq.get(term) ?? 0
     if (df === 0) return false
     // 人人都有的词不构成区分度（「什么」「这个」这类 bigram 在这一层被丢掉）
+    if (df < NOISE_MIN_DOC_FREQ) return true
     return df / index.docCount <= MAX_DOC_FREQ_RATIO
   })
   if (uniqueTerms.length === 0) return []

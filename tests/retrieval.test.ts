@@ -95,4 +95,18 @@ describe('searchIndex - BM25 排序与过滤', () => {
     expect(hit).toMatchObject({ highlightId: 'h1', bookId: 'b1', bookTitle: '书 b1' })
     expect(hit.relevanceScore).toBeGreaterThan(0)
   })
+
+  it('小语料（1-2 篇）里的唯一信号不会被噪声过滤误杀', () => {
+    // 只有一张知识卡片时，「人人都有的词」这个判定没有样本量可言 ——
+    // 按比例过滤会让它永远检索不到（实测命中数恒为 0）。
+    // 知识卡片 / 方法论构建器复用本模块打分，靠的就是这条。
+    const one = buildIndex([doc('c1', 'b1', '课题分离：把别人的课题还给别人')])
+    expect(searchIndex(one, '课题分离是什么意思')[0]?.highlightId).toBe('c1')
+
+    const two = buildIndex([
+      doc('c1', 'b1', '课题分离：把别人的课题还给别人'),
+      doc('c2', 'b2', '舒适区边缘：在拉伸区练习'),
+    ])
+    expect(searchIndex(two, '课题分离')[0]?.highlightId).toBe('c1')
+  })
 })

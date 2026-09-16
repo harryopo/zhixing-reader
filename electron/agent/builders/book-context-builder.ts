@@ -14,23 +14,29 @@ type HighlightCtx = {
 }
 
 /**
- * 书籍上下文构建器
- * 通过RAG语义搜索或关键词匹配，从书籍笔记中检索相关内容
+ * 书籍上下文构建器 —— 用户划线的本地检索（轻量 RAG）。
+ *
+ * 2026-09-16 修正：原来 `shouldBuild` 要求**必须先在对话框里关联一本书**，
+ * 而从首页进来的对话默认没有选书 —— 这一路被整段跳过，AI 手里一条划线都没有，
+ * 只能凭记忆和画像回答关于书的问题（实测默认对话 5 维上下文只剩 2 路）。
+ * 现在：选了书就只搜那本书（用户的显式意图），没选书就**跨全部书籍**检索。
  */
 export class BookContextBuilder implements ContextBuilder {
   name = 'book'
   priority = 90
 
-  shouldBuild(context: BuildContext): boolean {
-    // 用户已关联书籍即注入（含闲聊）：此前按意图 gate 导致"选了书却说没提供任何笔记"
-    return !!context.bookId
+  shouldBuild(): boolean {
+    // 永远参与：没关联书籍时跨全部书检索。
+    // 历史：先是按意图 gate（导致"选了书却说没提供任何笔记"），后改成必须有书，
+    // 而默认对话根本没有书 —— 于是 934 条划线在默认路径上永远不参与回答。
+    return true
   }
 
   async build(context: BuildContext): Promise<ContextBuildResult> {
     const startTime = Date.now()
 
     try {
-      const { items: highlights, method, topScore } = await this.retrieveHighlights(context.bookId!, context.userMessage)
+      const { items: highlights, method, topScore } = await this.retrieveHighlights(context.bookId, context.userMessage)
 
       if (highlights.length === 0) {
         return { content: '', priority: this.priority, metadata: { source: 'rag', buildTime: Date.now() - startTime, itemCount: 0, method } }
@@ -41,8 +47,13 @@ export class BookContextBuilder implements ContextBuilder {
         return `${source}${c.content}`
       }).join('\n\n') + CONTEXT_OVERFLOW_HINT
 
+      // 没选书时是跨书检索：告诉模型这些片段来自哪、以及不相关可以忽略
+      const scopeHint = context.bookId
+        ? ''
+        : '\n（以上是从你的全部书籍划线中检索出来的，与当前问题无关就忽略）'
+
       return {
-        content: `\n\n## 阅读笔记\n${contextText}`,
+        content: `\n\n## 阅读笔记\n${contextText}${scopeHint}`,
         priority: this.priority,
         metadata: {
           source: 'rag',
@@ -90,10 +101,13 @@ export class BookContextBuilder implements ContextBuilder {
    * 返回空数组、日志写 Using RAG semantic search，AI 就带着零条上下文回答。
    */
   private async retrieveHighlights(
-    bookId: string,
+    bookId: string | undefined,
     userMessage: string,
   ): Promise<{ items: HighlightCtx[]; method: string; topScore?: number }> {
-    const hits = await retrieveLocalHighlights(userMessage, { bookId, limit: 5 })
+    const hits = await retrieveLocalHighlights(
+      userMessage,
+      bookId ? { bookId, limit: 5 } : { limit: 5 },
+    )
     return {
       items: hits.map((h) => ({
         highlightId: h.highlightId,
