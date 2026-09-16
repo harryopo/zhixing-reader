@@ -41,10 +41,17 @@ export interface RetrievalSource {
   error?: string
 }
 
-/** 检索状态事件：start(开始调取) / done(各路结果) */
+/**
+ * 检索状态事件：start(开始调取) / done(各路结果)
+ *
+ * 2026-09-16：`done` 增加 `intent`。
+ * 此前意图分类的结果**只写进了日志**，从未发给渲染层，导致 chat_messages.intent
+ * 这一列永远是空的（实测 21 条用户消息 0 条有标注）—— 而这是六步流水线的第一步，
+ * 也是"这个 App 到底懂不懂我"最直接的证据。
+ */
 export type RetrievalStatus =
   | { stage: 'start' }
-  | { stage: 'done'; sources: RetrievalSource[] }
+  | { stage: 'done'; sources: RetrievalSource[]; intent: string }
 
 const RETRIEVAL_LABELS: Record<string, string> = {
   book: '书籍笔记',
@@ -423,7 +430,7 @@ export async function processMessageStream(
   emitRetrieval(options, { stage: 'start' })
   const { combinedContext, results } = await contextManager.buildAll(buildContext)
   // 检索可视化：各路知识库检索结果（供前端「调取知识库」面板展示）
-  emitRetrieval(options, { stage: 'done', sources: results.map(toRetrievalSource) })
+  emitRetrieval(options, { stage: 'done', sources: results.map(toRetrievalSource), intent })
 
   logger.info('Context build completed', {
     builders: results.map(r => r.name),

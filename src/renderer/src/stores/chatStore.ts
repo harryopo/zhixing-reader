@@ -192,6 +192,19 @@ export const useChatStore = create<ChatState>((set, get) => {
       let removeCompleteListener: (() => void) | undefined
       let removeRetrievalListener: (() => void) | undefined
 
+      /**
+       * 本轮意图分类结果。
+       *
+       * 2026-09-16 修复：orchestrator 早就算好了意图，但**只写进日志**，从未发给渲染层，
+       * 于是 chat_messages.intent 永远是空的（实测 21 条用户消息 0 条有标注）。
+       * 现在随检索事件一起下发，保存助手消息时落库。
+       *
+       * 注：同一事件里还有「检索到的原文片段」，但它的真实字段是 highlightId，
+       * 而消息气泡沿用着 Qdrant 时代的 chunkId —— 两者形状对不上，
+       * 硬塞会渲染出空白行。那一处需要把字段从 builder 一路串上来，另行处理。
+       */
+      let retrievalIntent: string | null = null
+
       const cleanupListeners = () => {
         removeChunkListener?.()
         removeReasoningListener?.()
@@ -228,6 +241,9 @@ export const useChatStore = create<ChatState>((set, get) => {
               assistantMessageId = await window.electronAPI.conversation.addMessage(sessionId, {
                 role: 'assistant',
                 content: fullContent,
+                // 把意图分类结果落库：它是六步流水线的第一步，
+                // 也是"这个 App 到底懂不懂我"最直接的证据。此前只写日志，前端收不到。
+                intent: retrievalIntent || undefined,
               })
             } catch (error) {
               console.error('保存助手消息失败:', error)
@@ -239,6 +255,7 @@ export const useChatStore = create<ChatState>((set, get) => {
               id: assistantMessageId,
               role: 'assistant',
               content: fullContent,
+              intent: retrievalIntent || undefined,
               reasoning: fullReasoning
                 ? { content: fullReasoning, isStreaming: false, duration: reasoningDuration }
                 : undefined,
@@ -293,7 +310,14 @@ export const useChatStore = create<ChatState>((set, get) => {
         })
 
         // 知识库检索过程可视化（start 已乐观置位，此处接收后端两阶段事件）
-        removeRetrievalListener = window.electronAPI.ai.onRetrievalStatus?.((status) => { if (!settled) set({ retrieval: status }) })
+        removeRetrievalListener = window.electronAPI.ai.onRetrievalStatus?.((status) => {
+          if (settled) return
+          if (status.stage === 'done') {
+            // start 阶段没有意图信息，只有 done 才有
+            retrievalIntent = status.intent || null
+          }
+          set({ retrieval: status })
+        })
 
         activeStreamStop = () => {
           const partial = get().streamingContent

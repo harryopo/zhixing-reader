@@ -85,10 +85,10 @@ export interface RetrievalSourceView {
   error?: string
 }
 
-/** Agent 检索状态事件：start 开始调取 / done 各路结果 */
+/** Agent 检索状态事件：start 开始调取 / done 各路结果（含本轮意图分类结果） */
 export type RetrievalStatusView =
   | { stage: 'start' }
-  | { stage: 'done'; sources: RetrievalSourceView[] }
+  | { stage: 'done'; sources: RetrievalSourceView[]; intent: string }
 
 export interface ElectronAPI {
   book: {
