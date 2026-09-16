@@ -292,6 +292,8 @@ export interface ElectronAPI {
     update: (id: string, card: Record<string, unknown>) => Promise<unknown>
     delete: (id: string) => Promise<void>
     search: (keyword: string) => Promise<unknown[]>
+    /** 一次性找回历史卡片的来源划线；只按「内容精确相等」匹配，绝不猜测 */
+    backfillSource: () => Promise<{ updated: number }>
     distill: (bookId: string, bookTitle: string) => Promise<unknown[]>
     cancelDistill: (bookId: string) => Promise<{ success: boolean }>
     isDistilling: (bookId: string) => Promise<boolean>

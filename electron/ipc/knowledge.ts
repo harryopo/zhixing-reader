@@ -122,6 +122,8 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     }
 
     const mappedHighlights = highlights.map(h => ({
+      // id 用于把提取出的方法论溯源回具体划线（2026-09-16 新增）
+      id: h.id ? String(h.id) : undefined,
       content: String(h.content || ''),
       note: h.note ? String(h.note) : undefined,
       chapterTitle: h.chapter_title ? String(h.chapter_title) : undefined,
@@ -141,7 +143,8 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
         output_format: m.outputFormat,
         examples: m.examples,
         tags: [],
-        source_highlight_ids: [],
+        // 由 AI 给出的 sourceIndexes 换算而来；AI 没给则为空数组，**不猜**
+        source_highlight_ids: m.sourceHighlightIds ?? [],
         mastery_level: 0,
         practice_count: 0,
       });
@@ -162,6 +165,10 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.UPDATE, (id: string, card: Record<string, unknown>) => knowledgeCardsDb.update(id, card));
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.DELETE, (id: string) => knowledgeCardsDb.delete(id));
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.SEARCH, (keyword: string) => knowledgeCardsDb.search(keyword));
+  // 一次性找回历史卡片的来源划线（内容精确相等才算，不猜）
+  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.BACKFILL_SOURCE, () => ({
+    updated: knowledgeCardsDb.backfillSourceHighlights(),
+  }));
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL, (bookId: string, bookTitle: string) =>
     knowledgeCardService.distillBook(bookId, bookTitle)
   );

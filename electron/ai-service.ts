@@ -770,10 +770,14 @@ export interface ExtractedMethodology {
   outputFormat?: string
   examples?: string
   tags?: string[]
+  /** AI 给出的「主要依据哪几条笔记」（提示词里的 [n] 编号，1-based） */
+  sourceIndexes?: number[]
+  /** 由 sourceIndexes 换算出的划线 id 列表（落库到 methodologies.source_highlight_ids） */
+  sourceHighlightIds?: string[]
 }
 
 export async function extractMethodologies(
-  highlights: Array<{ content: string; note?: string; chapterTitle?: string }>,
+  highlights: DistillHighlight[],
   bookTitle: string
 ): Promise<ExtractedMethodology[]> {
   if (!highlights || highlights.length === 0) {
@@ -822,6 +826,18 @@ export async function extractMethodologies(
       outputFormat: typeof (m as Record<string, unknown>).outputFormat === 'string' ? String((m as Record<string, unknown>).outputFormat).trim() : undefined,
       examples: typeof (m as Record<string, unknown>).examples === 'string' ? String((m as Record<string, unknown>).examples).trim() : undefined,
       tags: Array.isArray((m as Record<string, unknown>).tags) ? ((m as Record<string, unknown>).tags as unknown[]).filter((t: unknown) => typeof t === 'string') : undefined,
+      sourceIndexes: Array.isArray((m as Record<string, unknown>).sourceIndexes)
+        ? ((m as Record<string, unknown>).sourceIndexes as unknown[])
+            .map((n) => Math.round(Number(n)))
+            .filter((n) => Number.isFinite(n) && n >= 1)
+            .slice(0, 3)
+        : undefined,
+    })).map((m) => ({
+      ...m,
+      // 换算成真实划线 id；AI 没给或越界则为空数组，不猜
+      sourceHighlightIds: (m.sourceIndexes ?? [])
+        .map((i) => limitedHighlights[i - 1]?.id)
+        .filter((id): id is string => Boolean(id)),
     }))
 
     logger.info(`Extracted ${validMethods.length} methodologies from ${highlights.length} highlights`)
@@ -888,6 +904,32 @@ export interface DistilledKnowledgeCard {
   interpretation?: string
   application?: string
   tags?: string[]
+  /**
+   * AI 给出的「主要依据第几条笔记」（对应提示词里的 [n] 编号，1-based）。
+   *
+   * 2026-09-16 新增：此前提示词给每条笔记编了号，却**没让 AI 回答卡片来自哪一条**，
+   * 于是 knowledge_cards.source_highlight_id 只能写死 null ——
+   * 实测 90 张卡片的来源溯源全部为空，"划线 → 卡片 → 方法论"这条血缘链是断的。
+   */
+  sourceIndex?: number
+  /**
+   * 由 sourceIndex 经 `distillKnowledgeCards` 换算出的划线 id。
+   * 调用方直接落库即可，不必自己处理分批的序号偏移。
+   */
+  sourceHighlightId?: string
+}
+
+/**
+ * 把 AI 返回的批次内序号换算成真实的划线 id。
+ * 分批蒸馏时每批都从 [1] 重新编号，所以必须加上该批的起始偏移。
+ */
+function resolveSourceHighlightId(
+  batch: ReadonlyArray<{ id?: string }>,
+  sourceIndex: unknown,
+): string | undefined {
+  const n = Math.round(Number(sourceIndex))
+  if (!Number.isFinite(n) || n < 1) return undefined
+  return batch[n - 1]?.id
 }
 
 export interface DistillOptions {
@@ -924,7 +966,7 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 }
 
 function buildDistillMessages(
-  highlights: Array<{ content: string; note?: string; chapterTitle?: string }>,
+  highlights: DistillHighlight[],
   bookTitle: string
 ): Message[] {
   const highlightTexts = highlights.map((h, i) =>
@@ -937,8 +979,11 @@ function buildDistillMessages(
   })
 }
 
+/** 蒸馏输入：多一个可选的 id，用来把卡片溯源回具体的划线 */
+export type DistillHighlight = { id?: string; content: string; note?: string; chapterTitle?: string }
+
 export async function distillKnowledgeCards(
-  highlights: Array<{ content: string; note?: string; chapterTitle?: string }>,
+  highlights: DistillHighlight[],
   bookTitle: string,
   options: DistillOptions = {}
 ): Promise<DistilledKnowledgeCard[]> {
@@ -955,7 +1000,8 @@ export async function distillKnowledgeCards(
   onProgress?.({ stage: 'fetch', current: 0, total: limitedHighlights.length, message: '准备蒸馏...' })
 
   if (limitedHighlights.length <= batchSize) {
-    return distillSingleBatch(limitedHighlights, bookTitle, signal, onProgress)
+    const cards = await distillSingleBatch(limitedHighlights, bookTitle, signal, onProgress)
+    return attachSourceHighlightIds(cards, limitedHighlights)
   }
 
   const batches = chunkArray(limitedHighlights, batchSize)
@@ -975,7 +1021,8 @@ export async function distillKnowledgeCards(
 
     try {
       const cards = await distillSingleBatch(batches[i], bookTitle, signal, onProgress)
-      allCards.push(...cards)
+      // 每批都从 [1] 重新编号，必须在**本批内**换算成真实 id 再合并
+      allCards.push(...attachSourceHighlightIds(cards, batches[i]))
     } catch (error) {
       if (error instanceof HttpAbortError && error.cause === 'cancelled') {
         throw error
@@ -994,8 +1041,16 @@ export async function distillKnowledgeCards(
   return allCards
 }
 
+/** 把一批卡片上的 sourceIndex 换算成真实划线 id（纯函数，便于单独测试） */
+function attachSourceHighlightIds(
+  cards: DistilledKnowledgeCard[],
+  batch: ReadonlyArray<{ id?: string }>,
+): DistilledKnowledgeCard[] {
+  return cards.map((c) => ({ ...c, sourceHighlightId: resolveSourceHighlightId(batch, c.sourceIndex) }))
+}
+
 async function distillSingleBatch(
-  highlights: Array<{ content: string; note?: string; chapterTitle?: string }>,
+  highlights: DistillHighlight[],
   bookTitle: string,
   signal: AbortSignal | undefined,
   onProgress?: DistillOptions['onProgress']
@@ -1048,6 +1103,7 @@ async function distillSingleBatch(
     interpretation: typeof c.interpretation === 'string' ? (c.interpretation as string).trim() : undefined,
     application: typeof c.application === 'string' ? (c.application as string).trim() : undefined,
     tags: Array.isArray(c.tags) ? c.tags.filter((t: unknown) => typeof t === 'string') as string[] : undefined,
+    sourceIndex: Number.isFinite(Number(c.sourceIndex)) ? Math.round(Number(c.sourceIndex)) : undefined,
   }))
 
   logger.info(`Distilled ${validCards.length} knowledge cards from ${highlights.length} highlights (${durationMs}ms)`)

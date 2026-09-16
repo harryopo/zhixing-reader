@@ -672,6 +672,129 @@ describe('distillKnowledgeCards', () => {
       distillKnowledgeCards([{ content: 'highlight' }], 'test-book-distill-error')
     ).rejects.toThrow('Network failure')
   })
+
+  // ==========================================================================
+  // 卡片溯源（2026-09-16 新增）
+  // 背景：提示词给每条笔记编了号，却没让 AI 回答"这张卡来自第几条"，
+  //       于是 source_highlight_id 只能写死 null —— 实测 90 张卡片来源全空。
+  // ==========================================================================
+  describe('sourceHighlightId 溯源', () => {
+    it('单批：AI 给的 sourceIndex 换算成对应的划线 id', async () => {
+      mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([
+        { type: 'concept', title: 'c1', content: 'x', sourceIndex: 2 },
+      ])))
+
+      const result = await distillKnowledgeCards(
+        [{ id: 'hl_1', content: 'a' }, { id: 'hl_2', content: 'b' }],
+        'test-book-source-single',
+      )
+
+      expect(result[0].sourceIndex).toBe(2)
+      expect(result[0].sourceHighlightId).toBe('hl_2')
+    })
+
+    it('多批：第二张卡的序号是**批内**编号，必须换算成全局正确的那一条', async () => {
+      // batchSize=2 → 批1 = [h1,h2]，批2 = [h3,h4]
+      mockedFetchWithRetry
+        .mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([
+          { type: 'concept', title: 'c1', content: 'x', sourceIndex: 1 },
+        ])))
+        .mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([
+          { type: 'concept', title: 'c2', content: 'y', sourceIndex: 2 },
+        ])))
+
+      const result = await distillKnowledgeCards(
+        [
+          { id: 'hl_1', content: 'a' },
+          { id: 'hl_2', content: 'b' },
+          { id: 'hl_3', content: 'c' },
+          { id: 'hl_4', content: 'd' },
+        ],
+        'test-book-source-batch',
+        { batchSize: 2 },
+      )
+
+      expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2)
+      expect(result[0].sourceHighlightId).toBe('hl_1')
+      // 关键：批2 的 [2] 是 hl_4，不是 hl_2
+      expect(result[1].sourceHighlightId).toBe('hl_4')
+    })
+
+    it('AI 没给 sourceIndex → null 语义，**不猜**', async () => {
+      mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([
+        { type: 'concept', title: 'c1', content: 'x' },
+      ])))
+
+      const result = await distillKnowledgeCards(
+        [{ id: 'hl_1', content: 'a' }],
+        'test-book-source-missing',
+      )
+
+      expect(result[0].sourceHighlightId).toBeUndefined()
+    })
+
+    it('sourceIndex 越界 → undefined，不指向任何划线', async () => {
+      mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([
+        { type: 'concept', title: 'c1', content: 'x', sourceIndex: 99 },
+        { type: 'concept', title: 'c2', content: 'y', sourceIndex: 0 },
+        { type: 'concept', title: 'c3', content: 'z', sourceIndex: 'abc' },
+      ])))
+
+      const result = await distillKnowledgeCards(
+        [{ id: 'hl_1', content: 'a' }],
+        'test-book-source-out-of-range',
+      )
+
+      expect(result.every((c) => c.sourceHighlightId === undefined)).toBe(true)
+    })
+
+    it('划线本身没有 id 时（老数据）安全返回 undefined', async () => {
+      mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([
+        { type: 'concept', title: 'c1', content: 'x', sourceIndex: 1 },
+      ])))
+
+      const result = await distillKnowledgeCards(
+        [{ content: 'a' }],
+        'test-book-source-no-id',
+      )
+
+      expect(result[0].sourceHighlightId).toBeUndefined()
+    })
+  })
+})
+
+describe('extractMethodologies — 来源划线', () => {
+  it('sourceIndexes 换算成 sourceHighlightIds', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([
+      { name: '方法A', steps: ['1'], sourceIndexes: [3, 1, 99] },
+    ])))
+
+    const result = await extractMethodologies(
+      [
+        { id: 'hl_1', content: 'a' },
+        { id: 'hl_2', content: 'b' },
+        { id: 'hl_3', content: 'c' },
+      ],
+      'test-book-meth-source',
+    )
+
+    // 越界的 99 被丢弃，保留有效且有序的两条
+    expect(result[0].sourceIndexes).toEqual([3, 1, 99])
+    expect(result[0].sourceHighlightIds).toEqual(['hl_3', 'hl_1'])
+  })
+
+  it('AI 没给来源时为空数组，不猜', async () => {
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([
+      { name: '方法B', steps: ['1'] },
+    ])))
+
+    const result = await extractMethodologies(
+      [{ id: 'hl_1', content: 'a' }],
+      'test-book-meth-no-source',
+    )
+
+    expect(result[0].sourceHighlightIds).toEqual([])
+  })
 })
 
 describe('generateCardInterpretation', () => {

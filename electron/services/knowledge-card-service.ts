@@ -186,6 +186,9 @@ class KnowledgeCardService {
       }
 
       const mappedHighlights = highlights.map(h => ({
+        // id 用于把蒸馏出的卡片溯源回具体划线（2026-09-16 新增）：
+        // 此前不带 id，卡片落库时 source_highlight_id 只能写死 null。
+        id: h.id ? String(h.id) : undefined,
         content: String(h.content || ''),
         note: h.note ? String(h.note) : undefined,
         chapterTitle: h.chapter_title ? String(h.chapter_title) : undefined,
@@ -230,7 +233,9 @@ class KnowledgeCardService {
           application: c.application,
           related_card_ids: [],
           tags: c.tags,
-          source_highlight_id: null,
+          // 由 AI 给出的 sourceIndex 换算而来；AI 没给（或给了越界值）时为 null，
+          // **不猜**——宁可显示"来源未知"，也不要编一条假的溯源关系。
+          source_highlight_id: c.sourceHighlightId ?? null,
           review_count: 0,
           mastery_level: 0,
         })

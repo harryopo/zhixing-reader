@@ -594,6 +594,92 @@ describe('database-integration — sql.js 集成测试', () => {
     })
   })
 
+  // ==========================================================================
+  // 知识卡片来源回填（2026-09-16 新增）
+  // 背景：蒸馏时 source_highlight_id 写死 null，实测 90 张卡片来源全空。
+  //       入口已修，但历史数据要回填 —— 且**只允许精确匹配，绝不猜测**。
+  // ==========================================================================
+  describe('knowledgeCardsDb.backfillSourceHighlights', () => {
+    const seed = (opts: {
+      bookId: string
+      highlightContent: string
+      cardContent: string
+      cardId: string
+      existingSource?: string | null
+    }) => {
+      if (!booksDb.getById(opts.bookId)) {
+        booksDb.create({ id: opts.bookId, title: 'Book' } as any)
+      }
+      highlightsDb.create({
+        id: `hl_${opts.cardId}`,
+        book_id: opts.bookId,
+        content: opts.highlightContent,
+      } as any)
+      knowledgeCardsDb.create({
+        id: opts.cardId,
+        book_id: opts.bookId,
+        type: 'quote',
+        title: 'T',
+        content: opts.cardContent,
+        source_highlight_id: opts.existingSource ?? null,
+      } as any)
+    }
+
+    it('卡片正文与划线原文完全一致 → 建立关联', async () => {
+      seed({ bookId: 'b1', highlightContent: '原文一句话', cardContent: '原文一句话', cardId: 'kc1' })
+      const updated = knowledgeCardsDb.backfillSourceHighlights()
+      expect(updated).toBe(1)
+      expect((knowledgeCardsDb.getById('kc1') as any).source_highlight_id).toBe('hl_kc1')
+    })
+
+    it('正文有差异（哪怕一个标点）→ **不关联**，宁可空着', async () => {
+      seed({ bookId: 'b1', highlightContent: '原文一句话', cardContent: '原文一句话。', cardId: 'kc2' })
+      seed({ bookId: 'b1', highlightContent: '另一条原文', cardContent: 'AI 改写过的内容', cardId: 'kc3' })
+      const updated = knowledgeCardsDb.backfillSourceHighlights()
+      expect(updated).toBe(0)
+      expect((knowledgeCardsDb.getById('kc2') as any).source_highlight_id).toBeNull()
+      expect((knowledgeCardsDb.getById('kc3') as any).source_highlight_id).toBeNull()
+    })
+
+    it('已有来源的卡片不被覆盖', async () => {
+      seed({
+        bookId: 'b1',
+        highlightContent: '原文',
+        cardContent: '原文',
+        cardId: 'kc4',
+        existingSource: 'hl_manual',
+      })
+      const updated = knowledgeCardsDb.backfillSourceHighlights()
+      expect(updated).toBe(0)
+      expect((knowledgeCardsDb.getById('kc4') as any).source_highlight_id).toBe('hl_manual')
+    })
+
+    it('不能跨书匹配（只在同一本书内找）', async () => {
+      booksDb.create({ id: 'b1', title: 'B1' } as any)
+      booksDb.create({ id: 'b2', title: 'B2' } as any)
+      highlightsDb.create({ id: 'hl_x', book_id: 'b1', content: '共同的一句话' } as any)
+      knowledgeCardsDb.create({
+        id: 'kc5', book_id: 'b2', type: 'quote', title: 'T', content: '共同的一句话',
+      } as any)
+      const updated = knowledgeCardsDb.backfillSourceHighlights()
+      expect(updated).toBe(0)
+      expect((knowledgeCardsDb.getById('kc5') as any).source_highlight_id).toBeNull()
+    })
+
+    it('幂等：重复执行第二次不再变化', async () => {
+      seed({ bookId: 'b1', highlightContent: '原文', cardContent: '原文', cardId: 'kc6' })
+      expect(knowledgeCardsDb.backfillSourceHighlights()).toBe(1)
+      expect(knowledgeCardsDb.backfillSourceHighlights()).toBe(0)
+    })
+
+    it('一次可以补多张', async () => {
+      seed({ bookId: 'b1', highlightContent: 'A', cardContent: 'A', cardId: 'kc7' })
+      seed({ bookId: 'b1', highlightContent: 'B', cardContent: 'B', cardId: 'kc8' })
+      expect(knowledgeCardsDb.backfillSourceHighlights()).toBe(2)
+    })
+  })
+
+
   describe('bookArchitectureDb CRUD', () => {
     it('应创建并查询架构', async () => {
       booksDb.create({ id: 'book_1', title: 'Book' } as any)

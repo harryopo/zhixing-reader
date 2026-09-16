@@ -356,6 +356,7 @@ const electronAPI = {
     update: (id: string, card: Record<string, unknown>) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.UPDATE, id, card),
     delete: (id: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DELETE, id),
     search: (keyword: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.SEARCH, keyword),
+    backfillSource: () => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.BACKFILL_SOURCE),
     distill: (bookId: string, bookTitle: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL, bookId, bookTitle),
     cancelDistill: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.CANCEL_DISTILL, bookId),
     isDistilling: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.IS_DISTILLING, bookId),

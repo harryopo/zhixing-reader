@@ -144,8 +144,9 @@ export default function SettingsData() {
   const [fsrsSaving, setFsrsSaving] = useState<boolean>(false)
   /** 每日新卡上限：0 = 暂停新卡（只复习已学过的） */
   const [newCardsPerDay, setNewCardsPerDay] = useState<number>(DEFAULT_NEW_CARDS_PER_DAY)
-  /** 章节名一次性修复的执行状态 */
+  /** 历史数据修复的执行状态（两件事各自独立，避免互相锁住） */
   const [backfilling, setBackfilling] = useState<boolean>(false)
+  const [backfillingCards, setBackfillingCards] = useState<boolean>(false)
 
   // ===== KPI 与用量数据 =====
   const [loading, setLoading] = useState<boolean>(true)
@@ -278,6 +279,31 @@ export default function SettingsData() {
       toast.error(`修复失败: ${(err as Error).message}`)
     } finally {
       setBackfilling(false)
+    }
+  }, [])
+
+  // ===== 找回历史知识卡片的来源划线（2026-09-16 新增） =====
+  const handleBackfillCardSource = useCallback(async () => {
+    const api = window.electronAPI
+    if (!api?.knowledgeCard?.backfillSource) {
+      toast.error('API 未正确初始化，请重启应用')
+      return
+    }
+    setBackfillingCards(true)
+    const tId = toast.loading('正在找回卡片来源...')
+    try {
+      const result = await api.knowledgeCard.backfillSource()
+      toast.remove(tId)
+      if (result.updated > 0) {
+        toast.success(`找回 ${result.updated} 张卡片的来源划线`)
+      } else {
+        toast.info('没有可以确定来源的卡片（对不上的保持空着，不做猜测）')
+      }
+    } catch (err) {
+      toast.remove(tId)
+      toast.error(`修复失败: ${(err as Error).message}`)
+    } finally {
+      setBackfillingCards(false)
     }
   }, [])
 
@@ -928,34 +954,50 @@ export default function SettingsData() {
               </div>
             </Card>
 
-            {/* ===== 数据修复：补全历史划线的章节名 =====
-                2026-09-16 实测：934 条划线的章节名全为空——导入时把微信读书
-                一起返回的章节对照表丢掉了。导入入口已修好，但只对以后生效，
-                这里是给已有数据用的一次性修复（幂等，可重复点）。 */}
+            {/* ===== 历史数据修复 =====
+                2026-09-16 实测发现两处历史数据缺口，两个入口本身都已修好，
+                但只对以后生效 —— 这里是给已有数据用的一次性修复。
+                两项都**幂等**、都**只填空值不覆盖**，重复点安全。 */}
             <Card>
-              <CardHead
-                eyebrow="数据与存储"
-                title="划线章节名修复"
-                action={
-                  <Button
-                    variant="ghost"
-                    onClick={handleBackfillChapterTitles}
-                    disabled={backfilling}
-                    data-dom-id="cta-backfill-chapter-titles"
-                  >
-                    {backfilling ? '正在修复...' : '开始修复'}
-                  </Button>
-                }
-              />
-              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted-foreground)', lineHeight: 1.7 }}>
-                从微信读书的划线接口拿不到章节名，要靠另一次「章节列表」请求补上。
-                早期版本的导入漏掉了这一步，导致所有划线的章节名都是空的。
-                <br />
-                点「开始修复」会重新拉取一次你在微信读书里有划线的书，把章节名补回去。
-                <strong>只会补充空着的，不会覆盖已有的，重复点也安全。</strong>
-              </p>
-            </Card>
+              <CardHead eyebrow="数据与存储" title="历史数据修复" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 4)' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'calc(var(--spacing) * 3)' }}>
+                    <strong style={{ fontSize: '0.9rem' }}>划线章节名</strong>
+                    <Button
+                      variant="ghost"
+                      onClick={handleBackfillChapterTitles}
+                      disabled={backfilling || backfillingCards}
+                      data-dom-id="cta-backfill-chapter-titles"
+                    >
+                      {backfilling ? '正在修复...' : '开始修复'}
+                    </Button>
+                  </div>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: 'var(--muted-foreground)', lineHeight: 1.7 }}>
+                    微信读书的划线接口不给章节名，要靠另一次「章节列表」请求补上。
+                    早期版本的导入漏了这一步，导致已有划线的章节名都是空的。
+                  </p>
+                </div>
 
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'calc(var(--spacing) * 4)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'calc(var(--spacing) * 3)' }}>
+                    <strong style={{ fontSize: '0.9rem' }}>知识卡片来源</strong>
+                    <Button
+                      variant="ghost"
+                      onClick={handleBackfillCardSource}
+                      disabled={backfilling || backfillingCards}
+                      data-dom-id="cta-backfill-card-source"
+                    >
+                      {backfillingCards ? '正在修复...' : '开始修复'}
+                    </Button>
+                  </div>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: 'var(--muted-foreground)', lineHeight: 1.7 }}>
+                    让每张知识卡片能点回它来源的那条划线。只有卡片正文与划线原文
+                    <strong>完全一致</strong>时才会建立关联 —— 对不上的保持空着，不会猜。
+                  </p>
+                </div>
+              </div>
+            </Card>
             {/* ===== Card D: FSRS 参数配置 ===== */}
             <Card>
               <CardHead

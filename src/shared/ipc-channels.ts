@@ -180,6 +180,8 @@ export const IPC_CHANNELS = {
     DISTILL_PROGRESS: 'knowledgeCard:distillProgress',
     GENERATE_INTERPRETATION: 'knowledgeCards:generateInterpretation',
     GENERATE_APPLICATION: 'knowledgeCards:generateApplication',
+    /** 一次性找回历史卡片的来源划线（2026-09-16：实测 90 张来源全空） */
+    BACKFILL_SOURCE: 'knowledgeCards:backfillSource',
   },
   BOOK_ARCHITECTURE: {
     GET_BY_BOOK: 'bookArchitecture:getByBook',
