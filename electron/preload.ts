@@ -139,6 +139,8 @@ const electronAPI = {
     create: (vocab: Record<string, unknown>) => invoke(IPC_CHANNELS.VOCABULARY.CREATE, vocab),
     createFromLookup: (word: string, source?: string) => invoke(IPC_CHANNELS.VOCABULARY.CREATE_FROM_LOOKUP, word, source),
     markAsMastered: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.MARK_AS_MASTERED, id),
+    /** 加入复习队列：只把词排到待复习，不会记一次复习成绩 */
+    scheduleForReview: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.SCHEDULE_FOR_REVIEW, id),
     incrementReview: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.INCREMENT_REVIEW, id),
     updateReviewData: (id: string, reviewData: Record<string, unknown>) => invoke(IPC_CHANNELS.VOCABULARY.UPDATE_REVIEW_DATA, id, reviewData),
     delete: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.DELETE, id),

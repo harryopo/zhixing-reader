@@ -214,6 +214,8 @@ export const IPC_CHANNELS = {
     CREATE: 'vocabulary:create',
     CREATE_FROM_LOOKUP: 'vocabulary:createFromLookup',
     MARK_AS_MASTERED: 'vocabulary:markAsMastered',
+    /** 加入复习队列：只排队，不提交评分（与 updateReviewData 的区别见 DB 层注释） */
+    SCHEDULE_FOR_REVIEW: 'vocabulary:scheduleForReview',
     INCREMENT_REVIEW: 'vocabulary:incrementReview',
     UPDATE_REVIEW_DATA: 'vocabulary:updateReviewData',
     DELETE: 'vocabulary:delete',

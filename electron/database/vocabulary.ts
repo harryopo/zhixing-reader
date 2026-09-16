@@ -206,6 +206,22 @@ export const vocabularyDb = {
     saveDatabase();
   },
 
+  /**
+   * 把词排进复习队列：只把 next_review_at 提到「现在」，不记复习、不改调度参数。
+   *
+   * 与 updateReviewData 的区别就是这个按钮存在的意义：
+   * 原来界面的「加入复习」调的是 updateReviewData(quality: Good)，
+   * 等于替用户提交了一次「我认识」的评分（review_count + 1、last_review_at = now、间隔被重排）。
+   */
+  scheduleForReview(id: string): void {
+    // 注意：vocabulary 表**没有** updated_at 列（只有 created_at），别照抄 highlights 的写法
+    getDatabase().run('UPDATE vocabulary SET next_review_at = ? WHERE id = ?', [
+      new Date().toISOString(),
+      id,
+    ]);
+    saveDatabase();
+  },
+
   incrementReviewCount(id: string): void {
     getDatabase().run(
       "UPDATE vocabulary SET review_count = review_count + 1, last_review_at = datetime('now') WHERE id = ?",

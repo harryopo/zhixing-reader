@@ -178,6 +178,8 @@ export interface ElectronAPI {
     create: (vocab: Record<string, unknown>) => Promise<Record<string, unknown> | null>
     createFromLookup: (word: string, source?: string) => Promise<Record<string, unknown> | null>
     markAsMastered: (id: string) => Promise<void>
+    /** 加入复习队列：只排队，不提交评分 */
+    scheduleForReview: (id: string) => Promise<void>
     incrementReview: (id: string) => Promise<void>
     updateReviewData: (id: string, reviewData: Record<string, unknown>) => Promise<Record<string, unknown> | null>
     delete: (id: string) => Promise<void>

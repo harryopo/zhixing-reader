@@ -162,6 +162,8 @@ export default function VocabularyPage() {
   // 复习模式
   const [reviewMode, setReviewMode] = useState(false)
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0)
+  /** 评分提交中：防止连点导致同一个词被评两次、并跳过一个词 */
+  const [submitting, setSubmitting] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
   const [reviewList, setReviewList] = useState<VocabularyItem[]>([])
   const [reviewStats, setReviewStats] = useState({ correct: 0, total: 0 })
@@ -320,11 +322,18 @@ export default function VocabularyPage() {
     }
   }
 
-  /** 加入复习（立即触发一次 GOOD 评分，将其纳入复习队列） */
+  /**
+   * 加入复习队列。
+   *
+   * 2026-09-16 修正：原来这里调 updateReviewData(quality: GOOD) ——
+   * 那会 review_count + 1、写 last_review_at、并按 Good 重排下次复习时间，
+   * 等于**替用户提交了一次"我认识这个词"的评分**。按钮写的是"加入复习"，做的是"打分"。
+   * 现在只把词排到待复习（next_review_at = 现在），不动任何调度参数。
+   */
   const handleAddReview = async (id: string) => {
     if (!window.electronAPI?.vocabulary) return
     try {
-      await window.electronAPI.vocabulary.updateReviewData(id, { quality: ReviewRating.GOOD })
+      await window.electronAPI.vocabulary.scheduleForReview(id)
       toast.success('已加入复习队列')
       await loadVocabulary()
     } catch (error) {
@@ -416,11 +425,18 @@ export default function VocabularyPage() {
     }
   }
 
-  /** 提交复习评分 */
+  /**
+   * 提交复习评分。
+   *
+   * submitting 是防连点：原来按钮没有 disabled，连点两次会对**同一个词**提交两次评分，
+   * 而且 setCurrentReviewIndex 触发两次 → 直接跳过一个词。
+   */
   const submitReview = async (rating: ReviewRating) => {
     if (!window.electronAPI?.vocabulary) return
+    if (submitting) return
     const currentWord = reviewList[currentReviewIndex]
     if (!currentWord) return
+    setSubmitting(true)
     try {
       await window.electronAPI.vocabulary.updateReviewData(currentWord.id, {
         quality: rating,
@@ -442,6 +458,8 @@ export default function VocabularyPage() {
     } catch (error) {
       console.error('提交复习失败:', error)
       toast.error('提交复习失败')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -637,24 +655,28 @@ export default function VocabularyPage() {
                   label="忘记"
                   color="error"
                   onClick={submitReview}
+                  disabled={submitting}
                 />
                 <ReviewRatingButton
                   rating={ReviewRating.HARD}
                   label="困难"
                   color="warning"
                   onClick={submitReview}
+                  disabled={submitting}
                 />
                 <ReviewRatingButton
                   rating={ReviewRating.GOOD}
                   label="良好"
                   color="info"
                   onClick={submitReview}
+                  disabled={submitting}
                 />
                 <ReviewRatingButton
                   rating={ReviewRating.EASY}
                   label="简单"
                   color="success"
                   onClick={submitReview}
+                  disabled={submitting}
                 />
               </div>
             )}
@@ -1204,8 +1226,10 @@ interface ReviewRatingButtonProps {
   label: string
   color: 'error' | 'warning' | 'info' | 'success'
   onClick: (r: ReviewRating) => void
+  /** 提交中时禁用：连点会让同一个词被评两次 */
+  disabled?: boolean
 }
-function ReviewRatingButton({ rating, label, color, onClick }: ReviewRatingButtonProps) {
+function ReviewRatingButton({ rating, label, color, onClick, disabled = false }: ReviewRatingButtonProps) {
   const colorMap: Record<ReviewRatingButtonProps['color'], string> = {
     error: 'var(--state-error)',
     warning: 'var(--state-warning)',
@@ -1217,13 +1241,15 @@ function ReviewRatingButton({ rating, label, color, onClick }: ReviewRatingButto
     <button
       type="button"
       onClick={() => onClick(rating)}
+      disabled={disabled}
       style={{
         padding: 'calc(var(--spacing) * 4) calc(var(--spacing) * 3)',
         background: `color-mix(in srgb, ${c} 12%, transparent)`,
         color: c,
         border: '1px solid transparent',
         borderRadius: 'var(--radius)',
-        cursor: 'pointer',
+        cursor: disabled ? 'wait' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
         fontWeight: 500,
         font: 'inherit',
         transition: 'background 0.2s ease',
