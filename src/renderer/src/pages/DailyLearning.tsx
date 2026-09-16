@@ -164,6 +164,8 @@ export default function DailyLearning() {
   // 复习相关状态
   const [vocabTab, setVocabTab] = useState<'all' | 'review'>('all')
   const [reviewingWord, setReviewingWord] = useState<Vocabulary | null>(null)
+  /** 复习评分提交中：防止连点对同一个词提交两次 */
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [dueWords, setDueWords] = useState<Vocabulary[]>([])
 
   // 筛选状态
@@ -344,19 +346,32 @@ export default function DailyLearning() {
 
   // ===== 文章导航与操作（全部保留） =====
 
+  /**
+   * 下一篇。
+   *
+   * 2026-09-16：原来用的是 articles 的**全量下标**（currentIndex + 1），
+   * 而"下一篇"按钮的 disabled 用的是 displayArticles 的**筛选后下标** ——
+   * 两套下标混用，筛选生效时点了画面不动（跳到一篇被筛掉的文章，标题却不变）。
+   * 现在统一按筛选后列表走。
+   */
   const handleNext = () => {
-    if (currentIndex < articles.length - 1) {
-      const nextIdx = currentIndex + 1
+    const next = displayArticles[displayIndex + 1]
+    const nextIdx = next ? articles.findIndex((a) => a.id === next.id) : -1
+    if (nextIdx >= 0) {
       setCurrentIndex(nextIdx)
       setVisibleTranslations(new Set())
       preloadWordCache(articles[nextIdx])
     }
   }
 
+  /** 上一篇：同样按筛选后列表走（与按钮的 disabled 口径一致） */
   const handlePrev = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1)
+    const prev = displayArticles[displayIndex - 1]
+    const prevIdx = prev ? articles.findIndex((a) => a.id === prev.id) : -1
+    if (prevIdx >= 0) {
+      setCurrentIndex(prevIdx)
       setVisibleTranslations(new Set())
+      preloadWordCache(articles[prevIdx])
     }
   }
 
@@ -575,15 +590,22 @@ export default function DailyLearning() {
    * 与生词本复习模式、划线卡片复习页同一口径，不做再映射。
    */
   const handleReviewWord = async (wordId: string, rating: number) => {
+    if (reviewSubmitting) return
+    setReviewSubmitting(true)
     try {
       await window.electronAPI.vocabulary.updateReviewData(wordId, { quality: rating })
       toast.success(rating >= 3 ? '记住了！' : '继续加油')
-      setReviewingWord(null)
+      // 评完自动切到下一个到期词（原来固定 setReviewingWord(null) 退回起始页，
+      // 20 个待复习词就得点 20 次「开始复习」）。
+      const rest = dueWords.filter((w) => w.id !== wordId)
+      setReviewingWord(rest.length > 0 ? rest[0] : null)
       await loadVocabulary()
       await loadDueWords()
     } catch (error) {
       console.error('复习失败:', error)
       toast.error('复习失败')
+    } finally {
+      setReviewSubmitting(false)
     }
   }
 
@@ -657,9 +679,17 @@ export default function DailyLearning() {
     return true
   })
 
-  const displayArticles = filteredArticles.length > 0 ? filteredArticles : articles
-  const displayIndex = displayArticles.findIndex(a => a.id === (articles[currentIndex]?.id))
-  const currentArticle = displayIndex >= 0 ? displayArticles[displayIndex] : displayArticles[0]
+  // 2026-09-16：「筛不到就显示全部」等于让筛选器说谎 —— 用户点了筛选，看到的是全部文章，
+  // 只会以为筛选坏了。现在永远用筛选结果，空态交给渲染层（文章列表那里有无匹配提示）。
+  const displayArticles = filteredArticles
+  const displayIndex = displayArticles.findIndex((a) => a.id === articles[currentIndex]?.id)
+  /**
+   * 当前正在读的文章。
+   * 注意：displayIndex < 0（当前这篇不在筛选结果里）时不能 fallback 到 displayArticles[0] ——
+   * 那会让顶部标题显示 A、正文却是 B。这里直接回退到 articles[currentIndex]。
+   */
+  const currentArticle =
+    displayIndex >= 0 ? displayArticles[displayIndex] : articles[currentIndex] ?? articles[0]
 
   // ===== Dashboard 派生数据 =====
 
@@ -808,7 +838,11 @@ export default function DailyLearning() {
       <>
         <PageHero
           title="文章阅读"
-          subtitle={`${currentArticle.source} · ${DIFFICULTY_LABELS[currentArticle.difficulty as DifficultyFilter] ?? currentArticle.difficulty} · 第 ${displayIndex + 1} / ${displayArticles.length} 篇`}
+          subtitle={`${currentArticle.source} · ${DIFFICULTY_LABELS[currentArticle.difficulty as DifficultyFilter] ?? currentArticle.difficulty} · ${
+          displayIndex >= 0
+            ? `第 ${displayIndex + 1} / ${displayArticles.length} 篇`
+            : '这篇不在当前筛选内'
+        }`}
           actions={
             <>
               <Button variant="ghost" onClick={handleBackToDashboard} data-dom-id="cta-back-dashboard">
@@ -1043,6 +1077,7 @@ export default function DailyLearning() {
             setReviewingWord={setReviewingWord}
             onClose={() => { setShowVocabPanel(false); setReviewingWord(null) }}
             onReviewWord={handleReviewWord}
+            reviewSubmitting={reviewSubmitting}
             onMarkMastered={handleMarkMastered}
             onDeleteVocab={handleDeleteVocab}
             onContextMenu={(word, e) => {
@@ -1055,10 +1090,16 @@ export default function DailyLearning() {
         {/* 文章列表面板（左侧抽屉，类似 VocabPanel） */}
         {showArticleList && (
           <ArticleListPanel
-            articles={articles}
+            // 传筛选后的清单（传 articles 会让"筛了跟没筛一样"）
+            articles={displayArticles}
             currentArticleId={currentArticle.id}
             onSelect={handleSelectArticle}
             onClose={() => setShowArticleList(false)}
+            filtered={filteredArticles.length !== articles.length}
+            onClearFilters={() => {
+              setDifficultyFilter('all')
+              setStatusFilter('all')
+            }}
           />
         )}
 
@@ -1108,8 +1149,11 @@ export default function DailyLearning() {
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(contextMenu.word)
-                  toast.success('已复制到剪贴板')
+                  // 原来没有 catch：复制失败也会弹「已复制到剪贴板」
+                  navigator.clipboard
+                    .writeText(contextMenu.word)
+                    .then(() => toast.success('已复制到剪贴板'))
+                    .catch(() => toast.error('复制失败，请手动选中复制'))
                   setContextMenu(null)
                 }}
                 style={{
@@ -1500,6 +1544,7 @@ export default function DailyLearning() {
           setReviewingWord={setReviewingWord}
           onClose={() => { setShowVocabPanel(false); setReviewingWord(null) }}
           onReviewWord={handleReviewWord}
+          reviewSubmitting={reviewSubmitting}
           onMarkMastered={handleMarkMastered}
           onDeleteVocab={handleDeleteVocab}
           onContextMenu={(word, e) => {
@@ -1682,6 +1727,8 @@ interface VocabPanelProps {
   onClose: () => void
   /** rating 为 ts-fsrs Rating：1=Again / 2=Hard / 3=Good / 4=Easy */
   onReviewWord: (wordId: string, rating: number) => void
+  /** 评分提交中：禁用按钮，避免连点重复提交 */
+  reviewSubmitting?: boolean
   onMarkMastered: (wordId: string) => void
   onDeleteVocab: (wordId: string) => void
   onContextMenu: (word: string, e: React.MouseEvent) => void
@@ -1696,6 +1743,7 @@ function VocabPanel({
   setReviewingWord,
   onClose,
   onReviewWord,
+  reviewSubmitting = false,
   onContextMenu,
 }: VocabPanelProps) {
   return (
@@ -1799,6 +1847,7 @@ function VocabPanel({
                 <button
                   type="button"
                   onClick={() => onReviewWord(reviewingWord.id, 1)} /* Again */
+                  disabled={reviewSubmitting}
                   style={{
                     padding: '0.75rem',
                     background: 'var(--accent)',
@@ -1815,6 +1864,7 @@ function VocabPanel({
                 <button
                   type="button"
                   onClick={() => onReviewWord(reviewingWord.id, 2)} /* Hard */
+                  disabled={reviewSubmitting}
                   style={{
                     padding: '0.75rem',
                     background: 'var(--secondary)',
@@ -1831,6 +1881,7 @@ function VocabPanel({
                 <button
                   type="button"
                   onClick={() => onReviewWord(reviewingWord.id, 3)} /* Good */
+                  disabled={reviewSubmitting}
                   style={{
                     padding: '0.75rem',
                     background: 'var(--state-success)',
@@ -1943,13 +1994,17 @@ function VocabPanel({
 
 // ===== 子组件：文章列表面板（左侧抽屉，便于切换文章） =====
 interface ArticleListPanelProps {
+  /** 已经过筛选的清单（不是全量） */
   articles: Article[]
   currentArticleId: string
   onSelect: (articleId: string) => void
   onClose: () => void
+  /** 当前是否处于筛选状态（用于区分"筛选后为空"） */
+  filtered?: boolean
+  onClearFilters?: () => void
 }
 
-function ArticleListPanel({ articles, currentArticleId, onSelect, onClose }: ArticleListPanelProps) {
+function ArticleListPanel({ articles, currentArticleId, onSelect, onClose, filtered = false, onClearFilters }: ArticleListPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   // 记录打开面板前的焦点元素（触发按钮），关闭时还原
@@ -2058,8 +2113,15 @@ function ArticleListPanel({ articles, currentArticleId, onSelect, onClose }: Art
       <div style={{ flex: 1, overflow: 'auto', padding: 'calc(var(--spacing) * 3)' }}>
         {articles.length === 0 ? (
           <p style={{ color: 'var(--muted-foreground)', fontSize: '0.85rem', textAlign: 'center', padding: 'calc(var(--spacing) * 6) 0' }}>
-            暂无文章，请点击右上角「获取新文章」
+            没有符合条件的文章
           </p>
+        ) : filtered ? (
+          <div style={{ textAlign: 'center', padding: 'calc(var(--spacing) * 6) 0' }}>
+            <p style={{ color: 'var(--muted-foreground)', fontSize: '0.85rem', marginBottom: 'calc(var(--spacing) * 3)' }}>
+              当前筛选下没有文章
+            </p>
+            <Button variant="secondary" onClick={onClearFilters}>清除筛选</Button>
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
             {articles.map((article, idx) => {
