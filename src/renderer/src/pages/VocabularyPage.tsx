@@ -170,6 +170,10 @@ export default function VocabularyPage() {
 
   // 导出 Modal
   const [exportModalOpen, setExportModalOpen] = useState(false)
+  /** 导出清单：打开导出时一次性取「全部生词」，与当前筛选无关 */
+  const [exportItems, setExportItems] = useState<VocabularyItem[]>([])
+  /** 批量导入中：防止连点并行跑两遍 */
+  const [importing, setImporting] = useState(false)
   const [exportFormat, setExportFormat] = useState<'csv' | 'anki'>('csv')
   const [exporting, setExporting] = useState(false)
 
@@ -257,8 +261,14 @@ export default function VocabularyPage() {
     }
   }
 
-  /** 批量导入：每行一个英文词 → createFromLookup */
+  /**
+   * 批量导入：每行一个英文词 → createFromLookup。
+   *
+   * importing 是防重入：循环里逐个 IPC 调用（最多 50 个），
+   * 原来按钮没有 disabled，连点会让第二遍并行跑起来、同一个词被查两次。
+   */
   const handleBatchImport = async () => {
+    if (importing) return
     if (!window.electronAPI?.vocabulary) {
       toast.error('生词接口不可用')
       return
@@ -280,17 +290,24 @@ export default function VocabularyPage() {
     let added = 0
     let skipped = 0
     let failed = 0
-    for (const word of words) {
-      try {
-        const result = await window.electronAPI.vocabulary.createFromLookup(word, '批量导入')
-        if (result === null) skipped++
-        else added++
-      } catch {
-        failed++
+    setImporting(true)
+    const tId = toast.loading(`正在导入 ${words.length} 个单词...`)
+    try {
+      for (const word of words) {
+        try {
+          const result = await window.electronAPI.vocabulary.createFromLookup(word, '批量导入')
+          if (result === null) skipped++
+          else added++
+        } catch {
+          failed++
+        }
       }
+      await loadVocabulary()
+      toast.remove(tId)
+      toast.success(`导入完成：新增 ${added} · 已存在 ${skipped} · 失败 ${failed}`)
+    } finally {
+      setImporting(false)
     }
-    await loadVocabulary()
-    toast.success(`导入完成：新增 ${added} · 已存在 ${skipped} · 失败 ${failed}`)
   }
 
   /** 删除生词 */
@@ -342,14 +359,31 @@ export default function VocabularyPage() {
     }
   }
 
-  /** 打开导出 Modal */
-  const handleOpenExport = () => {
-    if (vocabulary.length === 0) {
-      toast.info('生词本为空，无法导出')
-      return
+  /**
+   * 导出用的清单 = **整个生词本**，不是当前筛选结果。
+   *
+   * 原来 handleConfirmExport 用的是 vocabulary（受 tab / 搜索影响）：
+   * 切到「待复习」再点导出，导出的就只有那几十个词 —— 按钮写着「导出」，
+   * 用户以为导的是全部。筛选为空时按钮还会直接禁用，哪怕生词本里有几百个词。
+   */
+  const handleOpenExportAll = async () => {
+    if (!window.electronAPI?.vocabulary) return
+    try {
+      setExporting(true)
+      const all = (await window.electronAPI.vocabulary.getAll(1000)) as unknown as VocabularyItem[]
+      if (all.length === 0) {
+        toast.info('生词本还是空的')
+        return
+      }
+      setExportItems(all)
+      setExportFormat('csv')
+      setExportModalOpen(true)
+    } catch (error) {
+      console.error('读取生词本失败:', error)
+      toast.error('读取生词本失败')
+    } finally {
+      setExporting(false)
     }
-    setExportFormat('csv')
-    setExportModalOpen(true)
   }
 
   /** 确认导出：调用主进程 dialog.showSaveDialog + 写文件 */
@@ -358,13 +392,13 @@ export default function VocabularyPage() {
       toast.error('导出接口不可用')
       return
     }
-    if (vocabulary.length === 0) {
+    if (exportItems.length === 0) {
       toast.info('生词本为空，无法导出')
       return
     }
     try {
       setExporting(true)
-      const items = vocabulary.map((v) => ({
+      const items = exportItems.map((v) => ({
         word: v.word,
         phonetic: v.phonetic,
         part_of_speech: v.part_of_speech,
@@ -708,14 +742,15 @@ export default function VocabularyPage() {
             <Button
               variant="ghost"
               onClick={() => void handleBatchImport()}
+              disabled={importing}
               data-dom-id="cta-import"
             >
-              <Icon name="file" size={16} /> 导入
+              <Icon name="file" size={16} /> {importing ? '导入中...' : '导入'}
             </Button>
             <Button
               variant="ghost"
-              onClick={() => void handleOpenExport()}
-              disabled={vocabulary.length === 0}
+              onClick={() => void handleOpenExportAll()}
+              disabled={exporting}
               data-dom-id="cta-export"
             >
               <Icon name="arrow-down" size={16} /> 一键导出
@@ -750,28 +785,67 @@ export default function VocabularyPage() {
                 flexWrap: 'wrap',
               }}
             >
-              <FilterChips value={activeTab} onChange={setActiveTab} />
-              <input
-                type="search"
-                placeholder="搜索单词..."
-                aria-label="搜索单词"
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSearch()
-                }}
-                style={{
-                  width: 180,
-                  padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
-                  border: '1px solid var(--input)',
-                  borderRadius: 'var(--radius)',
-                  background: 'var(--popover)',
-                  fontSize: '0.82rem',
-                  color: 'var(--foreground)',
-                  outline: 'none',
-                  fontFamily: 'inherit',
+              <FilterChips
+                value={activeTab}
+                onChange={(next) => {
+                  // 切 tab 会按 tab 重新拉列表，但不搜索时就不该留着一个看不见的过滤条件 ——
+                  // 原来搜索框里的旧关键词还在，列表却已经换了口径，界面和结果对不上。
+                  setSearchKeyword('')
+                  setActiveTab(next)
                 }}
               />
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <input
+                  type="search"
+                  placeholder="搜索单词..."
+                  aria-label="搜索单词"
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSearch()
+                  }}
+                  style={{
+                    width: 180,
+                    padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
+                    paddingRight: searchKeyword ? 28 : undefined,
+                    border: '1px solid var(--input)',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--popover)',
+                    fontSize: '0.82rem',
+                    color: 'var(--foreground)',
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                  }}
+                />
+                {/* 清空按钮：原来只能靠手动删字符（搜索只在回车时触发，删完还得再回车一次） */}
+                {searchKeyword && (
+                  <button
+                    type="button"
+                    aria-label="清空搜索"
+                    data-dom-id="cta-clear-search"
+                    onClick={() => {
+                      setSearchKeyword('')
+                      void loadVocabulary()
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: 6,
+                      display: 'grid',
+                      placeItems: 'center',
+                      width: 18,
+                      height: 18,
+                      padding: 0,
+                      border: 'none',
+                      borderRadius: '50%',
+                      background: 'var(--muted)',
+                      color: 'var(--muted-foreground)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* body: vocab-list */}
@@ -1119,7 +1193,7 @@ export default function VocabularyPage() {
           onConfirm={() => void handleConfirmExport()}
           onCancel={() => setExportModalOpen(false)}
           exporting={exporting}
-          count={vocabulary.length}
+          count={exportItems.length}
         />
       )}
     </>
