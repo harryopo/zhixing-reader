@@ -344,10 +344,12 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     navigate('/notes')
   }
 
-  /** "今日卡片"：跳转知识卡片页 */
+  /** 通知面板的「今日复习」：必须去**复习页**。
+   *  原来跳的是知识卡片管理页 —— 那一页只有「AI 批量生成」和「导出」，
+   *  根本没有复习入口，用户点进去就找不到北了。 */
   const handleGoReview = () => {
     setNotifyOpen(false)
-    navigate('/knowledge-cards')
+    navigate('/review')
   }
 
   /** 同步状态文案 */
@@ -406,7 +408,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
             <input
               type="search"
               aria-label="搜索"
-              placeholder="搜索书籍、笔记、卡片..."
+              placeholder="搜索书名或作者"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -433,7 +435,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
         <IconButton
           domId="action-refresh"
           icon="refresh"
-          label={syncing ? '同步中...' : '刷新数据'}
+          label={syncing ? '同步中...' : '同步微信读书'}
           onClick={handleSync}
           disabled={syncing}
           spinning={syncing}
@@ -663,36 +665,9 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                 </div>
               </div>
 
-              {/* 面板底：刷新按钮 */}
-              <div
-                style={{
-                  borderTop: '1px solid var(--border)',
-                  padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                  background: 'var(--card)',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleSync()
-                  }}
-                  disabled={syncing}
-                  style={{
-                    width: '100%',
-                    padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 3)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)',
-                    background: syncing ? 'var(--muted)' : 'var(--primary)',
-                    color: syncing ? 'var(--muted-foreground)' : 'var(--primary-foreground)',
-                    cursor: syncing ? 'wait' : 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: 500,
-                    opacity: syncing ? 0.7 : 1,
-                  }}
-                >
-                  {syncing ? '同步中...' : '立即同步书架'}
-                </button>
-              </div>
+              {/* 面板底原来还有一个「立即同步书架」按钮，和顶栏的刷新按钮调的是同一个 handleSync，
+                  两个按钮在屏幕上相距不到 50px。已删除：这个面板只负责"看状态"，
+                  要同步就点顶栏的刷新按钮（它有 title 提示，且每个页面都在）。 */}
             </div>
           )}
         </div>
