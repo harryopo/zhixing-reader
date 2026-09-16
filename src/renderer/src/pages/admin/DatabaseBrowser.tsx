@@ -136,7 +136,7 @@ export default function DatabaseBrowser() {
               </div>
               <input
                 type="text"
-                placeholder="筛选..."
+                placeholder="筛选当前页..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="px-2.5 py-1 text-[11px] bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-emerald-400 w-40"
@@ -163,6 +163,18 @@ export default function DatabaseBrowser() {
                     </tr>
                   </thead>
                   <tbody>
+                    {/* 筛选只作用于当前页（跨页搜不到）；过滤后没结果时说清楚，
+                        否则用户只看到一片空白，会以为表坏了 */}
+                    {filteredRows.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={Math.max(1, data.columns.length)}
+                          className="py-6 text-center text-[11px] text-gray-400"
+                        >
+                          本页没有匹配的行（筛选只作用于当前页，换页后再看）
+                        </td>
+                      </tr>
+                    )}
                     {filteredRows.map((row, i) => (
                       <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
                         {data.columns.map(col => (

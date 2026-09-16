@@ -126,7 +126,7 @@ export default function KnowledgeBase() {
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="搜索书籍或笔记..."
+          placeholder="搜索书名或作者"
           className="w-full pl-9 pr-4 py-2 text-[13px] bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all"
         />
       </div>
@@ -187,7 +187,8 @@ export default function KnowledgeBase() {
                     {filteredHighlights.length > 0 && (
                       <div>
                         <h4 className="text-[12px] font-semibold text-gray-500 mb-2">
-                          划线 / 笔记 ({filteredHighlights.length})
+                          划线 / 笔记 ({filteredHighlights.length}
+                          {filteredHighlights.length > 20 ? '，显示前 20 条' : ''})
                         </h4>
                         <div className="space-y-1.5 max-h-60 overflow-y-auto">
                           {filteredHighlights.slice(0, 20).map((hl) => (
@@ -216,7 +217,8 @@ export default function KnowledgeBase() {
                     {cards.length > 0 && (
                       <div>
                         <h4 className="text-[12px] font-semibold text-gray-500 mb-2">
-                          知识卡片 ({cards.length})
+                          知识卡片 ({cards.length}
+                          {cards.length > 10 ? '，显示前 10 条' : ''})
                         </h4>
                         <div className="space-y-1.5 max-h-40 overflow-y-auto">
                           {cards.slice(0, 10).map((card) => (

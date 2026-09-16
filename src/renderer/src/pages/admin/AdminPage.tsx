@@ -60,7 +60,8 @@ const tabs: { key: TabKey; label: string; icon: ReactElement }[] = [
 const VALID_TABS = new Set<TabKey>(['dashboard', 'prompts', 'database', 'knowledge', 'sessions'])
 
 export default function AdminPage() {
-  const [searchParams] = useSearchParams()
+  // 用 setSearchParams 让 tab 回到 URL（刷新/分享链接仍停在同一个 tab）
+  const [searchParams, setSearchParams] = useSearchParams()
   const tabFromUrl = searchParams.get('tab')
   const initialTab: TabKey =
     tabFromUrl && VALID_TABS.has(tabFromUrl as TabKey) ? (tabFromUrl as TabKey) : 'dashboard'
@@ -91,7 +92,10 @@ export default function AdminPage() {
           {tabs.map(tab => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => {
+                setActiveTab(tab.key)
+                setSearchParams({ tab: tab.key }, { replace: true })
+              }}
               className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium rounded-t-lg transition-all duration-150 border-b-2 whitespace-nowrap ${
                 activeTab === tab.key
                   ? 'text-emerald-600 border-emerald-600'
