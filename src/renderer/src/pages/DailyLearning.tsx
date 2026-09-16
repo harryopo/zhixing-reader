@@ -29,6 +29,14 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
+import {
+  buildDailyTasks,
+  summarizeDailyTasks,
+  firstUnfinishedTask,
+  type DailyTask,
+  type DailyTaskTag,
+  type DailyTaskQueue,
+} from '../../../shared/daily-tasks'
 import { toast } from '../stores/toastStore'
 
 // ===== 类型定义 =====
@@ -63,21 +71,19 @@ interface Vocabulary {
   is_mastered: boolean
   learning_stage?: number
   next_review_at?: string
+  /** 上一次复习的**真实时间戳**（用于判断"今天学过没有"） */
+  last_review_at?: string
 }
 
 type DifficultyFilter = 'all' | 'cet4' | 'cet6' | 'graduate'
 type StatusFilter = 'all' | 'unread' | 'read' | 'favorite'
-type TaskTag = 'read' | 'review' | 'vocab' | 'note' | 'chat' | 'card' | 'reflect'
+type TaskTag = DailyTaskTag
 
-interface DailyTask {
-  id: string
-  title: string
-  duration: number // minutes
-  category: string
-  tag: TaskTag
-  done: boolean
-  articleId?: string
-  articleIndex?: number
+/** 卡片队列（来自 CARDS.GET_QUEUE_STATS，与首页同一个数据源） */
+interface CardQueue extends DailyTaskQueue {
+  newAvailable: number
+  newPerDay: number
+  newIntroducedToday: number
 }
 
 // ===== 常量 =====
@@ -88,10 +94,7 @@ const TASK_TAG_STYLES: Record<TaskTag, { background: string; color: string; labe
   read: { background: 'var(--chart-1)', color: 'var(--primary-foreground)', label: '阅读' },
   review: { background: 'var(--chart-2)', color: 'var(--primary-foreground)', label: '复习' },
   vocab: { background: 'var(--chart-3)', color: 'var(--foreground)', label: '生词' },
-  note: { background: 'var(--chart-5)', color: 'var(--primary-foreground)', label: '笔记' },
   chat: { background: 'var(--chart-4)', color: 'var(--primary-foreground)', label: '对话' },
-  card: { background: 'var(--chart-1)', color: 'var(--primary-foreground)', label: '卡片' },
-  reflect: { background: 'var(--chart-3)', color: 'var(--foreground)', label: '反思' },
 }
 
 const DIFFICULTY_LABELS: Record<DifficultyFilter, string> = {
@@ -122,10 +125,23 @@ function formatRelativeTime(dateStr: string | undefined): string {
   return `${Math.floor(hours / 24)}天后`
 }
 
-/** 截断长标题（用于任务标题） */
-function truncateTitle(text: string, max = 24): string {
-  if (!text) return ''
-  return text.length > max ? text.slice(0, max) + '…' : text
+/**
+ * 数据库的 0/1 → 真正的 boolean。
+ *
+ * **这里踩过一次坑**：sql.js 从 SQLite 读出来的 `is_read` 是**数字** 0/1，
+ * 而类型上写的是 `boolean`（类型在撒谎）。于是任务行里的
+ * `{task.done && <Icon/>}` 在未读时求值为数字 `0`，
+ * 而 React 会把数字 0 当文本渲染出来 —— 任务标题前面就凭空多出一个「0」。
+ *
+ * 修法是在**边界处**把类型掰正（而不是在每个渲染点去防它）：
+ * 数据进来就变成真 boolean，后面所有 `&&`、`if` 都恢复成正常的布尔语义。
+ */
+function normalizeArticle(raw: Record<string, unknown>): Article {
+  return {
+    ...(raw as unknown as Article),
+    is_read: Number(raw.is_read) === 1,
+    is_favorite: Number(raw.is_favorite) === 1,
+  }
 }
 
 // ===== 主组件 =====
@@ -167,19 +183,17 @@ export default function DailyLearning() {
 
   // ===== Dashboard 新增状态 =====
   const [view, setView] = useState<'dashboard' | 'article'>('dashboard')
-  // 任务勾选状态按日期持久化到 localStorage（每日重置），key 形如 dailyTasks:2026-08-28
-  const todayKey = `dailyTasks:${new Date().toISOString().split('T')[0]}`
-  const [taskOverrides, setTaskOverrides] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem(todayKey)
-      return saved ? (JSON.parse(saved) as Record<string, boolean>) : {}
-    } catch {
-      return {}
-    }
-  })
+  // 今日真实信号：卡片队列 / 今天实际完成了多少 / 今天是否和 AI 聊过。
+  // 清单上的每一项都由它们判定，不再依赖手点的勾（见 tasks 的注释）。
+  const [queue, setQueue] = useState<CardQueue | null>(null)
+  const [todayStats, setTodayStats] = useState<{ cardsReviewed: number; readingSeconds: number } | null>(null)
+  const [chattedToday, setChattedToday] = useState(false)
   // 翻译与文章选择状态
   const [translating, setTranslating] = useState(false)
   const [showArticleList, setShowArticleList] = useState(false)
+
+  /** 今天的日期（UTC，与 daily_stats / conversations 的写入口径一致） */
+  const todayStr = new Date().toISOString().split('T')[0]
 
   // ===== 数据加载（全部保留） =====
 
@@ -191,10 +205,12 @@ export default function DailyLearning() {
     try {
       setLoading(true)
       const data = await window.electronAPI.article.getAll()
-      const articleList = Array.isArray(data) ? data : []
+      const raw = Array.isArray(data) ? data : []
+      // 在边界处把 0/1 掰成真 boolean（见 normalizeArticle 的注释）
+      const articleList = raw.map((a) => normalizeArticle(a as Record<string, unknown>))
       if (articleList.length > 0) {
-        setArticles(articleList as unknown as Article[])
-        preloadWordCache(articleList[0] as unknown as Article)
+        setArticles(articleList)
+        preloadWordCache(articleList[0])
       }
     } catch (error) {
       console.error('加载文章失败:', error)
@@ -225,17 +241,60 @@ export default function DailyLearning() {
     }
   }, [])
 
+  /**
+   * 今日真实信号加载。
+   *
+   * 「每日学习」这张清单存在的意义是**它说的每一条都能兑现**：
+   * 数量来自真实队列，完成与否由真实数据判定。
+   * 一旦靠手点的勾，进度环就成了自欺欺人的数字 —— 所以这里只认数据。
+   */
+  const loadTodaySignals = useCallback(async () => {
+    try {
+      const q = await window.electronAPI?.card?.getQueueStats?.()
+      if (q) setQueue(q as CardQueue)
+    } catch (error) {
+      console.error('加载卡片队列失败:', error)
+    }
+    try {
+      const s = await window.electronAPI?.stats?.getToday?.()
+      // 注意：renderer.d.ts 把 DailyStats 声明成驼峰（readingTime/reviewsCount），
+      // 但 dailyStatsDb.getToday() 是 SELECT * —— 运行时拿到的是**下划线**列名。
+      // 全项目都是两种写法都认（见 Stats.tsx / Profile.tsx），这里保持一致。
+      const row = (s ?? {}) as unknown as Record<string, unknown>
+      setTodayStats({
+        cardsReviewed: Number(row.cards_reviewed ?? row.reviewsCount) || 0,
+        readingSeconds: Number(row.reading_time ?? row.readingTime) || 0,
+      })
+    } catch (error) {
+      console.error('加载今日统计失败:', error)
+    }
+    try {
+      const convs = await window.electronAPI?.conversation?.getAll?.()
+      const list = Array.isArray(convs) ? convs : []
+      setChattedToday(
+        list.some((c) => {
+          const row = c as unknown as Record<string, unknown>
+          const stamp = String(row.updated_at ?? row.updatedAt ?? '')
+          return stamp.slice(0, 10) === todayStr
+        }),
+      )
+    } catch (error) {
+      console.error('加载对话记录失败:', error)
+    }
+  }, [todayStr])
+
   useEffect(() => {
     loadArticles()
     loadVocabulary()
     loadDueWords()
+    void loadTodaySignals()
     // 检查是否首次使用右键添加功能
     const hasSeenGuide = localStorage.getItem('vocab-rightclick-guide')
     if (!hasSeenGuide) {
       const timer = setTimeout(() => setShowGuide(true), 1500)
       return () => clearTimeout(timer)
     }
-  }, [loadArticles, loadVocabulary, loadDueWords])
+  }, [loadArticles, loadVocabulary, loadDueWords, loadTodaySignals])
 
   // 获取 RSS 最新文章
   const handleFetchRss = useCallback(async () => {
@@ -589,67 +648,35 @@ export default function DailyLearning() {
 
   // ===== Dashboard 派生数据 =====
 
+  /**
+   * 今日任务清单。
+   *
+   * 规则本身在 `src/shared/daily-tasks.ts`（纯函数，被 `tests/daily-tasks.test.ts` 钉着），
+   * 这里只负责把**页面已经加载到的真实数据**喂进去。
+   * 一句话规矩：**每个任务都必须有"系统自己知道做没做"的判定依据** ——
+   * 没有依据的事不进这张清单（详见纯模块的文件头注释）。
+   */
   const tasks = useMemo<DailyTask[]>(() => {
-    const list: DailyTask[] = []
-    let idx = 1
-
-    // 阅读任务：取前 2 篇文章（匹配设计的 2 个阅读任务）
-    const readArticles = articles.slice(0, 2)
-    for (const article of readArticles) {
-      list.push({
-        id: `task-${idx++}`,
-        title: `阅读《${truncateTitle(article.title_en)}》`,
-        duration: 30,
-        category: '阅读',
-        tag: 'read',
-        done: article.is_read,
-        articleId: article.id,
-        articleIndex: articles.findIndex(a => a.id === article.id),
-      })
-    }
-
-    // 复习任务
-    list.push({
-      id: `task-${idx++}`,
-      title: `复习 ${dueWords.length} 张卡片`,
-      duration: 15,
-      category: '复习',
-      tag: 'review',
-      done: dueWords.length === 0,
+    // 生成规则见纯模块；这里只做数据适配
+    const pending = vocabulary.filter((v) => !v.is_mastered).length
+    const learnedToday = vocabulary.filter(
+      (v) => String(v.last_review_at ?? '').slice(0, 10) === todayStr,
+    ).length
+    return buildDailyTasks({
+      articles: articles.map((a) => ({
+        id: a.id,
+        titleEn: a.title_en,
+        isRead: a.is_read,
+        wordCount: (a.content_en || '').trim().split(/\s+/).filter(Boolean).length,
+      })),
+      queue,
+      vocabulary: { total: vocabulary.length, pending, learnedToday },
+      chattedToday,
+      cardsReviewedToday: todayStats?.cardsReviewed ?? 0,
     })
+  }, [articles, vocabulary, queue, todayStats, chattedToday, todayStr])
 
-    // 生词任务
-    const newVocabCount = vocabulary.filter(v => !v.is_mastered).length
-    list.push({
-      id: `task-${idx++}`,
-      title: `学习 ${Math.min(5, newVocabCount)} 个生词`,
-      duration: 10,
-      category: '生词',
-      tag: 'vocab',
-      done: newVocabCount === 0,
-    })
-
-    // 静态模板任务（匹配设计的笔记/对话/卡片/反思）
-    list.push({ id: `task-${idx++}`, title: '整理今日笔记', duration: 10, category: '笔记', tag: 'note', done: false })
-    list.push({ id: `task-${idx++}`, title: 'AI 对话：探讨今日阅读内容', duration: 20, category: '对话', tag: 'chat', done: false })
-    list.push({ id: `task-${idx++}`, title: '写卡片笔记 2 张', duration: 10, category: '卡片', tag: 'card', done: false })
-    list.push({ id: `task-${idx++}`, title: '总结反思今日', duration: 5, category: '反思', tag: 'reflect', done: false })
-
-    return list
-  }, [articles, dueWords, vocabulary])
-
-  // 应用用户手动覆盖
-  const tasksView = useMemo(
-    () => tasks.map(t => ({ ...t, done: taskOverrides[t.id] ?? t.done })),
-    [tasks, taskOverrides],
-  )
-
-  const completedCount = tasksView.filter(t => t.done).length
-  const totalCount = tasksView.length
-  const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
-  const elapsedMin = tasksView.filter(t => t.done).reduce((sum, t) => sum + t.duration, 0)
-  const remainingMin = tasksView.filter(t => !t.done).reduce((sum, t) => sum + t.duration, 0)
-
+  const { completed: completedCount, total: totalCount, percent: progressPct } = summarizeDailyTasks(tasks)
   // 今日日期（中文星期名内联计算）
   const today = new Date()
   const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
@@ -657,49 +684,36 @@ export default function DailyLearning() {
 
   // ===== Dashboard 任务交互 =====
 
+  /** 每个任务都指向一个**真实去处**（不再有"点了弹个提示就算完成"的项） */
   const handleTaskClick = (task: DailyTask) => {
-    // 阅读：进入文章阅读器
-    if (task.tag === 'read' && task.articleIndex !== undefined && task.articleIndex >= 0) {
-      const article = articles[task.articleIndex]
-      if (article) {
-        setCurrentIndex(task.articleIndex)
+    switch (task.action) {
+      case 'article': {
+        const index = task.articleIndex ?? -1
+        const article = articles[index]
+        if (!article) return
+        setCurrentIndex(index)
         setVisibleTranslations(new Set())
         preloadWordCache(article)
         setView('article')
         return
       }
+      case 'review':
+        navigate('/review')
+        return
+      case 'vocab':
+        setShowVocabPanel(true)
+        return
+      case 'chat':
+        navigate('/chat')
+        return
+      case 'fetch':
+        void handleFetchRss()
+        return
     }
-    // 其他任务：路由跳转
-    if (task.tag === 'review') {
-      navigate('/knowledge-cards')
-    } else if (task.tag === 'vocab') {
-      setShowVocabPanel(true)
-    } else if (task.tag === 'note') {
-      navigate('/notes')
-    } else if (task.tag === 'chat') {
-      navigate('/chat')
-    } else if (task.tag === 'card') {
-      navigate('/knowledge-cards')
-    } else if (task.tag === 'reflect') {
-      handleTaskToggle(task.id)
-      toast.success('已总结反思今日')
-    }
-  }
-
-  const handleTaskToggle = (taskId: string) => {
-    setTaskOverrides(prev => {
-      const next = { ...prev, [taskId]: !prev[taskId] }
-      try {
-        localStorage.setItem(todayKey, JSON.stringify(next))
-      } catch {
-        /* 持久化失败不影响本次会话 */
-      }
-      return next
-    })
   }
 
   const handleStartToday = () => {
-    const firstUndone = tasksView.find(t => !t.done)
+    const firstUndone = firstUnfinishedTask(tasks)
     if (firstUndone) {
       handleTaskClick(firstUndone)
     } else {
@@ -1329,13 +1343,16 @@ export default function DailyLearning() {
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'calc(var(--spacing) * 3)', width: '100%', marginTop: 'calc(var(--spacing) * 3)' }}>
+                {/* 这两块原来写的是「已用时间 / 预计剩余」，但那两个数字是**编的**：
+                    只是把写死的 30/15/10 分钟按勾选状态加起来，没有任何计时器。
+                    换成今天真实发生的两件事（口径与统计页一致）。 */}
                 <div style={{ padding: 'calc(var(--spacing) * 3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--background)', textAlign: 'left' }}>
-                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>已用时间</span>
-                  <strong style={{ display: 'block', marginTop: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums', color: 'var(--foreground)', fontWeight: 700 }}>{elapsedMin}m</strong>
+                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>今天已复习</span>
+                  <strong style={{ display: 'block', marginTop: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums', color: 'var(--foreground)', fontWeight: 700 }}>{todayStats ? `${todayStats.cardsReviewed}` : '—'}<span style={{ fontSize: '0.75rem', marginLeft: '0.15rem', color: 'var(--muted-foreground)' }}>张</span></strong>
                 </div>
                 <div style={{ padding: 'calc(var(--spacing) * 3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--background)', textAlign: 'left' }}>
-                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>预计剩余</span>
-                  <strong style={{ display: 'block', marginTop: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums', color: 'var(--foreground)', fontWeight: 700 }}>{remainingMin}m</strong>
+                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>今天已阅读</span>
+                  <strong style={{ display: 'block', marginTop: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums', color: 'var(--foreground)', fontWeight: 700 }}>{todayStats ? Math.round(todayStats.readingSeconds / 60) : '—'}<span style={{ fontSize: '0.75rem', marginLeft: '0.15rem', color: 'var(--muted-foreground)' }}>分钟</span></strong>
                 </div>
               </div>
             </div>
@@ -1351,7 +1368,7 @@ export default function DailyLearning() {
               <Badge variant="success">进行中</Badge>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
-              {tasksView.map((task) => {
+              {tasks.map((task) => {
                 const tagStyle = TASK_TAG_STYLES[task.tag]
                 return (
                   <button
@@ -1377,27 +1394,31 @@ export default function DailyLearning() {
                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--ring)' }}
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
                   >
+                    {/* 状态点只表示**状态**，不再可点。
+                        原来这行里嵌了一个会 toggle 的 span（按钮里套按钮），
+                        配合 localStorage 里的手点覆盖，可以让"没做的事"显示成已完成 ——
+                        进度环于是变成一个自欺欺人的数字。现在完成与否只由真实数据说了算。
+                        另外：这里必须是三元而不是 `&&` —— 数据库的 0/1 让
+                        `{0 && <Icon/>}` 求值成数字 0，React 会把它当文本画出来（就是那个「0」）。 */}
                     <span
-                      onClick={(e) => { e.stopPropagation(); handleTaskToggle(task.id) }}
+                      aria-hidden="true"
                       style={{
-                        width: 20,
-                        height: 20,
+                        width: 22,
+                        height: 22,
                         border: '2px solid',
                         borderColor: task.done ? 'var(--state-success)' : 'var(--border)',
                         borderRadius: '50%',
                         flexShrink: 0,
                         marginTop: '0.1rem',
-                        position: 'relative',
                         display: 'grid',
                         placeItems: 'center',
                         background: task.done ? 'var(--state-success)' : 'var(--card)',
-                        cursor: 'pointer',
                         transition: 'background 0.2s ease, border-color 0.2s ease',
                       }}
                     >
-                      {task.done && (
-                        <Icon name="check" size={12} style={{ stroke: 'var(--primary-foreground)', strokeWidth: 3 }} />
-                      )}
+                      {task.done ? (
+                        <Icon name="check" size={13} style={{ stroke: 'var(--primary-foreground)', strokeWidth: 3 }} />
+                      ) : null}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
@@ -1422,7 +1443,7 @@ export default function DailyLearning() {
                         fontVariantNumeric: 'tabular-nums',
                         flexWrap: 'wrap',
                       }}>
-                        <span>{task.duration}min</span>
+                        <span>{task.meta}</span>
                         <span>{task.category}</span>
                       </div>
                     </div>
@@ -1441,6 +1462,10 @@ export default function DailyLearning() {
                     }}>
                       {tagStyle.label}
                     </span>
+                    {/* 未完成时给一个"点了会去哪"的提示；完成了就不再催 */}
+                    {task.done ? null : (
+                      <Icon name="chevron-right" size={16} style={{ color: 'var(--muted-foreground)', flexShrink: 0, alignSelf: 'center' }} />
+                    )}
                   </button>
                 )
               })}
