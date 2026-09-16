@@ -85,10 +85,16 @@ export interface RetrievalSourceView {
   error?: string
 }
 
-/** Agent 检索状态事件：start 开始调取 / done 各路结果（含本轮意图分类结果） */
+/** Agent 检索状态事件：start 开始调取 / done 各路结果（含意图与真实引用片段） */
 export type RetrievalStatusView =
   | { stage: 'start' }
-  | { stage: 'done'; sources: RetrievalSourceView[]; intent: string }
+  | {
+      stage: 'done'
+      sources: RetrievalSourceView[]
+      intent: string
+      /** 本轮命中的真实原文片段，用于消息气泡的「引用来源」 */
+      ragSources: RagSourceRef[]
+    }
 
 export interface ElectronAPI {
   book: {
@@ -250,7 +256,16 @@ export interface ElectronAPI {
     getById: (id: string) => Promise<Conversation | null>
     update: (id: string, data: Record<string, unknown>) => Promise<void>
     getMessages: (id: string) => Promise<ChatMessage[]>
-    addMessage: (conversationId: string, message: { role: string; content: string; intent?: string }) => Promise<string>
+    addMessage: (
+      conversationId: string,
+      message: {
+        role: string
+        content: string
+        intent?: string
+        /** 引用来源：能定位回具体划线的原文片段 */
+        sources?: RagSourceRef[]
+      },
+    ) => Promise<string>
     deleteMessage: (messageId: string) => Promise<void>
     delete: (id: string) => Promise<void>
     search: (keyword: string) => Promise<Conversation[]>

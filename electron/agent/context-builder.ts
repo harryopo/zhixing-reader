@@ -1,5 +1,6 @@
 import { UserIntent } from './intent-classifier'
 import { StrategyPlan } from './strategy-selector'
+import type { RagSourceRef } from '../../src/shared/types'
 
 /** 检索命中条目预览（用于前端「调取知识库」可视化展开） */
 export interface RetrievalPreview {
@@ -26,6 +27,15 @@ export interface ContextBuildResult {
     topScore?: number
     /** 命中条目预览（标题/片段），供 UI 展开 */
     previews?: RetrievalPreview[]
+    /**
+     * 命中的**真实原文片段**（含 highlightId / bookId / 相关度）。
+     *
+     * 2026-09-16 新增：previews 只有 title/snippet/score，是给「调取知识库」
+     * 面板看过程用的；而消息气泡的「引用来源」需要能定位回具体划线。
+     * 此前这一层就已经把 highlightId / bookId / relevanceScore 丢掉了，
+     * 导致 chat_messages.sources 永远是空的（实测 21 条消息 0 条有值）。
+     */
+    sources?: RagSourceRef[]
   }
 }
 

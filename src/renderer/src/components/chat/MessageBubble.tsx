@@ -15,14 +15,10 @@ import remarkGfm from 'remark-gfm'
 import CodeBlock from './CodeBlock'
 import { Reasoning } from './Reasoning'
 
-export interface RAGSource {
-  bookId: string
-  bookTitle: string
-  chunkId: string
-  content?: string
-  relevanceScore: number
-  chapterTitle?: string
-}
+/**
+ * 引用来源片段。形状定义在 src/shared/types.ts 的 RagSourceRef —— 只留一份。
+ */
+export type RAGSource = import('../../../../shared/types').RagSourceRef
 
 export interface ReasoningBlock {
   content: string
@@ -493,7 +489,7 @@ function SourceList({ sources }: { sources: RAGSource[] }) {
         >
           {sources.map((src, i) => (
             <div
-              key={`${src.bookId}-${src.chunkId}-${i}`}
+              key={`${src.bookId}-${src.highlightId}-${i}`}
               style={{
                 padding: '0.5rem 0.7rem',
                 background: 'var(--background)',

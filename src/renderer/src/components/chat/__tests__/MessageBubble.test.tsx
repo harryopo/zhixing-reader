@@ -273,7 +273,7 @@ describe('MessageBubble', () => {
       {
         bookId: 'b1',
         bookTitle: '深入理解计算机系统',
-        chunkId: 'c1',
+        highlightId: 'c1',
         relevanceScore: 0.92,
         chapterTitle: '第1章',
         content: '引用片段内容',
@@ -680,19 +680,19 @@ describe('MessageBubble', () => {
         {
           bookId: 'b1',
           bookTitle: '书1',
-          chunkId: 'c1',
+          highlightId: 'c1',
           relevanceScore: 0.9,
         },
         {
           bookId: 'b2',
           bookTitle: '书2',
-          chunkId: 'c2',
+          highlightId: 'c2',
           relevanceScore: 0.8,
         },
         {
           bookId: 'b3',
           bookTitle: '书3',
-          chunkId: 'c3',
+          highlightId: 'c3',
           relevanceScore: 0.7,
         },
       ]
@@ -711,7 +711,7 @@ describe('MessageBubble', () => {
         {
           bookId: 'b1',
           bookTitle: '书1',
-          chunkId: 'c1',
+          highlightId: 'c1',
           relevanceScore: 0.9,
           chapterTitle: '第 3 章 系统设计',
         },
@@ -726,7 +726,7 @@ describe('MessageBubble', () => {
         {
           bookId: 'b1',
           bookTitle: '书1',
-          chunkId: 'c1',
+          highlightId: 'c1',
           relevanceScore: 0.9,
           content: '这是引用片段的正文内容...',
         },
@@ -741,7 +741,7 @@ describe('MessageBubble', () => {
         {
           bookId: 'b1',
           bookTitle: '书1',
-          chunkId: 'c1',
+          highlightId: 'c1',
           relevanceScore: 0,
         },
       ]
@@ -758,7 +758,7 @@ describe('MessageBubble', () => {
         {
           bookId: 'b1',
           bookTitle: '书1',
-          chunkId: 'c1',
+          highlightId: 'c1',
           relevanceScore: undefined as unknown as number,
         },
       ]
@@ -773,7 +773,7 @@ describe('MessageBubble', () => {
         {
           bookId: 'b1',
           bookTitle: '书1',
-          chunkId: 'c1',
+          highlightId: 'c1',
           relevanceScore: 0.5,
         },
       ]
@@ -791,7 +791,7 @@ describe('MessageBubble', () => {
         {
           bookId: 'b1',
           bookTitle: '深入理解计算机系统',
-          chunkId: 'c1',
+          highlightId: 'c1',
           relevanceScore: 0.92,
         },
       ]

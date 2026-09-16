@@ -10,6 +10,7 @@ import { extractMemoriesFromConversation } from '../services/memory-service'
 import { getPromptTemplate } from '../services/prompt-storage'
 import { ContextManager } from './context-manager'
 import { BuildContext, ContextBuildResult } from './context-builder'
+import type { RagSourceRef } from '../../src/shared/types'
 import { MethodologyContextBuilder } from './builders/methodology-context-builder'
 import { KnowledgeCardContextBuilder } from './builders/knowledge-card-context-builder'
 import { MemoryContextBuilder } from './builders/memory-context-builder'
@@ -38,6 +39,11 @@ export interface RetrievalSource {
   topScore?: number
   buildTime: number
   previews?: Array<{ title?: string; snippet?: string; score?: number }>
+  /**
+   * 这一路命中的**真实原文片段**（含 highlightId / bookId / 相关度）。
+   * 与 previews 的区别：previews 是给人看过程的缩略，sources 是能定位回原文的数据。
+   */
+  sources?: RagSourceRef[]
   error?: string
 }
 
@@ -51,7 +57,13 @@ export interface RetrievalSource {
  */
 export type RetrievalStatus =
   | { stage: 'start' }
-  | { stage: 'done'; sources: RetrievalSource[]; intent: string }
+  | {
+      stage: 'done'
+      sources: RetrievalSource[]
+      intent: string
+      /** 本轮所有路命中的真实原文片段（扁平化），供消息气泡的「引用来源」使用 */
+      ragSources: RagSourceRef[]
+    }
 
 const RETRIEVAL_LABELS: Record<string, string> = {
   book: '书籍笔记',
@@ -73,6 +85,7 @@ function toRetrievalSource(r: { name: string; result: ContextBuildResult }): Ret
     topScore: m?.topScore,
     buildTime: m?.buildTime ?? 0,
     previews: m?.previews,
+    sources: m?.sources,
     error: m?.error,
   }
 }
@@ -430,7 +443,16 @@ export async function processMessageStream(
   emitRetrieval(options, { stage: 'start' })
   const { combinedContext, results } = await contextManager.buildAll(buildContext)
   // 检索可视化：各路知识库检索结果（供前端「调取知识库」面板展示）
-  emitRetrieval(options, { stage: 'done', sources: results.map(toRetrievalSource), intent })
+  const retrievalSources = results.map(toRetrievalSource)
+  emitRetrieval(options, {
+    stage: 'done',
+    sources: retrievalSources,
+    intent,
+    // 扁平化所有路的真实片段，供「引用来源」落库（并去掉没有任何身份的脏数据）
+    ragSources: retrievalSources
+      .flatMap((s) => s.sources ?? [])
+      .filter((s) => Boolean(s?.highlightId && s?.bookId)),
+  })
 
   logger.info('Context build completed', {
     builders: results.map(r => r.name),

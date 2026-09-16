@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { RagSourceRef } from '../../../shared/types'
 
 interface ReasoningBlock {
   /** 思考内容（明文） */
@@ -7,13 +8,6 @@ interface ReasoningBlock {
   isStreaming: boolean
   /** 思考耗时（秒） */
   duration?: number
-}
-
-interface Source {
-  bookId: string
-  bookTitle: string
-  chunkId: string
-  relevanceScore: number
 }
 
 interface Message {
@@ -28,7 +22,7 @@ interface Message {
     level: number
     confidence: number
   }
-  sources?: Source[]
+  sources?: RagSourceRef[]
   reasoning?: ReasoningBlock
   /** 是否已点赞（仅 assistant 消息） */
   liked?: boolean
@@ -45,7 +39,7 @@ interface RawMessage {
   tools_used?: string | string[]
   bloom_level?: number
   mastery_assessment?: string | Record<string, unknown>
-  sources?: string | Source[]
+  sources?: string | RagSourceRef[]
   /** DB 存 INTEGER 0/1 */
   liked?: number | boolean
   /** DB 存 INTEGER 0/1 */
@@ -199,11 +193,15 @@ export const useChatStore = create<ChatState>((set, get) => {
        * 于是 chat_messages.intent 永远是空的（实测 21 条用户消息 0 条有标注）。
        * 现在随检索事件一起下发，保存助手消息时落库。
        *
-       * 注：同一事件里还有「检索到的原文片段」，但它的真实字段是 highlightId，
-       * 而消息气泡沿用着 Qdrant 时代的 chunkId —— 两者形状对不上，
-       * 硬塞会渲染出空白行。那一处需要把字段从 builder 一路串上来，另行处理。
        */
       let retrievalIntent: string | null = null
+      /**
+       * 本轮命中的真实原文片段。
+       * 主进程早就算好并通过检索事件发过来了，此前**保存消息时没有带上**，
+       * 于是 chat_messages.sources 永远是空的 —— 而气泡那侧读取 sources 的
+       * 渲染代码（MessageBubble 的 SourceList）一直存在。整条链路只断在保存这一步。
+       */
+      let retrievalRagSources: RagSourceRef[] | null = null
 
       const cleanupListeners = () => {
         removeChunkListener?.()
@@ -244,6 +242,8 @@ export const useChatStore = create<ChatState>((set, get) => {
                 // 把意图分类结果落库：它是六步流水线的第一步，
                 // 也是"这个 App 到底懂不懂我"最直接的证据。此前只写日志，前端收不到。
                 intent: retrievalIntent || undefined,
+                // 引用来源：能定位回具体划线（highlightId），重新打开会话也还在
+                sources: retrievalRagSources?.length ? retrievalRagSources : undefined,
               })
             } catch (error) {
               console.error('保存助手消息失败:', error)
@@ -256,6 +256,7 @@ export const useChatStore = create<ChatState>((set, get) => {
               role: 'assistant',
               content: fullContent,
               intent: retrievalIntent || undefined,
+              sources: retrievalRagSources?.length ? retrievalRagSources : undefined,
               reasoning: fullReasoning
                 ? { content: fullReasoning, isStreaming: false, duration: reasoningDuration }
                 : undefined,
@@ -313,8 +314,9 @@ export const useChatStore = create<ChatState>((set, get) => {
         removeRetrievalListener = window.electronAPI.ai.onRetrievalStatus?.((status) => {
           if (settled) return
           if (status.stage === 'done') {
-            // start 阶段没有意图信息，只有 done 才有
+            // start 阶段没有内容，只有 done 才有
             retrievalIntent = status.intent || null
+            retrievalRagSources = status.ragSources ?? null
           }
           set({ retrieval: status })
         })

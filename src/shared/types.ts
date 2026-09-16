@@ -265,13 +265,36 @@ export interface ChatMessage {
     level: number
     confidence: number
   }
-  sources?: Array<{
-    bookId: string
-    bookTitle: string
-    chunkId: string
-    relevanceScore: number
-  }>
+  sources?: RagSourceRef[]
   createdAt: string
+}
+
+/**
+ * 一处被检索命中的原文片段 —— 对话「引用来源」面板的数据单位。
+ *
+ * 2026-09-16 统一：此前**同一个形状在三处各写了一遍**
+ * （本文件的 ChatMessage.sources、renderer 的 chatStore.Source、
+ *  MessageBubble.RAGSource），而且字段名沿用 **Qdrant 时代的 chunkId** ——
+ * Qdrant 早已从项目移除，现在的检索结果给的是 `highlightId`
+ * （见 electron/services/rag-service.ts 的 SearchResult）。
+ *
+ * 「三处定义 + 一个已不存在的概念留下的字段名」，正是本项目反复出问题的那种组合，
+ * 所以在这里只留一份，主进程与渲染层共用。
+ */
+export interface RagSourceRef {
+  /** 命中的划线 id（Vectra 索引写入的 payload.highlightId） */
+  highlightId: string
+  bookId: string
+  bookTitle: string
+  /**
+   * 命中的原文片段。
+   * 声明为可选：这个类型也用于解析数据库里存的 JSON，
+   * 历史上写入过的或格式不完整的数据不该让整个列表渲染不出来。
+   * 由检索层新产生的数据一定带 content。
+   */
+  content?: string
+  relevanceScore: number
+  chapterTitle?: string
 }
 
 export type CardType = 'concept' | 'methodology' | 'quote'

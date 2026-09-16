@@ -3,7 +3,15 @@ import { semanticSearch, checkRAGAvailability, keywordSearch } from '../../servi
 import { CONTEXT_OVERFLOW_HINT } from '../system-prompt'
 import { ContextBuilder, BuildContext, ContextBuildResult } from '../context-builder'
 
-type HighlightCtx = { content: string; bookTitle?: string; chapterTitle?: string }
+type HighlightCtx = {
+  /** 划线 id —— 引用来源要靠它定位回原文（此前这一层就丢了） */
+  highlightId?: string
+  bookId?: string
+  content: string
+  bookTitle?: string
+  chapterTitle?: string
+  relevanceScore?: number
+}
 
 /**
  * 书籍上下文构建器
@@ -46,6 +54,17 @@ export class BookContextBuilder implements ContextBuilder {
             title: c.chapterTitle || c.bookTitle,
             snippet: c.content.length > 60 ? `${c.content.slice(0, 60)}…` : c.content,
           })),
+          // 真实片段：消息气泡的「引用来源」用它，能定位回具体划线
+          sources: highlights
+            .filter(c => c.highlightId && c.bookId)
+            .map(c => ({
+              highlightId: c.highlightId as string,
+              bookId: c.bookId as string,
+              bookTitle: c.bookTitle ?? '',
+              chapterTitle: c.chapterTitle,
+              content: c.content,
+              relevanceScore: c.relevanceScore ?? 0,
+            })),
         }
       }
     } catch (error) {
@@ -80,9 +99,12 @@ export class BookContextBuilder implements ContextBuilder {
         })
         return {
           items: searchResults.map(r => ({
+            highlightId: r.highlightId,
+            bookId: r.bookId,
             content: r.content,
             bookTitle: r.bookTitle,
             chapterTitle: r.chapterTitle,
+            relevanceScore: r.relevanceScore,
           })),
           method: 'semantic',
           topScore: searchResults[0]?.relevanceScore,
@@ -109,9 +131,12 @@ export class BookContextBuilder implements ContextBuilder {
     const results = keywordSearch(query, bookId, 5)
     return {
       items: results.map(r => ({
+        highlightId: r.highlightId,
+        bookId: r.bookId,
         content: r.content,
         bookTitle: r.bookTitle,
         chapterTitle: r.chapterTitle,
+        relevanceScore: r.relevanceScore,
       })),
       method: 'keyword',
       topScore: results[0]?.relevanceScore,

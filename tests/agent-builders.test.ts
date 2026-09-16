@@ -129,6 +129,65 @@ describe('BookContextBuilder', () => {
       const result = await builder.build(ctxWithBook())
       expect(result.content).toContain('降级笔记')
     })
+
+    // ========================================================================
+    // 引用来源（2026-09-16 新增）
+    // metadata.previews 只有 title/snippet/score，是给「调取知识库」面板看过程用的；
+    // 消息气泡的「引用来源」需要能定位回具体划线的真实片段。
+    // 此前这一层就把 highlightId / bookId / relevanceScore 丢掉了，
+    // 导致 chat_messages.sources 永远为空（实测 21 条消息 0 条有值）。
+    // ========================================================================
+    it('语义检索路径：metadata.sources 带齐 highlightId / bookId / 相关度', async () => {
+      mockCheckRAGAvailability.mockResolvedValue(true)
+      mockSemanticSearch.mockResolvedValue([
+        {
+          highlightId: 'hl_1',
+          bookId: 'b1',
+          content: '原文片段',
+          bookTitle: '书名',
+          chapterTitle: '第1章',
+          relevanceScore: 0.83,
+        },
+      ])
+      const result = await builder.build(ctxWithBook())
+      expect(result.metadata?.sources).toEqual([
+        {
+          highlightId: 'hl_1',
+          bookId: 'b1',
+          bookTitle: '书名',
+          chapterTitle: '第1章',
+          content: '原文片段',
+          relevanceScore: 0.83,
+        },
+      ])
+    })
+
+    it('关键词降级路径同样带上引用来源', async () => {
+      mockCheckRAGAvailability.mockResolvedValue(false)
+      mockKeywordSearch.mockReturnValue([
+        {
+          highlightId: 'hl_k',
+          bookId: 'b1',
+          content: '关键词命中',
+          bookTitle: '书',
+          chapterTitle: '章',
+          relevanceScore: 0.1,
+        },
+      ])
+      const result = await builder.build(ctxWithBook())
+      expect(result.metadata?.sources?.[0]).toMatchObject({ highlightId: 'hl_k', bookId: 'b1' })
+    })
+
+    it('缺少 highlightId 的命中项被剔除（不能进「引用来源」）', async () => {
+      mockCheckRAGAvailability.mockResolvedValue(true)
+      mockSemanticSearch.mockResolvedValue([
+        { content: '来源不明', bookTitle: '书', relevanceScore: 0.5 },
+        { highlightId: 'hl_ok', bookId: 'b1', content: '有身份', bookTitle: '书', relevanceScore: 0.6 },
+      ])
+      const result = await builder.build(ctxWithBook())
+      expect(result.metadata?.sources).toHaveLength(1)
+      expect(result.metadata?.sources?.[0].highlightId).toBe('hl_ok')
+    })
   })
 })
 

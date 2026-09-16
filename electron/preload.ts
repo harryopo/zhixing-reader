@@ -45,7 +45,19 @@ interface RetrievalSourcePayload {
 }
 type RetrievalStatusPayload =
   | { stage: 'start' }
-  | { stage: 'done'; sources: RetrievalSourcePayload[]; intent: string }
+  | {
+      stage: 'done'
+      sources: RetrievalSourcePayload[]
+      intent: string
+      ragSources: Array<{
+        highlightId: string
+        bookId: string
+        bookTitle: string
+        chapterTitle?: string
+        content?: string
+        relevanceScore: number
+      }>
+    }
 
 type StreamChunkHandler = (event: IpcRendererEvent, data: StreamChunkPayload) => void
 type StreamCompleteHandler = (event: IpcRendererEvent, data: StreamCompletePayload) => void
