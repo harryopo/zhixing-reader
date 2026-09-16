@@ -113,9 +113,27 @@ describe('BookContextBuilder', () => {
       expect(result.metadata?.itemCount).toBe(1)
     })
 
-    it('无检索结果时返回空 content', async () => {
+    it('语义检索返回 0 条时**回退关键词**，不再静默给空上下文', async () => {
+      // 2026-09-16 修正：原来这里断言"语义返回空 → content 为空"，
+      // 而那个行为是 bug —— 索引为空时语义检索永远返回 0 条，
+      // AI 就带着零条书籍上下文回答，日志还写着"用了语义检索"。
+      // 现在的约定是：语义 0 条 → 回退关键词检索。
       mockCheckRAGAvailability.mockResolvedValue(true)
       mockSemanticSearch.mockResolvedValue([])
+      mockKeywordSearch.mockReturnValue([
+        { content: '关键词找到的笔记', bookTitle: '书名', chapterTitle: '第3章' },
+      ])
+      const result = await builder.build(ctxWithBook())
+      expect(mockSemanticSearch).toHaveBeenCalled()
+      expect(mockKeywordSearch).toHaveBeenCalled()
+      expect(result.content).toContain('关键词找到的笔记')
+      expect(result.metadata?.method).toBe('keyword')
+    })
+
+    it('两条路都查不到时才返回空 content', async () => {
+      mockCheckRAGAvailability.mockResolvedValue(true)
+      mockSemanticSearch.mockResolvedValue([])
+      mockKeywordSearch.mockReturnValue([])
       const result = await builder.build(ctxWithBook())
       expect(result.content).toBe('')
     })

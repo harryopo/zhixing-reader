@@ -97,6 +97,15 @@ export class BookContextBuilder implements ContextBuilder {
           results: searchResults.length,
           topScore: searchResults[0]?.relevanceScore,
         })
+
+        // 语义检索返回 0 条时必须回退到关键词检索。
+        // 原来这里是直接 return 空数组 —— 只要索引是空的（或向量里没有这本书的内容），
+        // AI 就会带着**零条**书籍上下文回答，而日志还写着"用了语义检索"，完全看不出来。
+        if (searchResults.length === 0) {
+          logger.info('Semantic search returned 0 results, falling back to keyword matching')
+          return this.getKeywordHighlights(bookId, userMessage)
+        }
+
         return {
           items: searchResults.map(r => ({
             highlightId: r.highlightId,
