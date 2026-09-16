@@ -109,7 +109,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 |------|------|------|
 | `npm run lint` | ESLint 0 错误 | 手动 + CI |
 | `npm run typecheck` | tsc --noEmit 0 错误 | 手动 + CI |
-| `npm run test` | vitest 全通过（790 用例）| 手动 + CI |
+| `npm run test` | vitest 全通过（850 用例）| 手动 + CI |
 | `npm run test:cov` | 覆盖率（阈值 83/80/75/83）| 手动（**未接入 CI**）|
 | `npm run build` | electron-vite 编译 | CI |
 | `npm run verify` | 上面四项一键串行 | 手动 |
@@ -139,13 +139,14 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-## 8. 项目状态（2026-09-11 更新）
+## 8. 项目状态（2026-09-16 更新）
 
 - **当前版本**：v1.1.0（维护迭代期，比赛已于 2026-07 结束）
 - **git 锚点**：master @ `6b3cfbc`（2026-09-02），共 183 commits，tag `v1.0.0`
 - **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
-- **门禁基线（2026-09-15 实测）**：typecheck 0 错误 ✅ / Vitest **790 用例 · 34 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / 覆盖率 90.79-84.54-93.47-90.79 ✅
+- **门禁基线（2026-09-16 实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（192 warning）✅ / Vitest **850 用例 · 38 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / 覆盖率 91.09-85.05-93.81-91.09 ✅
+- **2026-09-16 数据血缘修复**：量真实数据库（`%APPDATA%\zhixing-reader\zhixing.db`）列出「应该有的 vs 实际有的」，5 个差值为 0 的字段全部修完 —— ① 934 条划线章节名全丢（`chapters` 对照表取了不用）② 90 张知识卡片来源划线全丢（提示词没问、写死 null；现在 `sourceIndex` 需在本批内换算）③ 对话意图不落库 ④ 对话引用来源不落库（`chunkId` 是 Qdrant 遗留字段名，新增 `RagSourceRef` 唯一真值）⑤ 阅读时长恒为 0（改为同步微信读书月度数据，累加改覆盖）。测试 790→850（38 文件）
 - **2026-09-15 算法数字换人话**：新增 `src/shared/fsrs-voice.ts`（`describeForgetting` / `describeNextReview`），全应用共用一张嘴；复习页与生词本不再显示「稳定性 46.35 天」「保持率 87%」，改为「已经拖了 4 天没复习 · 现在花 10 秒？」这类陈述+动作；原始数字收进「为什么这么说」折叠。测试 764→790
 - **2026-09-15 每日新卡上限**：实测发现 934 张卡片中 931 张一次性全部逾期（同步导入即到期 + 无每日上限），是"用户不每天打开"的真正原因。新卡与复习卡拆成两个队列，新卡每天限量放行（默认 15，可配置）；`getReviewStats().due` 不再把未学过的卡算成到期
 - **2026-09-15 生词本正确性修复**：评分档位错位（「困难」被记成 Good，Hard 档不可达）/ 自举写死 Rating.Good / 毕业时冲掉已累积稳定性 / is_mastered 自动置位致词永久退场 / 掌握度改用 FSRS 推导；测试 fixture 改为复用 `applySchemaAndMigrations()`，删除 280 行平行 DDL
@@ -174,5 +175,5 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-*最后更新：2026-09-11 | 接手核验校准（修正失效文件路径、假门禁描述、脚本名 test:run→test）*
+*最后更新：2026-09-16 | 数据血缘修复（5 个断点）+ 门禁基线刷新（850 用例 / 38 文件）*
 *与 AGENTS.md 不一致时，两者均以上述实测代码配置为准（`package.json` / `eslint.config.js` / `tsconfig.json` / `vitest.config.ts`）*
