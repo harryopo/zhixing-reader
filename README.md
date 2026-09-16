@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-850%20%E7%94%A8%E4%BE%8B%20/%2038%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-860%20%E7%94%A8%E4%BE%8B%20/%2039%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
 
 ---
@@ -29,7 +29,7 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 52,000+ 行 TypeScript strict 代码 |
-| **测试覆盖** | 850 用例 / 38 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
+| **测试覆盖** | 860 用例 / 39 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
 | **存储** | sql.js (SQLite WASM) · 15 张表 · Vectra 本地向量索引 |
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -137,7 +137,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 2.x | 850 用例 / 38 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 2.x | 860 用例 / 39 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 25.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -207,7 +207,7 @@ zhixing-reader/
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
 ├── src/shared/                              # 跨进程共享（类型 + IPC 通道常量）
-├── tests/                                   # Vitest 单元测试（850 用例 / 38 文件）
+├── tests/                                   # Vitest 单元测试（860 用例 / 39 文件）
 ├── resources/
 │   ├── dictionary.json                      # ECDICT 15.0MB / 59,118 词条
 │   ├── icon.ico / icon.png
