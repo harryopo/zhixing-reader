@@ -1,0 +1,157 @@
+/**
+ * updater — 应用自动更新（electron-updater + GitHub Releases）
+ *
+ * ## 设计口径
+ * - 更新源 = GitHub Releases（harryopo/zhixing-reader），feed 配置在打包时由
+ *   electron-builder 按 package.json 的 build.publish 写入 app-update.yml，
+ *   代码里不硬编码任何 URL。
+ * - autoDownload = false：发现新版本只通知前端，由用户点「下载更新」再拉包，
+ *   避免后台静默下载几百 MB 占带宽。
+ * - autoInstallOnAppQuit = true：下载完成后用户不点「重启安装」，下次正常退出
+ *   也会自动装上，不会白下。
+ * - 开发环境（未打包）autoUpdater 不可用，check 直接返回 supported:false，
+ *   前端据此显示「开发环境不支持」，绝不报错弹窗。
+ *
+ * ## 状态推送
+ * 所有状态变化通过 IPC_CHANNELS.UPDATE.STATUS 推给渲染层（设置页「关于」），
+ * 状态机：checking → available/not-available → downloading → downloaded / error。
+ */
+
+import { app, BrowserWindow } from 'electron';
+import { autoUpdater } from 'electron-updater';
+import { IPC_CHANNELS } from '../src/shared/ipc-channels';
+import { logger } from './logger';
+
+export type UpdateStatusPayload =
+  | { stage: 'checking' }
+  | { stage: 'available'; version: string; releaseNotes?: string }
+  | { stage: 'not-available'; version: string }
+  | { stage: 'downloading'; percent: number; transferredMb: number; totalMb: number }
+  | { stage: 'downloaded'; version: string }
+  | { stage: 'error'; message: string };
+
+let getWindow: (() => BrowserWindow | null) | null = null;
+let initialized = false;
+
+function sendStatus(payload: UpdateStatusPayload): void {
+  const win = getWindow?.();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(IPC_CHANNELS.UPDATE.STATUS, payload);
+  }
+  logger.info('Update status', payload as unknown as Record<string, unknown>);
+}
+
+function stripReleaseNotes(notes: unknown): string | undefined {
+  // electron-updater 的 releaseNotes 可能是 string | Array<{note}> | null
+  if (typeof notes === 'string') return notes.slice(0, 2000);
+  if (Array.isArray(notes)) {
+    return notes
+      .map((n) => (n && typeof n === 'object' && 'note' in n ? String((n as { note: unknown }).note) : ''))
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, 2000);
+  }
+  return undefined;
+}
+
+/** 应用启动时调用一次（仅打包环境真正生效）。 */
+export function initAutoUpdater(windowGetter: () => BrowserWindow | null): void {
+  if (initialized) return;
+  initialized = true;
+  getWindow = windowGetter;
+
+  if (!app.isPackaged) {
+    logger.info('Auto updater disabled in dev (app not packaged)');
+    return;
+  }
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  // GitHub 公有仓库无需 token；allowPrerelease 默认 false，只吃正式 release
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on('checking-for-update', () => sendStatus({ stage: 'checking' }));
+  autoUpdater.on('update-available', (info) => {
+    sendStatus({
+      stage: 'available',
+      version: info.version,
+      releaseNotes: stripReleaseNotes(info.releaseNotes),
+    });
+  });
+  autoUpdater.on('update-not-available', (info) => {
+    sendStatus({ stage: 'not-available', version: info.version });
+  });
+  autoUpdater.on('download-progress', (p) => {
+    sendStatus({
+      stage: 'downloading',
+      percent: Math.round(p.percent * 10) / 10,
+      transferredMb: Math.round((p.transferred / 1048576) * 10) / 10,
+      totalMb: Math.round((p.total / 1048576) * 10) / 10,
+    });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    sendStatus({ stage: 'downloaded', version: info.version });
+  });
+  autoUpdater.on('error', (err) => {
+    sendStatus({ stage: 'error', message: err?.message ?? String(err) });
+  });
+
+  // 启动后静默检查一次：有更新就推送 available 状态给前端徽章，不打扰用户
+  void autoUpdater.checkForUpdates().catch((e) => {
+    logger.warn('Silent update check failed', { error: String(e) });
+  });
+}
+
+export interface UpdateActionResult {
+  supported: boolean;
+  /** check 专用：是否发现新版本（仅同步可得时；异步结果仍以 STATUS 事件为准） */
+  updateAvailable?: boolean;
+  version?: string;
+  error?: string;
+}
+
+/** 手动检查更新（设置页「检查更新」按钮）。 */
+export async function checkForUpdates(): Promise<UpdateActionResult> {
+  if (!app.isPackaged) {
+    return { supported: false, error: '开发环境不支持自动更新，请前往 GitHub Releases 手动下载' };
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    const current = app.getVersion();
+    const latest = result?.updateInfo?.version;
+    return {
+      supported: true,
+      updateAvailable: !!latest && latest !== current,
+      version: latest ?? current,
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    logger.error('checkForUpdates failed', { error: message });
+    return { supported: true, error: message };
+  }
+}
+
+/** 下载已发现的更新。 */
+export async function downloadUpdate(): Promise<UpdateActionResult> {
+  if (!app.isPackaged) {
+    return { supported: false, error: '开发环境不支持自动更新' };
+  }
+  try {
+    await autoUpdater.downloadUpdate();
+    return { supported: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    logger.error('downloadUpdate failed', { error: message });
+    return { supported: true, error: message };
+  }
+}
+
+/** 退出并安装（下载完成后调用）。会触发 app before-quit → 数据库正常落盘关闭。 */
+export function quitAndInstall(): UpdateActionResult {
+  if (!app.isPackaged) {
+    return { supported: false, error: '开发环境不支持自动更新' };
+  }
+  // isSilent=false：让用户看到安装进度；isForceRunAfter=true：装完自动启动
+  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  return { supported: true };
+}

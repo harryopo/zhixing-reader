@@ -37,8 +37,8 @@ export const LICENSE_URL = `${GITHUB_REPO_URL}/blob/master/LICENSE`
 export const APP_META = {
   name: '知行读书',
   // 必须与 package.json 的 version 保持一致（设置页「当前版本」与「检查更新」都用它）
-  version: 'v1.1.0',
-  releaseDate: '2026-07-25',
+  version: 'v1.2.0',
+  releaseDate: '2026-09-17',
   description: '为阅读成长而生的智能学习工具',
   author: '张子涵',
   copyright: `© 2026 ${APP_META_AUTHOR()}`,

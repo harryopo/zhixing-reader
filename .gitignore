@@ -43,6 +43,8 @@ installer-v2/
 installer-run/
 installer-test/
 installer-final/
+installer-v*/
+release-v*/
 dist-installer/
 builder-output-override.json
 

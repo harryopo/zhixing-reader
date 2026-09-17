@@ -1,6 +1,6 @@
 {
   "name": "zhixing-reader",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "知行读书 - AI阅读成长助手",
   "main": "dist/main/main.js",
   "author": "张子涵",
@@ -25,6 +25,7 @@
     "axios": "^1.7.0",
     "echarts": "^5.5.1",
     "echarts-for-react": "^3.0.2",
+    "electron-updater": "^6.8.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
@@ -69,7 +70,12 @@
     "directories": {
       "output": "installer"
     },
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "harryopo",
+      "repo": "zhixing-reader",
+      "releaseType": "release"
+    },
     "asar": true,
     "asarUnpack": [
       "dist/**",
@@ -80,6 +86,22 @@
       "package.json",
       "node_modules/sql.js/**",
       "node_modules/ts-fsrs/**",
+      "node_modules/electron-updater/**",
+      "node_modules/builder-util-runtime/**",
+      "node_modules/fs-extra/**",
+      "node_modules/graceful-fs/**",
+      "node_modules/jsonfile/**",
+      "node_modules/universalify/**",
+      "node_modules/js-yaml/**",
+      "node_modules/argparse/**",
+      "node_modules/lazy-val/**",
+      "node_modules/lodash.escaperegexp/**",
+      "node_modules/lodash.isequal/**",
+      "node_modules/semver/**",
+      "node_modules/tiny-typed-emitter/**",
+      "node_modules/debug/**",
+      "node_modules/ms/**",
+      "node_modules/sax/**",
       "node_modules/axios/**",
       "node_modules/follow-redirects/**",
       "node_modules/form-data/**",
@@ -165,7 +187,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "知行读书"
+      "shortcutName": "知行读书",
+      "artifactName": "${name}-Setup-${version}.${ext}"
     }
   },
   "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065"

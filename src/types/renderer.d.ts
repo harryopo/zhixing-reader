@@ -96,6 +96,25 @@ export type RetrievalStatusView =
       ragSources: RagSourceRef[]
     }
 
+/** 自动更新状态机（主进程推送） */
+export interface UpdateStatusView {
+  stage: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
+  version?: string
+  releaseNotes?: string
+  percent?: number
+  transferredMb?: number
+  totalMb?: number
+  message?: string
+}
+
+export interface UpdateActionResult {
+  /** false = 开发环境（未打包），自动更新不可用 */
+  supported: boolean
+  updateAvailable?: boolean
+  version?: string
+  error?: string
+}
+
 export interface ElectronAPI {
   book: {
     getAll: () => Promise<Book[]>
@@ -338,6 +357,14 @@ export interface ElectronAPI {
     clearHistory: () => Promise<{ success: boolean }>
     resetDatabase: () => Promise<{ success: boolean }>
   }
+  update: {
+    /** 手动检查更新；supported=false 表示开发环境不可用 */
+    check: () => Promise<UpdateActionResult>
+    /** 下载已发现的更新 */
+    download: () => Promise<UpdateActionResult>
+    /** 退出并安装已下载的更新 */
+    install: () => Promise<UpdateActionResult>
+  }
   fsrs: {
     setParameters: (params: Record<string, unknown>) => Promise<void>
     resetParameters: () => Promise<void>
@@ -411,6 +438,8 @@ export interface ElectronAPI {
     willRetry: boolean
     retryInMs: number
   }) => void) => () => void
+  /** 自动更新状态事件，返回清理函数 */
+  onUpdateStatus?: (callback: (status: UpdateStatusView) => void) => () => void
 }
 
 export interface PromptVariable {

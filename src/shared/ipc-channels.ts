@@ -232,6 +232,16 @@ export const IPC_CHANNELS = {
     // 主→渲染事件：数据库落盘失败（磁盘满/权限/被占用），渲染层据此提示用户，避免静默丢数据
     PERSIST_ERROR: 'system:persistError',
   },
+  UPDATE: {
+    /** 手动检查更新（渲染 → 主进程） */
+    CHECK: 'update:check',
+    /** 开始下载已发现的更新 */
+    DOWNLOAD: 'update:download',
+    /** 退出并安装已下载的更新 */
+    INSTALL: 'update:install',
+    /** 主→渲染事件：更新状态机变化（checking/available/progress/downloaded/not-available/error） */
+    STATUS: 'update:status',
+  },
   FSRS: {
     SET_PARAMETERS: 'fsrs:setParameters',
     RESET_PARAMETERS: 'fsrs:resetParameters',

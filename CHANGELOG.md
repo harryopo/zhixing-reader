@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-17
+
+### Added
+- **应用内自动更新**：接入 `electron-updater` + GitHub Releases。启动时静默检查，「设置 → 关于」可手动检查、一键下载（含进度条）、重启安装；下载完成后即便不点安装，下次正常退出也会自动装上。开发环境自动降级为 GitHub API 比对 + 打开下载页
+- **本地 BM25 检索**：书籍划线检索从「向量语义检索（Vectra + embeddings API）」换成本地 BM25 + 中文 bigram（`src/shared/retrieval.ts`），零 API 依赖、不会静默失败；原向量链路整套移除
+- **检索可视化**：对话页「调取知识库」面板实时展示 5 路检索结果、意图分类与命中原文；意图分类结果落库 `chat_messages.intent`，引用来源片段（`ragSources`）随消息持久化
+- **对话深度思考流式展示**：思考内容流式下发前端，面板默认折叠
+- **历史滚动摘要（Token 优化 Step 3）**：wire 历史超阈值时最老轮次增量折叠进持久化摘要，长会话输入 token 不再线性膨胀，跨重启保留早期上下文
+- **前缀缓存友好化（Token 优化 P0）**：system prompt 逐字节稳定 + wire 历史视图 + 缓存命中率观测（`cached_tokens`）
+- **微信读书后台自动同步**：定时器驱动全量同步，结果事件推送前端；失败告警不静默
+- **每日新卡上限**：新卡与复习卡分桶展示，修复「934 条划线一次性全到期」的放弃感
+- **卡片掌握度**：由 FSRS 状态推导，全应用共用一套「人话」表述；复习页可连续复习、评分防连点
+- **启动自动修复**：卡片来源划线 / 划线章节名 / 阅读时长三类历史数据缺口启动后自动补齐（后台执行，不拖慢窗口）
+- **数据导出补全**：备份导出纳入知识卡片 / 方法论 / 生词，导入真实恢复它们与复习卡片
+- **存储用量真实化**：设置页显示数据库 / 日志真实字节数，小于 0.1MB 用 KB 显示
+
+### Changed
+- **每日学习重做**：只留系统能判定的事项，砍掉 4 项纯形式任务
+- **词汇复习改用 ts-fsrs**：修复间隔恒为 1 天、评分档位错位、毕业丢状态三处问题；「加入复习」只排队不偷记评分
+- **「重新蒸馏 / 重新提取」改为真替换**：先清旧数据再生成，不再新旧混杂
+- **测试基线**：885 用例 / 42 文件全绿；fixture 复用生产的 `applySchemaAndMigrations()`，消除双份 schema
+
+### Fixed
+- 对话默认不选书时三路上下文全被跳过（意图为「提问」也检索）
+- 书籍上下文恒为空、对话静默无响应（Repository 工厂从未初始化）
+- 中文提问检索恒为 0 条（切词整句当一词、空索引误判、空结果不回退）
+- 934 条划线章节名丢失、知识卡片 / 方法论来源划线丢失、阅读时长恒为 0、引用来源不落库——数据血缘四处断点全部修复
+- 数据库持久化失败加指数退避重试与用户通知；`RESET_DATABASE` 退出前强制落盘
+- 系统加密不可用时如实告知 API 密钥为明文存储（不再假装安全）
+- 死代码治理：`book_architecture` 全链路、30+ 处假按钮 / 假数字 / 无人消费的开关清理
+- 结构化 AI 任务（蒸馏 / 方法论 / 翻译）默认关思考 + 输出预算取用户配置 + JSON 截断抢救
+
+### Security
+- `getDatabaseTableData` 拒绝 `sqlite_` 内部表（纵深防御）
+
 ## [1.1.0] - 2026-08-28
 
 ### Added
@@ -80,8 +115,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 链接
 
+[1.2.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.2.0
+[1.1.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.1.0
 [1.0.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.0.0
 
 ---
 
-*最后更新：2026-07-27*
+*最后更新：2026-09-17*

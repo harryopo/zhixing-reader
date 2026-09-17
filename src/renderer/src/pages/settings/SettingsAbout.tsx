@@ -2,10 +2,10 @@
  * SettingsAbout — 关于（Google Design Library 1:1 重构）
  * 基于设计稿 zhixing-reader-redesign/pages/settings-about.html
  * 5 张卡片：应用信息 / 版本更新 / 反馈与帮助 / 开源许可 / 法律信息
- * 业务逻辑：版本信息展示、检查更新（预留 IPC）、反馈入口、外部链接
+ * 业务逻辑：版本信息展示、自动更新（electron-updater + GitHub Releases）、反馈入口、外部链接
  */
 
-import { useCallback, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
@@ -52,6 +52,20 @@ interface HistoryEntry {
 }
 
 const UPDATE_HISTORY: HistoryEntry[] = [
+  {
+    version: 'v1.2.0',
+    date: '2026-09-17',
+    notes: '自动更新版：应用内一键升级，检索链路换本地 BM25，数据血缘全面修复。',
+    details: [
+      '• 自动更新：启动静默检查，本页可手动检查、一键下载（含进度）、重启安装',
+      '• 本地 BM25 检索：替换原向量语义检索，零 API 依赖，中文提问不再检索为空',
+      '• 检索可视化：对话页实时展示 5 路知识库调取过程与命中原文',
+      '• Token 优化：历史滚动摘要 + 前缀缓存友好，长会话成本显著下降',
+      '• 每日学习重做：每日新卡上限、复习连续作答、掌握度人话展示',
+      '• 数据修复：章节名 / 卡片来源 / 阅读时长 / 引用来源四类历史缺口启动自动补齐',
+      '• 健壮性：落盘失败退避重试并通知，重置数据库不再丢结果',
+    ],
+  },
   {
     version: 'v1.1.0',
     date: '2026-08-28',
@@ -160,51 +174,156 @@ export default function SettingsAbout() {
   const navigate = useNavigate()
   const [checking, setChecking] = useState(false)
   /**
-   * 检查更新的结果。
-   * 原来那颗绿色徽章写死「已是最新版本」—— 检查出有新版本时 toast 说"发现新版本"，
-   * 徽章却还写着"已是最新版本"，自相矛盾。现在按真实结果渲染。
+   * 更新状态机：
+   * unknown 尚未检查 / latest 已是最新 / available 有新版本（可下载） /
+   * downloading 下载中 / downloaded 已下载（可重启安装） / outdated 仅 dev 环境降级检查用
+   *
+   * 打包环境走 electron-updater 真实链路（检查 → 下载 → 重启安装）；
+   * 开发环境 autoUpdater 不可用，降级为 GitHub Releases API 比对 + 打开下载页。
    */
-  const [updateState, setUpdateState] = useState<'unknown' | 'latest' | 'outdated'>('unknown')
+  const [updateState, setUpdateState] = useState<
+    'unknown' | 'latest' | 'available' | 'downloading' | 'downloaded' | 'outdated'
+  >('unknown')
   const [latestVersion, setLatestVersion] = useState('')
+  const [progress, setProgress] = useState<{ percent: number; transferredMb: number; totalMb: number } | null>(null)
+  const [updaterSupported, setUpdaterSupported] = useState(true)
+  const downloadingRef = useRef(false)
 
   const handleNavigate = useCallback((path: string) => {
     navigate(path)
   }, [navigate])
 
+  // ===== 订阅主进程更新状态事件 =====
+  useEffect(() => {
+    const dispose = window.electronAPI?.onUpdateStatus?.((status) => {
+      switch (status.stage) {
+        case 'checking':
+          setChecking(true)
+          break
+        case 'available':
+          setChecking(false)
+          setUpdateState('available')
+          setLatestVersion(status.version ?? '')
+          break
+        case 'not-available':
+          setChecking(false)
+          setUpdateState('latest')
+          break
+        case 'downloading':
+          setUpdateState('downloading')
+          setProgress({
+            percent: status.percent ?? 0,
+            transferredMb: status.transferredMb ?? 0,
+            totalMb: status.totalMb ?? 0,
+          })
+          break
+        case 'downloaded':
+          downloadingRef.current = false
+          setProgress(null)
+          setUpdateState('downloaded')
+          setLatestVersion((v) => status.version ?? v)
+          toast.success(`新版本 ${status.version ?? ''} 已下载完成，可重启安装`)
+          break
+        case 'error':
+          downloadingRef.current = false
+          setChecking(false)
+          setProgress(null)
+          setUpdateState('unknown')
+          toast.error(`更新失败: ${status.message ?? '未知错误'}`)
+          break
+      }
+    })
+    return () => dispose?.()
+  }, [])
+
   // ===== 检查更新 =====
   const handleCheckUpdate = useCallback(async () => {
     if (checking) return
     setChecking(true)
-    const toastId = toast.loading('正在检查更新...')
     try {
-      const res = await fetch(GITHUB_RELEASES_API, {
-        headers: { Accept: 'application/vnd.github+json' },
-      })
-      if (res.status === 403 || res.status === 429) {
-        throw new Error('GitHub API 速率限制，请稍后再试')
+      const result = await window.electronAPI.update.check()
+      if (!result.supported) {
+        // dev 环境降级：GitHub Releases API 比对 + 打开下载页
+        setUpdaterSupported(false)
+        try {
+          const res = await fetch(GITHUB_RELEASES_API, {
+            headers: { Accept: 'application/vnd.github+json' },
+          })
+          if (res.status === 403 || res.status === 429) {
+            throw new Error('GitHub API 速率限制，请稍后再试')
+          }
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const data = (await res.json()) as { tag_name?: string }
+          const latestTag = (data.tag_name ?? '').trim()
+          if (latestTag && latestTag !== APP_META.version) {
+            setUpdateState('outdated')
+            setLatestVersion(latestTag)
+            toast.success(`发现新版本 ${latestTag}，即将打开下载页面`)
+            await window.electronAPI.system.openExternal(GITHUB_RELEASES_PAGE)
+          } else {
+            setUpdateState('latest')
+            toast.success('当前已是最新版本')
+          }
+        } catch (err) {
+          toast.error(`检查更新失败: ${(err as Error).message}`)
+        } finally {
+          setChecking(false)
+        }
+        return
       }
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
+      if (result.error) {
+        setChecking(false)
+        toast.error(`检查更新失败: ${result.error}`)
+        return
       }
-      const data = (await res.json()) as { tag_name?: string }
-      toast.remove(toastId)
-      const latestTag = (data.tag_name ?? '').trim()
-      if (latestTag && latestTag !== APP_META.version) {
-        setUpdateState('outdated')
-        setLatestVersion(latestTag)
-        toast.success(`发现新版本 ${latestTag}，即将打开下载页面`)
-        await window.electronAPI.system.openExternal(GITHUB_RELEASES_PAGE)
-      } else {
+      // 正常路径：结果以 onUpdateStatus 事件为准（checking → available / not-available）
+      if (result.updateAvailable === false) {
+        setChecking(false)
         setUpdateState('latest')
         toast.success('当前已是最新版本')
       }
+      // updateAvailable=true 时等 available 事件落地，checking 由事件关闭
     } catch (err) {
-      toast.remove(toastId)
-      toast.error(`检查更新失败: ${(err as Error).message}`)
-    } finally {
       setChecking(false)
+      toast.error(`检查更新失败: ${(err as Error).message}`)
     }
   }, [checking])
+
+  // ===== 下载更新 =====
+  const handleDownloadUpdate = useCallback(async () => {
+    if (downloadingRef.current) return
+    downloadingRef.current = true
+    setUpdateState('downloading')
+    setProgress({ percent: 0, transferredMb: 0, totalMb: 0 })
+    try {
+      const result = await window.electronAPI.update.download()
+      if (result.error) {
+        downloadingRef.current = false
+        setUpdateState('available')
+        setProgress(null)
+        toast.error(`下载更新失败: ${result.error}`)
+      }
+      // 成功路径由 onUpdateStatus 的 downloading/downloaded 事件推进
+    } catch (err) {
+      downloadingRef.current = false
+      setUpdateState('available')
+      setProgress(null)
+      toast.error(`下载更新失败: ${(err as Error).message}`)
+    }
+  }, [])
+
+  // ===== 重启安装 =====
+  const handleInstallUpdate = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.update.install()
+      if (result.error) {
+        toast.error(`安装失败: ${result.error}`)
+      }
+      // 成功则应用立即退出进入安装，无需后续处理
+    } catch (err) {
+      toast.error(`安装失败: ${(err as Error).message}`)
+    }
+  }, [])
 
   // ===== 反馈 / 文档 / FAQ 入口 =====
   const handleOpenExternal = useCallback(async (url: string) => {
@@ -460,15 +579,15 @@ export default function SettingsAbout() {
                   style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', flexShrink: 0 }}
                 >
                   <Badge
-                    variant={updateState === 'outdated' ? 'alert' : updateState === 'latest' ? 'success' : 'default'}
+                    variant={updateState === 'available' || updateState === 'outdated' ? 'alert' : updateState === 'latest' || updateState === 'downloaded' ? 'success' : 'default'}
                     style={{
                       background:
-                        updateState === 'latest'
+                        updateState === 'latest' || updateState === 'downloaded'
                           ? 'var(--state-success)'
-                          : updateState === 'outdated'
+                          : updateState === 'available' || updateState === 'outdated'
                             ? 'var(--chart-2, #ef4444)'
                             : 'var(--muted)',
-                      color: updateState === 'latest' || updateState === 'outdated' ? 'var(--card)' : 'var(--muted-foreground)',
+                      color: updateState === 'latest' || updateState === 'downloaded' || updateState === 'available' || updateState === 'outdated' ? 'var(--card)' : 'var(--muted-foreground)',
                       fontSize: '0.78rem',
                       padding: '0.3rem 0.65rem',
                       fontWeight: 600,
@@ -476,20 +595,90 @@ export default function SettingsAbout() {
                   >
                     {updateState === 'latest'
                       ? '已是最新版本'
-                      : updateState === 'outdated'
+                      : updateState === 'available' || updateState === 'outdated'
                         ? `有新版本 ${latestVersion}`
-                        : '尚未检查'}
+                        : updateState === 'downloading'
+                          ? `下载中 ${progress?.percent ?? 0}%`
+                          : updateState === 'downloaded'
+                            ? '已下载，待安装'
+                            : '尚未检查'}
                   </Badge>
-                  <Button
-                    variant="secondary"
-                    data-dom-id="cta-check-update"
-                    disabled={checking}
-                    onClick={handleCheckUpdate}
-                  >
-                    {checking ? '检查中...' : '检查更新'}
-                  </Button>
+                  {updateState === 'available' ? (
+                    <Button variant="primary" data-dom-id="cta-download-update" onClick={handleDownloadUpdate}>
+                      下载更新
+                    </Button>
+                  ) : updateState === 'downloaded' ? (
+                    <Button variant="primary" data-dom-id="cta-install-update" onClick={handleInstallUpdate}>
+                      重启安装
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      data-dom-id="cta-check-update"
+                      disabled={checking || updateState === 'downloading'}
+                      onClick={handleCheckUpdate}
+                    >
+                      {checking ? '检查中...' : updateState === 'downloading' ? '下载中...' : '检查更新'}
+                    </Button>
+                  )}
                 </div>
               </div>
+
+              {/* 下载进度条（仅下载中显示） */}
+              {updateState === 'downloading' && progress && (
+                <div
+                  className="update-progress"
+                  style={{
+                    marginTop: 'calc(var(--spacing) * -2)',
+                    marginBottom: 'calc(var(--spacing) * 4)',
+                  }}
+                >
+                  <div
+                    role="progressbar"
+                    aria-valuenow={progress.percent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    style={{
+                      height: 6,
+                      borderRadius: 999,
+                      background: 'var(--muted)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${progress.percent}%`,
+                        height: '100%',
+                        background: 'var(--primary)',
+                        transition: 'width 0.3s ease',
+                      }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      marginTop: '0.35rem',
+                      fontSize: '0.78rem',
+                      color: 'var(--muted-foreground)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {progress.transferredMb} MB / {progress.totalMb} MB（{progress.percent}%）
+                  </div>
+                </div>
+              )}
+
+              {!updaterSupported && (
+                <div
+                  style={{
+                    marginTop: 'calc(var(--spacing) * -2)',
+                    marginBottom: 'calc(var(--spacing) * 4)',
+                    fontSize: '0.78rem',
+                    color: 'var(--muted-foreground)',
+                  }}
+                >
+                  开发环境不支持应用内更新，已降级为网页比对；打包安装版可在应用内一键更新。
+                </div>
+              )}
 
               <div
                 className="history-label"

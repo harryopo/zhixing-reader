@@ -13,6 +13,7 @@ import { initRepositoryFactory } from './repositories';
 import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
 import { runStartupRepair } from './services/startup-repair';
 import { knowledgeCardService } from './services/knowledge-card-service';
+import { initAutoUpdater } from './updater';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 const isDev = !app.isPackaged;
@@ -273,6 +274,10 @@ if (!app.requestSingleInstanceLock()) {
 
       createMenu();
       createWindow();
+
+      // 自动更新（electron-updater）：仅打包环境生效；启动后静默检查一次，
+      // 发现新版本只推状态给渲染层，下载由用户在「设置 → 关于」手动触发
+      initAutoUpdater(() => mainWindow);
 
       // 启动后自动修复历史数据缺口（卡片来源 / 划线章节名 / 阅读时长）。
       // 不 await：后两项要走微信读书网络，不能拖慢窗口出现。详见 services/startup-repair.ts

@@ -65,12 +65,24 @@ type StreamErrorHandler = (event: IpcRendererEvent, data: StreamErrorPayload) =>
 type DistillProgressHandler = (event: IpcRendererEvent, data: DistillProgressPayload) => void
 type RetrievalStatusHandler = (event: IpcRendererEvent, data: RetrievalStatusPayload) => void
 
+interface UpdateStatusPayload {
+  stage: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
+  version?: string
+  releaseNotes?: string
+  percent?: number
+  transferredMb?: number
+  totalMb?: number
+  message?: string
+}
+type UpdateStatusHandler = (event: IpcRendererEvent, data: UpdateStatusPayload) => void
+
 const streamChunkHandlers = new Map<(chunk: string) => void, StreamChunkHandler>()
 const streamCompleteHandlers = new Map<(usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => void, StreamCompleteHandler>()
 const streamErrorHandlers = new Map<(error: string) => void, StreamErrorHandler>()
 const streamReasoningChunkHandlers = new Map<(chunk: string) => void, StreamChunkHandler>()
 const distillProgressHandlers = new Map<(progress: DistillProgressPayload) => void, DistillProgressHandler>()
 const retrievalStatusHandlers = new Map<(status: RetrievalStatusPayload) => void, RetrievalStatusHandler>()
+const updateStatusHandlers = new Map<(status: UpdateStatusPayload) => void, UpdateStatusHandler>()
 
 const electronAPI = {
   book: {
@@ -427,6 +439,12 @@ const electronAPI = {
     resetDatabase: () => invoke(IPC_CHANNELS.SYSTEM.RESET_DATABASE),
   },
 
+  update: {
+    check: () => invoke(IPC_CHANNELS.UPDATE.CHECK),
+    download: () => invoke(IPC_CHANNELS.UPDATE.DOWNLOAD),
+    install: () => invoke(IPC_CHANNELS.UPDATE.INSTALL),
+  },
+
   fsrs: {
     setParameters: (params: Record<string, unknown>) => invoke(IPC_CHANNELS.FSRS.SET_PARAMETERS, params),
     resetParameters: () => invoke(IPC_CHANNELS.FSRS.RESET_PARAMETERS),
@@ -512,6 +530,20 @@ const electronAPI = {
     ipcRenderer.on(IPC_CHANNELS.SYSTEM.PERSIST_ERROR, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.SYSTEM.PERSIST_ERROR, handler)
+    }
+  },
+
+  // 自动更新状态事件（checking/available/downloading/downloaded/error 等），返回清理函数
+  onUpdateStatus: (callback: (status: UpdateStatusPayload) => void) => {
+    const handler: UpdateStatusHandler = (_event, status) => callback(status)
+    // 幂等：同 callback 重复注册先清旧 handler
+    const prev = updateStatusHandlers.get(callback)
+    if (prev) ipcRenderer.removeListener(IPC_CHANNELS.UPDATE.STATUS, prev)
+    updateStatusHandlers.set(callback, handler)
+    ipcRenderer.on(IPC_CHANNELS.UPDATE.STATUS, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.UPDATE.STATUS, handler)
+      updateStatusHandlers.delete(callback)
     }
   },
 };
