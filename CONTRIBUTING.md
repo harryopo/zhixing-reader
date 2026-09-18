@@ -93,6 +93,8 @@ zhixing-reader/
 
 本项目遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/v1.0.0/) 规范。
 
+提交信息由 husky `commit-msg` 钩子（commitlint config-conventional，header ≤ 120 字符）自动校验，不合格式的提交会被拒绝；`pre-commit` 同时跑 lint + typecheck + test。
+
 ### 4.1 Commit Message 格式
 
 ```

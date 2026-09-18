@@ -167,7 +167,7 @@ npm run verify
 |------|---------|------|
 | 代码风格 | `.claude/rules/code-style.md` ⚠️未落地 | TS/React/Electron 细节；以 `eslint.config.js` + `tsconfig.json` 实际配置为准 |
 | 安全 | `.claude/rules/security.md` ⚠️未落地 | R1-R5 + IPC 安全；红线见 CLAUDE.md §2 |
-| Git | `.claude/rules/git.md` ⚠️未落地 | Conventional Commits；✅ husky pre-commit 已装（lint+typecheck+test，2026-09-18）；⚠️ commitlint 未安装 |
+| Git | `.claude/rules/git.md` ⚠️未落地 | Conventional Commits；✅ husky pre-commit（lint+typecheck+test）+ commit-msg（commitlint config-conventional，header≤120）均 2026-09-18 装妥 |
 
 ---
 
@@ -273,8 +273,8 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 2026-08-28 | v1.1.0 维护迭代 — 换机恢复 + 去伪存真（假数据/死链治理）+ 间隔复习与 Token 统计落地 + 画像注入 + database/ipc 拆分 + 编排页迁入设置壳层 + 管理后台移出前端；端口勘误 5275→5500 | AI Agent |
 | 2026-07-20 | 初始化（v1）— 加入 .claude/、CI、Vitest、AGENTS.md | AI Agent |
 | 2026-07-21 | 死代码治理循环工程收尾 — 新增第九章"死代码治理经验" + 7 个 IPC 通道清单 + 7 维质量评分基准 | dead-code-governance verifier-subagent |
-| 已处理 | husky pre-commit hook 安装（2026-09-18：lint+typecheck+test 三连；commitlint 仍待补）| — |
-| 待补 | commitlint 配置（当前不存在，R10 仅靠人工遵守）| — |
+| 已处理 | husky pre-commit hook 安装（2026-09-18：lint+typecheck+test 三连）| — |
+| 已处理 | commitlint 配置（2026-09-18：config-conventional + commit-msg 钩子，R10 不再靠人工）| — |
 | 待补 | `.claude/rules/*` + `.learnings/STANDARDS.md` 正本（被多处引用但不存在）| — |
 | 待补 | `.trae/specs/dead-code-governance/` 四件套 | — |
 | 已处理 | `scripts/` 相关 6 个死脚本已从 `package.json` 移除（2026-09-11）| — |
