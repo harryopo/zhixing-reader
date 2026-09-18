@@ -588,111 +588,6 @@ export function repairJSON(jsonStr: string): string {
   return repaired;
 }
 
-export async function generateCards(
-  highlights: Array<{ content: string; note?: string }>,
-  bookTitle: string
-): Promise<Array<{ front: string; back: string; tags: string[] }>> {
-  if (!highlights || highlights.length === 0) {
-    throw new Error('No highlights provided for card generation');
-  }
-
-  const highlightTexts = highlights.map((h, i) =>
-    `[${i + 1}] ${h.content}${h.note ? `\n笔记: ${h.note}` : ''}`
-  ).join('\n\n');
-
-  const messages = buildMessages('generateCards', '', {
-    bookTitle,
-    highlightTexts,
-    count: String(highlights.length),
-  });
-
-  const startTime = Date.now();
-  try {
-    const response = await callAI(messages);
-    const durationMs = Date.now() - startTime;
-    
-    if (response.usage) {
-      recordTokenUsage('generateCards', response.usage, durationMs);
-    }
-    
-    const cards = extractAndParseJSON<Array<Record<string, unknown>>>(response.content, true);
-    
-    if (!Array.isArray(cards)) {
-      throw new Error('AI返回的数据不是数组格式');
-    }
-
-    const validCards = cards.filter((card): card is Record<string, unknown> => 
-      !!card && 
-      typeof (card as Record<string, unknown>).front === 'string' && 
-      typeof (card as Record<string, unknown>).back === 'string'
-    ).map(card => ({
-      front: String((card as Record<string, unknown>).front).trim(),
-      back: String((card as Record<string, unknown>).back).trim(),
-      tags: Array.isArray((card as Record<string, unknown>).tags) ? ((card as Record<string, unknown>).tags as unknown[]).filter((t: unknown) => typeof t === 'string') : [],
-    }));
-
-    if (validCards.length === 0) {
-      throw new Error('AI生成的卡片均无效');
-    }
-
-    logger.info(`Generated ${validCards.length} cards from ${highlights.length} highlights`);
-    return validCards;
-  } catch (error) {
-    logger.error('Failed to generate cards', error);
-    throw error;
-  }
-}
-
-export async function generateSummary(
-  highlights: Array<{ content: string; chapterTitle?: string }>,
-  bookTitle: string
-): Promise<{ summary: string; keyPoints: string[] }> {
-  if (!highlights || highlights.length === 0) {
-    throw new Error('No highlights provided for summary generation');
-  }
-
-  const highlightTexts = highlights.map(h =>
-    `${h.chapterTitle ? `[${h.chapterTitle}] ` : ''}${h.content}`
-  ).join('\n');
-
-  const messages = buildMessages('generateSummary', '', {
-    bookTitle,
-    highlightTexts,
-  });
-
-  const startTime = Date.now();
-  try {
-    const response = await callAI(messages);
-    const durationMs = Date.now() - startTime;
-    
-    if (response.usage) {
-      recordTokenUsage('generateSummary', response.usage, durationMs);
-    }
-    
-    const result = extractAndParseJSON<Record<string, unknown>>(response.content, false);
-    
-    if (!result.summary || typeof result.summary !== 'string') {
-      throw new Error('AI返回的摘要格式无效');
-    }
-
-    const keyPointsRaw = Array.isArray(result.keyPoints) ? result.keyPoints : [];
-
-    const validKeyPoints = keyPointsRaw
-      .filter((point: unknown) => typeof point === 'string' && point.trim().length > 0)
-      .map((point: string) => point.trim());
-
-    logger.info(`Generated summary for "${bookTitle}" with ${validKeyPoints.length} key points`);
-    
-    return {
-      summary: result.summary.trim(),
-      keyPoints: validKeyPoints,
-    };
-  } catch (error) {
-    logger.error('Failed to generate summary', error);
-    throw error;
-  }
-}
-
 /**
  * 层级摘要 L1：一章的划线圈 → 一段章节摘要（纯文本）。
  * 提示词要求纯文本，但模型仍可能包一层代码块，这里兜底剥掉。
@@ -758,68 +653,6 @@ export async function generateBookSummary(
     .map((point) => point.trim());
 
   return { summary: result.summary.trim(), keyPoints };
-}
-
-/**
- * @deprecated 请使用 agent/orchestrator.processMessageStream 代替。
- * 该函数直接注入全部上下文，不经过意图识别和检索优化。
- */
-export async function chatWithContext(
-  question: string,
-  context: Array<{ content: string; bookTitle?: string }>
-): Promise<string> {
-  const contextText = context.map(c =>
-    `${c.bookTitle ? `[${c.bookTitle}] ` : ''}${c.content}`
-  ).join('\n\n');
-
-  const messages = buildMessages('chatWithContext', '', {
-    contextText,
-    question,
-  });
-
-  const startTime = Date.now();
-  try {
-    // 对话场景：保留模型自身的推理能力
-    const response = await callAI(messages, { disableReasoning: false });
-    const durationMs = Date.now() - startTime;
-
-    if (response.usage) {
-      recordTokenUsage('chat', response.usage, durationMs);
-    }
-    
-    return response.content;
-  } catch (error) {
-    logger.error('Failed to chat with context', error);
-    throw error;
-  }
-}
-
-export async function explainHighlight(
-  content: string,
-  bookTitle: string,
-  chapterTitle?: string
-): Promise<string> {
-  const messages = buildMessages('explainHighlight', '', {
-    bookTitle,
-    chapterTitle: chapterTitle ? ` - ${chapterTitle}` : '',
-    content,
-  });
-
-  const startTime = Date.now();
-  try {
-    // 讲解场景：保留模型自身的推理能力
-    const response = await callAI(messages, { disableReasoning: false });
-    const durationMs = Date.now() - startTime;
-
-    if (response.usage) {
-      recordTokenUsage('explain', response.usage, durationMs);
-    }
-    
-    return response.content;
-  } catch (error) {
-    logger.error('Failed to explain highlight', error);
-    throw error;
-  }
 }
 
 export interface ExtractedMethodology {
@@ -1220,23 +1053,6 @@ export async function generateSkill(
     logger.error('Failed to generate skill', error)
     throw error
   }
-}
-
-export async function generateSkillBatch(
-  methodologies: Array<ExtractedMethodology & { id?: string; bookId?: string; bookTitle?: string }>
-): Promise<Record<string, string>> {
-  const results: Record<string, string> = {}
-
-  for (const method of methodologies) {
-    try {
-      const skillContent = await generateSkill(method)
-      results[method.name] = skillContent
-    } catch (error) {
-      logger.error(`Failed to generate skill for ${method.name}`, error)
-    }
-  }
-
-  return results
 }
 
 /**

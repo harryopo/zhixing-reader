@@ -10,7 +10,7 @@ import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { knowledgeCardService } from '../services/knowledge-card-service';
 import { fetchAllContent } from '../weread-api';
 import { resolveWereadContent } from '../../src/shared/weread-content';
-import { extractMethodologies, generateCardInterpretation, generateCardApplication, generateSkill, generateSkillBatch } from '../ai-service';
+import { extractMethodologies, generateCardInterpretation, generateCardApplication, generateSkill } from '../ai-service';
 import type { HandleFn } from './types';
 
 /**
@@ -227,23 +227,4 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     return { saved: true, path: result.filePath };
   });
 
-  handle(IPC_CHANNELS.SKILL.EXPORT_BATCH, async (methodologyIds: string[], bookTitle: string, _author?: string) => {
-    const methodologies = [];
-    for (const id of methodologyIds) {
-      const m = methodologiesDb.getById(id);
-      if (m) methodologies.push(m);
-    }
-    const mapped = methodologies.map(m => ({
-      name: String(m.name || ''),
-      nameEn: m.name_en ? String(m.name_en) : undefined,
-      triggerScenario: String(m.trigger_scenario || ''),
-      description: String(m.description || ''),
-      steps: m.steps ? JSON.parse(String(m.steps)) : [],
-      outputFormat: String(m.output_format || ''),
-      examples: String(m.examples || ''),
-      bookTitle: bookTitle,
-    }));
-    const skills = await generateSkillBatch(mapped);
-    return skills;
-  });
 }

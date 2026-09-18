@@ -1,9 +1,9 @@
 // 知行读书 — AI service 函数测试（Phase 8 T2，2026-07-22）
 //
-// 覆盖：generateCards / generateSummary / chatWithContext / explainHighlight /
+// 覆盖：generateChapterSummary / generateBookSummary（callAI 载体）/
 //       extractMethodologies / analyzeBookArchitecture / distillKnowledgeCards /
 //       generateCardInterpretation / generateCardApplication / generateSkill /
-//       generateSkillBatch / translateArticle / cancelActiveStream /
+//       translateArticle /
 //       setAIConfig / getAIConfig / initFromSettings
 //
 // 策略：
@@ -13,7 +13,7 @@
 //   - 每个测试用不同 bookTitle / highlights 内容避免 responseCache 命中
 //     （callAI 对不传 opts 的调用会缓存 10 分钟，跨测试会污染）
 //   - 配置走 setAIConfig（openai provider），callAI 走 callOpenAI 分支
-//   - extractAndParseJSON / repairJSON 是内部函数，通过 generateCards 间接测试
+//   - extractAndParseJSON / repairJSON 由 ai-service-json.test.ts 直接覆盖，此处不再重复
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
@@ -40,16 +40,13 @@ import {
   setAIConfig,
   getAIConfig,
   initFromSettings,
-  generateCards,
-  generateSummary,
-  chatWithContext,
-  explainHighlight,
+  generateChapterSummary,
+  generateBookSummary,
   extractMethodologies,
   distillKnowledgeCards,
   generateCardInterpretation,
   generateCardApplication,
   generateSkill,
-  generateSkillBatch,
   translateArticle,
   testConnection,
 } from '../electron/ai-service'
@@ -145,7 +142,7 @@ describe('callOpenAI 错误处理', () => {
     } as unknown as Response)
 
     await expect(
-      generateCards([{ content: 'highlight' }], 'test-book-callai-empty')
+      generateChapterSummary('test-book-callai-empty', '第一章', '一条划线')
     ).rejects.toThrow('Invalid response from OpenAI API: no choices returned')
   })
 
@@ -163,172 +160,8 @@ describe('callOpenAI 错误处理', () => {
     } as unknown as Response)
 
     await expect(
-      generateCards([{ content: 'highlight' }], 'test-book-callai-no-message')
+      generateChapterSummary('test-book-callai-no-message', '第一章', '一条划线')
     ).rejects.toThrow('Invalid response from OpenAI API: no choices returned')
-  })
-})
-
-describe('generateCards', () => {
-  it('5. 正常 JSON 数组返回有效卡片', async () => {
-    const cards = [
-      { front: '问题1', back: '答案1', tags: ['tag1', 'tag2'] },
-      { front: '问题2', back: '答案2', tags: [] },
-    ]
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify(cards)))
-
-    const result = await generateCards(
-      [{ content: 'highlight A', note: 'note A' }],
-      'test-book-cards-1'
-    )
-
-    expect(result).toHaveLength(2)
-    expect(result[0].front).toBe('问题1')
-    expect(result[0].back).toBe('答案1')
-    expect(result[0].tags).toEqual(['tag1', 'tag2'])
-    expect(result[1].front).toBe('问题2')
-    expect(result[1].tags).toEqual([])
-    // 验证 recordTokenUsage 被调用（usage 存在时）
-    expect(mockedTokenUsageCreate).toHaveBeenCalledTimes(1)
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateCards')
-  })
-
-  it('5. markdown 代码块包裹的 JSON 能正确解析（extractAndParseJSON 路径）', async () => {
-    const cards = [{ front: 'Q', back: 'A' }]
-    const content = '```json\n' + JSON.stringify(cards) + '\n```'
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(content))
-
-    const result = await generateCards(
-      [{ content: 'highlight markdown' }],
-      'test-book-cards-2'
-    )
-
-    expect(result).toHaveLength(1)
-    expect(result[0].front).toBe('Q')
-    expect(result[0].back).toBe('A')
-  })
-
-  it('6. 无效卡片被过滤（缺 front / back / null）', async () => {
-    const cards = [
-      { front: 'valid', back: 'valid-back' },
-      { front: 'no-back' }, // 缺 back
-      { back: 'no-front' }, // 缺 front
-      null,
-      { front: 123, back: 'wrong-type' }, // front 非 string
-    ]
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify(cards)))
-
-    const result = await generateCards(
-      [{ content: 'mixed cards' }],
-      'test-book-cards-3'
-    )
-
-    expect(result).toHaveLength(1)
-    expect(result[0].front).toBe('valid')
-  })
-
-  it('7. 空 highlights 抛错', async () => {
-    await expect(generateCards([], 'empty-book')).rejects.toThrow('No highlights')
-    expect(mockedFetchWithRetry).not.toHaveBeenCalled()
-  })
-
-  it('8. AI 返回非数组 JSON 时抛错（extractAndParseJSON 找不到 [ ]）', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(
-      createOpenAIResponse('{"not": "array"}')
-    )
-
-    await expect(
-      generateCards([{ content: 'not array' }], 'test-book-cards-4')
-    ).rejects.toThrow()
-  })
-
-  it('9. 尾随逗号的 JSON 能被 repairJSON 修复后解析', async () => {
-    // 尾随逗号 → JSON.parse 失败 → repairJSON 删除 ",}" / ",]" 前的逗号
-    const malformedJson = '[{"front":"Q","back":"A",},]'
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(malformedJson))
-
-    const result = await generateCards(
-      [{ content: 'repair test' }],
-      'test-book-cards-5'
-    )
-
-    expect(result).toHaveLength(1)
-    expect(result[0].front).toBe('Q')
-    expect(result[0].back).toBe('A')
-  })
-
-  it('9b. repairJSON 处理字符串内反斜杠', async () => {
-    const malformedJson = '[{front: "Q\\\\A", back: "B"}]'
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(malformedJson))
-
-    await expect(
-      generateCards([{ content: 'repair test' }], 'test-book-cards-repair-backslash')
-    ).rejects.toThrow('JSON解析失败')
-  })
-})
-
-describe('generateSummary', () => {
-  it('10. 正常返回 summary + keyPoints', async () => {
-    const summary = {
-      summary: '这是一本好书',
-      keyPoints: ['要点1', '要点2', '要点3'],
-    }
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify(summary)))
-
-    const result = await generateSummary(
-      [{ content: 'highlight', chapterTitle: 'ch1' }],
-      'test-book-summary-1'
-    )
-
-    expect(result.summary).toBe('这是一本好书')
-    expect(result.keyPoints).toEqual(['要点1', '要点2', '要点3'])
-    expect(mockedTokenUsageCreate).toHaveBeenCalledTimes(1)
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateSummary')
-  })
-
-  it('11. 空 highlights 抛错', async () => {
-    await expect(generateSummary([], 'empty')).rejects.toThrow('No highlights')
-  })
-
-  it('12. AI 返回无效摘要格式（缺 summary 字段）抛错', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(
-      createOpenAIResponse('{"noSummary": "missing field"}')
-    )
-
-    await expect(
-      generateSummary([{ content: 'bad' }], 'test-book-summary-2')
-    ).rejects.toThrow('摘要格式无效')
-  })
-
-  it('12b. keyPoints 包含空字符串/纯空白/非字符串时过滤掉', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(
-      createOpenAIResponse(JSON.stringify({
-        summary: '摘要内容',
-        keyPoints: ['有效要点', '', '   ', 123, null, '另一个有效'],
-      }))
-    )
-
-    const result = await generateSummary(
-      [{ content: 'highlight' }],
-      'test-book-summary-filter'
-    )
-
-    expect(result.summary).toBe('摘要内容')
-    expect(result.keyPoints).toEqual(['有效要点', '另一个有效'])
-  })
-
-  it('12c. highlight 无 chapterTitle 时仍正常生成摘要', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify({
-      summary: '无章节标题的摘要',
-      keyPoints: ['要点'],
-    })))
-
-    const result = await generateSummary(
-      [{ content: 'highlight without chapter' }],
-      'test-book-summary-no-chapter'
-    )
-
-    expect(result.summary).toBe('无章节标题的摘要')
-    expect(result.keyPoints).toEqual(['要点'])
   })
 })
 
@@ -361,14 +194,14 @@ describe('callAnthropic 基本路径', () => {
       text: async () => '',
     } as unknown as Response)
 
-    const result = await generateSummary(
-      [{ content: 'highlight' }],
-      'test-book-anthropic-summary'
+    const result = await generateBookSummary(
+      'test-book-anthropic-summary',
+      '[第一章] 章节摘要'
     )
 
     expect(result.summary).toBe('Anthropic 摘要')
     expect(result.keyPoints).toEqual(['要点 A', '要点 B'])
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateSummary')
+    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateBookSummary')
   })
 
   it('13b. Anthropic 返回空 content 数组时抛错', async () => {
@@ -394,47 +227,8 @@ describe('callAnthropic 基本路径', () => {
     } as unknown as Response)
 
     await expect(
-      generateSummary([{ content: 'highlight' }], 'test-book-anthropic-empty')
+      generateBookSummary('test-book-anthropic-empty', '[第一章] 章节摘要')
     ).rejects.toThrow('Invalid response from Anthropic API: no content returned')
-  })
-})
-
-describe('chatWithContext', () => {
-  it('13. 正常返回 AI 回答内容', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('这是AI回答'))
-
-    const result = await chatWithContext('什么是深度学习', [
-      { content: '上下文1', bookTitle: '书A' },
-    ])
-
-    expect(result).toBe('这是AI回答')
-    // feature 应为 'chat'
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('chat')
-  })
-
-  it('14. 网络错误时抛错', async () => {
-    mockedFetchWithRetry.mockRejectedValueOnce(new Error('Network failure'))
-
-    await expect(
-      chatWithContext('问题', [{ content: 'ctx-different' }])
-    ).rejects.toThrow('Network failure')
-  })
-})
-
-describe('explainHighlight', () => {
-  it('15. 正常返回解释内容', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('这是解释'))
-
-    const result = await explainHighlight('划线内容', '书名1', '章节1')
-
-    expect(result).toBe('这是解释')
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('explain')
-  })
-
-  it('16. 网络错误时抛错', async () => {
-    mockedFetchWithRetry.mockRejectedValueOnce(new Error('Timeout'))
-
-    await expect(explainHighlight('划线', '书名2')).rejects.toThrow('Timeout')
   })
 })
 
@@ -828,37 +622,6 @@ describe('generateSkill', () => {
   })
 })
 
-describe('generateSkillBatch', () => {
-  it('33. 正常批量生成多个技能', async () => {
-    mockedFetchWithRetry
-      .mockResolvedValueOnce(createOpenAIResponse('skill1'))
-      .mockResolvedValueOnce(createOpenAIResponse('skill2'))
-
-    const result = await generateSkillBatch([
-      { name: '方法-A' },
-      { name: '方法-B' },
-    ])
-
-    expect(Object.keys(result)).toHaveLength(2)
-    expect(result['方法-A']).toBe('skill1')
-    expect(result['方法-B']).toBe('skill2')
-  })
-
-  it('34. 单个技能生成失败不影响其他（错误被捕获，结果中缺该 key）', async () => {
-    mockedFetchWithRetry
-      .mockRejectedValueOnce(new Error('generate fail')) // 第一个失败
-      .mockResolvedValueOnce(createOpenAIResponse('skill2')) // 第二个成功
-
-    const result = await generateSkillBatch([
-      { name: '失败的方法' },
-      { name: '成功的方法' },
-    ])
-
-    expect(result['成功的方法']).toBe('skill2')
-    expect(result['失败的方法']).toBeUndefined()
-  })
-})
-
 describe('translateArticle', () => {
   it('35. 正常分段翻译：标题 + 多段落', async () => {
     mockedFetchWithRetry
@@ -924,7 +687,7 @@ describe('callAI 错误处理', () => {
     })
 
     await expect(
-      generateCards([{ content: 'highlight' }], 'test-book-unsupported')
+      generateChapterSummary('test-book-unsupported', '第一章', '一条划线')
     ).rejects.toThrow('Unsupported AI provider: unsupported')
   })
 
@@ -959,7 +722,7 @@ describe('callAI 错误处理', () => {
     })
 
     await expect(
-      generateCards([{ content: 'highlight' }], 'test-book-empty-provider')
+      generateChapterSummary('test-book-empty-provider', '第一章', '一条划线')
     ).rejects.toThrow('Unsupported AI provider: ')
   })
 
@@ -969,16 +732,11 @@ describe('callAI 错误处理', () => {
       apiKey: 'sk-test',
     })
 
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(
-      JSON.stringify([{ front: 'Q', back: 'A' }])
-    ))
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('本章讲了心理创伤并不存在。'))
 
-    const result = await generateCards(
-      [{ content: 'highlight' }],
-      'test-book-fallback'
-    )
+    const result = await generateChapterSummary('test-book-fallback', '第一章', '一条划线')
 
-    expect(result).toHaveLength(1)
+    expect(result).toBe('本章讲了心理创伤并不存在。')
     const body = JSON.parse(mockedFetchWithRetry.mock.calls[0][1].body as string)
     expect(body.temperature).toBe(0.7)
     expect(body.max_tokens).toBe(4000)
@@ -1019,72 +777,14 @@ describe('callAI 错误处理', () => {
 
     mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('cached response'))
 
-    const result1 = await chatWithContext('q', [{ content: 'ctx', bookTitle: 'book' }])
+    const result1 = await generateChapterSummary('book', '第一章', '一条划线')
     expect(result1).toBe('cached response')
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1)
 
-    const result2 = await chatWithContext('q', [{ content: 'ctx', bookTitle: 'book' }])
+    const result2 = await generateChapterSummary('book', '第一章', '一条划线')
     expect(result2).toBe('cached response')
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1)
   })
 })
 
-describe('repairJSON 边界', () => {
-  it('40. repairJSON 完全无法修复时抛错', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('[{front: \'Q\'}]'))
 
-    await expect(
-      generateCards([{ content: 'highlight' }], 'test-book-repair-fail')
-    ).rejects.toThrow('JSON解析失败')
-  })
-
-  it('41. repairJSON 处理字符串内换行/tab/反斜杠', async () => {
-    const content = '[{ "front": "Q\nA", "back": "B\tC" }]'
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(content))
-
-    const result = await generateCards(
-      [{ content: 'highlight' }],
-      'test-book-repair-special'
-    )
-
-    expect(result).toHaveLength(1)
-    expect(result[0].front).toBe('Q\nA')
-  })
-
-  it('42. repairJSON 补全缺失的方括号/花括号', async () => {
-    const content = '[{ "front": "Q", "back": "A" },]'
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(content))
-
-    const result = await generateCards(
-      [{ content: 'highlight' }],
-      'test-book-repair-brackets'
-    )
-
-    expect(result).toHaveLength(1)
-    expect(result[0].front).toBe('Q')
-  })
-})
-
-describe('generateCards 边界', () => {
-  it('43. AI 返回不含 [ ] 的 JSON 时抛错（extractAndParseJSON 找不到 [ ]）', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('{"notAnArray": true}'))
-
-    await expect(
-      generateCards([{ content: 'highlight' }], 'test-book-not-array')
-    ).rejects.toThrow('AI响应中未找到有效的JSON格式')
-  })
-
-  it('44. 所有卡片均无效时抛错', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(
-      JSON.stringify([
-        { front: null as unknown as string, back: '空' },
-        { front: '问题', back: undefined as unknown as string },
-        { front: 123 as unknown as string, back: '数字' },
-      ])
-    ))
-
-    await expect(
-      generateCards([{ content: 'highlight' }], 'test-book-all-invalid')
-    ).rejects.toThrow('AI生成的卡片均无效')
-  })
-})

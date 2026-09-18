@@ -223,14 +223,6 @@ const electronAPI = {
 
   ai: {
     setConfig: (config: Record<string, unknown>) => invoke(IPC_CHANNELS.AI.SET_CONFIG, config),
-    generateCards: (highlights: Array<{ content: string; note?: string }>, bookTitle: string) =>
-      invoke(IPC_CHANNELS.AI.GENERATE_CARDS, highlights, bookTitle),
-    generateSummary: (highlights: Array<{ content: string; chapterTitle?: string }>, bookTitle: string) =>
-      invoke(IPC_CHANNELS.AI.GENERATE_SUMMARY, highlights, bookTitle),
-    chat: (question: string, context: Array<{ content: string; bookTitle?: string }>) =>
-      invoke(IPC_CHANNELS.AI.CHAT, question, context),
-    explain: (content: string, bookTitle: string, chapterTitle?: string) =>
-      invoke(IPC_CHANNELS.AI.EXPLAIN, content, bookTitle, chapterTitle),
     test: (config: Record<string, unknown>) => invoke(IPC_CHANNELS.AI.TEST, config),
     streamChatWithContext: (params: {
       sessionId: string
@@ -426,8 +418,6 @@ const electronAPI = {
   skill: {
     generate: (methodologyId: string, bookTitle: string, author?: string) =>
       invoke(IPC_CHANNELS.SKILL.GENERATE, methodologyId, bookTitle, author),
-    exportBatch: (methodologyIds: string[], bookTitle: string, author?: string) =>
-      invoke(IPC_CHANNELS.SKILL.EXPORT_BATCH, methodologyIds, bookTitle, author),
     exportFile: (methodologyId: string, bookTitle: string) =>
       invoke(IPC_CHANNELS.SKILL.EXPORT_FILE, methodologyId, bookTitle),
   },

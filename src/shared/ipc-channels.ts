@@ -86,10 +86,6 @@ export const IPC_CHANNELS = {
   },
   AI: {
     SET_CONFIG: 'ai:setConfig',
-    GENERATE_CARDS: 'ai:generateCards',
-    GENERATE_SUMMARY: 'ai:generateSummary',
-    CHAT: 'ai:chat',
-    EXPLAIN: 'ai:explain',
     TEST: 'ai:test',
   },
   CONVERSATIONS: {
@@ -253,7 +249,6 @@ export const IPC_CHANNELS = {
   },
   SKILL: {
     GENERATE: 'skill:generate',
-    EXPORT_BATCH: 'skill:exportBatch',
     // 生成 + 弹保存对话框写盘（方法论详情页「导出为 Skill」）
     EXPORT_FILE: 'skill:exportFile',
   },

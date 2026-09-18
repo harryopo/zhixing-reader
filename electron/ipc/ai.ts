@@ -8,10 +8,6 @@ import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import {
   setAIConfig,
-  generateCards,
-  generateSummary,
-  chatWithContext,
-  explainHighlight,
   testConnection as testAIConnection,
 } from '../ai-service';
 import { setAIConfig as setAISDKConfig } from '../ai-sdk-service';
@@ -34,18 +30,6 @@ export function registerAIHandlers(handle: HandleFn): void {
     setAIConfig(config as unknown as Parameters<typeof setAIConfig>[0]);
     setAISDKConfig(config as unknown as Parameters<typeof setAISDKConfig>[0]);
   });
-  handle(IPC_CHANNELS.AI.GENERATE_CARDS, (highlights: Array<{ content: string; note?: string }>, bookTitle: string) =>
-    generateCards(highlights, bookTitle)
-  );
-  handle(IPC_CHANNELS.AI.GENERATE_SUMMARY, (highlights: Array<{ content: string; chapterTitle?: string }>, bookTitle: string) =>
-    generateSummary(highlights, bookTitle)
-  );
-  handle(IPC_CHANNELS.AI.CHAT, (question: string, context: Array<{ content: string; bookTitle?: string }>) =>
-    chatWithContext(question, context)
-  );
-  handle(IPC_CHANNELS.AI.EXPLAIN, (content: string, bookTitle: string, chapterTitle?: string) =>
-    explainHighlight(content, bookTitle, chapterTitle)
-  );
   handle(IPC_CHANNELS.AI.TEST, (config: Record<string, unknown>) => testAIConnection(config as unknown as Parameters<typeof testAIConnection>[0]));
 
   ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, async (event, params: {

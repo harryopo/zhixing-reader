@@ -118,12 +118,12 @@ describe('getPromptMeta', () => {
   })
 
   it('2. 已存在的 ai.* id 返回对应 PromptMeta', () => {
-    const meta = getPromptMeta('ai.generateCards.user')
+    const meta = getPromptMeta('ai.generateChapterSummary.user')
     expect(meta).toBeDefined()
-    expect(meta?.feature).toBe('generateCards')
+    expect(meta?.feature).toBe('generateChapterSummary')
     expect(meta?.role).toBe('user')
     expect(meta?.variables).toHaveLength(3)
-    expect(meta?.variables.map((v) => v.name)).toEqual(['bookTitle', 'highlightTexts', 'count'])
+    expect(meta?.variables.map((v) => v.name)).toEqual(['bookTitle', 'chapterTitle', 'highlightTexts'])
   })
 
   it('3. 不存在的 id 返回 undefined', () => {
@@ -161,10 +161,10 @@ describe('getAllPromptIds', () => {
     }
   })
 
-  it('9. 包含核心 id：agent.system 和 ai.generateCards.system', () => {
+  it('9. 包含核心 id：agent.system 和 ai.generateChapterSummary.system', () => {
     const ids = getAllPromptIds()
     expect(ids).toContain('agent.system')
-    expect(ids).toContain('ai.generateCards.system')
+    expect(ids).toContain('ai.generateChapterSummary.system')
   })
 
   it('10. 返回新数组，修改不影响内部状态', () => {
@@ -240,8 +240,8 @@ describe('getPromptsByFeature', () => {
     }
   })
 
-  it('18. feature=generateCards 返回生成卡片的 system+user 两个提示词', () => {
-    const result = getPromptsByFeature('generateCards')
+  it('18. feature=generateChapterSummary 返回章节摘要的 system+user 两个提示词', () => {
+    const result = getPromptsByFeature('generateChapterSummary')
     expect(result).toHaveLength(2)
     const roles = result.map((p) => p.role).sort()
     expect(roles).toEqual(['system', 'user'])

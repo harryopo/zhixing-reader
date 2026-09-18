@@ -255,10 +255,6 @@ export interface ElectronAPI {
   }
   ai: {
     setConfig: (config: Record<string, unknown>) => Promise<void>
-    generateCards: (highlights: Array<{ content: string; note?: string }>, bookTitle: string) => Promise<Card[]>
-    generateSummary: (highlights: Array<{ content: string; chapterTitle?: string }>, bookTitle: string) => Promise<BookSummary>
-    chat: (question: string, context: Array<{ content: string; bookTitle?: string }>) => Promise<string>
-    explain: (content: string, bookTitle: string, chapterTitle?: string) => Promise<string>
     streamChatWithContext: (params: {
       sessionId: string
       bookId?: string
@@ -344,7 +340,6 @@ export interface ElectronAPI {
   }
   skill: {
     generate: (methodologyId: string, bookTitle: string, author?: string) => Promise<unknown>
-    exportBatch: (methodologyIds: string[], bookTitle: string, author?: string) => Promise<unknown>
     exportFile: (methodologyId: string, bookTitle: string) => Promise<{ saved: boolean; path?: string }>
   }
   system: {
