@@ -108,7 +108,6 @@ export const IPC_CHANNELS = {
     TOGGLE_BOOKMARK: 'chat:toggleBookmark',
   },
   AGENT: {
-    STREAM_CHAT: 'agent:streamChat',
     STREAM_CHAT_WITH_CONTEXT: 'agent:streamChatWithContext',
     CANCEL_STREAM: 'agent:cancelStream',
     GET_PIPELINE_INFO: 'agent:getPipelineInfo',

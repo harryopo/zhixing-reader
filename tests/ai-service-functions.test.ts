@@ -51,8 +51,6 @@ import {
   generateSkill,
   generateSkillBatch,
   translateArticle,
-  cancelActiveStream,
-  streamChat,
   testConnection,
 } from '../electron/ai-service'
 import { fetchWithTimeout, fetchWithRetry, HttpAbortError } from '../electron/http-client'
@@ -94,8 +92,6 @@ function setOpenAIConfig(): void {
 }
 
 beforeEach(() => {
-  // 清空 active stream controller（避免上一个 streamChat 测试遗留）
-  cancelActiveStream()
   // 重置 mock 调用记录和实现
   mockedFetchWithTimeout.mockReset()
   mockedFetchWithRetry.mockReset()
@@ -915,38 +911,6 @@ describe('translateArticle', () => {
     for (const b of bodies) {
       expect(b.reasoning_effort).toBe('none')
     }
-  })
-})
-
-describe('cancelActiveStream', () => {
-  it('37. 无 active stream 时返回 false', () => {
-    cancelActiveStream() // 先清空
-    expect(cancelActiveStream()).toBe(false)
-  })
-
-  it('38. 有 active stream 时返回 true 并清空', async () => {
-    // 用 pending Promise 让 streamChat 进入但未完成，activeStreamController 已设置
-    let rejectFetch: ((err: Error) => void) | null = null
-    const pendingFetch = new Promise<Response>((_resolve, reject) => {
-      rejectFetch = reject
-    })
-    mockedFetchWithTimeout.mockImplementationOnce(() => pendingFetch as Promise<Response>)
-
-    const streamPromise = streamChat(
-      [{ role: 'user', content: 'hi' }],
-      vi.fn(),
-      vi.fn(),
-      vi.fn()
-    )
-
-    // 第一次 cancel：应返回 true（有 active controller）
-    expect(cancelActiveStream()).toBe(true)
-    // 第二次 cancel：应返回 false（已清空）
-    expect(cancelActiveStream()).toBe(false)
-
-    // 让 fetch reject，使 streamChat 完成（避免悬挂 Promise）
-    rejectFetch!(new HttpAbortError('请求被用户取消', 'cancelled', 300000))
-    await streamPromise
   })
 })
 

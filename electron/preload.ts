@@ -232,9 +232,6 @@ const electronAPI = {
     explain: (content: string, bookTitle: string, chapterTitle?: string) =>
       invoke(IPC_CHANNELS.AI.EXPLAIN, content, bookTitle, chapterTitle),
     test: (config: Record<string, unknown>) => invoke(IPC_CHANNELS.AI.TEST, config),
-    streamChat: (messages: Array<{role: string; content: string}>, enableReasoning?: boolean) => {
-      return invoke(IPC_CHANNELS.AGENT.STREAM_CHAT, { messages, enableReasoning });
-    },
     streamChatWithContext: (params: {
       sessionId: string
       bookId?: string

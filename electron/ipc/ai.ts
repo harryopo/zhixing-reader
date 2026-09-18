@@ -1,7 +1,7 @@
 /**
  * ipc/ai — AI 服务 / 智能体流式对话 handlers
  * 从原 ipc.ts 拆分而来，逻辑保持不变。
- * STREAM_CHAT / STREAM_CHAT_WITH_CONTEXT 需要访问 event.sender 推送流事件，
+ * STREAM_CHAT_WITH_CONTEXT 需要访问 event.sender 推送流事件，
  * 因此使用原生 ipcMain.handle 而非统一 handle 包装器。
  */
 import { ipcMain } from 'electron';
@@ -13,7 +13,6 @@ import {
   chatWithContext,
   explainHighlight,
   testConnection as testAIConnection,
-  streamChat,
 } from '../ai-service';
 import { setAIConfig as setAISDKConfig } from '../ai-sdk-service';
 import { processMessageStream } from '../agent/orchestrator';
@@ -48,24 +47,6 @@ export function registerAIHandlers(handle: HandleFn): void {
     explainHighlight(content, bookTitle, chapterTitle)
   );
   handle(IPC_CHANNELS.AI.TEST, (config: Record<string, unknown>) => testAIConnection(config as unknown as Parameters<typeof testAIConnection>[0]));
-
-  ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT, async (event, params: { messages: Array<{role: string; content: string}>; enableReasoning?: boolean }) => {
-    await streamChat(
-      params.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-      (chunk: string) => {
-        safeSend(event, IPC_CHANNELS.STREAM.CHUNK, { chunk });
-      },
-      (usage) => {
-        safeSend(event, IPC_CHANNELS.STREAM.COMPLETE, { usage });
-      },
-      (error: Error) => {
-        safeSend(event, IPC_CHANNELS.STREAM.ERROR, { error: error.message });
-      },
-      { enableReasoning: params?.enableReasoning === true }
-    );
-
-    return { success: true };
-  });
 
   ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, async (event, params: {
     sessionId: string

@@ -259,7 +259,6 @@ export interface ElectronAPI {
     generateSummary: (highlights: Array<{ content: string; chapterTitle?: string }>, bookTitle: string) => Promise<BookSummary>
     chat: (question: string, context: Array<{ content: string; bookTitle?: string }>) => Promise<string>
     explain: (content: string, bookTitle: string, chapterTitle?: string) => Promise<string>
-    streamChat: (messages: Array<{ role: string; content: string }>, enableReasoning?: boolean) => Promise<void>
     streamChatWithContext: (params: {
       sessionId: string
       bookId?: string
