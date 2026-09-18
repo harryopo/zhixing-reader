@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="知行读书构造网格">
+  <g stroke="#e5e7eb" stroke-width="0.5">
+    <path d="M0 0h48M0 8h48M0 16h48M0 24h48M0 32h48M0 40h48M0 48h48M0 0v48M8 0v48M16 0v48M24 0v48M32 0v48M40 0v48M48 0v48"/>
+  </g>
+  <rect x="2" y="2" width="44" height="44" rx="10" fill="none" stroke="#9ca3af" stroke-width="0.75"/>
+  <path d="M12 36V28h8v-8h8v-8h8v24z" fill="none" stroke="#059669" stroke-width="0.75"/>
+  <g fill="none" stroke="#f59e0b" stroke-width="0.75">
+    <path d="M12 28h8v8h-8zM20 20h8v16h-8zM28 12h8v24h-8z"/>
+  </g>
+</svg>

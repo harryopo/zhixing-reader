@@ -11,6 +11,7 @@ import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
+import BrandMark from '@/components/ui/BrandMark'
 import Icon from '@/components/ui/Icon'
 import { toast } from '@/stores/toastStore'
 import {
@@ -438,24 +439,7 @@ export default function SettingsAbout() {
                   marginBottom: 'calc(var(--spacing) * 4)',
                 }}
               >
-                <div
-                  className="app-logo"
-                  aria-label="知行读书 Logo"
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 'calc(var(--radius) + 8px)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    background: 'var(--primary)',
-                    color: 'var(--primary-foreground)',
-                    fontWeight: 700,
-                    fontSize: '1.8rem',
-                    flexShrink: 0,
-                  }}
-                >
-                  知
-                </div>
+                <BrandMark size={64} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div
                     className="app-name-row"

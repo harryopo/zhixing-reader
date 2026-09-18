@@ -8,6 +8,7 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Icon, { IconName } from '@/components/ui/Icon'
+import BrandMark from '@/components/ui/BrandMark'
 import type { TokenSummary } from 'src/types/renderer'
 
 interface NavItem {
@@ -136,23 +137,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
     >
       {/* ===== Brand ===== */}
       <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 3)' }}>
-        <div
-          className="brand-mark"
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 'calc(var(--radius) + 8px)',
-            display: 'grid',
-            placeItems: 'center',
-            background: 'var(--sidebar-primary)',
-            color: 'var(--sidebar-primary-foreground)',
-            fontWeight: 700,
-            fontSize: '1.05rem',
-            flexShrink: 0,
-          }}
-        >
-          知
-        </div>
+        <BrandMark size={40} />
         {!collapsed && (
           <div className="brand-copy" style={{ minWidth: 0 }}>
             <h1 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>知行读书</h1>
