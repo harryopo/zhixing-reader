@@ -86,6 +86,7 @@ export default function SettingsAI() {
     llmEndpoint,
     llmKey,
     llmModel,
+    llmModelFast,
     loading,
     saving,
     testingAI,
@@ -95,6 +96,7 @@ export default function SettingsAI() {
     setLlmEndpoint,
     setLlmKey,
     setLlmModel,
+    setLlmModelFast,
   } = useSettingsStore()
 
   // ===== 扩展字段（本地 state，挂载时通过 settings.get 加载） =====
@@ -580,6 +582,20 @@ export default function SettingsAI() {
                     style={{ fontFamily: 'var(--font-mono)' }}
                   />
                   <div className="form-hint">支持自定义输入模型名，需与 API 厂商文档一致</div>
+                </div>
+                {/* 经济档模型（Step 6 分级路由） */}
+                <div className="form-field">
+                  <label className="form-label" htmlFor="llm-model-fast">经济档模型（可选）</label>
+                  <input
+                    className="form-input"
+                    id="llm-model-fast"
+                    type="text"
+                    placeholder="留空=关闭；如 deepseek-v4-flash-lite"
+                    value={llmModelFast}
+                    onChange={(e) => setLlmModelFast(e.target.value)}
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  />
+                  <div className="form-hint">闲聊类对话（不涉及知识库检索的回答）自动改走该模型降本，其余请求仍用主模型</div>
                 </div>
                 {/* Max Tokens */}
                 <div className="form-field">

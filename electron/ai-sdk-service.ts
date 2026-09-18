@@ -7,6 +7,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { z } from 'zod';
 import { logger } from './logger';
 import { tokenUsageDb } from './database';
+import { resolveChatTier, type ModelTier } from '../src/shared/model-routing';
 
 type AIProvider = 'openai' | 'anthropic' | 'custom';
 
@@ -15,6 +16,8 @@ interface AISDKConfig {
   apiKey: string;
   baseUrl?: string;
   model?: string;
+  /** 经济档模型（可选）：casual_chat 分流用，见 shared/model-routing */
+  modelFast?: string;
   maxTokens?: number;
   temperature?: number;
 }
@@ -37,6 +40,7 @@ export function initFromSettings(settings: Record<string, unknown>): void {
   const aiProvider = (settings.aiProvider as AIProvider) || 'custom';
   let llmEndpoint = settings.llmEndpoint as string;
   const llmModel = settings.llmModel as string;
+  const llmModelFast = (settings.llmModelFast as string) || undefined;
 
   // DeepSeek 等 OpenAI 兼容端点需要 /v1 后缀；自动补全避免返回空响应
   if (llmEndpoint && llmEndpoint.includes('api.deepseek.com') && !llmEndpoint.endsWith('/v1')) {
@@ -59,10 +63,11 @@ export function initFromSettings(settings: Record<string, unknown>): void {
       apiKey: llmKey,
       baseUrl: llmEndpoint || undefined,
       model: llmModel || undefined,
+      modelFast: llmModelFast?.trim() || undefined,
       maxTokens,
       temperature: Number.isFinite(configuredTemp) ? configuredTemp : 0.7,
     };
-    logger.info(`AI SDK initialized from settings: provider=${aiProvider}, model=${llmModel || 'default'}, maxTokens=${maxTokens}`);
+    logger.info(`AI SDK initialized from settings: provider=${aiProvider}, model=${llmModel || 'default'}, fastModel=${llmModelFast?.trim() || 'off'}, maxTokens=${maxTokens}`);
     if (maxTokens < 3000) {
       logger.warn('llmMaxTokens 偏小，模型默认思考可能占满输出预算导致正文为空', { maxTokens });
     }
@@ -108,17 +113,18 @@ function normalizeMessages(
   return nonSystem;
 }
 
-function getModel() {
+function getModel(tier: ModelTier = 'main'): { languageModel: ReturnType<ReturnType<typeof createOpenAICompatible>>; modelName: string } {
   if (!config) throw new Error('AI SDK not configured');
   const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
-  const model = config.model || 'gpt-4o-mini';
+  // 经济档仅在配置了 modelFast 时生效（resolveChatTier 已保证未配置时返回 main）
+  const model = (tier === 'fast' && config.modelFast ? config.modelFast : config.model) || 'gpt-4o-mini';
 
   const provider = createOpenAICompatible({
     baseURL: baseUrl,
     apiKey: config.apiKey,
     name: 'custom',
   });
-  return provider(model);
+  return { languageModel: provider(model), modelName: model };
 }
 
 /**
@@ -130,6 +136,7 @@ function getModel() {
 function recordChatUsage(
   durationMs: number,
   usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number },
+  modelUsed?: string,
 ): void {
   try {
     const inputTokens = usage?.promptTokens ?? 0;
@@ -139,7 +146,7 @@ function recordChatUsage(
     if (!config) return;
     tokenUsageDb.create({
       provider: config.provider,
-      model: config.model || 'default',
+      model: modelUsed || config.model || 'default',
       feature: 'chat',
       inputTokens,
       outputTokens,
@@ -172,18 +179,24 @@ export async function sdkStreamChat(
   onChunk: (chunk: string) => void,
   onComplete: (usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number }) => void,
   onError: (error: Error) => void,
-  options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void },
+  options?: { enableReasoning?: boolean; onReasoningChunk?: (chunk: string) => void; intent?: string },
 ): Promise<void> {
-  logger.info('sdkStreamChat called', {
-    messageCount: messages.length,
-    hasConfig: !!config,
-    baseUrl: config?.baseUrl,
-    model: config?.model,
-  })
   if (!config) {
     onError(new Error('AI SDK not configured'));
     return;
   }
+
+  // Step 6 模型分级路由：casual_chat 且配置了经济档 → fast，其余 main
+  const tier = resolveChatTier(options?.intent, config.modelFast);
+  const { languageModel, modelName } = getModel(tier);
+
+  logger.info('sdkStreamChat called', {
+    messageCount: messages.length,
+    hasConfig: !!config,
+    baseUrl: config.baseUrl,
+    tier,
+    model: modelName,
+  })
 
   // 归一化消息：避免模型不支持 system role 导致静默失败
   const normalizedMessages = normalizeMessages(messages);
@@ -207,7 +220,7 @@ export async function sdkStreamChat(
   const safeComplete = (usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number }) => {
     if (completed) return;
     completed = true;
-    recordChatUsage(Date.now() - startedAt, usage);
+    recordChatUsage(Date.now() - startedAt, usage, modelName);
     onComplete(usage);
   };
   const safeError = (error: Error) => {
@@ -217,7 +230,7 @@ export async function sdkStreamChat(
   };
 
   try {
-    logger.info('Calling streamText with model', { model: config.model, baseUrl: config.baseUrl })
+    logger.info('Calling streamText with model', { model: modelName, baseUrl: config.baseUrl })
     // 深度思考开关必须下发到服务商，否则形同虚设：
     // deepseek-flash 这类模型**默认就会思考**，每次回答前先产出 200-3000 字符的
     // reasoning。实测关闭后 2.8s vs 开启 13-16s（约 5 倍），且能避免 reasoning
@@ -225,7 +238,7 @@ export async function sdkStreamChat(
     const reasoningOff = options?.enableReasoning !== true;
 
     const result = streamText({
-      model: getModel(),
+      model: languageModel,
       messages: normalizedMessages,
       maxOutputTokens: config.maxTokens ?? 4096,
       temperature: config.temperature ?? 0.7,
@@ -364,7 +377,7 @@ export async function sdkGenerateObject<T>(
   });
 
   const result = await generateObject({
-    model: getModel(),
+    model: getModel().languageModel,
     schema,
     messages: normalizedMessages,
     maxOutputTokens: options?.maxOutputTokens ?? config.maxTokens ?? 2000,
@@ -410,7 +423,7 @@ export async function sdkGenerateText(
   const normalizedMessages = normalizeMessages(messages);
   const startedAt = Date.now();
   const result = await generateText({
-    model: getModel(),
+    model: getModel().languageModel,
     messages: normalizedMessages,
     maxOutputTokens: options?.maxOutputTokens ?? 500,
     temperature: options?.temperature ?? 0.3,

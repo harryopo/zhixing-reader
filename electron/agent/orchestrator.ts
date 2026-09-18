@@ -551,5 +551,6 @@ export async function processMessageStream(
   await sdkStreamChat(messages, wrappedOnChunk, wrappedOnComplete, onError, {
     enableReasoning: options?.enableReasoning,
     onReasoningChunk: options?.onReasoningChunk,
+    intent,
   })
 }

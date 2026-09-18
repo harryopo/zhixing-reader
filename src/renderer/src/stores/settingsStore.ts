@@ -11,6 +11,8 @@ interface SettingsState {
   llmEndpoint: string
   llmKey: string
   llmModel: string
+  /** 经济档模型（可选）：casual_chat 分流降本；空=功能关闭，全部走主档 */
+  llmModelFast: string
   /** 微信读书自动同步开关（默认 false）。开启后 main 进程按 wereadSyncFrequency 自动调 syncBookshelf */
   wereadAutoSync: boolean
   /** 微信读书自动同步频率（默认 1d）。可选：1d / 3d / 7d */
@@ -42,6 +44,7 @@ interface SettingsState {
   setLlmEndpoint: (endpoint: string) => void
   setLlmKey: (key: string) => void
   setLlmModel: (model: string) => void
+  setLlmModelFast: (model: string) => void
   /** 切换微信读书自动同步开关并持久化（main 进程会监听 settings.set 自动更新定时器） */
   setWereadAutoSync: (enabled: boolean) => Promise<void>
   /** 切换微信读书自动同步频率并持久化 */
@@ -80,6 +83,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   llmEndpoint: DEFAULT_LLM_ENDPOINT,
   llmKey: '',
   llmModel: DEFAULT_LLM_MODEL,
+  llmModelFast: '',
   // 默认 false：用户必须显式开启自动同步，避免无 API Key 时空跑定时器
   wereadAutoSync: false,
   // 默认 1d：按天维度自动同步，避免过于频繁调用 API
@@ -107,6 +111,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         llmEndpoint: (settings.llmEndpoint as string) || DEFAULT_LLM_ENDPOINT,
         llmKey: (settings.llmKey as string) || '',
         llmModel: (settings.llmModel as string) || DEFAULT_LLM_MODEL,
+        llmModelFast: (settings.llmModelFast as string) || '',
         wereadAutoSync: settings.wereadAutoSync === true,
         wereadSyncFrequency: parseWeReadSyncFrequency(
           settings.wereadSyncFrequency,
@@ -126,7 +131,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   saveSettings: async () => {
     set({ saving: true, error: null, saved: false })
     try {
-      const { wereadApiKey, llmEndpoint, llmKey, llmModel, wereadAutoSync, wereadSyncFrequency, userAvatarUrl, userNickname } = get()
+      const { wereadApiKey, llmEndpoint, llmKey, llmModel, llmModelFast, wereadAutoSync, wereadSyncFrequency, userAvatarUrl, userNickname } = get()
 
       await Promise.all([
         window.electronAPI.settings.set('wereadApiKey', wereadApiKey),
@@ -134,6 +139,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         window.electronAPI.settings.set('llmEndpoint', llmEndpoint),
         window.electronAPI.settings.set('llmKey', llmKey),
         window.electronAPI.settings.set('llmModel', llmModel),
+        window.electronAPI.settings.set('llmModelFast', llmModelFast),
         // 自动同步开关与频率单独写库：SETTINGS.SET handler 检测到这两个 key 时会触发 main 进程更新定时器
         window.electronAPI.settings.set('wereadAutoSync', wereadAutoSync),
         window.electronAPI.settings.set('wereadSyncFrequency', wereadSyncFrequency),
@@ -146,7 +152,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           provider: 'custom',
           apiKey: llmKey,
           baseUrl: llmEndpoint || undefined,
-          model: llmModel || undefined
+          model: llmModel || undefined,
+          modelFast: llmModelFast.trim() || undefined
         })
       }
 
@@ -229,6 +236,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setLlmEndpoint: (endpoint: string) => set({ llmEndpoint: endpoint }),
   setLlmKey: (key: string) => set({ llmKey: key }),
   setLlmModel: (model: string) => set({ llmModel: model }),
+  setLlmModelFast: (model: string) => set({ llmModelFast: model }),
   setWereadAutoSync: async (enabled: boolean) => {
     const prev = get().wereadAutoSync
     set({ wereadAutoSync: enabled })
