@@ -114,6 +114,12 @@
   --emerald-500: #10b981;
   --emerald-600: #059669;
   --emerald-700: #047857;
+
+  /* Brand palette — 徽标专用，与 emerald 交互色分开口径 */
+  --brand-ink: #0c3b2e;          /* 墨绿：环的主体色 */
+  --brand-brass: #b08d57;        /* 铜金：缺口上的那一方「行」 */
+  --brand-paper: #f5f1e8;        /* 宣纸：深底反白 */
+  --brand-mark: var(--brand-ink);
 }
 
 /* Dark mode source tokens */
@@ -159,6 +165,9 @@
   --sidebar-accent-foreground: #6ee7b7;
   --sidebar-border: #2a2a2e;
   --sidebar-ring: #10b981;       /* emerald-500 */
+
+  /* 徽标在深底上整体反白为宣纸色，铜金不变 */
+  --brand-mark: var(--brand-paper);
 }
 
 /* Tailwind v4 @theme inline — exposes tokens as utility classes (bg-primary, text-muted-foreground, etc.) */
@@ -209,6 +218,12 @@
   --color-emerald-500: var(--emerald-500);
   --color-emerald-600: var(--emerald-600);
   --color-emerald-700: var(--emerald-700);
+
+  /* Brand — 暴露为 bg-brand-ink / text-brand-brass 等 */
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-brass: var(--brand-brass);
+  --color-brand-paper: var(--brand-paper);
+  --color-brand-mark: var(--brand-mark);
 
   --font-sans: var(--font-sans);
   --font-serif: var(--font-serif);
