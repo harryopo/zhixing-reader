@@ -45,7 +45,7 @@ zhixing-reader/
 │
 ├── src/shared/            # 跨进程共享：类型 + IPC 通道常量
 ├── resources/             # 静态资源（dictionary.json / icon.png）
-├── tests/                 # Vitest 单元测试（47 文件 / 928 用例）
+├── tests/                 # Vitest 单元测试（46 文件 / 862 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -72,7 +72,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（928 用例；不含覆盖率）
+npm run test             # Vitest（862 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 打包
@@ -237,7 +237,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（47 文件 / 928 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（46 文件 / 862 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
@@ -257,6 +257,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-18（再续） | **B1 前置：先把死链砍干净，再谈迁移** —— 用脚本扫 preload 暴露面，查出 **27 个渲染层零消费者的方法**，逐个核实「主进程内部还有没有别的调用方」后砍掉 26 条真死链（通道 + handler + preload + renderer.d.ts 类型）：① 老通路整条手写流式实现（ai.streamChat + agent:streamChat + streamOpenAI(复杂度46) + streamAnthropic(40) + legacy cancelActiveStream）—— 渲染层走的是 STREAM_CHAT_WITH_CONTEXT，手写 SSE 那半壁早已被 AI SDK 取代且更完整；② 四个被界面弃用或被新功能取代的非流式函数（generateCards / generateSummary / chatWithContext(早标 @deprecated) / explainHighlight）+ skill.exportBatch + 8 个提示词模板（注册表 30→22）；③ 20 条数据读取死链（books:updateProgress、cards:getByHighlight/createBatch、reviews:getByCard、articles:getUnread/getFavorites、vocabulary:getByWord/incrementReview、dictionary:getSize、weread:fetchBookmarks/fetchNotes、readingData:fetch{Weekly,Monthly,Annually,Overall}、knowledgeCards:getByType/isDistilling、admin:getPrompt、fsrs:getForecast/getOptimalReviewOrder、preload stats:getWeekly 包装）。**保留了链路断了但实现仍活的**：cardsDb.getByHighlightId（单条建划线时防重复建卡在用）、vocabularyDb.getByWord、reviewsDb.getByCardId、weread-api 的 fetchBookmarks/fetchNotes（fetchAllContent 内部调用）、dictionaryService.getSize、knowledgeCardService.isDistilling（有测试）。顺手修一个测量缺陷：老通路解析响应时丢了 prompt_tokens_details.cached_tokens，导致统计页缓存命中率对这 8 个功能恒为 0（2 条新用例，红绿都验过）。结果：通道 188→162，ai-service 1664→1132 行，preload 541→521，fsrs-engine −42，测试 928→862（删的全是被砍功能自己的用例）。**踩坑一条**：判断「实现是否已成孤儿」时，grep 若把 electron/ipc/ 整个排除掉，就会把仍在 handler 里用的 cardsDb.getByHighlightId 误判成死的 —— 排除范围只能到「本次正要删的那个 handler」。B1 剩余：8 个仍活着的非流式函数迁 AI SDK（换成 generateObject + zod 后，模型不合财会从「repairJSON 修修能用」变成「抛错」，必须逐条真打 API 看形状，适合有人在电脑前时做）。commit 6a88bdb / 93ddc41 / f221c8f / 66838bc | AI Agent（接手） |
 | 2026-09-18（续） | **巨型页拆分第二、三批（纯搬运，零逻辑改动）** —— DailyLearning 2190→1622（`pages/daily-learning/` ×4）、VocabularyPage 1972→1091（`pages/vocabulary/` ×5）、KnowledgeCards 1789→1058（`pages/knowledge-cards/` ×4）、Methodologies 1787→1004（`pages/methodologies/` ×5）。搬运块用脚本比对确认与原文件逐字相同，页面本体只换 import。**结论**：能整块搬走的顶层子组件已基本搬完，剩下 10 个 >1000 行的文件都是单个巨型组件本体（状态与 JSX 互相引用几十处），再拆需要能真点一遍 UI 的会话，不靠盲改。踩坑两条：enum 不在常规的 export 前缀清单里（ReviewRating 枚举漏迁一次）；删区间时容易连带删掉组件签名那行本身（typecheck 立刻抓到）。commit 4c30af7 / 5d21a38 / 42b477f / 613af17 | AI Agent（接手） |
 | 2026-09-18 | **一次性清空六批债务（commitlint / Modal 收口 / 死代码 / 模型分档 / 层级摘要 / 巨型页拆分）** —— ① `.husky/commit-msg` + `commitlint.config.js`（config-conventional，header ≤120，`subject-case` 关闭放行中文），此前 R10 只靠人工 ② VocabularyPage 最后两处手写弹层迁 `ui/Modal`（抽屉生词详情 + 导出对话框），全应用 6 处弹层收口完毕 ③ `types/repositories.ts` 5 个无实现接口 + `sqlite3.d.ts` 删；`build.files` 白名单 84→50 项（只留 node_modules 里确实没有的）；preload 监听器改造前先核实：**12 个调用点全部成对注销，改造零收益**，改为把「必须持有返回的清理函数」写进注释 ④ **主线 A Step 6 模型分级路由**：`src/shared/model-routing.ts`（`resolveChatTier`，白名单意图 casual_chat 走经济档）+ 设置项 `llmModelFast` + orchestrator 传 intent，未配置时恒走主模型 ⑤ **主线 A Step 5 书籍层级摘要（RAPTOR 简化）**：新增 `chapter_summaries` 表（第 16 张）+ `chapterSummariesDb.upsertBatch`（sql.js 落盘是全库导出，一次生成只导盘一次而不是 N 次）+ `src/shared/chapter-summaries.ts` 纯判定（分章、按「该章划线条数」判新鲜度、注入文案必须标明是 AI 概括）+ `chapter-summary-service`（L1 逐章 → L2 由 L1 汇总；L1 没变就不重烧 L2；同书并发直接报错，防双份 AI 花费）+ 4 个提示词模板（注册表 26→30）+ IPC `SUMMARIES.GET_CHAPTERS/GENERATE` 全链路 + BookDetail 新增「摘要」页签与「生成 AI 摘要」入口 + `book-context-builder` 在关联书籍时注入全书摘要与 BM25 挑出的 3 章摘要。**顺带查出**：`book_summaries` 表和它的 IPC/preload 一直全在，但**渲染层零引用**（第 6 个断链），且 `BookSummary` 类型写的是 `content/createdAt` 而真实列是 `summary/generated_at` —— 现在两头对齐并真在界面上显示 ⑥ 巨型页第一批纯搬运：Stats 2993→553（`pages/stats/` ×7）、TokenUsage 1612→974（`pages/token-usage/` ×6）、SettingsData 1541→1185（`data-utils.ts` + `use-data-io.ts`），逻辑一行未改。测试 895→928（44→47 文件），`npm run verify` 退出码 0（lint 0 error / 202 存量 warning），已推送 | AI Agent（接手） |
 | 2026-09-16 | **默认对话路径的「零上下文」修复 —— 检索第一次在真实使用中生效** —— 上一轮把中文切词修好了，但**默认路径根本不会调用它**：`book` / `knowledgeCard` / `methodology` 三个构建器的 `shouldBuild` 都要求 `!!context.bookId`，而从首页进入「AI 对话」时是不选书的（对话框上的「关联书籍」是一个可选的虚框按钮）。在**打包后的应用**上实测（CDP 发一条真实提问）：「调取知识库」只有 **2/2 路**（相关记忆 + 用户画像），`promptTokens` 仅 **358**，AI 回答「你提供的笔记里并没有直接出现…」—— 934 条划线一条都没进提示词。修法：三个构建器不再以「有没有选书」为门槛 —— 选了书只搜那本书（用户显式意图），没选书就跨全部书籍 / 全部卡片 / 全部方法论检索，并在注入文本里写明「来自你的全部书籍，与当前问题无关就忽略」。同时修掉三个同源缺陷：① 卡片与方法论的相关性打分原来是拿**用户整句**去 `content.includes(...)`（中文没有空格 → 几乎永远为 false），于是「相关卡片」实际是按数据库顺序硬塞 10 张、分数全是 0；现在复用 `src/shared/retrieval.ts` 的 BM25 + 中文 bigram，只注入真正命中的，一条都没命中就不注入（面板如实显示「无命中」）② `searchIndex` 的噪声词过滤只看出现比例，1~2 篇的小语料里**唯一的信号会被当成噪声整段丢掉**（实测知识卡片命中数恒为 0），加了下限 `df >= 3`（真实 934 条划线语料的行为完全不变）③ 卡片类型读的是不存在的字段 `card_type`（列名是 `type`），所以「【卡名】(类型)」里的类型从来没显示过。**打包实测（用户真实数据，一次真实提问）**：934 条划线建索引 →「作者怎么看人际关系」命中 **5 条 / topScore 17.2**，方法论 **1/11**、知识卡片 **5/90**，`promptTokens` **358 → 1252**，回复末尾出现「**引用来源：5 个片段**」。新增 5 条测试（含「没选书也要检索」「不相关就不注入」）。测试 880→885（42 文件） | AI Agent（接手） |
