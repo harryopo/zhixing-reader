@@ -12,6 +12,7 @@ import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import { Loading, Trend } from '@/components/ui/Feedback'
+import Modal from '@/components/ui/Modal'
 import { useProfileStore } from '../stores/profileStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { toast } from '../stores/toastStore'
@@ -100,7 +101,6 @@ export default function Profile() {
   const [editForm, setEditForm] = useState<UserProfile>(DEFAULT_PROFILE)
   const [editSaving, setEditSaving] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
-  const editModalRef = useRef<HTMLDivElement>(null)
   const editFirstInputRef = useRef<HTMLInputElement>(null)
 
   // 确保全局设置（含 profileBadgesEnabled）已加载
@@ -288,39 +288,7 @@ export default function Profile() {
     }
   }
 
-  // ESC 关闭 Modal + 焦点 trap
-  useEffect(() => {
-    if (!editModalOpen) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setEditModalOpen(false)
-        return
-      }
-      if (e.key !== 'Tab') return
-      const panel = editModalRef.current
-      if (!panel) return
-      const focusables = panel.querySelectorAll<HTMLElement>(
-        'button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      )
-      if (focusables.length === 0) return
-      const first = focusables[0]
-      const last = focusables[focusables.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    // 进入时聚焦第一个输入框；退出时由调用方恢复焦点
-    const t = window.setTimeout(() => editFirstInputRef.current?.focus(), 0)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.clearTimeout(t)
-    }
-  }, [editModalOpen])
+  // Modal 的 ESC 关闭 / 焦点陷阱 / 进出聚焦由 ui/Modal 原语负责
 
   // ===== 从微信读书同步头像 / 昵称 =====
   const handleSyncWeReadProfile = async () => {
@@ -996,66 +964,12 @@ export default function Profile() {
 
       {/* ===== 编辑资料 Modal ===== */}
       {editModalOpen && (
-        <>
-          {/* 遮罩层：点击关闭 */}
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 50,
-            }}
-            onClick={closeEditModal}
-            aria-hidden="true"
-          />
-          <div
-            ref={editModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label="编辑资料"
-            style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 'min(92vw, 480px)',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              background: 'var(--card)',
-              color: 'var(--card-foreground)',
-              border: '1px solid var(--border)',
-              borderRadius: 'calc(var(--radius) + 4px)',
-              boxShadow: 'var(--shadow-lg, 0 10px 30px rgba(0,0,0,0.18))',
-              zIndex: 60,
-              padding: 'calc(var(--spacing) * 5)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'calc(var(--spacing) * 4)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'calc(var(--spacing) * 3)' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--foreground)' }}>
-                编辑资料
-              </h3>
-              <button
-                type="button"
-                onClick={closeEditModal}
-                aria-label="关闭"
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  padding: '0.34rem',
-                  borderRadius: 'var(--radius-sm)',
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
+        <Modal
+          onClose={closeEditModal}
+          title="编辑资料"
+          initialFocusRef={editFirstInputRef}
+          width={480}
+        >
             {/* 昵称 */}
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--foreground)' }}>
               <span>昵称</span>
@@ -1142,8 +1056,7 @@ export default function Profile() {
                 {editSaving ? '保存中...' : '保存'}
               </Button>
             </div>
-          </div>
-        </>
+        </Modal>
       )}
     </>
   )

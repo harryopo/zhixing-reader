@@ -14,6 +14,7 @@ import Card, { CardHead } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { Loading, Tiny } from '@/components/ui/Feedback'
+import Modal from '@/components/ui/Modal'
 import { useSettingsStore, DEFAULT_LLM_ENDPOINT, DEFAULT_LLM_MODEL } from '@/stores/settingsStore'
 import { toast } from '@/stores/toastStore'
 
@@ -389,22 +390,8 @@ export default function SettingsAI() {
     setNewTemplateContent('')
   }, [])
 
-  // ===== Modal 无障碍：ESC 关闭 + 打开时聚焦首个输入框 =====
+  // Modal 的 ESC 关闭 / 聚焦由 ui/Modal 原语负责；此处仅指定初始焦点目标
   const firstInputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (!showCreateModal) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleCancelModal()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    const focusTimer = setTimeout(() => firstInputRef.current?.focus(), 0)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      clearTimeout(focusTimer)
-    }
-  }, [showCreateModal, handleCancelModal])
 
   if (loading) {
     return <Loading hint="正在加载 AI 配置..." />
@@ -799,51 +786,13 @@ export default function SettingsAI() {
 
       {/* ===== 新建/编辑模板 Modal ===== */}
       {showCreateModal && (
-        <div
-          className="modal-overlay"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'grid',
-            placeItems: 'center',
-            zIndex: 1000,
-            padding: 'calc(var(--spacing) * 4)',
-          }}
-          onClick={handleCancelModal}
+        <Modal
+          onClose={handleCancelModal}
+          title={editingTemplateId ? '编辑模板' : '新建模板'}
+          description={<Tiny>自定义模板保存在本地 settings.json，可在管理面板查看</Tiny>}
+          initialFocusRef={firstInputRef}
+          width={640}
         >
-          <div
-            className="modal-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="template-modal-title"
-            style={{
-              background: 'var(--card)',
-              border: '1px solid var(--border)',
-              borderRadius: 'calc(var(--radius) + 6px)',
-              padding: 'calc(var(--spacing) * 6)',
-              width: '100%',
-              maxWidth: 640,
-              maxHeight: '90vh',
-              overflow: 'auto',
-              boxShadow: 'var(--shadow-lg)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
-              <strong
-                id="template-modal-title"
-                style={{
-                  display: 'block',
-                  fontSize: '1.05rem',
-                  fontWeight: 600,
-                  color: 'var(--foreground)',
-                }}
-              >
-                {editingTemplateId ? '编辑模板' : '新建模板'}
-              </strong>
-              <Tiny>自定义模板保存在本地 settings.json，可在管理面板查看</Tiny>
-            </div>
             <div className="form-field" style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
               <label className="form-label" htmlFor="new-template-name">
                 模板名称
@@ -901,8 +850,7 @@ export default function SettingsAI() {
                 {savingTemplate ? '保存中...' : editingTemplateId ? '保存修改' : '创建模板'}
               </Button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ===== 设计稿专属样式（form / slider / toggle / icon-btn-sm / settings-nav） ===== */}

@@ -6,6 +6,7 @@
  */
 import { useEffect, useState, type CSSProperties } from 'react'
 import Icon from '@/components/ui/Icon'
+import Modal from '@/components/ui/Modal'
 
 export interface DrawerSession {
   id: string
@@ -26,27 +27,6 @@ interface SessionDrawerProps {
 }
 
 // ===== 模块级样式 =====
-
-const drawerStyle: CSSProperties = {
-  position: 'fixed',
-  left: 0,
-  top: 0,
-  bottom: 0,
-  width: 320,
-  background: 'var(--card)',
-  borderRight: '1px solid var(--border)',
-  zIndex: 61,
-  display: 'flex',
-  flexDirection: 'column',
-  boxShadow: '8px 0 24px rgba(0, 0, 0, 0.08)',
-}
-
-const maskStyle: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0, 0, 0, 0.35)',
-  zIndex: 60,
-}
 
 const toolbarStyle: CSSProperties = {
   display: 'flex',
@@ -81,18 +61,6 @@ function truncate(s: string, n: number): string {
 }
 
 // ===== 子组件 / hooks =====
-
-/** Esc 关闭（仅开启时监听） */
-function useEscClose(open: boolean, onClose: () => void): void {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
-}
 
 /** 抽屉工具行：新对话 + 搜索 */
 function DrawerToolbar({ keyword, onKeyword, onCreate }: {
@@ -274,8 +242,6 @@ export default function SessionDrawer({
 }: SessionDrawerProps) {
   const [keyword, setKeyword] = useState('')
 
-  useEscClose(open, onClose)
-
   // 每次打开清空搜索词
   useEffect(() => {
     if (open) setKeyword('')
@@ -284,14 +250,7 @@ export default function SessionDrawer({
   if (!open) return null
 
   return (
-    <>
-      <div onClick={onClose} aria-hidden="true" style={maskStyle} />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label="历史对话"
-        style={drawerStyle}
-      >
+    <Modal onClose={onClose} variant="drawer-left" ariaLabel="历史对话" padded={false} width={320}>
         <div
           style={{
             display: 'flex',
@@ -347,7 +306,6 @@ export default function SessionDrawer({
         >
           切换会话后自动关闭 · Esc 或点遮罩关闭
         </div>
-      </aside>
-    </>
+    </Modal>
   )
 }
