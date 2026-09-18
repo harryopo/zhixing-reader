@@ -322,7 +322,7 @@ export default function SettingsAgent() {
         console.error('加载流水线信息失败:', err)
       }
 
-      // 2) 系统提示词（admin.getAgentConfig → settings.admin_system_prompt）
+      // 2) 系统提示词（admin.getAgentConfig → prompt-storage agent.system，运行时真实生效值）
       try {
         if (window.electronAPI?.admin?.getAgentConfig) {
           const config = (await window.electronAPI.admin.getAgentConfig()) as {

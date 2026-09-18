@@ -264,7 +264,7 @@ zhixing-reader/
 
 ## 十一、快速开始
 
-1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `ZhixingReader-Setup-1.1.0.exe`（Windows）
+1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.2.0.exe`（Windows），或安装后由应用内自动更新
 2. **配置 AI** — 设置页选择 AI 服务商（火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot），填入 API Key
 3. **连接微信读书** — 设置页填入微信读书 API Key，同步书架与划线数据
 4. **开始使用** — 浏览书架、AI 对话、知识卡片复习、每日英语学习
@@ -291,7 +291,7 @@ npm run verify          # 一键跑上面四项
 
 # 打包 Windows NSIS 安装包
 npm run package:win
-# → 生成 installer/ZhixingReader-Setup-1.1.0.exe
+# → 生成 installer/zhixing-reader-Setup-<version>.exe
 ```
 
 > ⚠️ 原 `build-dict` / `seed:demo` / `loop:*` 共 6 个脚本已于 2026-09-11 移除 —— 它们指向的 `scripts/` 目录已不在仓库。词典请直接使用已提交的 `resources/dictionary.json`。
@@ -413,4 +413,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-08-28 | 与 v1.1.0 代码一致*
+*最后更新：2026-09-18 | 与 v1.2.0 代码一致*

@@ -17,15 +17,6 @@ export function extractVariables(template: string): string[] {
   return Array.from(seen)
 }
 
-export function validateTemplate(template: string): { valid: boolean; missing: string[]; unused: string[] } {
-  const _declared = extractVariables(template)
-  return {
-    valid: true,
-    missing: [],
-    unused: [],
-  }
-}
-
 export function highlightVariables(template: string): Array<{ text: string; isVariable: boolean; name?: string }> {
   const parts: Array<{ text: string; isVariable: boolean; name?: string }> = []
   const regex = /\{\{(\w+)\}\}/g

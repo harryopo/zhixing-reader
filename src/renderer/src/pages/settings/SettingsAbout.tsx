@@ -144,7 +144,7 @@ const LICENSES: LicenseEntry[] = [
   { name: 'TypeScript', version: '5.6.0', type: 'Apache-2.0' },
   { name: 'Tailwind CSS', version: '4.0.0', type: 'MIT' },
   { name: 'Zustand', version: '5.0.0', type: 'MIT' },
-  { name: 'sql.js', version: '1.12.0', type: 'BSD-3-Clause' },
+  { name: 'sql.js', version: '1.14.1', type: 'BSD-3-Clause' },
   { name: 'FSRS.js', version: '2.0.0', type: 'MIT' },
   { name: 'Lucide Icons', version: '1.8.0', type: 'ISC' },
   { name: 'electron-vite', version: '2.3.0', type: 'MIT' },

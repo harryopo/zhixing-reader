@@ -16,12 +16,6 @@ export function registerAdminHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.ADMIN.GET_AGENT_CONFIG, () => {
     return admin.getAgentConfig()
   })
-  handle(IPC_CHANNELS.ADMIN.SAVE_AGENT_CONFIG, (key: string, value: unknown) => {
-    return admin.saveAgentConfig(key, value)
-  })
-  handle(IPC_CHANNELS.ADMIN.RESET_AGENT_CONFIG, (key: string) => {
-    return admin.resetAgentConfig(key)
-  })
   handle(IPC_CHANNELS.ADMIN.GET_BOOKS_WITH_COUNTS, () => {
     return admin.getBooksWithCounts()
   })

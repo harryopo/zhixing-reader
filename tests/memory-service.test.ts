@@ -115,6 +115,11 @@ describe('memory-service — 记录与检索', () => {
       expect(result.some((m) => m.content.includes('认知'))).toBe(true)
     })
 
+    it('中文整句查询也能命中（2 字滑窗分词；旧按空白切词把整句当一个词，恒不命中）', () => {
+      const result = getRelevantMemories('我想知道关于认知科学的事情', 5)
+      expect(result.some((m) => m.content.includes('认知'))).toBe(true)
+    })
+
     it('空查询返回空数组', () => {
       expect(getRelevantMemories('')).toEqual([])
     })

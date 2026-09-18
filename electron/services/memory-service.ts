@@ -1,5 +1,6 @@
 import { logger } from '../logger'
 import { memoriesDb } from '../database'
+import { tokenize } from '../../src/shared/retrieval'
 
 const MAX_LONG_TERM = 100
 
@@ -47,7 +48,8 @@ function addMemory(memory: {
 
 export function getRelevantMemories(query: string, limit: number = 5): Memory[] {
   try {
-    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 1)
+    // 复用 BM25 同款分词：中文无空格，按空白切词永远不命中（LRN「两个约定=静默错算」同型坑）
+    const queryTerms = Array.from(new Set(tokenize(query))).filter(t => t.length > 1).slice(0, 12)
     if (queryTerms.length === 0) return []
 
     const rows = memoriesDb.getRelevant(queryTerms, limit)
@@ -144,10 +146,6 @@ export function getMemoryStats(): {
     logger.error('Failed to get memory stats', error)
     return { shortTermCount: 0, longTermCount: 0, byType: {} }
   }
-}
-
-export function clearShortTermMemory(): void {
-  // All memories are now long-term (persisted in DB)
 }
 
 export function clearAllMemory(): void {

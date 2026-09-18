@@ -1,10 +1,9 @@
 import { getDatabase } from './database'
 import { rowsToObjects } from './utils/db'
-import { logger } from './logger'
-import { settingsService } from './services/settings-service'
 import {
   getAllPrompts,
   getPrompt,
+  getPromptTemplate,
   savePrompt,
   resetPrompt,
   resetAllPrompts,
@@ -17,6 +16,7 @@ import {
   updateCustomPrompt,
   deleteCustomPrompt,
 } from './services/prompt-storage'
+import { getIntentKeywords } from './agent/intent-classifier'
 
 export function getAdminStats(): Record<string, unknown> {
   const db = getDatabase()
@@ -54,22 +54,12 @@ export function getTokenUsageLast7Days(): Array<{ date: string; inputTokens: num
   return rows as Array<{ date: string; inputTokens: number; outputTokens: number; totalTokens: number }>
 }
 
+/** 运行时真实生效值：系统提示词来自 prompt-storage（agent.system），意图关键词来自 intent-classifier */
 export function getAgentConfig(): Record<string, unknown> {
-  const settings = settingsService.getAll()
   return {
-    systemPrompt: settings.admin_system_prompt || null,
-    intentKeywords: settings.admin_intent_keywords || null,
+    systemPrompt: getPromptTemplate('agent.system') || null,
+    intentKeywords: getIntentKeywords(),
   }
-}
-
-export function saveAgentConfig(key: string, value: unknown): void {
-  settingsService.set(key, value)
-  logger.info('Admin config saved', { key })
-}
-
-export function resetAgentConfig(key: string): void {
-  settingsService.set(key, undefined)
-  logger.info('Admin config reset to default', { key })
 }
 
 export function getBooksWithCounts(): Array<Record<string, unknown>> {

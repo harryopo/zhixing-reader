@@ -6,6 +6,7 @@
 import { Database } from 'sql.js'
 import { rowsToObjects } from '../utils/db'
 import { logger } from '../logger'
+import { saveDatabase } from '../database/connection'
 
 export type DatabaseAccessor = () => Database
 
@@ -51,6 +52,8 @@ export abstract class BaseRepository<T extends { id: string }> {
   protected execute(sql: string, params: unknown[] = []): void {
     try {
       this.getDb().run(sql, params)
+      // 仓储写入同样要走 connection 的防抖落盘（否则永不持久化）
+      saveDatabase()
     } catch (error) {
       logger.error(`Execute failed: ${sql}`, { error: String(error), params })
       throw error
@@ -66,6 +69,7 @@ export abstract class BaseRepository<T extends { id: string }> {
     try {
       const result = fn(db)
       db.run('COMMIT')
+      saveDatabase()
       return result
     } catch (error) {
       db.run('ROLLBACK')

@@ -394,8 +394,6 @@ export interface ElectronAPI {
       recentSessions: Array<{ id: string; title: string; created_at: string; message_count: number; book_title?: string }>
     }>
     getAgentConfig: () => Promise<{ systemPrompt: string | null; intentKeywords: Record<string, string[]> | null }>
-    saveAgentConfig: (key: string, value: unknown) => Promise<unknown>
-    resetAgentConfig: (key: string) => Promise<unknown>
     getBooksWithCounts: () => Promise<Array<Record<string, unknown>>>
     getHighlightsByBook: (bookId: string) => Promise<Array<Record<string, unknown>>>
     getCardsByBook: (bookId: string) => Promise<Array<Record<string, unknown>>>

@@ -244,15 +244,18 @@ npm run verify
 # 等价于依次执行：
 #   npm run lint        # ESLint
 #   npm run typecheck   # tsc --noEmit
-#   npm run test        # Vitest（含覆盖率）
+#   npm run test        # Vitest（不含覆盖率）
 #   npm run build       # 三进程编译
 ```
 
 ### 7.2 覆盖率门禁
 
-- 整体覆盖率 **≥ 85%**
-- 新增代码覆盖率 **≥ 90%**
-- 关键模块（fsrs-engine、agent、database）**≥ 95%**
+实测口径（与 `vitest.config.ts` 一致，2026-09-18 校准）：
+
+- 覆盖率仅在 `npm run test:cov` 时计算，阈值：**lines ≥ 83 / branches ≥ 80 / functions ≥ 75 / statements ≥ 83**
+- 统计范围是 `vitest.config.ts` 中的**源文件精确白名单**（新增模块的测试需同步登记，避免 0% 文件拖垮门禁）
+- CI 当前只跑 `npm run test`，**尚未接入覆盖率阻塞**（待 `@vitest/coverage-v8` 版本对齐后升级为门禁项）
+- 期望实践：新增代码尽量带上测试（历史基线参考：关键模块 fsrs-engine / database / agent 实测 ≥90%）
 
 ### 7.3 测试文件组织
 

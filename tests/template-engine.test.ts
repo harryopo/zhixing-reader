@@ -1,16 +1,13 @@
 // 知行读书 — 模板引擎 smoke test（2026-07-20）
 //
-// 覆盖：变量插值、变量提取、模板校验、变量高亮
+// 覆盖：变量插值、变量提取、变量高亮
 // 这是 prompt-registry / system-prompt / RAG service 全部依赖的基础设施
-//
-// ⚠️ 发现：当前 validateTemplate 实现是 stub（valid 永远 true，declared 变量未使用）
-//    比赛后补齐实现；本次测试如实反映现状
+// （2026-09-18：validateTemplate stub 生产零消费，已随死代码清理移除）
 
 import { describe, it, expect } from 'vitest'
 import {
   renderTemplate,
   extractVariables,
-  validateTemplate,
   highlightVariables,
 } from '../electron/services/template-engine'
 
@@ -68,16 +65,6 @@ describe('Template Engine — Smoke Tests', () => {
 
     it('should return empty array for empty template', () => {
       expect(extractVariables('')).toEqual([])
-    })
-  })
-
-  describe('validateTemplate', () => {
-    it('should currently always return valid=true (stub behavior)', () => {
-      // ⚠️ 已知问题：当前实现是 stub
-      const result = validateTemplate('{{x}}')
-      expect(result.valid).toBe(true)
-      expect(result.missing).toEqual([])
-      expect(result.unused).toEqual([])
     })
   })
 

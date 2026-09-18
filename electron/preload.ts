@@ -460,8 +460,6 @@ const electronAPI = {
   admin: {
     getStats: () => invoke(IPC_CHANNELS.ADMIN.GET_STATS),
     getAgentConfig: () => invoke(IPC_CHANNELS.ADMIN.GET_AGENT_CONFIG),
-    saveAgentConfig: (key: string, value: unknown) => invoke(IPC_CHANNELS.ADMIN.SAVE_AGENT_CONFIG, key, value),
-    resetAgentConfig: (key: string) => invoke(IPC_CHANNELS.ADMIN.RESET_AGENT_CONFIG, key),
     getBooksWithCounts: () => invoke(IPC_CHANNELS.ADMIN.GET_BOOKS_WITH_COUNTS),
     getHighlightsByBook: (bookId: string) => invoke(IPC_CHANNELS.ADMIN.GET_HIGHLIGHTS_BY_BOOK, bookId),
     getCardsByBook: (bookId: string) => invoke(IPC_CHANNELS.ADMIN.GET_CARDS_BY_BOOK, bookId),

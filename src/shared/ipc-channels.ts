@@ -121,8 +121,6 @@ export const IPC_CHANNELS = {
   ADMIN: {
     GET_STATS: 'admin:getStats',
     GET_AGENT_CONFIG: 'admin:getAgentConfig',
-    SAVE_AGENT_CONFIG: 'admin:saveAgentConfig',
-    RESET_AGENT_CONFIG: 'admin:resetAgentConfig',
     GET_BOOKS_WITH_COUNTS: 'admin:getBooksWithCounts',
     GET_HIGHLIGHTS_BY_BOOK: 'admin:getHighlightsByBook',
     GET_CARDS_BY_BOOK: 'admin:getCardsByBook',

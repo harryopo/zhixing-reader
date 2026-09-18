@@ -112,14 +112,6 @@ export const booksDb = {
     return rowsToObjects(result);
   },
 
-  getByStatus(status: string): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      'SELECT * FROM books WHERE status = ? ORDER BY updated_at DESC',
-      [status]
-    );
-    return rowsToObjects(result);
-  },
-
   getRecent(limit: number = 10): Record<string, unknown>[] {
     const result = getDatabase().exec(
       'SELECT * FROM books ORDER BY last_read_time DESC LIMIT ?',
