@@ -224,25 +224,6 @@ export interface RecommendationItem {
   reason: string
 }
 
-export interface LearningMilestone {
-  id: string
-  title: string
-  description: string
-  achievedAt: Date
-  type: 'book' | 'highlight' | 'review' | 'streak'
-  value: number
-}
-
-export interface LearningReport {
-  period: 'week' | 'month' | 'year'
-  startDate: string
-  endDate: string
-  stats: LearningStats
-  topBooks: BookSummary[]
-  achievements: Achievement[]
-  recommendations: string[]
-}
-
 export interface Conversation {
   id: string
   title: string

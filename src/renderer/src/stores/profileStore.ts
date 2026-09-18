@@ -1,10 +1,9 @@
 import { create } from 'zustand'
-import { LearningStats, Achievement, DailyReadingData, LearningMilestone, Book, DailyStats as _DailyStats } from '../../../shared/types'
+import { LearningStats, Achievement, DailyReadingData, Book, DailyStats as _DailyStats } from '../../../shared/types'
 
 interface ProfileState {
   stats: LearningStats
   achievements: Achievement[]
-  milestones: LearningMilestone[]
   loading: boolean
   error: string | null
   fetchStats: () => Promise<void>
@@ -130,7 +129,6 @@ const defaultAchievements: Achievement[] = [
 export const useProfileStore = create<ProfileState>((set, get) => ({
   stats: defaultStats,
   achievements: defaultAchievements,
-  milestones: [],
   loading: false,
   error: null,
 
