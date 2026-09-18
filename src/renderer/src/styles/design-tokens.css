@@ -47,10 +47,9 @@
   --sidebar-border: #e7eaef;
   --sidebar-ring: #059669;      /* emerald-600 */
 
-  /* Typography */
-  --font-sans: "DM Sans", ui-sans-serif, sans-serif, system-ui;
-  --font-serif: "DM Sans", ui-sans-serif, sans-serif, system-ui;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* Typography — 拉丁在前、中文族在后；缺了中文族名，四个中文字会掉回系统默认 */
+  --font-sans: "DM Sans Variable", "Noto Sans SC Variable", "Microsoft YaHei UI", "PingFang SC", ui-sans-serif, sans-serif, system-ui;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 
   /* Radius */
   --radius: 0.5rem;
@@ -226,7 +225,6 @@
   --color-brand-mark: var(--brand-mark);
 
   --font-sans: var(--font-sans);
-  --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
 
   --radius-sm: var(--google-radius-sm);

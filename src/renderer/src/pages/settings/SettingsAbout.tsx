@@ -150,6 +150,9 @@ const LICENSES: LicenseEntry[] = [
   { name: 'Lucide Icons', version: '1.8.0', type: 'ISC' },
   { name: 'electron-vite', version: '2.3.0', type: 'MIT' },
   { name: 'electron-builder', version: '25.0.0', type: 'MIT' },
+  { name: 'Noto Sans SC（思源黑体，界面中文）', version: '5.3.0', type: 'OFL-1.1' },
+  { name: 'DM Sans（界面拉丁与数字）', version: '5.3.0', type: 'OFL-1.1' },
+  { name: 'JetBrains Mono（等宽）', version: '5.3.0', type: 'OFL-1.1' },
 ]
 
 /** 内联盾牌图标（Icon.tsx 未提供） */
