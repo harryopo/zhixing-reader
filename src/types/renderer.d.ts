@@ -1,4 +1,4 @@
-import { Book, Highlight, Card, Review, BookSummary, DailyStats, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage } from '../shared/types'
+import { Book, Highlight, Card, Review, BookSummary, ChapterSummary, BookSummaryRunResult, DailyStats, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage } from '../shared/types'
 
 export interface TokenSummary {
   totalRequests: number
@@ -222,9 +222,13 @@ export interface ElectronAPI {
     getSize: () => Promise<number>
   }
   summary: {
-    getByBook: (bookId: string) => Promise<BookSummary>
-    create: (bookId: string, summary: string, keyPoints?: string) => Promise<BookSummary>
+    getByBook: (bookId: string) => Promise<BookSummary | null>
+    create: (bookId: string, summary: string, keyPoints?: string) => Promise<void>
     delete: (bookId: string) => Promise<void>
+    /** 层级摘要 L1：每章一条，sourceCount = 该摘要基于多少条划线 */
+    chapters: (bookId: string) => Promise<ChapterSummary[]>
+    /** 生成/增量补齐 L1+L2；一次调用会打若干次 AI，界面必须防连点 */
+    generate: (bookId: string) => Promise<BookSummaryRunResult>
   }
   stats: {
     getToday: () => Promise<DailyStats>

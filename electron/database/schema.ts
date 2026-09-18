@@ -93,6 +93,20 @@ export function initializeSchema(db: import('sql.js').Database): void {
     );
   `);
 
+  // 层级摘要 L1：一章一条，由 AI 依据该章划线圈概括（见 src/shared/chapter-summaries.ts）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS chapter_summaries (
+      id TEXT PRIMARY KEY,
+      book_id TEXT NOT NULL,
+      chapter_title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      source_count INTEGER NOT NULL DEFAULT 0,
+      generated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE (book_id, chapter_title),
+      FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+    );
+  `);
+
   db.run(`
     CREATE TABLE IF NOT EXISTS daily_stats (
       id TEXT PRIMARY KEY,
@@ -506,6 +520,7 @@ export function resetDatabase(): void {
       'cards',
       'highlights',
       'book_summaries',
+      'chapter_summaries',
       'daily_stats',
       'token_usage',
       'methodologies',

@@ -207,6 +207,83 @@ casual_chat: 你好,嗨,谢谢,再见,哈哈,早上好,晚上好,辛苦了,好�
     exampleVars: { bookTitle: '人类简史', highlightTexts: '[第一章] 农业革命是骗局' },
   },
   {
+    id: 'ai.generateChapterSummary.system',
+    category: 'ai',
+    feature: 'generateChapterSummary',
+    role: 'system',
+    title: '章节摘要 - 系统提示',
+    description: '层级摘要 L1：把一章的划线圈概括成一段话。',
+    defaultTemplate: `你在为一本书写「章节摘要」。输入是用户在该章划线的原文片段，不是整章正文。
+
+## 要求
+1. 只依据给出的片段，不要补写片段里没有的观点
+2. 150-300 字，一段连贯的陈述，不要用列表
+3. 章名与片段不符时以片段为准
+4. 输出纯文本，不要 JSON、不要 Markdown 代码块、不要「以下是摘要」这类开场白`,
+    variables: [],
+    exampleVars: {},
+  },
+  {
+    id: 'ai.generateChapterSummary.user',
+    category: 'ai',
+    feature: 'generateChapterSummary',
+    role: 'user',
+    title: '章节摘要 - 用户消息',
+    description: '变量：bookTitle, chapterTitle, highlightTexts。',
+    defaultTemplate: `《{{bookTitle}}》——{{chapterTitle}}
+
+该章划线片段：
+{{highlightTexts}}
+
+请写出这一章的摘要。`,
+    variables: [
+      { name: 'bookTitle', description: '书籍标题', sample: '被讨厌的勇气' },
+      { name: 'chapterTitle', description: '章节名', sample: '第二夜 一切烦恼都来自人际关系' },
+      { name: 'highlightTexts', description: '该章划线片段（已编号）', sample: '1. 人的烦恼皆源于人际关系' },
+    ],
+    exampleVars: { bookTitle: '被讨厌的勇气', chapterTitle: '第二夜', highlightTexts: '1. 人的烦恼皆源于人际关系' },
+  },
+  {
+    id: 'ai.generateBookSummary.system',
+    category: 'ai',
+    feature: 'generateBookSummary',
+    role: 'system',
+    title: '全书摘要（由章节摘要汇总）- 系统提示',
+    description: '层级摘要 L2：把各章摘要汇总成全书摘要。',
+    defaultTemplate: `你在为一本书写「全书摘要」。输入是这本书各章的摘要（已经是二手概括），不是原文。
+
+## 要求
+1. 顺着章节的推进概括全书主线，不要逐章复述
+2. 摘要 300-500 字，一段到两段连贯陈述
+3. 关键要点 5-8 条，每条一句话，写观点本身而不是「第几章说了什么」
+4. 不要编造输入里没有的内容
+
+## 输出格式
+返回 JSON 对象，包含：
+- summary: 字符串
+- keyPoints: 字符串数组`,
+    variables: [],
+    exampleVars: {},
+  },
+  {
+    id: 'ai.generateBookSummary.user',
+    category: 'ai',
+    feature: 'generateBookSummary',
+    role: 'user',
+    title: '全书摘要（由章节摘要汇总）- 用户消息',
+    description: '变量：bookTitle, chapterSummaryTexts。',
+    defaultTemplate: `《{{bookTitle}}》各章摘要：
+
+{{chapterSummaryTexts}}
+
+请据此写出这本书的全书摘要与关键要点。`,
+    variables: [
+      { name: 'bookTitle', description: '书籍标题', sample: '被讨厌的勇气' },
+      { name: 'chapterSummaryTexts', description: '各章摘要（[章名] 摘要 逐段）', sample: '[第一夜] 一切改变从此刻开始…' },
+    ],
+    exampleVars: { bookTitle: '被讨厌的勇气', chapterSummaryTexts: '[第一夜] 一切改变从此刻开始' },
+  },
+  {
     id: 'ai.explainHighlight.system',
     category: 'ai',
     feature: 'explainHighlight',

@@ -47,6 +47,10 @@ export const IPC_CHANNELS = {
     GET_BY_BOOK: 'summaries:getByBook',
     CREATE: 'summaries:create',
     DELETE: 'summaries:delete',
+    /** 层级摘要 L1 列表（一章一条，含基于多少条划线） */
+    GET_CHAPTERS: 'summaries:getChapters',
+    /** 生成/增量补齐层级摘要（L1 章节 + L2 全书），烧 AI，前端要防连点 */
+    GENERATE: 'summaries:generate',
   },
   DAILY_STATS: {
     GET_TODAY: 'dailyStats:getToday',

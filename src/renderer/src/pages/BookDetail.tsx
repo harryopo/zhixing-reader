@@ -36,6 +36,7 @@ import {
   formatDateShort,
 } from '../utils/db-mapper'
 import { getCardMastery } from '../../../shared/fsrs-metrics'
+import type { BookSummary, ChapterSummary } from '../../../shared/types'
 
 /** 卡片掌握度等级 → Badge 变体（与复习页保持一致） */
 const CARD_MASTERY_BADGE: Record<string, 'success' | 'ok' | 'warning' | 'default'> = {
@@ -94,7 +95,7 @@ interface CardRow {
 // ===== 工具 =====
 
 // ===== 主组件 =====
-type TabKey = 'highlights' | 'notes' | 'cards'
+type TabKey = 'highlights' | 'notes' | 'cards' | 'summary'
 
 export default function BookDetail() {
   const { id } = useParams<{ id: string }>()
@@ -103,8 +104,11 @@ export default function BookDetail() {
   const [book, setBook] = useState<BookRow | null>(null)
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
   const [cards, setCards] = useState<CardRow[]>([])
+  const [chapters, setChapters] = useState<ChapterSummary[]>([])
+  const [bookSummary, setBookSummary] = useState<BookSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
+  const [summarizing, setSummarizing] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('highlights')
 
   useEffect(() => {
@@ -126,11 +130,46 @@ export default function BookDetail() {
       setBook(books.length > 0 ? books[0] : null)
       setHighlights(mapHighlights(highlightsRaw as unknown[]) as unknown as HighlightRow[])
       setCards(mapCards(cardsRaw as unknown[]) as unknown as CardRow[])
+      const [chapterRows, summaryRow] = await Promise.all([
+        window.electronAPI.summary?.chapters(bookId) ?? Promise.resolve([]),
+        window.electronAPI.summary?.getByBook(bookId) ?? Promise.resolve(null),
+      ])
+      setChapters(chapterRows)
+      setBookSummary(summaryRow ?? null)
     } catch (error) {
       console.error('加载书籍数据失败:', error)
       toast.error('加载书籍详情失败')
     } finally {
       setLoading(false)
+    }
+  }
+
+  /**
+   * 生成分章摘要（L1）并顺带汇总全书摘要（L2）。
+   * 只重做划线条数变了的章节，所以重复点不会重复烧钱 —— 但仍是几十次 AI 调用，按钮要防连点。
+   */
+  const handleGenerateSummaries = async () => {
+    if (!id || summarizing) return
+    setSummarizing(true)
+    const pendingToast = toast.loading('正在按章节生成摘要…')
+    try {
+      const result = await window.electronAPI.summary?.generate(id)
+      toast.remove(pendingToast)
+      if (!result) {
+        toast.error('当前环境不支持生成摘要')
+        return
+      }
+      await loadBookData(id)
+      setActiveTab('summary')
+      const parts = [`新增 ${result.generated} 章`, `复用 ${result.skipped} 章`]
+      if (result.failed > 0) parts.push(`失败 ${result.failed} 章`)
+      parts.push(result.bookSummary ? '全书摘要已更新' : '全书摘要未更新')
+      toast.success(`${result.bookTitle}：${parts.join(' · ')}`)
+    } catch (error) {
+      toast.remove(pendingToast)
+      toast.error(`生成失败: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setSummarizing(false)
     }
   }
 
@@ -445,6 +484,16 @@ export default function BookDetail() {
               <Icon name="refresh" size={14} />
               {importing ? '导入中...' : '导入笔记'}
             </Button>
+            <Button
+              variant="secondary"
+              data-dom-id="cta-generate-summaries"
+              onClick={handleGenerateSummaries}
+              disabled={summarizing || highlightList.length === 0}
+              title={highlightList.length === 0 ? '先导入划线，才能按章节生成摘要' : '按章节用 AI 概括你的划线，只重做划线有变化的章节'}
+            >
+              <Icon name="agent" size={14} />
+              {summarizing ? '生成中...' : '生成 AI 摘要'}
+            </Button>
           </div>
         </Card>
       </div>
@@ -474,6 +523,12 @@ export default function BookDetail() {
             active={activeTab === 'cards'}
             onClick={() => setActiveTab('cards')}
           />
+          <TabBtn
+            label="摘要"
+            count={chapters.length}
+            active={activeTab === 'summary'}
+            onClick={() => setActiveTab('summary')}
+          />
         </div>
 
         {/* tab-content */}
@@ -492,6 +547,14 @@ export default function BookDetail() {
               items={cards}
               highlights={highlights}
               emptyHint="还没有知识卡片"
+            />
+          )}
+          {activeTab === 'summary' && (
+            <SummaryPanel
+              bookSummary={bookSummary}
+              chapters={chapters}
+              generating={summarizing}
+              onGenerate={handleGenerateSummaries}
             />
           )}
         </div>
@@ -649,6 +712,103 @@ function HighlightList({
       ))}
     </div>
   )
+}
+
+/** 摘要面板：L2 全书摘要 + L1 逐章摘要。两者都是 AI 的二手概括，界面上不装作原文 */
+function SummaryPanel({
+  bookSummary,
+  chapters,
+  generating,
+  onGenerate,
+}: {
+  bookSummary: BookSummary | null
+  chapters: ChapterSummary[]
+  generating: boolean
+  onGenerate: () => void
+}) {
+  const keyPoints = useMemo(() => parseKeyPoints(bookSummary?.keyPoints), [bookSummary])
+
+  if (!bookSummary && chapters.length === 0) {
+    return (
+      <EmptyState
+        icon={<Icon name="agent" size={24} />}
+        title="还没有摘要"
+        description="按章节把你的划线圈概括成一段话，再由各章汇总成全书摘要。划线有变化的章节才会重做。"
+        action={
+          <Button variant="primary" data-dom-id="cta-generate-summaries-empty" onClick={onGenerate} disabled={generating}>
+            {generating ? '生成中...' : '生成 AI 摘要'}
+          </Button>
+        }
+      />
+    )
+  }
+
+  return (
+    <div className="flex flex-col" style={{ gap: 'calc(var(--spacing) * 5)' }}>
+      {bookSummary && (
+        <div
+          style={{
+            padding: 'calc(var(--spacing) * 4)',
+            borderLeft: '3px solid var(--chart-5)',
+            background: 'var(--background)',
+            borderRadius: '0 var(--radius) var(--radius) 0',
+          }}
+        >
+          <div className="flex" style={{ justifyContent: 'space-between', gap: 'calc(var(--spacing) * 3)' }}>
+            <strong style={{ fontSize: '0.95rem' }}>全书摘要</strong>
+            <Tiny>{bookSummary.generatedAt ? formatDate(bookSummary.generatedAt) : ''}</Tiny>
+          </div>
+          <p style={{ fontSize: '0.9rem', lineHeight: 1.75, margin: 'calc(var(--spacing) * 2) 0 0' }}>
+            {bookSummary.summary}
+          </p>
+          {keyPoints.length > 0 && (
+            <ul className="flex flex-col" style={{ gap: '0.35rem', margin: 'calc(var(--spacing) * 3) 0 0', paddingLeft: '1.1rem' }}>
+              {keyPoints.map((point, i) => (
+                <li key={i} style={{ fontSize: '0.86rem', lineHeight: 1.6 }}>{point}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {chapters.map((c) => (
+        <div
+          key={c.id}
+          style={{
+            padding: 'calc(var(--spacing) * 4)',
+            borderLeft: '3px solid var(--chart-1)',
+            background: 'var(--background)',
+            borderRadius: '0 var(--radius) var(--radius) 0',
+          }}
+        >
+          <div className="flex" style={{ justifyContent: 'space-between', gap: 'calc(var(--spacing) * 3)' }}>
+            <strong style={{ fontSize: '0.92rem' }}>{c.chapterTitle}</strong>
+            <Tiny>基于 {c.sourceCount} 条划线</Tiny>
+          </div>
+          <p style={{ fontSize: '0.88rem', lineHeight: 1.7, margin: 'calc(var(--spacing) * 2) 0 0' }}>{c.summary}</p>
+        </div>
+      ))}
+
+      <div className="flex" style={{ gap: 'calc(var(--spacing) * 3)', alignItems: 'center' }}>
+        <Button variant="secondary" data-dom-id="cta-regenerate-summaries" onClick={onGenerate} disabled={generating}>
+          {generating ? '生成中...' : '补齐 / 更新摘要'}
+        </Button>
+        <Tiny>只重做划线条数变了的章节，其余直接复用</Tiny>
+      </div>
+    </div>
+  )
+}
+
+/** key_points 列存的是 JSON 字符串；模型给怪东西就当没有，不让整页崩 */
+function parseKeyPoints(raw?: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+  } catch {
+    return []
+  }
 }
 
 /** 知识卡片列表 */

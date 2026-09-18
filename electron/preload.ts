@@ -181,6 +181,10 @@ const electronAPI = {
     create: (bookId: string, summary: string, keyPoints?: string) =>
       invoke(IPC_CHANNELS.SUMMARIES.CREATE, bookId, summary, keyPoints),
     delete: (bookId: string) => invoke(IPC_CHANNELS.SUMMARIES.DELETE, bookId),
+    /** 层级摘要 L1：每章一条（含该章基于多少条划线） */
+    chapters: (bookId: string) => invoke(IPC_CHANNELS.SUMMARIES.GET_CHAPTERS, bookId),
+    /** 生成/增量补齐层级摘要，返回 {generated, skipped, failed, bookSummary} */
+    generate: (bookId: string) => invoke(IPC_CHANNELS.SUMMARIES.GENERATE, bookId),
   },
 
   stats: {

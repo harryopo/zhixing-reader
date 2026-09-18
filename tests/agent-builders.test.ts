@@ -33,7 +33,7 @@ import { MethodologyContextBuilder } from '../electron/agent/builders/methodolog
 import { KnowledgeCardContextBuilder } from '../electron/agent/builders/knowledge-card-context-builder'
 import { MemoryContextBuilder } from '../electron/agent/builders/memory-context-builder'
 import { UserProfileContextBuilder } from '../electron/agent/builders/user-profile-context-builder'
-import { methodologiesDb, knowledgeCardsDb, memoriesDb, booksDb } from '../electron/database'
+import { methodologiesDb, knowledgeCardsDb, memoriesDb, booksDb, chapterSummariesDb, bookSummariesDb } from '../electron/database'
 import type { BuildContext } from '../electron/agent/context-builder'
 
 const ctxWithBook = (overrides: Partial<BuildContext> = {}): BuildContext => ({
@@ -419,3 +419,43 @@ describe('未关联书籍时的全局检索（默认对话路径）', () => {
   })
 })
 
+
+describe('BookContextBuilder 的摘要层（层级摘要 L1/L2 注入）', () => {
+  beforeEach(async () => {
+    await setupTestDatabase()
+    booksDb.create({ id: 'b1', title: '被讨厌的勇气' } as never)
+    chapterSummariesDb.upsertBatch('b1', [
+      { chapterTitle: '第一夜 此刻开始改变', summary: '心理创伤并不存在，人是为了不改变而选择不改变。', sourceCount: 12 },
+      { chapterTitle: '第二夜 一切烦恼都来自人际关系', summary: '所有的烦恼都来自于人际关系，自卑感是自己主观赋予的。', sourceCount: 20 },
+    ])
+    bookSummariesDb.create('b1', '全书讲一个人如何从人际关系的束缚里获得自由。', '["自由就是被别人讨厌"]')
+    mockRetrieveHighlights.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    teardownTestDatabase()
+  })
+
+  it('选了书就带上全书摘要，并标明它是 AI 概括而不是原文', async () => {
+    const result = await new BookContextBuilder().build(ctxWithBook({ userMessage: '这本书到底在讲什么' }))
+    expect(result.content).toContain('AI 依据你的划线概括')
+    expect(result.content).toContain('【全书】全书讲一个人如何从人际关系的束缚里获得自由。')
+  })
+
+  it('章节摘要按相关度挑，不相关的章节不进来', async () => {
+    const result = await new BookContextBuilder().build(ctxWithBook({ userMessage: '自卑感是从哪来的' }))
+    expect(result.content).toContain('【第二夜 一切烦恼都来自人际关系】')
+    expect(result.content).not.toContain('【第一夜 此刻开始改变】')
+  })
+
+  it('没选书时不带摘要层（摘要是按书存的，跨书拼没有意义）', async () => {
+    const result = await new BookContextBuilder().build(ctxWithBook({ bookId: undefined }))
+    expect(result.content).not.toContain('书籍摘要')
+  })
+
+  it('一条划线都没检索到时，摘要层仍能独立支撑这一轮上下文', async () => {
+    const result = await new BookContextBuilder().build(ctxWithBook({ userMessage: '人际关系' }))
+    expect(result.content).toContain('书籍摘要')
+    expect(result.metadata?.itemCount).toBeGreaterThan(0)
+  })
+})

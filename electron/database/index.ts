@@ -5,6 +5,7 @@
  *   connection.ts  连接生命周期 / 事务 / 测试注入
  *   schema.ts      建表 / 初始化 / 幂等迁移 / 数据清理
  *   books.ts / highlights.ts / cards.ts / reviews.ts / summaries.ts
+ *   chapter-summaries.ts
  *   daily-stats.ts / token-usage.ts / conversations.ts
  *   articles.ts / vocabulary.ts / methodologies.ts
  *   knowledge-cards.ts / memories.ts
@@ -38,6 +39,8 @@ export { highlightsDb } from './highlights';
 export { cardsDb } from './cards';
 export { reviewsDb } from './reviews';
 export { bookSummariesDb } from './summaries';
+export { chapterSummariesDb } from './chapter-summaries';
+export type { ChapterSummaryRow, ChapterSummaryInput } from './chapter-summaries';
 export { dailyStatsDb } from './daily-stats';
 export { tokenUsageDb } from './token-usage';
 export { conversationDb } from './conversations';

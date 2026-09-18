@@ -4,11 +4,12 @@
  */
 import * as fs from 'fs';
 import { dialog, BrowserWindow } from 'electron';
-import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb } from '../database';
+import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, chapterSummariesDb } from '../database';
 import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { settingsService } from '../services/settings-service';
 import { backfillChapterTitles } from '../services/chapter-title-backfill';
+import { generateBookSummaries } from '../services/chapter-summary-service';
 import { DEFAULT_NEW_CARDS_PER_DAY } from '../../src/shared/study-limits';
 import type { HandleFn } from './types';
 
@@ -161,4 +162,7 @@ export function registerBookHandlers(handle: HandleFn): void {
     bookSummariesDb.create(bookId, summary, keyPoints)
   );
   handle(IPC_CHANNELS.SUMMARIES.DELETE, (bookId: string) => bookSummariesDb.delete(bookId));
+
+  handle(IPC_CHANNELS.SUMMARIES.GET_CHAPTERS, (bookId: string) => chapterSummariesDb.getByBookId(bookId));
+  handle(IPC_CHANNELS.SUMMARIES.GENERATE, (bookId: string) => generateBookSummaries(bookId));
 }

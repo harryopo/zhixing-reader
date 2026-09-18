@@ -56,13 +56,34 @@ export interface Review {
   reviewedAt: Date
 }
 
+/** 全书摘要（层级摘要 L2）—— 与 book_summaries 表的实际列一一对应 */
 export interface BookSummary {
   id: string
   bookId: string
-  content: string
-  keyPoints: string[]
-  createdAt: Date
-  updatedAt: Date
+  summary: string
+  /** keyPoints 数组的 JSON 字符串，模型没给就是 null */
+  keyPoints: string | null
+  generatedAt: string
+}
+
+/** 章节摘要（层级摘要 L1）—— 与 chapter_summaries 表的实际列一一对应 */
+export interface ChapterSummary {
+  id: string
+  bookId: string
+  chapterTitle: string
+  summary: string
+  /** 这条摘要基于该章多少条划线；划线数变了才需要重生成 */
+  sourceCount: number
+  generatedAt: string
+}
+
+/** 一次「生成层级摘要」的结果统计，界面按它说人话 */
+export interface BookSummaryRunResult {
+  bookTitle: string
+  generated: number
+  skipped: number
+  failed: number
+  bookSummary: boolean
 }
 
 export interface DailyStats {

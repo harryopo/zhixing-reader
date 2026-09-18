@@ -60,6 +60,8 @@ type FilterDateRange = '7d' | '30d' | '90d' | 'all'
 const FEATURE_LABELS: Record<string, string> = {
   generateCards: '生成卡片',
   generateSummary: '生成摘要',
+  generateChapterSummary: '章节摘要',
+  generateBookSummary: '全书摘要',
   chat: 'AI对话',
   explain: '解释内容',
 }

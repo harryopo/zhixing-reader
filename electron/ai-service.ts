@@ -700,6 +700,73 @@ export async function generateSummary(
 }
 
 /**
+ * 层级摘要 L1：一章的划线圈 → 一段章节摘要（纯文本）。
+ * 提示词要求纯文本，但模型仍可能包一层代码块，这里兜底剥掉。
+ */
+export async function generateChapterSummary(
+  bookTitle: string,
+  chapterTitle: string,
+  highlightTexts: string
+): Promise<string> {
+  if (!highlightTexts || highlightTexts.trim() === '') {
+    throw new Error('No highlights provided for chapter summary generation');
+  }
+
+  const messages = buildMessages('generateChapterSummary', '', {
+    bookTitle,
+    chapterTitle,
+    highlightTexts,
+  });
+
+  const startTime = Date.now();
+  const response = await callAI(messages);
+  const durationMs = Date.now() - startTime;
+  if (response.usage) {
+    recordTokenUsage('generateChapterSummary', response.usage, durationMs);
+  }
+
+  const summary = response.content
+    .replace(/^```(?:\w*)?\s*/, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  if (!summary) throw new Error('AI 返回的章节摘要为空');
+  return summary;
+}
+
+/**
+ * 层级摘要 L2：各章摘要 → 全书摘要。
+ * 输入是 L1 的二手概括，所以单独一对提示词，不复用 generateSummary（那个吃的是划线原文）。
+ */
+export async function generateBookSummary(
+  bookTitle: string,
+  chapterSummaryTexts: string
+): Promise<{ summary: string; keyPoints: string[] }> {
+  const messages = buildMessages('generateBookSummary', '', {
+    bookTitle,
+    chapterSummaryTexts,
+  });
+
+  const startTime = Date.now();
+  const response = await callAI(messages);
+  const durationMs = Date.now() - startTime;
+  if (response.usage) {
+    recordTokenUsage('generateBookSummary', response.usage, durationMs);
+  }
+
+  const result = extractAndParseJSON<Record<string, unknown>>(response.content, false);
+  if (!result.summary || typeof result.summary !== 'string') {
+    throw new Error('AI返回的全书摘要格式无效');
+  }
+
+  const keyPoints = (Array.isArray(result.keyPoints) ? result.keyPoints : [])
+    .filter((point: unknown): point is string => typeof point === 'string' && point.trim().length > 0)
+    .map((point) => point.trim());
+
+  return { summary: result.summary.trim(), keyPoints };
+}
+
+/**
  * @deprecated 请使用 agent/orchestrator.processMessageStream 代替。
  * 该函数直接注入全部上下文，不经过意图识别和检索优化。
  */
