@@ -17,6 +17,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
+import Modal from '@/components/ui/Modal'
 import { toast } from '../stores/toastStore'
 import { getCardMastery } from '../../../shared/fsrs-metrics'
 import { describeForgetting } from '../../../shared/fsrs-voice'
@@ -1425,56 +1426,23 @@ function VocabularyDrawer({
     lapses: item.lapses ?? 0,
   })
 
-  // ESC 关闭
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
+  // ESC / 遮罩 / 焦点由 ui/Modal 原语负责
   return (
-    <>
-      {/* scrim */}
-      <div
-        onClick={onClose}
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(14, 17, 21, 0.5)',
-          zIndex: 40,
-          animation: 'scrim-in 0.24s cubic-bezier(.3,0,0,1)',
-        }}
-      />
+    <Modal
+      onClose={onClose}
+      variant="drawer-right"
+      ariaLabel={item.word}
+      width={420}
+      padded={false}
+      overlayStyle={{ animation: 'scrim-in 0.24s cubic-bezier(.3,0,0,1)' }}
+      panelStyle={{ animation: 'drawer-in 0.28s cubic-bezier(.3,0,0,1)', maxWidth: '100vw' }}
+    >
       <style>{`
         @keyframes scrim-in { from { opacity: 0 } to { opacity: 1 } }
         @keyframes drawer-in { from { transform: translateX(100%) } to { transform: translateX(0) } }
       `}</style>
 
-      {/* drawer */}
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="drawer-word-title"
-        style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: 420,
-          maxWidth: '100vw',
-          background: 'var(--card)',
-          borderLeft: '1px solid var(--border)',
-          boxShadow: 'var(--shadow-lg)',
-          zIndex: 50,
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'drawer-in 0.28s cubic-bezier(.3,0,0,1)',
-        }}
-      >
-        {/* ===== header ===== */}
+      {/* ===== header ===== */}
         <header
           style={{
             padding: 'calc(var(--spacing) * 6)',
@@ -1840,8 +1808,7 @@ function VocabularyDrawer({
             删除该生词
           </button>
         </footer>
-      </aside>
-    </>
+    </Modal>
   )
 }
 
@@ -1912,71 +1879,19 @@ interface ExportModalProps {
   count: number
 }
 function ExportModal({ format, onFormatChange, onConfirm, onCancel, exporting, count }: ExportModalProps) {
-  // ESC 关闭 + 焦点管理
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !exporting) onCancel()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, exporting])
+  const requestClose = () => {
+    if (!exporting) onCancel()
+  }
 
   return (
-    <>
-      {/* scrim */}
-      <div
-        onClick={() => {
-          if (!exporting) onCancel()
-        }}
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(14, 17, 21, 0.5)',
-          zIndex: 60,
-          animation: 'scrim-in 0.2s ease',
-        }}
-      />
-
-      {/* dialog */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="export-modal-title"
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'var(--card)',
-          border: '1px solid var(--border)',
-          borderRadius: 'calc(var(--radius) * 1.5)',
-          boxShadow: 'var(--shadow-lg)',
-          padding: 'calc(var(--spacing) * 6)',
-          width: 420,
-          maxWidth: '90vw',
-          zIndex: 70,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'calc(var(--spacing) * 4)',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 1)' }}>
-          <h2
-            id="export-modal-title"
-            style={{
-              margin: 0,
-              fontSize: '1.15rem',
-              fontWeight: 700,
-              color: 'var(--card-foreground)',
-            }}
-          >
-            导出生词本
-          </h2>
-          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted-foreground)' }}>
-            将导出 {count} 个生词，请选择导出格式：
-          </p>
-        </div>
+    <Modal
+      onClose={requestClose}
+      title="导出生词本"
+      description={`将导出 ${count} 个生词，请选择导出格式：`}
+      width={420}
+      overlayStyle={{ animation: 'export-scrim-in 0.2s ease' }}
+    >
+      <style>{`@keyframes export-scrim-in { from { opacity: 0 } to { opacity: 1 } }`}</style>
 
         {/* 格式选择 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
@@ -2052,7 +1967,6 @@ function ExportModal({ format, onFormatChange, onConfirm, onCancel, exporting, c
             {exporting ? '导出中...' : '导出'}
           </Button>
         </div>
-      </div>
-    </>
+    </Modal>
   )
 }

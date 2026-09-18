@@ -29,6 +29,10 @@ export interface ModalProps {
   ariaLabel?: string
   /** 面板内边距，抽屉自管布局时置 false */
   padded?: boolean
+  /** 遮罩层样式追加（如入场动画） */
+  overlayStyle?: React.CSSProperties
+  /** 面板样式追加（如入场动画、宽度覆盖） */
+  panelStyle?: React.CSSProperties
 }
 
 const FOCUSABLE =
@@ -45,6 +49,8 @@ export default function Modal({
   initialFocusRef,
   ariaLabel,
   padded = true,
+  overlayStyle,
+  panelStyle,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   // 用 ref 捕获最新的 onClose：调用方常传非稳定闭包，若进依赖数组会每次 render
@@ -105,7 +111,7 @@ export default function Modal({
     padding: isDrawer ? 0 : 'calc(var(--spacing) * 4)',
   }
 
-  const panelStyle: React.CSSProperties = {
+  const panelLayout: React.CSSProperties = {
     background: 'var(--card)',
     color: 'var(--card-foreground)',
     border: isDrawer ? 'none' : '1px solid var(--border)',
@@ -130,7 +136,7 @@ export default function Modal({
 
   return (
     <div
-      style={containerStyle}
+      style={{ ...containerStyle, ...overlayStyle }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onCloseRef.current()
       }}
@@ -140,7 +146,7 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : ariaLabel}
-        style={panelStyle}
+        style={{ ...panelStyle, ...panelLayout }}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
