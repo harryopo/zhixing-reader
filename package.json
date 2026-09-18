@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.14",
@@ -54,6 +55,7 @@
     "electron-vite": "^2.0.0",
     "eslint": "^9.0.0",
     "happy-dom": "^20.11.1",
+    "husky": "^9.1.7",
     "jsdom": "^25.0.1",
     "playwright": "^1.61.1",
     "postcss": "^8.4.0",
