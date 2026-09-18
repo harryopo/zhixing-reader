@@ -12,11 +12,6 @@ import {
   Methodology,
   KnowledgeCard,
   Memory,
-  Vocabulary,
-  Article,
-  BookSummary,
-  DailyStats,
-  TokenUsage,
 } from './entities'
 
 // ============================================================================
@@ -41,7 +36,6 @@ export interface IBaseRepository<T, K = string> {
 // ============================================================================
 
 export interface IBookRepository extends IBaseRepository<Book> {
-  findByStatus(status: string): Book[]
   findRecent(limit?: number): Book[]
   search(keyword: string): Book[]
   updateProgress(id: string, progress: number): void
@@ -131,65 +125,6 @@ export interface IMemoryRepository extends IBaseRepository<Memory> {
   findImportant(limit?: number): Memory[]
   updateAccessCount(id: string, accessCount: number): void
   updateLastAccessedAt(id: string): void
-}
-
-// ============================================================================
-// 词汇 Repository
-// ============================================================================
-
-export interface IVocabularyRepository extends IBaseRepository<Vocabulary> {
-  findByWord(word: string): Vocabulary | null
-  findMastered(): Vocabulary[]
-  findForReview(limit?: number): Vocabulary[]
-  findByStage(stage: number): Vocabulary[]
-  updateMastered(id: string, isMastered: boolean): void
-  updateReviewInfo(id: string, info: Partial<Vocabulary>): void
-  updateLearningStage(id: string, stage: number): void
-}
-
-// ============================================================================
-// 文章 Repository
-// ============================================================================
-
-export interface IArticleRepository extends IBaseRepository<Article> {
-  findBySource(source: string): Article[]
-  findByDifficulty(difficulty: string): Article[]
-  findByCategory(category: string): Article[]
-  findUnread(): Article[]
-  findFavorites(): Article[]
-  markAsRead(id: string): void
-  toggleFavorite(id: string): void
-}
-
-// ============================================================================
-// 书籍摘要 Repository
-// ============================================================================
-
-export interface IBookSummaryRepository extends IBaseRepository<BookSummary> {
-  findByBookId(bookId: string): BookSummary | null
-  upsertByBookId(bookId: string, data: Partial<BookSummary>): void
-}
-
-// ============================================================================
-// 每日统计 Repository
-// ============================================================================
-
-export interface IDailyStatsRepository extends IBaseRepository<DailyStats> {
-  findByDate(date: string): DailyStats | null
-  findByDateRange(startDate: string, endDate: string): DailyStats[]
-  upsertByDate(date: string, data: Partial<DailyStats>): void
-}
-
-// ============================================================================
-// Token 使用记录 Repository
-// ============================================================================
-
-export interface ITokenUsageRepository extends IBaseRepository<TokenUsage> {
-  findByFeature(feature: string): TokenUsage[]
-  findByProvider(provider: string): TokenUsage[]
-  findByDateRange(startDate: string, endDate: string): TokenUsage[]
-  getTotalTokens(): number
-  getTotalCost(): number
 }
 
 // ============================================================================

@@ -59,17 +59,6 @@ export class SqlBookRepository extends BaseRepository<Book> implements IBookRepo
   }
 
   /**
-   * 根据状态查找书籍
-   */
-  findByStatus(status: string): Book[] {
-    const rows = this.query(
-      'SELECT * FROM books WHERE status = ? ORDER BY updated_at DESC',
-      [status]
-    )
-    return rows.map(row => this.mapToEntity(row))
-  }
-
-  /**
    * 查找最近阅读的书籍
    */
   findRecent(limit: number = 10): Book[] {

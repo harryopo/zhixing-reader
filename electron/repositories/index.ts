@@ -34,10 +34,5 @@ export type {
   IMethodologyRepository,
   IKnowledgeCardRepository,
   IMemoryRepository,
-  IVocabularyRepository,
-  IArticleRepository,
-  IBookSummaryRepository,
-  IDailyStatsRepository,
-  ITokenUsageRepository,
   IRepositoryContainer,
 } from '../types/repositories'

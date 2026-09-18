@@ -19,6 +19,8 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 // 使用 Map<callback, handler> 隔离每个订阅者的 handler，避免 A/B 两个消费者
 // 共享单例时出现"dispose A 误删 B"的交叉污染。
 // 重复用相同 callback 注册时，会先 removeListener 旧 handler 再覆盖（幂等）。
+// ⚠️ 契约：调用方必须持有返回的清理函数，并在组件卸载 / effect cleanup 中调用；
+// 每次 render 新建箭头函数且不注销 = 监听器泄漏（现存调用点均已配对，新代码必须遵守）。
 interface StreamChunkPayload { chunk: string }
 interface StreamCompletePayload { usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } }
 interface StreamErrorPayload { error: string }
