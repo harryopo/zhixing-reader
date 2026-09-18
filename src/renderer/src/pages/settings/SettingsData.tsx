@@ -22,136 +22,22 @@ import { Loading, Tiny } from '@/components/ui/Feedback'
 import { toast } from '@/stores/toastStore'
 import { safeNum } from '@/utils/db-mapper'
 
-// ===== 常量 =====
 
-const FSRS_DEFAULTS = {
-  level: 3,
-  decay: 0.2,
-  maxInterval: 365,
-} as const
-
-/** FSRS 参数配置里新增的「每日学习量」默认值（与 src/shared/study-limits.ts 保持一致） */
-const DEFAULT_NEW_CARDS_PER_DAY = 15
-
-const STORAGE_CAP_MB = 512
-
-/**
- * 真实的存储用量（字节）。
- *
- * 2026-09-16 修正：这里原来是 `MOCK_DB_MB = 12.3` / `MOCK_CACHE_MB = 45.2` /
- * `MOCK_VECTOR_MB = 128.5` 三个**写死的常量**，界面上当成真数据显示，旁边还放了个
- * 「刷新用量」按钮 —— 点了永远不变。现在改为向主进程要真实文件大小；
- * 量不出来就显示「—」，**不编数字**。
- */
-interface StorageUsage {
-  dbBytes: number | null
-  vectorBytes: number | null
-  logBytes: number | null
-}
-
-/**
- * 字节 → 人看的文本；null 表示量不出来。
- * 小于 0.1 MB 的用 KB 显示 —— 否则向量索引这种"确实有但很小"的目录会显示成 0.0 MB，
- * 看起来像统计坏了。
- */
-function formatSize(bytes: number | null): { value: string; unit: string } {
-  if (bytes === null || !Number.isFinite(bytes)) return { value: '—', unit: '' }
-  if (bytes < 1024 * 100) return { value: (bytes / 1024).toFixed(1), unit: 'KB' }
-  return { value: (bytes / 1024 / 1024).toFixed(1), unit: 'MB' }
-}
-
-interface NavItem {
-  key: string
-  label: string
-  icon: 'user' | 'settings' | 'bookshelf' | 'box' | 'sun' | 'question'
-  path: string
-  domId: string
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { key: 'account', label: '账户', icon: 'user', path: '/settings/account', domId: 'settings-tab-account' },
-  { key: 'ai', label: 'AI配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
-  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
-  { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
-  { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
-  { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
-  { key: 'about', label: '关于', icon: 'question', path: '/settings/about', domId: 'settings-tab-about' },
-]
-
-interface KpiStats {
-  totalBooks: number
-  totalHighlights: number
-  totalCards: number
-}
-
-interface IoItemDef {
-  id: string
-  title: string
-  desc: string
-  formatBadge: string
-  formatBadgeTone: 'neutral' | 'info'
-  statusText: string
-  statusTone: 'success' | 'neutral'
-  buttonLabel: string
-  buttonVariant: 'primary' | 'secondary'
-  domId: string
-  onClick: () => void
-}
-
-// ===== 安全读取辅助 =====
-
-function asString(v: unknown, fallback: string): string {
-  return typeof v === 'string' && v.length > 0 ? v : fallback
-}
-
-function asNumber(v: unknown, fallback: number): number {
-  if (typeof v === 'number' && !Number.isNaN(v)) return v
-  if (typeof v === 'string' && v.trim() !== '') {
-    const n = Number(v)
-    if (!Number.isNaN(n)) return n
-  }
-  return fallback
-}
-
-/** 请求级别 (1-10) → FSRS requestRetention (0.70-0.95) */
-function levelToRetention(level: number): number {
-  const clamped = Math.max(1, Math.min(10, level))
-  return 0.7 + ((clamped - 1) * (0.95 - 0.7)) / 9
-}
-
-/** 触发浏览器下载 */
-function downloadBlob(filename: string, content: string, mime: string): void {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  // 释放 URL，避免内存泄漏
-  setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
-/** 格式化"X 天前" */
-function formatDaysAgo(isoTs: string): string {
-  if (!isoTs) return '尚未导出'
-  const ms = Date.now() - new Date(isoTs).getTime()
-  if (ms < 0) return '刚刚'
-  const days = Math.floor(ms / 86400000)
-  if (days <= 0) return '今天'
-  if (days === 1) return '1 天前'
-  return `${days} 天前`
-}
-
-/** CSV 字段转义 */
-function csvEscape(v: unknown): string {
-  const s = v === null || v === undefined ? '' : String(v)
-  if (/[",\n\r]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
-}
+import {
+  DEFAULT_NEW_CARDS_PER_DAY,
+  FSRS_DEFAULTS,
+  NAV_ITEMS,
+  STORAGE_CAP_MB,
+  asNumber,
+  asString,
+  formatDaysAgo,
+  formatSize,
+  levelToRetention,
+  type IoItemDef,
+  type KpiStats,
+  type StorageUsage,
+} from './data-utils'
+import { useDataIo } from './use-data-io'
 
 // ===== 组件 =====
 
@@ -173,9 +59,19 @@ export default function SettingsData() {
   // ===== KPI 与用量数据 =====
   const [loading, setLoading] = useState<boolean>(true)
   const [kpiStats, setKpiStats] = useState<KpiStats>({ totalBooks: 0, totalHighlights: 0, totalCards: 0 })
-  const [lastExportAt, setLastExportAt] = useState<string>('')
+
   /** 真实存储用量（向主进程要文件大小）；null = 还没取到，量不出来则为 '—' */
   const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null)
+
+  // ===== 导出 / 导入：整块拆在 ./use-data-io.ts，页面只取用 =====
+  const {
+    handleExportAll,
+    handleExportNotes,
+    handleExportReview,
+    handleImportData,
+    lastExportAt,
+    setLastExportAt,
+  } = useDataIo(setKpiStats)
 
   // 首次进入就量一次真实存储用量（不点「刷新用量」也该看到数字）
   useEffect(() => {
@@ -401,258 +297,6 @@ export default function SettingsData() {
     }
   }, [])
 
-  // ===== 导出全部数据（JSON） =====
-  const handleExportAll = useCallback(async () => {
-    const api = window.electronAPI
-    if (!api?.book?.getAll || !api?.highlight?.getAll || !api?.card?.getDue) {
-      toast.error('API 未正确初始化，请重启应用')
-      return
-    }
-    const tId = toast.loading('正在导出全部数据...')
-    try {
-      const [books, highlights] = await Promise.all([
-        api.book.getAll(),
-        api.highlight.getAll(),
-      ])
-      // 卡片按书聚合（无 getAll 接口，按 books 收集）
-      const cardsPerBook = await Promise.all(
-        (books as Array<{ id: string }>).map((b) =>
-          api.card.getByBook(b.id).catch(() => []),
-        ),
-      )
-      const cards = cardsPerBook.flat()
-      // 2026-09-16：补齐知识卡片 / 方法论 / 生词。
-      // 原来备份里只有 books / highlights / cards（cards 还是 **FSRS 复习卡片**，不是知识卡片），
-      // 而导入时连 cards 都不读 —— 界面写着「完整备份」，恢复后卡片全没。
-      const [knowledgeCards, methodologies, vocabulary] = await Promise.all([
-        api.knowledgeCard?.getAll ? api.knowledgeCard.getAll().catch(() => []) : Promise.resolve([]),
-        api.methodology?.getAll ? api.methodology.getAll().catch(() => []) : Promise.resolve([]),
-        api.vocabulary?.getAll ? api.vocabulary.getAll().catch(() => []) : Promise.resolve([]),
-      ])
-      const payload = {
-        version: '1.1',
-        exportedAt: new Date().toISOString(),
-        books,
-        highlights,
-        cards,
-        knowledgeCards,
-        methodologies,
-        vocabulary,
-      }
-      const filename = `zhixing-backup-${new Date().toISOString().split('T')[0]}.json`
-      downloadBlob(filename, JSON.stringify(payload, null, 2), 'application/json')
-      // 记录导出时间
-      const nowIso = new Date().toISOString()
-      setLastExportAt(nowIso)
-      try {
-        await api.settings.set('lastDataExportAt', nowIso)
-      } catch {
-        /* 非致命 */
-      }
-      toast.remove(tId)
-      toast.success(
-        `已导出 ${books.length} 本书 / ${highlights.length} 条划线 / ${cards.length} 张复习卡` +
-          ` / ${knowledgeCards.length} 张知识卡片 / ${methodologies.length} 条方法论 / ${vocabulary.length} 个生词`,
-      )
-    } catch (err) {
-      toast.remove(tId)
-      toast.error(`导出失败: ${(err as Error).message}`)
-    }
-  }, [])
-
-  // ===== 导出笔记（Markdown，兼容 Obsidian） =====
-  const handleExportNotes = useCallback(async () => {
-    const api = window.electronAPI
-    if (!api?.book?.getAll || !api?.highlight?.getAll) {
-      toast.error('API 未正确初始化，请重启应用')
-      return
-    }
-    const tId = toast.loading('正在导出笔记...')
-    try {
-      const [books, highlights] = await Promise.all([
-        api.book.getAll(),
-        api.highlight.getAll(),
-      ])
-      const bookMap = new Map<string, { title: string; author: string }>(
-        (books as Array<{ id: string; title: string; author: string }>).map((b) => [b.id, { title: b.title, author: b.author }]),
-      )
-      // 按书分组
-      const grouped = new Map<string, Array<{ content: string; note?: string; createdAt?: unknown }>>()
-      for (const h of (highlights as Array<{ bookId: string; content: string; note?: string; createdAt?: unknown }>) ?? []) {
-        const list = grouped.get(h.bookId) ?? []
-        list.push(h)
-        grouped.set(h.bookId, list)
-      }
-      const lines: string[] = ['# 知行读书笔记导出', '']
-      for (const [bookId, hs] of grouped.entries()) {
-        const book = bookMap.get(bookId)
-        lines.push(`## ${book?.title ?? '未知书名'}`)
-        if (book?.author) lines.push(`*作者：${book.author}*`)
-        lines.push('')
-        for (const h of hs) {
-          lines.push(`> ${h.content}`)
-          if (h.note) lines.push('', `**笔记：** ${h.note}`)
-          lines.push('')
-        }
-        lines.push('---', '')
-      }
-      const filename = `zhixing-notes-${new Date().toISOString().split('T')[0]}.md`
-      downloadBlob(filename, lines.join('\n'), 'text/markdown')
-      toast.remove(tId)
-      toast.success(`已导出 ${grouped.size} 本书 / ${highlights.length} 条笔记`)
-    } catch (err) {
-      toast.remove(tId)
-      toast.error(`导出失败: ${(err as Error).message}`)
-    }
-  }, [])
-
-  // ===== 导出复习数据（CSV） =====
-  const handleExportReview = useCallback(async () => {
-    const api = window.electronAPI
-    if (!api?.review?.getRecent) {
-      toast.error('API 未正确初始化，请重启应用')
-      return
-    }
-    const tId = toast.loading('正在导出复习数据...')
-    try {
-      // 拉取最近 1000 条复习记录（够分析用）
-      // 注：先转 unknown 再断言为 Record<string, unknown>[]，TS 官方推荐的 double assertion 模式
-      const reviews = (await api.review.getRecent(1000)) as unknown as Array<Record<string, unknown>>
-      const header = ['review_id', 'card_id', 'quality', 'ease_factor', 'interval', 'reviewed_at']
-      const rows = reviews.map((r) => [
-        r.id,
-        r.cardId,
-        r.quality,
-        r.easeFactor,
-        r.interval,
-        r.reviewedAt,
-      ].map(csvEscape).join(','))
-      const csv = [header.join(','), ...rows].join('\n')
-      const filename = `zhixing-reviews-${new Date().toISOString().split('T')[0]}.csv`
-      // 加 BOM 让 Excel 正确识别 UTF-8
-      downloadBlob(filename, '\uFEFF' + csv, 'text/csv')
-      toast.remove(tId)
-      toast.success(`已导出 ${reviews.length} 条复习记录`)
-    } catch (err) {
-      toast.remove(tId)
-      toast.error(`导出失败: ${(err as Error).message}`)
-    }
-  }, [])
-
-  // ===== 导入数据（JSON 文件选择 + 逐条 create） =====
-  const handleImportData = useCallback(async () => {
-    const api = window.electronAPI
-    if (!api?.book?.create || !api?.highlight?.create) {
-      toast.error('API 未正确初始化，请重启应用')
-      return
-    }
-    // 创建隐藏的 file input 触发选择
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.json,application/json'
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (!file) return
-      const tId = toast.loading(`正在导入 ${file.name}...`)
-      try {
-        const text = await file.text()
-        const data = JSON.parse(text) as {
-          books?: Array<Record<string, unknown>>
-          highlights?: Array<Record<string, unknown>>
-          /** FSRS 复习卡片（备份里保留但恢复时走"按划线重建"，见下） */
-          cards?: Array<Record<string, unknown>>
-          knowledgeCards?: Array<Record<string, unknown>>
-          methodologies?: Array<Record<string, unknown>>
-          vocabulary?: Array<Record<string, unknown>>
-        }
-        let bookCount = 0
-        let highlightCount = 0
-        // 逐条创建书籍
-        for (const b of data.books ?? []) {
-          try {
-            await api.book.create(b)
-            bookCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-        // 逐条创建划线
-        for (const h of data.highlights ?? []) {
-          try {
-            await api.highlight.create(h)
-            highlightCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-        // 复习卡片：按划线重建（备份里没有复习进度，只能重建为新卡）
-        let cardCount = 0
-        try {
-          const created = (await api.card?.createForExisting?.()) as { created?: number } | undefined
-          cardCount = created?.created ?? 0
-        } catch {
-          /* 非致命 */
-        }
-
-        // 知识卡片 / 方法论 / 生词：逐条 create，冲突记录跳过并计数
-        let kcCount = 0
-        for (const c of data.knowledgeCards ?? []) {
-          try {
-            await api.knowledgeCard?.create?.(c)
-            kcCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-        let methodCount = 0
-        for (const m of data.methodologies ?? []) {
-          try {
-            await api.methodology?.create?.(m)
-            methodCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-        let vocabCount = 0
-        for (const v of data.vocabulary ?? []) {
-          try {
-            await api.vocabulary?.create?.(v)
-            vocabCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-
-        toast.remove(tId)
-        const restored = bookCount + highlightCount + cardCount + kcCount + methodCount + vocabCount
-        const summary =
-          `已导入 ${bookCount} 本书 / ${highlightCount} 条划线 / ${cardCount} 张复习卡` +
-          ` / ${kcCount} 张知识卡片 / ${methodCount} 条方法论 / ${vocabCount} 个生词`
-        // 一条都没进来时必须报 warning —— 原来全部失败也会弹「成功」
-        if (restored === 0) {
-          toast.warning(`没有导入任何数据：${summary}`)
-        } else {
-          toast.success(summary)
-        }
-        // 触发 KPI 刷新
-        try {
-          const result = (await api.admin.getStats()) as { stats?: Record<string, unknown> }
-          const s = result.stats ?? {}
-          setKpiStats({
-            totalBooks: safeNum(s.totalBooks),
-            totalHighlights: safeNum(s.totalHighlights),
-            totalCards: safeNum(s.totalCards),
-          })
-        } catch {
-          /* 非致命 */
-        }
-      } catch (err) {
-        toast.remove(tId)
-        toast.error(`导入失败: ${(err as Error).message}`)
-      }
-    }
-    input.click()
-  }, [])
 
   // ===== 清理缓存（真实 IPC）/ 历史·向量·重置（无安全全量接口） =====
   const handleClearCache = useCallback(async () => {
