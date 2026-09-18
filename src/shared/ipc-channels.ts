@@ -5,7 +5,6 @@ export const IPC_CHANNELS = {
     CREATE: 'books:create',
     UPDATE: 'books:update',
     DELETE: 'books:delete',
-    UPDATE_PROGRESS: 'books:updateProgress',
     SEARCH: 'books:search',
   },
   HIGHLIGHTS: {
@@ -21,10 +20,8 @@ export const IPC_CHANNELS = {
     BACKFILL_CHAPTER_TITLES: 'highlights:backfillChapterTitles',
   },
   CARDS: {
-    GET_BY_HIGHLIGHT: 'cards:getByHighlight',
     GET_BY_ID: 'cards:getById',
     CREATE: 'cards:create',
-    CREATE_BATCH: 'cards:createBatch',
     CREATE_FOR_EXISTING: 'cards:createForExisting',
     UPDATE: 'cards:update',
     // 注：原 UPDATE_APPLICATION_TAG / UPDATE_MASTERY_LEVEL 已于 2026-09-15 移除。
@@ -40,7 +37,6 @@ export const IPC_CHANNELS = {
   },
   REVIEWS: {
     CREATE: 'reviews:create',
-    GET_BY_CARD: 'reviews:getByCard',
     GET_RECENT: 'reviews:getRecent',
   },
   SUMMARIES: {
@@ -65,8 +61,6 @@ export const IPC_CHANNELS = {
   WEREAD: {
     SET_API_KEY: 'weread:setApiKey',
     GET_BOOKSHELF: 'weread:getBookshelf',
-    FETCH_BOOKMARKS: 'weread:fetchBookmarks',
-    FETCH_NOTES: 'weread:fetchNotes',
     FETCH_ALL_CONTENT: 'weread:fetchAllContent',
     FETCH_ALL_CONTENT_BATCH: 'weread:fetchAllContentBatch',
     FETCH_RECOMMENDATIONS: 'weread:fetchRecommendations',
@@ -79,10 +73,6 @@ export const IPC_CHANNELS = {
   },
   READING_DATA: {
     FETCH: 'readingData:fetch',
-    FETCH_WEEKLY: 'readingData:fetchWeekly',
-    FETCH_MONTHLY: 'readingData:fetchMonthly',
-    FETCH_ANNUALLY: 'readingData:fetchAnnually',
-    FETCH_OVERALL: 'readingData:fetchOverall',
   },
   AI: {
     SET_CONFIG: 'ai:setConfig',
@@ -126,7 +116,6 @@ export const IPC_CHANNELS = {
     GET_SESSIONS: 'admin:getSessions',
     GET_SESSION_MESSAGES: 'admin:getSessionMessages',
     GET_PROMPTS: 'admin:getPrompts',
-    GET_PROMPT: 'admin:getPrompt',
     SAVE_PROMPT: 'admin:savePrompt',
     RESET_PROMPT: 'admin:resetPrompt',
     RESET_ALL_PROMPTS: 'admin:resetAllPrompts',
@@ -167,14 +156,12 @@ export const IPC_CHANNELS = {
     GET_ALL: 'knowledgeCards:getAll',
     GET_BY_ID: 'knowledgeCards:getById',
     GET_BY_BOOK: 'knowledgeCards:getByBook',
-    GET_BY_TYPE: 'knowledgeCards:getByType',
     CREATE: 'knowledgeCards:create',
     UPDATE: 'knowledgeCards:update',
     DELETE: 'knowledgeCards:delete',
     SEARCH: 'knowledgeCards:search',
     DISTILL: 'knowledgeCards:distill',
     CANCEL_DISTILL: 'knowledgeCards:cancelDistill',
-    IS_DISTILLING: 'knowledgeCards:isDistilling',
     // 知识卡片蒸馏进度事件（主进程 -> 渲染进程）
     DISTILL_PROGRESS: 'knowledgeCard:distillProgress',
     GENERATE_INTERPRETATION: 'knowledgeCards:generateInterpretation',
@@ -185,8 +172,6 @@ export const IPC_CHANNELS = {
   ARTICLES: {
     GET_ALL: 'articles:getAll',
     GET_BY_ID: 'articles:getById',
-    GET_UNREAD: 'articles:getUnread',
-    GET_FAVORITES: 'articles:getFavorites',
     CREATE: 'articles:create',
     MARK_AS_READ: 'articles:markAsRead',
     TOGGLE_FAVORITE: 'articles:toggleFavorite',
@@ -198,7 +183,6 @@ export const IPC_CHANNELS = {
   VOCABULARY: {
     GET_ALL: 'vocabulary:getAll',
     GET_BY_ID: 'vocabulary:getById',
-    GET_BY_WORD: 'vocabulary:getByWord',
     GET_UNMASTERED: 'vocabulary:getUnmastered',
     GET_DUE_FOR_REVIEW: 'vocabulary:getDueForReview',
     CREATE: 'vocabulary:create',
@@ -206,7 +190,6 @@ export const IPC_CHANNELS = {
     MARK_AS_MASTERED: 'vocabulary:markAsMastered',
     /** 加入复习队列：只排队，不提交评分（与 updateReviewData 的区别见 DB 层注释） */
     SCHEDULE_FOR_REVIEW: 'vocabulary:scheduleForReview',
-    INCREMENT_REVIEW: 'vocabulary:incrementReview',
     UPDATE_REVIEW_DATA: 'vocabulary:updateReviewData',
     DELETE: 'vocabulary:delete',
     GET_STATS: 'vocabulary:getStats',
@@ -216,7 +199,6 @@ export const IPC_CHANNELS = {
   DICTIONARY: {
     LOOKUP: 'dictionary:lookup',
     LOOKUP_BATCH: 'dictionary:lookupBatch',
-    GET_SIZE: 'dictionary:getSize',
   },
   SYSTEM: {
     FORCE_SAVE_DATABASE: 'system:forceSaveDatabase',
@@ -243,8 +225,6 @@ export const IPC_CHANNELS = {
     SET_PARAMETERS: 'fsrs:setParameters',
     RESET_PARAMETERS: 'fsrs:resetParameters',
     GET_PARAMETERS: 'fsrs:getParameters',
-    GET_FORECAST: 'fsrs:getForecast',
-    GET_OPTIMAL_REVIEW_ORDER: 'fsrs:getOptimalReviewOrder',
     PREVIEW_REVIEW_RATINGS: 'fsrs:previewReviewRatings',
   },
   SKILL: {

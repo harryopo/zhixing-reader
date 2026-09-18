@@ -122,7 +122,6 @@ export interface ElectronAPI {
     create: (book: Record<string, unknown>) => Promise<Book>
     update: (id: string, book: Record<string, unknown>) => Promise<Book>
     delete: (id: string) => Promise<void>
-    updateProgress: (id: string, progress: number) => Promise<void>
     search: (keyword: string) => Promise<Book[]>
   }
   highlight: {
@@ -143,10 +142,8 @@ export interface ElectronAPI {
     export: () => Promise<{ saved: boolean; count: number; path?: string }>
   }
   card: {
-    getByHighlight: (highlightId: string) => Promise<Card[]>
     getById: (id: string) => Promise<Card>
     create: (highlightId: string) => Promise<Card>
-    createBatch: (highlightIds: string[]) => Promise<Card[]>
     createForExisting: () => Promise<{ created: number; skipped: number }>
     update: (card: Record<string, unknown>) => Promise<Card>
     delete: (id: string) => Promise<void>
@@ -166,7 +163,6 @@ export interface ElectronAPI {
     review: (id: string, quality: number) => Promise<ReviewResult>
   }
   review: {
-    getHistory: (cardId: string) => Promise<Review[]>
     getRecent: (limit?: number) => Promise<Review[]>
   }
   agent: {
@@ -178,8 +174,6 @@ export interface ElectronAPI {
   article: {
     getAll: (limit?: number) => Promise<Record<string, unknown>[]>
     getById: (id: string) => Promise<Record<string, unknown> | undefined>
-    getUnread: (limit?: number) => Promise<Record<string, unknown>[]>
-    getFavorites: (limit?: number) => Promise<Record<string, unknown>[]>
     create: (article: Record<string, unknown>) => Promise<boolean>
     markAsRead: (id: string) => Promise<void>
     toggleFavorite: (id: string) => Promise<boolean>
@@ -191,7 +185,6 @@ export interface ElectronAPI {
   vocabulary: {
     getAll: (limit?: number) => Promise<Record<string, unknown>[]>
     getById: (id: string) => Promise<Record<string, unknown> | undefined>
-    getByWord: (word: string) => Promise<Record<string, unknown> | undefined>
     getUnmastered: (limit?: number) => Promise<Record<string, unknown>[]>
     getDueForReview: (limit?: number) => Promise<Record<string, unknown>[]>
     create: (vocab: Record<string, unknown>) => Promise<Record<string, unknown> | null>
@@ -199,7 +192,6 @@ export interface ElectronAPI {
     markAsMastered: (id: string) => Promise<void>
     /** 加入复习队列：只排队，不提交评分 */
     scheduleForReview: (id: string) => Promise<void>
-    incrementReview: (id: string) => Promise<void>
     updateReviewData: (id: string, reviewData: Record<string, unknown>) => Promise<Record<string, unknown> | null>
     delete: (id: string) => Promise<void>
     getStats: () => Promise<{ total: number; mastered: number; dueToday: number }>
@@ -219,7 +211,6 @@ export interface ElectronAPI {
   dictionary: {
     lookup: (word: string) => Promise<Record<string, unknown> | null>
     lookupBatch: (words: string[]) => Promise<Record<string, Record<string, unknown> | null>>
-    getSize: () => Promise<number>
   }
   summary: {
     getByBook: (bookId: string) => Promise<BookSummary | null>
@@ -233,13 +224,10 @@ export interface ElectronAPI {
   stats: {
     getToday: () => Promise<DailyStats>
     getRange: (startDate: string, endDate: string) => Promise<DailyStats[]>
-    getWeekly: (startDate: string) => Promise<DailyStats[]>
   }
   weread: {
     setApiKey: (apiKey: string) => Promise<void>
     getBookshelf: () => Promise<unknown>
-    fetchBookmarks: (bookId: string) => Promise<unknown>
-    fetchNotes: (bookId: string) => Promise<unknown>
     fetchAllContent: (bookId: string) => Promise<unknown>
     fetchRecommendations: () => Promise<RecommendationItem[]>
     getUserProfile: () => Promise<{ success: boolean; profile?: { nickname: string; avatarUrl: string; vid?: string }; message: string }>
@@ -248,10 +236,6 @@ export interface ElectronAPI {
   }
   readingData: {
     fetch: (mode: string, baseTime?: number) => Promise<ReadingDataResponse>
-    fetchWeekly: (baseTime?: number) => Promise<ReadingDataResponse>
-    fetchMonthly: (baseTime?: number) => Promise<ReadingDataResponse>
-    fetchAnnually: (baseTime?: number) => Promise<ReadingDataResponse>
-    fetchOverall: () => Promise<ReadingDataResponse>
   }
   ai: {
     setConfig: (config: Record<string, unknown>) => Promise<void>
@@ -323,7 +307,6 @@ export interface ElectronAPI {
     getAll: () => Promise<unknown[]>
     getById: (id: string) => Promise<unknown>
     getByBook: (bookId: string) => Promise<unknown[]>
-    getByType: (type: string) => Promise<unknown[]>
     create: (card: Record<string, unknown>) => Promise<unknown>
     update: (id: string, card: Record<string, unknown>) => Promise<unknown>
     delete: (id: string) => Promise<void>
@@ -333,7 +316,6 @@ export interface ElectronAPI {
     /** replace=true 表示"重新蒸馏"：主进程会先清空这本书的旧卡片（替换而不是追加） */
     distill: (bookId: string, bookTitle: string, replace?: boolean) => Promise<unknown[]>
     cancelDistill: (bookId: string) => Promise<{ success: boolean }>
-    isDistilling: (bookId: string) => Promise<boolean>
     generateInterpretation: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) => Promise<{ text: string }>
     generateApplication: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) => Promise<{ text: string }>
     onDistillProgress?: (callback: (progress: { bookId: string; current: number; total: number; stage: string }) => void) => (() => void)
@@ -367,8 +349,6 @@ export interface ElectronAPI {
     setParameters: (params: Record<string, unknown>) => Promise<void>
     resetParameters: () => Promise<void>
     getParameters: () => Promise<Record<string, unknown>>
-    getForecast: (cards: Array<Record<string, unknown>>, days?: number) => Promise<Record<string, number>>
-    getOptimalReviewOrder: (cards: Array<Record<string, unknown>>, limit?: number) => Promise<Card[]>
     previewReviewRatings: (card: Record<string, unknown>) => Promise<Array<{
       rating: number
       due: string
@@ -398,7 +378,6 @@ export interface ElectronAPI {
     getSessions: () => Promise<Array<Record<string, unknown>>>
     getSessionMessages: (sessionId: string) => Promise<Array<Record<string, unknown>>>
     getPrompts: () => Promise<PromptWithOverride[]>
-    getPrompt: (id: string) => Promise<PromptWithOverride | undefined>
     savePrompt: (id: string, template: string) => Promise<{ success: boolean; error?: string }>
     resetPrompt: (id: string) => Promise<{ success: boolean; error?: string }>
     resetAllPrompts: () => Promise<{ success: boolean; count: number }>

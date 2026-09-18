@@ -31,12 +31,6 @@ export function registerAdminHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.ADMIN.GET_SESSION_MESSAGES, (sessionId: string) => {
     return admin.getAdminSessionMessages(sessionId)
   })
-  handle(IPC_CHANNELS.ADMIN.GET_PROMPTS, () => {
-    return admin.getAllAdminPrompts()
-  })
-  handle(IPC_CHANNELS.ADMIN.GET_PROMPT, (id: string) => {
-    return admin.getAdminPrompt(id)
-  })
   handle(IPC_CHANNELS.ADMIN.SAVE_PROMPT, (id: string, template: string) => {
     return admin.saveAdminPrompt(id, template)
   })

@@ -15,8 +15,6 @@ import type { HandleFn } from './types';
 export function registerArticleHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.ARTICLES.GET_ALL, (limit?: number) => articlesDb.getAll(limit));
   handle(IPC_CHANNELS.ARTICLES.GET_BY_ID, (id: string) => articlesDb.getById(id));
-  handle(IPC_CHANNELS.ARTICLES.GET_UNREAD, (limit?: number) => articlesDb.getUnread(limit));
-  handle(IPC_CHANNELS.ARTICLES.GET_FAVORITES, (limit?: number) => articlesDb.getFavorites(limit));
   handle(IPC_CHANNELS.ARTICLES.CREATE, (article: Parameters<typeof articlesDb.create>[0]) => articlesDb.create(article));
   handle(IPC_CHANNELS.ARTICLES.MARK_AS_READ, (id: string) => articlesDb.markAsRead(id));
   handle(IPC_CHANNELS.ARTICLES.TOGGLE_FAVORITE, (id: string) => articlesDb.toggleFavorite(id));
@@ -128,12 +126,9 @@ export function registerArticleHandlers(handle: HandleFn): void {
     const results = dictionaryService.lookupBatch(words);
     return Object.fromEntries(results);
   });
-  handle(IPC_CHANNELS.DICTIONARY.GET_SIZE, () => dictionaryService.getSize());
-
   // 生词本
   handle(IPC_CHANNELS.VOCABULARY.GET_ALL, (limit?: number) => vocabularyDb.getAll(limit));
   handle(IPC_CHANNELS.VOCABULARY.GET_BY_ID, (id: string) => vocabularyDb.getById(id));
-  handle(IPC_CHANNELS.VOCABULARY.GET_BY_WORD, (word: string) => vocabularyDb.getByWord(word));
   handle(IPC_CHANNELS.VOCABULARY.GET_UNMASTERED, (limit?: number) => vocabularyDb.getUnmastered(limit));
   handle(IPC_CHANNELS.VOCABULARY.GET_DUE_FOR_REVIEW, (limit?: number) => vocabularyDb.getDueForReview(limit));
   handle(IPC_CHANNELS.VOCABULARY.CREATE, (vocab: Parameters<typeof vocabularyDb.create>[0]) => vocabularyDb.create(vocab));
@@ -160,7 +155,6 @@ export function registerArticleHandlers(handle: HandleFn): void {
     });
   });
   handle(IPC_CHANNELS.VOCABULARY.MARK_AS_MASTERED, (id: string) => vocabularyDb.markAsMastered(id));
-  handle(IPC_CHANNELS.VOCABULARY.INCREMENT_REVIEW, (id: string) => vocabularyDb.incrementReviewCount(id));
   handle(IPC_CHANNELS.VOCABULARY.SCHEDULE_FOR_REVIEW, (id: string) => vocabularyDb.scheduleForReview(id));
   handle(IPC_CHANNELS.VOCABULARY.UPDATE_REVIEW_DATA, (id: string, reviewData: Record<string, unknown>) => vocabularyDb.updateReviewData(id, reviewData as { quality: number; efFactor?: number; intervalDays?: number; repetitionCount?: number; isMastered?: boolean }));
   handle(IPC_CHANNELS.VOCABULARY.DELETE, (id: string) => vocabularyDb.delete(id));

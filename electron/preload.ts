@@ -93,7 +93,6 @@ const electronAPI = {
     create: (book: Record<string, unknown>) => invoke(IPC_CHANNELS.BOOKS.CREATE, book),
     update: (id: string, book: Record<string, unknown>) => invoke(IPC_CHANNELS.BOOKS.UPDATE, id, book),
     delete: (id: string) => invoke(IPC_CHANNELS.BOOKS.DELETE, id),
-    updateProgress: (id: string, progress: number) => invoke(IPC_CHANNELS.BOOKS.UPDATE_PROGRESS, id, progress),
     search: (keyword: string) => invoke(IPC_CHANNELS.BOOKS.SEARCH, keyword),
   },
 
@@ -110,10 +109,8 @@ const electronAPI = {
   },
 
   card: {
-    getByHighlight: (highlightId: string) => invoke(IPC_CHANNELS.CARDS.GET_BY_HIGHLIGHT, highlightId),
     getById: (id: string) => invoke(IPC_CHANNELS.CARDS.GET_BY_ID, id),
     create: (highlightId: string) => invoke(IPC_CHANNELS.CARDS.CREATE, highlightId),
-    createBatch: (highlightIds: string[]) => invoke(IPC_CHANNELS.CARDS.CREATE_BATCH, highlightIds),
     createForExisting: () => invoke(IPC_CHANNELS.CARDS.CREATE_FOR_EXISTING),
     update: (card: Record<string, unknown>) => invoke(IPC_CHANNELS.CARDS.UPDATE, card),
     delete: (id: string) => invoke(IPC_CHANNELS.CARDS.DELETE, id),
@@ -126,15 +123,12 @@ const electronAPI = {
   },
 
   review: {
-    getHistory: (cardId: string) => invoke(IPC_CHANNELS.REVIEWS.GET_BY_CARD, cardId),
     getRecent: (limit?: number) => invoke(IPC_CHANNELS.REVIEWS.GET_RECENT, limit),
   },
 
   article: {
     getAll: (limit?: number) => invoke(IPC_CHANNELS.ARTICLES.GET_ALL, limit),
     getById: (id: string) => invoke(IPC_CHANNELS.ARTICLES.GET_BY_ID, id),
-    getUnread: (limit?: number) => invoke(IPC_CHANNELS.ARTICLES.GET_UNREAD, limit),
-    getFavorites: (limit?: number) => invoke(IPC_CHANNELS.ARTICLES.GET_FAVORITES, limit),
     create: (article: Record<string, unknown>) => invoke(IPC_CHANNELS.ARTICLES.CREATE, article),
     markAsRead: (id: string) => invoke(IPC_CHANNELS.ARTICLES.MARK_AS_READ, id),
     toggleFavorite: (id: string) => invoke(IPC_CHANNELS.ARTICLES.TOGGLE_FAVORITE, id),
@@ -147,7 +141,6 @@ const electronAPI = {
   vocabulary: {
     getAll: (limit?: number) => invoke(IPC_CHANNELS.VOCABULARY.GET_ALL, limit),
     getById: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.GET_BY_ID, id),
-    getByWord: (word: string) => invoke(IPC_CHANNELS.VOCABULARY.GET_BY_WORD, word),
     getUnmastered: (limit?: number) => invoke(IPC_CHANNELS.VOCABULARY.GET_UNMASTERED, limit),
     getDueForReview: (limit?: number) => invoke(IPC_CHANNELS.VOCABULARY.GET_DUE_FOR_REVIEW, limit),
     create: (vocab: Record<string, unknown>) => invoke(IPC_CHANNELS.VOCABULARY.CREATE, vocab),
@@ -155,7 +148,6 @@ const electronAPI = {
     markAsMastered: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.MARK_AS_MASTERED, id),
     /** 加入复习队列：只把词排到待复习，不会记一次复习成绩 */
     scheduleForReview: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.SCHEDULE_FOR_REVIEW, id),
-    incrementReview: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.INCREMENT_REVIEW, id),
     updateReviewData: (id: string, reviewData: Record<string, unknown>) => invoke(IPC_CHANNELS.VOCABULARY.UPDATE_REVIEW_DATA, id, reviewData),
     delete: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.DELETE, id),
     getStats: () => invoke(IPC_CHANNELS.VOCABULARY.GET_STATS),
@@ -173,7 +165,6 @@ const electronAPI = {
   dictionary: {
     lookup: (word: string) => invoke(IPC_CHANNELS.DICTIONARY.LOOKUP, word),
     lookupBatch: (words: string[]) => invoke(IPC_CHANNELS.DICTIONARY.LOOKUP_BATCH, words),
-    getSize: () => invoke(IPC_CHANNELS.DICTIONARY.GET_SIZE),
   },
 
   summary: {
@@ -191,14 +182,11 @@ const electronAPI = {
     getToday: () => invoke(IPC_CHANNELS.DAILY_STATS.GET_TODAY),
     getRange: (startDate: string, endDate: string) =>
       invoke(IPC_CHANNELS.DAILY_STATS.GET_RANGE, startDate, endDate),
-    getWeekly: (startDate: string) => invoke(IPC_CHANNELS.DAILY_STATS.GET_RANGE, startDate, new Date().toISOString().split('T')[0]),
   },
 
   weread: {
     setApiKey: (apiKey: string) => invoke(IPC_CHANNELS.WEREAD.SET_API_KEY, apiKey),
     getBookshelf: () => invoke(IPC_CHANNELS.WEREAD.GET_BOOKSHELF),
-    fetchBookmarks: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_BOOKMARKS, bookId),
-    fetchNotes: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_NOTES, bookId),
     fetchAllContent: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT, bookId),
     fetchRecommendations: () => invoke(IPC_CHANNELS.WEREAD.FETCH_RECOMMENDATIONS),
     getUserProfile: () => invoke<{ success: boolean; profile?: { nickname: string; avatarUrl: string; vid?: string }; message: string }>(IPC_CHANNELS.WEREAD.GET_USER_PROFILE),
@@ -208,10 +196,6 @@ const electronAPI = {
 
   readingData: {
     fetch: (mode: string, baseTime?: number) => invoke(IPC_CHANNELS.READING_DATA.FETCH, mode, baseTime),
-    fetchWeekly: (baseTime?: number) => invoke(IPC_CHANNELS.READING_DATA.FETCH_WEEKLY, baseTime),
-    fetchMonthly: (baseTime?: number) => invoke(IPC_CHANNELS.READING_DATA.FETCH_MONTHLY, baseTime),
-    fetchAnnually: (baseTime?: number) => invoke(IPC_CHANNELS.READING_DATA.FETCH_ANNUALLY, baseTime),
-    fetchOverall: () => invoke(IPC_CHANNELS.READING_DATA.FETCH_OVERALL),
   },
 
   agent: {
@@ -374,7 +358,6 @@ const electronAPI = {
     getAll: () => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_ALL),
     getById: (id: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_ID, id),
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_BOOK, bookId),
-    getByType: (type: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_TYPE, type),
     create: (card: Record<string, unknown>) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.CREATE, card),
     update: (id: string, card: Record<string, unknown>) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.UPDATE, id, card),
     delete: (id: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DELETE, id),
@@ -384,7 +367,6 @@ const electronAPI = {
     distill: (bookId: string, bookTitle: string, replace?: boolean) =>
       invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL, bookId, bookTitle, replace),
     cancelDistill: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.CANCEL_DISTILL, bookId),
-    isDistilling: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.IS_DISTILLING, bookId),
     generateInterpretation: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) =>
       invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GENERATE_INTERPRETATION, bookTitle, cardTitle, cardContent, cardType),
     generateApplication: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) =>
@@ -442,10 +424,6 @@ const electronAPI = {
     setParameters: (params: Record<string, unknown>) => invoke(IPC_CHANNELS.FSRS.SET_PARAMETERS, params),
     resetParameters: () => invoke(IPC_CHANNELS.FSRS.RESET_PARAMETERS),
     getParameters: () => invoke(IPC_CHANNELS.FSRS.GET_PARAMETERS),
-    getForecast: (cards: Array<Record<string, unknown>>, days?: number) =>
-      invoke(IPC_CHANNELS.FSRS.GET_FORECAST, cards, days),
-    getOptimalReviewOrder: (cards: Array<Record<string, unknown>>, limit?: number) =>
-      invoke(IPC_CHANNELS.FSRS.GET_OPTIMAL_REVIEW_ORDER, cards, limit),
     previewReviewRatings: (card: Record<string, unknown>) =>
       invoke(IPC_CHANNELS.FSRS.PREVIEW_REVIEW_RATINGS, card),
   },
@@ -459,7 +437,6 @@ const electronAPI = {
     getSessions: () => invoke(IPC_CHANNELS.ADMIN.GET_SESSIONS),
     getSessionMessages: (sessionId: string) => invoke(IPC_CHANNELS.ADMIN.GET_SESSION_MESSAGES, sessionId),
     getPrompts: () => invoke(IPC_CHANNELS.ADMIN.GET_PROMPTS),
-    getPrompt: (id: string) => invoke(IPC_CHANNELS.ADMIN.GET_PROMPT, id),
     savePrompt: (id: string, template: string) => invoke(IPC_CHANNELS.ADMIN.SAVE_PROMPT, id, template),
     resetPrompt: (id: string) => invoke(IPC_CHANNELS.ADMIN.RESET_PROMPT, id),
     resetAllPrompts: () => invoke(IPC_CHANNELS.ADMIN.RESET_ALL_PROMPTS),

@@ -222,13 +222,6 @@ export const vocabularyDb = {
     saveDatabase();
   },
 
-  incrementReviewCount(id: string): void {
-    getDatabase().run(
-      "UPDATE vocabulary SET review_count = review_count + 1, last_review_at = datetime('now') WHERE id = ?",
-      [id]
-    );
-    saveDatabase();
-  },
 
   delete(id: string): void {
     getDatabase().run('DELETE FROM vocabulary WHERE id = ?', [id]);

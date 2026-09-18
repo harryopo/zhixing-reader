@@ -21,21 +21,7 @@ export const articlesDb = {
     return rows.length > 0 ? rows[0] : undefined;
   },
 
-  getUnread(limit: number = 10): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      'SELECT * FROM articles WHERE is_read = 0 ORDER BY created_at DESC LIMIT ?',
-      [limit]
-    );
-    return rowsToObjects(result);
-  },
 
-  getFavorites(limit: number = 50): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      'SELECT * FROM articles WHERE is_favorite = 1 ORDER BY created_at DESC LIMIT ?',
-      [limit]
-    );
-    return rowsToObjects(result);
-  },
 
   create(article: {
     id: string;

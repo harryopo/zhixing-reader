@@ -5,13 +5,14 @@
  * 该版本实现的是 **FSRS-6.0**（21 组权重参数，decay = w[20] = 0.1542），与 Anki 24.06+ 同源；与 Anki 数据互通。
  * ⚠️ 早期文档曾写"FSRS v5 / 19 参数"，与库实际实现不符，已于 2026-09-11 核验校正。
  *
- * **对外 API 100% 保持兼容**：
+ * **对外 API 与拆分前保持兼容**（唯一例外见下方函数清单备注）：
  * - types: Card, FSRSParameters, FSRSCardStats, VocabReviewResult
  * - enums: CardState, Rating
  * - functions: setCustomParameters, getParameters, resetParameters, cardFromDb, cardToRow,
  *   createCard, reviewCard, reviewCardBatch, previewReviewRatings, getNextReviewTime, isDue,
- *   getCardInterval, getCardDaysUntilDue, getCardRetentionRate, calculateStats, getForecast,
- *   getOptimalReviewOrder, reviewVocabulary
+ *   getCardInterval, getCardDaysUntilDue, getCardRetentionRate, calculateStats, reviewVocabulary
+ *   （原 getForecast / getOptimalReviewOrder 与 fsrs:* 两条通道一起删除 —— 渲染层零调用，
+ *    复习负荷预测要真做时再按新形状重写）
  *
  * **内部实现**：
  * - 核心算法：ts-fsrs (FSRS-6.0 / DSR)
@@ -489,49 +490,7 @@ export function calculateStats(cards: Card[]): FSRSCardStats {
   return stats;
 }
 
-export function getForecast(cards: Card[], days: number = 30): Map<string, number> {
-  const forecast = new Map<string, number>();
-  const now = new Date();
 
-  for (let i = 0; i < days; i++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + i);
-    const dateStr = date.toISOString().split('T')[0];
-    forecast.set(dateStr, 0);
-  }
-
-  for (const card of cards) {
-    if (card.state === CardState.New) continue;
-
-    const dueDate = new Date(card.due);
-    const dateStr = dueDate.toISOString().split('T')[0];
-
-    if (forecast.has(dateStr)) {
-      forecast.set(dateStr, (forecast.get(dateStr) || 0) + 1);
-    }
-  }
-
-  return forecast;
-}
-
-export function getOptimalReviewOrder(cards: Card[], limit: number = 20): Card[] {
-  const now = new Date();
-
-  const dueCards = cards.filter(card => isDue(card, now));
-
-  dueCards.sort((a, b) => {
-    const aRetention = getCardRetentionRate(a, now);
-    const bRetention = getCardRetentionRate(b, now);
-
-    if (Math.abs(aRetention - bRetention) > 0.1) {
-      return aRetention - bRetention;
-    }
-
-    return new Date(a.due).getTime() - new Date(b.due).getTime();
-  });
-
-  return dueCards.slice(0, limit);
-}
 
 // ============================================================================
 // 对外函数：词汇学习（与划线卡片共用 ts-fsrs / FSRS-6.0 调度）

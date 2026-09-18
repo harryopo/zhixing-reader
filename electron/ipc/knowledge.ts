@@ -163,7 +163,6 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_ALL, () => knowledgeCardsDb.getAll());
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_ID, (id: string) => knowledgeCardsDb.getById(id));
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_BOOK, (bookId: string) => knowledgeCardsDb.getByBookId(bookId));
-  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_TYPE, (type: string) => knowledgeCardsDb.getByType(type));
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.CREATE, (card: Record<string, unknown>) => {
     const id = (card.id as string) || `kc_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     knowledgeCardsDb.create({ ...card, id });
@@ -183,9 +182,6 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     const cancelled = knowledgeCardService.cancelDistill(bookId);
     return { success: cancelled };
   });
-  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.IS_DISTILLING, (bookId: string) =>
-    knowledgeCardService.isDistilling(bookId)
-  );
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GENERATE_INTERPRETATION, async (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) => {
     const text = await generateCardInterpretation(bookTitle, cardTitle, cardContent, cardType);
     return { text };

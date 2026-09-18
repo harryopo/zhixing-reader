@@ -7,8 +7,6 @@ import {
   setCustomParameters,
   resetParameters,
   getParameters,
-  getForecast,
-  getOptimalReviewOrder,
   previewReviewRatings,
   cardFromDb,
 } from '../fsrs-engine';
@@ -27,17 +25,6 @@ export function registerFsrsHandlers(handle: HandleFn): void {
 
   handle(IPC_CHANNELS.FSRS.GET_PARAMETERS, () => {
     return getParameters();
-  });
-
-  handle(IPC_CHANNELS.FSRS.GET_FORECAST, (cards: Array<Record<string, unknown>>, days?: number) => {
-    const typedCards = cards as unknown as import('../fsrs-engine').Card[];
-    const forecast = getForecast(typedCards, days);
-    return Object.fromEntries(forecast);
-  });
-
-  handle(IPC_CHANNELS.FSRS.GET_OPTIMAL_REVIEW_ORDER, (cards: Array<Record<string, unknown>>, limit?: number) => {
-    const typedCards = cards as unknown as import('../fsrs-engine').Card[];
-    return getOptimalReviewOrder(typedCards, limit);
   });
 
   handle(IPC_CHANNELS.FSRS.PREVIEW_REVIEW_RATINGS, (card: Record<string, unknown>) => {

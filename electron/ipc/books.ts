@@ -29,7 +29,6 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.BOOKS.CREATE, (book: Record<string, unknown>) => booksDb.create(book));
   handle(IPC_CHANNELS.BOOKS.UPDATE, (id: string, book: Record<string, unknown>) => booksDb.update(id, book));
   handle(IPC_CHANNELS.BOOKS.DELETE, (id: string) => booksDb.delete(id));
-  handle(IPC_CHANNELS.BOOKS.UPDATE_PROGRESS, (id: string, progress: number) => booksDb.updateProgress(id, progress));
   handle(IPC_CHANNELS.BOOKS.SEARCH, (keyword: string) => booksDb.search(keyword));
 
   handle(IPC_CHANNELS.HIGHLIGHTS.GET_BY_BOOK, (bookId: string) => highlightsDb.getByBookId(bookId));
@@ -140,10 +139,8 @@ export function registerBookHandlers(handle: HandleFn): void {
     return { saved: true, count: rawHighlights.length, path: result.filePath };
   });
 
-  handle(IPC_CHANNELS.CARDS.GET_BY_HIGHLIGHT, (highlightId: string) => cardsDb.getByHighlightId(highlightId));
   handle(IPC_CHANNELS.CARDS.GET_BY_ID, (id: string) => cardsDb.getById(id));
   handle(IPC_CHANNELS.CARDS.CREATE, (highlightId: string) => cardsDb.create(highlightId));
-  handle(IPC_CHANNELS.CARDS.CREATE_BATCH, (highlightIds: string[]) => cardsDb.createBatch(highlightIds));
   handle(IPC_CHANNELS.CARDS.CREATE_FOR_EXISTING, () => cardsDb.createForExistingHighlights());
   handle(IPC_CHANNELS.CARDS.UPDATE, (card: Record<string, unknown>) => cardsDb.update(card as unknown as Parameters<typeof cardsDb.update>[0]));
   handle(IPC_CHANNELS.CARDS.DELETE, (id: string) => cardsDb.delete(id));
@@ -154,7 +151,6 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.CARDS.GET_STATS, () => cardsDb.getReviewStats());
 
   handle(IPC_CHANNELS.REVIEWS.CREATE, (cardId: string, rating: Parameters<typeof reviewsDb.create>[1]) => reviewsDb.create(cardId, rating));
-  handle(IPC_CHANNELS.REVIEWS.GET_BY_CARD, (cardId: string) => reviewsDb.getByCardId(cardId));
   handle(IPC_CHANNELS.REVIEWS.GET_RECENT, (limit?: number) => reviewsDb.getRecent(limit));
 
   handle(IPC_CHANNELS.SUMMARIES.GET_BY_BOOK, (bookId: string) => bookSummariesDb.getByBookId(bookId));

@@ -2,7 +2,6 @@ import { getDatabase } from './database'
 import { rowsToObjects } from './utils/db'
 import {
   getAllPrompts,
-  getPrompt,
   getPromptTemplate,
   savePrompt,
   resetPrompt,
@@ -122,9 +121,6 @@ export function getAllAdminPrompts(): PromptWithOverride[] {
   return getAllPrompts()
 }
 
-export function getAdminPrompt(id: string): PromptWithOverride | undefined {
-  return getPrompt(id)
-}
 
 export function saveAdminPrompt(id: string, template: string): { success: boolean; error?: string } {
   return savePrompt(id, template)

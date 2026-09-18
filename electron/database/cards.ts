@@ -21,6 +21,7 @@ export const cardsDb = {
     return rows[0];
   },
 
+
   getById(id: string): Card | null {
     const result = getDatabase().exec('SELECT * FROM cards WHERE id = ?', [id]);
     const rows = rowsToObjects(result);
