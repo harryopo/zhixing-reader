@@ -42,6 +42,8 @@ interface AIResponse {
   usage?: {
     promptTokens: number;
     completionTokens: number;
+    /** 前缀缓存命中的输入 tokens（服务商不给这个字段时为 undefined，统计页按 0 处理） */
+    cachedTokens?: number;
   };
   finishReason?: string;
 }
@@ -82,7 +84,11 @@ function setCachedResponse(key: string, data: AIResponse): void {
   responseCache.set(key, { data, timestamp: Date.now() })
 }
 
-function recordTokenUsage(feature: string, usage: { promptTokens: number; completionTokens: number }, durationMs: number): void {
+function recordTokenUsage(
+  feature: string,
+  usage: { promptTokens: number; completionTokens: number; cachedTokens?: number },
+  durationMs: number
+): void {
   const provider = config?.provider || 'unknown'
   const model = config?.model || 'unknown'
 
@@ -93,6 +99,7 @@ function recordTokenUsage(feature: string, usage: { promptTokens: number; comple
       feature,
       inputTokens: usage.promptTokens,
       outputTokens: usage.completionTokens,
+      cachedTokens: usage.cachedTokens,
       durationMs,
     })
   } catch (error) {
@@ -243,7 +250,11 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
 
   const data = await response.json() as {
     choices: Array<{ message: { content: string; role?: string }; finish_reason?: string }>;
-    usage: { prompt_tokens: number; completion_tokens: number };
+    usage: {
+      prompt_tokens: number;
+      completion_tokens: number;
+      prompt_tokens_details?: { cached_tokens?: number };
+    };
   };
 
   const choice = data.choices[0];
@@ -256,6 +267,7 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
     usage: {
       promptTokens: data.usage.prompt_tokens,
       completionTokens: data.usage.completion_tokens,
+      cachedTokens: data.usage.prompt_tokens_details?.cached_tokens,
     },
     finishReason: choice.finish_reason,
   };

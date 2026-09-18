@@ -788,3 +788,54 @@ describe('callAI 错误处理', () => {
 })
 
 
+
+describe('缓存命中 tokens 记账', () => {
+  // 统计页的「缓存命中率」此前只有走 AI SDK 的调用有数（对话/历史摘要），
+  // 非流式这 8 个功能恒为 0 —— 不是没命中，是老通路把服务商给的字段丢了。
+  it('服务商返回 prompt_tokens_details.cached_tokens 时，写库要带上 cachedTokens', async () => {
+    setAIConfig({
+      provider: 'openai',
+      apiKey: 'sk-test',
+      model: 'deepseek-chat',
+      baseUrl: 'https://api.deepseek.example/v1',
+    })
+
+    mockedFetchWithRetry.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      body: null,
+      json: async () => ({
+        choices: [{ message: { content: '章节摘要正文', role: 'assistant' }, finish_reason: 'stop' }],
+        usage: {
+          prompt_tokens: 1200,
+          completion_tokens: 80,
+          prompt_tokens_details: { cached_tokens: 1024 },
+        },
+      }),
+      text: async () => '',
+    } as unknown as Response)
+
+    await generateChapterSummary('缓存记账这本书', '第一章', '一条划线')
+
+    const row = mockedTokenUsageCreate.mock.calls[0][0]
+    expect(row.inputTokens).toBe(1200)
+    expect(row.cachedTokens).toBe(1024)
+  })
+
+  it('服务商不给这个字段时不报错，按未命中记账', async () => {
+    setAIConfig({
+      provider: 'openai',
+      apiKey: 'sk-test',
+      model: 'gpt-4o-mini',
+      baseUrl: 'https://example.com',
+    })
+
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('没有明细字段'))
+
+    await generateChapterSummary('无明细这本书', '第一章', '一条划线')
+
+    const row = mockedTokenUsageCreate.mock.calls[0][0]
+    expect(row.cachedTokens).toBeUndefined()
+  })
+})
