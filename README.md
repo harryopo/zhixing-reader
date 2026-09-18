@@ -4,9 +4,9 @@
 
 > **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS-6.0 · 微信读书深度同步
 >
-> **v1.1.0** | 2026-08-28 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
+> **v1.2.0** | 2026-09-17 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
 
-[![Version](https://img.shields.io/badge/version-1.1.0-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
+[![Version](https://img.shields.io/badge/version-1.2.0-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-35-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
@@ -345,6 +345,7 @@ npm run package:win
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
+| 2026-09-17 | v1.2.0 | 应用内自动更新（electron-updater）/ 本地 BM25 检索替换向量链路 / 检索可视化 / 数据血缘四处断点修复 / 微信读书后台自动同步 / 每日新卡上限 / 测试 885 用例 | 张子涵 |
 | 2026-08-28 | v1.1.0 | 维护迭代：间隔复习闭环 / Token 用量实时统计 / 档案画像注入 AI / 首页重构 / 导航与假数据治理 / database·ipc 拆分 | 张子涵 |
 | 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 更新到核心亮点 + 15 大模块 | 张子涵 |
 | 2026-07-25 | v1.0.0 | 首个正式版本（含 FSRS 间隔重复 / ECharts / 667 测试），安装包见 [Releases](https://github.com/harryopo/zhixing-reader/releases) | 张子涵 |
