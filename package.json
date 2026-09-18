@@ -8,6 +8,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:icons": "node scripts/build-icons.mjs",
+    "build:tokens": "node scripts/build-tokens.mjs",
     "start": "electron-vite preview",
     "package": "electron-vite build && electron-builder",
     "package:win": "electron-vite build && electron-builder --win",

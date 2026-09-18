@@ -18,9 +18,9 @@ const RING = 'M32 10.14A16 16 0 1 0 40 24'
 /** 缺口上的那一方「行」（不含标签名 —— favicon 里的 `<` 是 %3C） */
 const STEP = 'x="35" y="13" width="6" height="6"'
 
-const INK = '#0C3B2E'
-const BRASS = '#B08D57'
-const PAPER = '#F5F1E8'
+const INK = '#0c3b2e'
+const BRASS = '#b08d57'
+const PAPER = '#f5f1e8'
 
 const MARK = read('brand/mark.svg')
 const MARK_REVERSE = read('brand/mark-reverse.svg')
@@ -99,23 +99,28 @@ describe('品牌色与交互色分开口径', () => {
   })
 
   it('品牌三色进了 CSS token，且暗色档自动反白', () => {
+    // 原始色值归 generated-palette.css（真值在 tokens/brand.json），语义映射留在 design-tokens.css
+    const palette = read('src/renderer/src/styles/generated-palette.css')
+    expect(palette).toContain(`--brand-ink: ${INK.toLowerCase()};`)
+    expect(palette).toContain(`--brand-brass: ${BRASS.toLowerCase()};`)
+    expect(palette).toContain(`--brand-paper: ${PAPER.toLowerCase()};`)
     const css = read('src/renderer/src/styles/design-tokens.css')
-    expect(css).toContain(`--brand-ink: ${INK.toLowerCase()};`)
-    expect(css).toContain(`--brand-brass: ${BRASS.toLowerCase()};`)
-    expect(css).toContain(`--brand-paper: ${PAPER.toLowerCase()};`)
     expect(css).toContain('--brand-mark: var(--brand-ink);')
     expect(css).toContain('--brand-mark: var(--brand-paper);')
   })
 
   it('UI 交互色仍是 emerald-600，品牌墨不许顺手改掉全站主色', () => {
-    expect(read('src/renderer/src/styles/design-tokens.css')).toContain('--primary: #059669;')
+    const css = read('src/renderer/src/styles/design-tokens.css')
+    const palette = read('src/renderer/src/styles/generated-palette.css')
+    expect(css).toContain('--primary: var(--emerald-600);')
+    expect(palette).toContain('--emerald-600: #059669;')
   })
 
   it('组件走 token，不写死色值', () => {
     const brandMark = read('src/renderer/src/components/ui/BrandMark.tsx')
     expect(brandMark).toContain('stroke="var(--brand-mark)"')
     expect(brandMark).toContain('fill="var(--brand-brass)"')
-    expect(brandMark).not.toContain('#0C3B2E')
+    expect(brandMark).not.toContain('#0c3b2e')
   })
 
   it('上一版台阶与 Google 蓝 favicon 都不许回来', () => {

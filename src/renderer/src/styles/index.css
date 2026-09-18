@@ -1,3 +1,6 @@
+/* 调色板（tokens/brand.json 生成）—— 必须在 design-tokens 之前，后者用 var 引用它 */
+@import './generated-palette.css';
+
 /* 设计 Token — Google Design Library (浅色 + 深色 + state-*) */
 @import './design-tokens.css';
 

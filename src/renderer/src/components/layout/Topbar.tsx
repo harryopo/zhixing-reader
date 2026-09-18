@@ -558,7 +558,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                       width: 32,
                       height: 32,
                       borderRadius: '50%',
-                      background: 'var(--chart-1, #10b981)',
+                      background: 'var(--chart-1)',
                       color: '#fff',
                       display: 'grid',
                       placeItems: 'center',

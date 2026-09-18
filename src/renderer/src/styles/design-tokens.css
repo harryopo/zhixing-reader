@@ -13,39 +13,39 @@
   --popover: #f9f9fa;
   --popover-foreground: #0e1115;
 
-  /* Semantic action colors — 统一绿色系（emerald），与 colors.ts 对齐 */
-  --primary: #059669;          /* emerald-600 */
+  /* Semantic action colors — 色值全部引用 generated-palette.css（真值在 tokens/brand.json） */
+  --primary: var(--emerald-600);
   --primary-foreground: #ffffff;
-  --secondary: #d1fae5;        /* emerald-100 */
-  --secondary-foreground: #064e3b;
+  --secondary: var(--emerald-100);
+  --secondary-foreground: var(--emerald-900);
   --muted: #eff1f4;
   --muted-foreground: #7f8d9f;
-  --accent: #d1fae5;            /* emerald-100 */
-  --accent-foreground: #064e3b; /* emerald-900 */
+  --accent: var(--emerald-100);
+  --accent-foreground: var(--emerald-900);
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
   /* Borders, inputs, focus */
   --border: #ebebeb;
   --input: #e2e3e4;
-  --ring: #059669;              /* emerald-600 */
+  --ring: var(--emerald-600);
 
   /* Data visualization — 主色系改 emerald，保留多彩辅助 */
-  --chart-1: #10b981;           /* emerald-500 主色 */
+  --chart-1: var(--emerald-500);
   --chart-2: #ea4335;
   --chart-3: #fbbc05;
-  --chart-4: #047857;           /* emerald-700 深色 */
+  --chart-4: var(--emerald-700);
   --chart-5: #34a853;
 
   /* Sidebar */
-  --sidebar: #ecfdf5;           /* emerald-50 */
+  --sidebar: var(--emerald-50);
   --sidebar-foreground: #0e1115;
-  --sidebar-primary: #059669;   /* emerald-600 */
+  --sidebar-primary: var(--emerald-600);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #d1fae5;    /* emerald-100 */
-  --sidebar-accent-foreground: #064e3b;
+  --sidebar-accent: var(--emerald-100);
+  --sidebar-accent-foreground: var(--emerald-900);
   --sidebar-border: #e7eaef;
-  --sidebar-ring: #059669;      /* emerald-600 */
+  --sidebar-ring: var(--emerald-600);
 
   /* Typography — 拉丁在前、中文族在后；缺了中文族名，四个中文字会掉回系统默认 */
   --font-sans: "DM Sans Variable", "Noto Sans SC Variable", "Microsoft YaHei UI", "PingFang SC", ui-sans-serif, sans-serif, system-ui;
@@ -104,20 +104,7 @@
   --line-height-normal: 1.55;
   --line-height-relaxed: 1.7;
 
-  /* Emerald accent palette — 与 src/renderer/src/design/colors.ts 对齐,可选用作 chart/accent */
-  --emerald-50: #ecfdf5;
-  --emerald-100: #d1fae5;
-  --emerald-200: #a7f3d0;
-  --emerald-300: #6ee7b7;
-  --emerald-400: #34d399;
-  --emerald-500: #10b981;
-  --emerald-600: #059669;
-  --emerald-700: #047857;
-
-  /* Brand palette — 徽标专用，与 emerald 交互色分开口径 */
-  --brand-ink: #0c3b2e;          /* 墨绿：环的主体色 */
-  --brand-brass: #b08d57;        /* 铜金：缺口上的那一方「行」 */
-  --brand-paper: #f5f1e8;        /* 宣纸：深底反白 */
+  /* 徽标环的颜色：浅底墨绿、暗档反白（色值见 generated-palette.css） */
   --brand-mark: var(--brand-ink);
 }
 
@@ -131,39 +118,39 @@
   --popover: #1f1f23;
   --popover-foreground: #ededef;
 
-  /* Semantic action colors — 统一绿色系（emerald），与浅色同色系，白字对比度 4.5:1+ */
-  --primary: #10b981;            /* emerald-500（暗色用 500 提升亮度） */
+  /* Semantic action colors — 与浅色同色系；暗档用 emerald-500 提亮，白字对比度 4.5:1+ */
+  --primary: var(--emerald-500);
   --primary-foreground: #ffffff;
   --secondary: #262629;
   --secondary-foreground: #d4d4d8;
   --muted: #262629;
   --muted-foreground: #a1a1aa;
-  --accent: #064e3b;             /* emerald-900 */
-  --accent-foreground: #6ee7b7;  /* emerald-300 */
+  --accent: var(--emerald-900);
+  --accent-foreground: var(--emerald-300);
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
   /* Borders, inputs, focus — border #2a2a2e 比 card #18181b 亮 12 单位,边框可见 */
   --border: #2a2a2e;
   --input: #0a0a0b;
-  --ring: #10b981;               /* emerald-500 */
+  --ring: var(--emerald-500);
 
   /* Data visualization — 与浅色同色系,亮度提升以适应暗背景 */
-  --chart-1: #34d399;            /* emerald-400 */
+  --chart-1: var(--emerald-400);
   --chart-2: #f87171;
   --chart-3: #fbbf24;
-  --chart-4: #6ee7b7;            /* emerald-300 */
+  --chart-4: var(--emerald-300);
   --chart-5: #4ade80;
 
   /* Sidebar — 与主色系一致 */
   --sidebar: #131316;
   --sidebar-foreground: #ededef;
-  --sidebar-primary: #10b981;    /* emerald-500 */
+  --sidebar-primary: var(--emerald-500);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #064e3b;     /* emerald-900 */
-  --sidebar-accent-foreground: #6ee7b7;
+  --sidebar-accent: var(--emerald-900);
+  --sidebar-accent-foreground: var(--emerald-300);
   --sidebar-border: #2a2a2e;
-  --sidebar-ring: #10b981;       /* emerald-500 */
+  --sidebar-ring: var(--emerald-500);
 
   /* 徽标在深底上整体反白为宣纸色，铜金不变 */
   --brand-mark: var(--brand-paper);

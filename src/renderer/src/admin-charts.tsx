@@ -27,6 +27,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import ReactECharts from 'echarts-for-react'
 
 import type { ProviderStats, FeatureStats } from '../../types/renderer'
+import { COLORS } from './design/colors'
 import { registerTailwindTheme, tailwindTheme } from './echarts-theme-tailwind'
 
 // === 按需注册 ECharts 模块（仅在 AdminDashboard 入口生效） ===
@@ -143,7 +144,7 @@ export function ModelBarChart({ providers }: { providers: ProviderStats[] }) {
       {
         type: 'bar' as const,
         data: data.map(d => d.value).reverse(),
-        itemStyle: { color: '#10b981', borderRadius: [0, 4, 4, 0] },
+        itemStyle: { color: COLORS.emerald[500], borderRadius: [0, 4, 4, 0] },
         barMaxWidth: 18,
       },
     ],
@@ -196,7 +197,7 @@ export function FeatureBarChart({ features }: { features: FeatureStats[] }) {
         type: 'bar' as const,
         yAxisIndex: 0,
         data: data.map(d => d.tokens),
-        itemStyle: { color: '#10b981', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: COLORS.emerald[500], borderRadius: [4, 4, 0, 0] },
         barMaxWidth: 22,
       },
       {
@@ -204,7 +205,7 @@ export function FeatureBarChart({ features }: { features: FeatureStats[] }) {
         type: 'bar' as const,
         yAxisIndex: 1,
         data: data.map(d => d.requests),
-        itemStyle: { color: '#34d399', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: COLORS.emerald[400], borderRadius: [4, 4, 0, 0] },
         barMaxWidth: 22,
       },
     ],
@@ -345,7 +346,7 @@ export function ProviderTokenBarChart({ providers }: { providers: ProviderStats[
         type: 'bar' as const,
         stack: 'tokens',
         data: data.map(d => d.input),
-        itemStyle: { color: '#6ee7b7' },
+        itemStyle: { color: COLORS.emerald[300] },
         barMaxWidth: 28,
       },
       {
@@ -353,7 +354,7 @@ export function ProviderTokenBarChart({ providers }: { providers: ProviderStats[
         type: 'bar' as const,
         stack: 'tokens',
         data: data.map(d => d.output),
-        itemStyle: { color: '#10b981', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: COLORS.emerald[500], borderRadius: [4, 4, 0, 0] },
         barMaxWidth: 28,
       },
     ],

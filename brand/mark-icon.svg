@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="知行读书">
-  <rect width="48" height="48" rx="11" fill="#0C3B2E"/>
-  <path d="M32 10.14A16 16 0 1 0 40 24" fill="none" stroke="#F5F1E8" stroke-width="6"/>
-  <rect x="35" y="13" width="6" height="6" fill="#B08D57"/>
+  <rect width="48" height="48" rx="11" fill="#0c3b2e"/>
+  <path d="M32 10.14A16 16 0 1 0 40 24" fill="none" stroke="#f5f1e8" stroke-width="6"/>
+  <rect x="35" y="13" width="6" height="6" fill="#b08d57"/>
 </svg>

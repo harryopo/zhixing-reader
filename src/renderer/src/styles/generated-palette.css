@@ -1,0 +1,15 @@
+/* 由 scripts/build-tokens.mjs 从 tokens/brand.json 生成，勿手改 */
+:root {
+  --brand-ink: #0c3b2e;
+  --brand-brass: #b08d57;
+  --brand-paper: #f5f1e8;
+  --emerald-50: #ecfdf5;
+  --emerald-100: #d1fae5;
+  --emerald-200: #a7f3d0;
+  --emerald-300: #6ee7b7;
+  --emerald-400: #34d399;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+  --emerald-700: #047857;
+  --emerald-900: #064e3b;
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "comment": "调色板唯一真值。改色只改这里，然后 npm run build:tokens。CSS 与 TS 两份产物由脚本生成，不要手改。",
+  "color": {
+    "brand": {
+      "ink": { "$type": "color", "$value": "#0c3b2e", "$description": "徽标环与应用图标底板" },
+      "brass": { "$type": "color", "$value": "#b08d57", "$description": "缺口上的那一方「行」；对白仅 3.09:1，只做点缀不承载信息" },
+      "paper": { "$type": "color", "$value": "#f5f1e8", "$description": "深底反白" }
+    },
+    "emerald": {
+      "50": { "$type": "color", "$value": "#ecfdf5" },
+      "100": { "$type": "color", "$value": "#d1fae5" },
+      "200": { "$type": "color", "$value": "#a7f3d0" },
+      "300": { "$type": "color", "$value": "#6ee7b7" },
+      "400": { "$type": "color", "$value": "#34d399" },
+      "500": { "$type": "color", "$value": "#10b981" },
+      "600": { "$type": "color", "$value": "#059669", "$description": "UI 主色 --primary" },
+      "700": { "$type": "color", "$value": "#047857" },
+      "900": { "$type": "color", "$value": "#064e3b", "$description": "暗色档 accent 底" }
+    },
+    "gray": {
+      "100": { "$type": "color", "$value": "#f3f4f6" },
+      "200": { "$type": "color", "$value": "#e5e7eb" },
+      "300": { "$type": "color", "$value": "#d1d5db" },
+      "400": { "$type": "color", "$value": "#9ca3af" },
+      "500": { "$type": "color", "$value": "#6b7280" },
+      "600": { "$type": "color", "$value": "#4b5563" },
+      "700": { "$type": "color", "$value": "#374151" },
+      "800": { "$type": "color", "$value": "#1f2937" }
+    },
+    "blue": { "500": { "$type": "color", "$value": "#3b82f6" } },
+    "violet": { "400": { "$type": "color", "$value": "#a78bfa" } },
+    "amber": { "500": { "$type": "color", "$value": "#f59e0b" } },
+    "rose": { "500": { "$type": "color", "$value": "#f43f5e" } },
+    "lime": { "500": { "$type": "color", "$value": "#84cc16" } },
+    "green": { "500": { "$type": "color", "$value": "#22c55e" } },
+    "white": { "$type": "color", "$value": "#ffffff" }
+  }
+}

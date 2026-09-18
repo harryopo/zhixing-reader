@@ -1,4 +1,5 @@
 /** TokenUsage 页的常量与类型（从 TokenUsage.tsx 原样搬出，逻辑未改） */
+import { COLORS } from '@/design/colors'
 // ===== 类型 =====
 export type TimeRange = 'today' | '7d' | '14d' | '30d'
 export type TabKey = 'logs' | 'providers' | 'features'
@@ -42,6 +43,6 @@ export const USD_TO_CNY = 7
 
 /** Layer 2.5 折线图配色（统一 emerald 系，input 深色 / output 浅色，保持双色对比） */
 export const CHART_COLORS = {
-  input: '#047857', // emerald-700 - 输入 tokens（深色）
-  output: '#34d399', // emerald-400 - 输出 tokens（浅色）
+  input: COLORS.emerald[700], // 输入 tokens（深色）
+  output: COLORS.emerald[400], // 输出 tokens（浅色）
 } as const

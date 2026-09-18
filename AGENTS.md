@@ -44,10 +44,11 @@ zhixing-reader/
 │       └── styles/        # Tailwind CSS
 │
 ├── src/shared/            # 跨进程共享：类型 + IPC 通道常量
-├── brand/                 # 徽标唯一真值（mark*.svg + grid.svg + README 规范）
-├── scripts/               # 构建期脚本（build-icons.mjs：SVG → png/ico）
+├── tokens/                # brand.json — 全部色值的唯一真值（DTCG）
+├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
+├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（47 文件 / 877 用例）
+├── tests/                 # Vitest 单元测试（49 文件 / 892 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -74,8 +75,12 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（862 用例；不含覆盖率）
+npm run test             # Vitest（892 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
+
+# 品牌资产生成（改色/改徽标后必跑，产物入库）
+npm run build:tokens   # tokens/brand.json → generated-palette.css + design/palette.ts
+npm run build:icons    # brand/*.svg → resources/icon.{png,ico}
 
 # 打包
 npm run package:win      # Windows NSIS 安装包
@@ -259,6 +264,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-19（再续） | **VIS 第三轮：字标转曲 + 调色板单一真值** —— ① **字标**：思源黑体 SemiBold(600) 描骨后用 `opentype.js@2.0.0`（MIT）转曲成 `brand/wordmark.svg`（+0.04em 字距，墨迹框 `22 -847 4058 940`，`currentColor`），另出错落版 `brand/logo-horizontal.svg`（viewBox `0 0 164 48`：字标高 24 = 环外径 38 的 63%、间距 12 = 徽标箱 25%）。**为什么必须转曲**：SVG 里的 `<text>` 吃本机系统字体，换机器/CI 就变样（上一轮实测过）。字重选 600 是因为它等于 UI 的 `--font-weight-semibold`，字标和界面"一种口气"。**UI 里不用字标** —— 侧栏/关于页仍是真文本，可选可译可读屏。组合结果用像素矩阵量过：中心线偏差 **0.0px**、间距区着墨 **0.00%** ② **调色板收口**：新增 `tokens/brand.json`（DTCG）作全部色值唯一真值，`scripts/build-tokens.mjs` 生成 `styles/generated-palette.css` + `design/palette.ts`，`design-tokens.css` 的语义 token 全部改成 `var(--emerald-600)` 这类引用、**裸 hex 清零**，`colors.ts` 改为消费 palette；带 `--check` 模式，测试跑它判产物是否过期 ③ **顺手扩范围**：grep 发现"双写"远不止两处 —— admin-charts.tsx（5 处）、token-usage/constants.ts（2 处）、Topbar 的 `var(--chart-1, #10b981)` 兜底、Badge 注释都夹带裸 hex，一并改为引用；全仓库 hex 统一小写 ④ 验证：打包后入口 CSS 同时含 `--emerald-600` 定义与 `--primary:var(--emerald-600)`，var 链闭合（Tailwind 工具类走同一条链）。**踩坑两条**：测试自己写的断言反被绊倒 —— (a) 把 `white:#ffffff` 纳入"禁止裸 hex"导致误报，禁止范围必须限定 emerald+brand 两组；(b) SVG 用大写 hex 而 JSON 小写，大小写不一致会静默漏检，已全库统一小写。新增 `tests/design-tokens.test.ts` 7 条，测试 885→892（49 文件），`npm run verify` 全绿 | AI Agent（接手） |
 | 2026-09-19（续） | **VIS 第二轮：字体本地化 + 中文字体栈补齐** —— 上一轮查出的两个遗留一起修：① `--font-sans` 只有 `"DM Sans"`（**无中文字形**），四个中文字一直在吃 Windows 默认回退，字体气质不可控；② 字体从 `fonts.googleapis.com` 拉（**桌面应用离线打不开、国内常被墙**）。现在三款字体全部本地打包：`@fontsource-variable/{noto-sans-sc,dm-sans,jetbrains-mono}`（**OFL-1.1，可变字重 100–900 一个文件**，devDependency，woff2 由 Vite 打进 `dist/renderer/assets`，实测 105 个 woff2 / 4.7MB / 最大分片 76KB，不进 git）。字体栈顺序是 **拉丁在前、中文在后**（`"DM Sans Variable", "Noto Sans SC Variable", "Microsoft YaHei UI", "PingFang SC", ui-sans-serif`）—— 反过来会让英文和数字换一套字形。OFL 义务：三份许可文本（含 `Copyright` 行）放进 `src/renderer/public/licenses/` 随包分发，关于页开源许可表加三行。**顺手删掉 `--font-serif`（定义了但全项目零消费的死 token）**。新增 `tests/typography-assets.test.ts` 8 条：无 CDN、依赖声明与入口引入、字体栈含中文族、拉丁族在前、许可文本存在且含版权行、关于页列出的字体数 = 3、死 token 不许回来。打包实测 `dist/renderer` 无 `fonts.googleapis.com`、CSS 里是 `url(./…woff2)` 相对路径（`file://` 下可用）、4 个 <4KB 子集被 Vite 内联为 base64（正常）。测试 877→885（48 文件） | AI Agent（接手） |
 | 2026-09-19 | **品牌 VIS 第一轮 —— 徽标「玉璧」+ 图标生成流水线**（commit 5146f8e / bab6629）—— 起因是项目里躺着 **4 份互相打架的 logo**：`resources/logo.svg` 的渐变书只有官网在用、侧栏与关于页是 CSS 手写的绿方块「知」字占位、favicon 还是 Google 蓝 `#4285f4`。先做开源方案调研（结论：可商用的 text-to-SVG 模型输出的是重建 path 不是可维护几何；FLUX.1-dev / FLUX.2-klein-9B / Ideogram 4 / IconShop 全部禁商用或根本没 LICENSE；方正/汉仪做 logo 需单独授权），再落两套稿。**第一版「拾级」（台阶剪影）被用户否掉**——量了原因：平涂 emerald 满铺色块着墨率 **84%**，天生像系统默认图标。第二版「玉璧」：r=16 / 线宽 6 的环开 60° 口，缺口正中嵌 6×6 铜金方（知行合一，缺的那一步由「行」补上），着墨率降到 **23.3%**。**一套几何四种配色**（mark / mark-reverse / mark-icon / mark-mono），环与方的坐标在六处派生物里逐字相同，`tests/brand-assets.test.ts` 15 条钉住（含「方中心落在 −30° 角平分线、到圆心 16.12≈半径」的几何自洽断言）。三条实测踩坑：① **electron-builder 的 `app-builder icon` 不接受 SVG**（`icons.LoadImage` 直接报错），且从 PNG 只产出 256 一档 → ICO 必须自己写容器（`scripts/build-icons.mjs` + `npm run build:icons`，16/20/24/32/40/64/96/128/256 十档 PNG 压缩条目）；② **SVG 里的中文 `<text>` 吃本机系统字体**，换机器/CI 结果就变 → 字标将来必须转曲；③ **应用图标必须带底板**，无板的墨绿环贴深色壁纸会直接消失（品牌徽标不带板，两者共用同一组坐标）。配色立了新规：**品牌墨与 UI 交互色是两个口径** —— 新增 `--brand-ink #0c3b2e` / `--brand-brass #b08d57` / `--brand-paper #f5f1e8` / `--brand-mark`（暗档自动反白），`--primary` 仍是 emerald-600 一行未动。对比度全量实测：墨绿对白 12.50、宣纸对墨绿板 11.08、铜金对墨绿板 4.04、**铜金对白只有 3.09 → 铜金只做点缀不承载信息**。测试 862→877（46→47 文件）。**VIS 遗留**：字标（OFL 字体描骨后转曲，不能用字库直出）、`tokens/brand.json` 收掉 design-tokens.css 与 colors.ts 的双写 hex、**中文字体从未指定**（`--font-sans` 只有 DM Sans，四个中文字一直在吃 Windows 默认回退）且字体走 Google Fonts CDN（离线/墙内首屏会掉） | AI Agent（接手） |
 | 2026-09-18（再续） | **B1 前置：先把死链砍干净，再谈迁移** —— 用脚本扫 preload 暴露面，查出 **27 个渲染层零消费者的方法**，逐个核实「主进程内部还有没有别的调用方」后砍掉 26 条真死链（通道 + handler + preload + renderer.d.ts 类型）：① 老通路整条手写流式实现（ai.streamChat + agent:streamChat + streamOpenAI(复杂度46) + streamAnthropic(40) + legacy cancelActiveStream）—— 渲染层走的是 STREAM_CHAT_WITH_CONTEXT，手写 SSE 那半壁早已被 AI SDK 取代且更完整；② 四个被界面弃用或被新功能取代的非流式函数（generateCards / generateSummary / chatWithContext(早标 @deprecated) / explainHighlight）+ skill.exportBatch + 8 个提示词模板（注册表 30→22）；③ 20 条数据读取死链（books:updateProgress、cards:getByHighlight/createBatch、reviews:getByCard、articles:getUnread/getFavorites、vocabulary:getByWord/incrementReview、dictionary:getSize、weread:fetchBookmarks/fetchNotes、readingData:fetch{Weekly,Monthly,Annually,Overall}、knowledgeCards:getByType/isDistilling、admin:getPrompt、fsrs:getForecast/getOptimalReviewOrder、preload stats:getWeekly 包装）。**保留了链路断了但实现仍活的**：cardsDb.getByHighlightId（单条建划线时防重复建卡在用）、vocabularyDb.getByWord、reviewsDb.getByCardId、weread-api 的 fetchBookmarks/fetchNotes（fetchAllContent 内部调用）、dictionaryService.getSize、knowledgeCardService.isDistilling（有测试）。顺手修一个测量缺陷：老通路解析响应时丢了 prompt_tokens_details.cached_tokens，导致统计页缓存命中率对这 8 个功能恒为 0（2 条新用例，红绿都验过）。结果：通道 188→162，ai-service 1664→1132 行，preload 541→521，fsrs-engine −42，测试 928→862（删的全是被砍功能自己的用例）。**踩坑一条**：判断「实现是否已成孤儿」时，grep 若把 electron/ipc/ 整个排除掉，就会把仍在 handler 里用的 cardsDb.getByHighlightId 误判成死的 —— 排除范围只能到「本次正要删的那个 handler」。B1 剩余：8 个仍活着的非流式函数迁 AI SDK（换成 generateObject + zod 后，模型不合财会从「repairJSON 修修能用」变成「抛错」，必须逐条真打 API 看形状，适合有人在电脑前时做）。commit 6a88bdb / 93ddc41 / f221c8f / 66838bc | AI Agent（接手） |

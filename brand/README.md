@@ -13,11 +13,13 @@
 
 | 文件 | 场景 | 环 | 方 | 底板 |
 |------|------|----|----|------|
-| `mark.svg` | 浅底 UI、文档 | 墨绿 `#0C3B2E` | 铜金 `#B08D57` | 无 |
-| `mark-reverse.svg` | 深底（官网 `--surface-0: #080c0a`） | 宣纸 `#F5F1E8` | 铜金 | 无 |
+| `mark.svg` | 浅底 UI、文档 | 墨绿 `#0c3b2e` | 铜金 `#b08d57` | 无 |
+| `mark-reverse.svg` | 深底（官网 `--surface-0: #080c0a`） | 宣纸 `#f5f1e8` | 铜金 | 无 |
 | `mark-icon.svg` | 应用图标、favicon | 宣纸 | 铜金 | 墨绿圆角板 `rx=11` |
 | `mark-mono.svg` | 单色印刷、烫金、雕刻 | `currentColor` | `currentColor` | 无 |
 | `grid.svg` | 构造依据 | — | — | — |
+| `wordmark.svg` | 需要字标而非文字时 | `currentColor` | — | 无 |
+| `logo-horizontal.svg` | 横版组合（徽标 + 字标） | 墨绿 | 铜金 | 无 |
 
 派生物：`resources/icon.{png,ico}`（`npm run build:icons`）、`BrandMark.tsx`、
 `src/renderer/index.html` 的 favicon、`landing/logo.svg`。
@@ -31,6 +33,27 @@
 - 方：**6×6**，中心 (38, 16) —— 正好落在开口的角平分线 −30° 上，
   到圆心距离 16.12 ≈ 环半径，即"嵌在环的缺口里"而不是随手放在旁边
 - 图形外框 5…43，四周留 5 单位（10.4%）
+
+## 字标与组合标志
+
+**字标不是文字，是路径。** 用思源黑体 SemiBold 描骨后转曲（`opentype.js` 取轮廓），
+因为 SVG 里的 `<text>` 会吃本机系统字体 —— 换一台机器或跑 CI 就变成另一副样子。
+
+| 参数 | 值 | 为什么 |
+|------|----|--------|
+| 字重 | 600 SemiBold | 与 UI 标题的 `--font-weight-semibold` 同档，字标和界面是"一种口气" |
+| 字距 | +0.04em（40/1000） | 思源黑体默认排印为正文优化，作字标偏紧 |
+| 墨迹框 | `viewBox 22 -847 4058 940` | 高/宽 0.232，四字四等宽 1000 em |
+| 颜色 | `currentColor` | 深浅底都由容器决定 |
+
+**横版组合 `logo-horizontal.svg`**（viewBox `0 0 164 48`）的三条算术，改任何一条都要重新量：
+
+- 徽标箱 48 → 字标高 24 = 环外径 38 的 **63%**
+- 间距 12 = 徽标箱的 **25%**
+- 实测两者中心线偏差 **0.0px**、间距区着墨 **0.00%**（既不歪也不撞）
+
+UI 里**不用**字标：侧栏与关于页仍是真文本「知行读书」，字标只用于官网 hero、启动画面、
+导出文档页眉这类"图片化"场景 —— 文本能选能读能翻译，也能被屏幕阅读器念到。
 
 ## 尺寸
 
@@ -49,6 +72,11 @@
 两者共用同一组坐标。
 
 ## 配色
+
+**全部色值的唯一真值是 `tokens/brand.json`**（DTCG 格式）。`npm run build:tokens` 生成
+`styles/generated-palette.css`（CSS 变量）与 `design/palette.ts`（TS 常量），
+`design-tokens.css` 里的语义 token 只写 `var(--emerald-600)` 这类引用，不再出现裸 hex。
+改色只改 JSON；忘了跑脚本，`tests/design-tokens.test.ts` 会用 `--check` 判红。
 
 品牌色与 UI 交互色是**两个口径**，各自稳定：
 
@@ -85,6 +113,7 @@
 ## 生成
 
 ```bash
+npm run build:tokens  # tokens/brand.json → generated-palette.css + design/palette.ts
 npm run build:icons   # brand/*.svg → resources/icon.{png,ico}
 ```
 
@@ -94,8 +123,15 @@ npm run build:icons   # brand/*.svg → resources/icon.{png,ico}
 > 不让 electron-builder 自动转：实测它的 `app-builder icon` **不接受 SVG**
 > （`icons.LoadImage` 直接报错），且从 PNG 只产出 256 一档。
 
+`scripts/build-tokens.mjs` 带 `--check`：只比对不写盘，产物过期退出 1。
+
 ## 许可溯源
 
-- 形状：本项目原创，随仓库以 MIT 分发。
-- 工具链：`@resvg/resvg-js` MPL-2.0 —— 构建期依赖，不随应用分发，不影响产物。
-- 未使用任何第三方图标库或字库字形绘制徽标。
+- 徽标形状：本项目原创，随仓库以 MIT 分发。未使用任何第三方图标库绘制。
+- 字标：轮廓取自**思源黑体 / Noto Sans SC SemiBold (600)**，**OFL-1.1**
+  （Google 版权行，见 `src/renderer/public/licenses/noto-sans-sc.OFL.txt`），
+  2026-09-19 用 `opentype.js` 2.0.0（MIT）转曲，另加 +0.04em 字距。
+  OFL 允许这样使用与再分发；保留字体名（RFN）条款只限制"以原名分发修改版字体"，
+  不限制把字形转曲后作为图形。
+- 界面字体：Noto Sans SC / DM Sans / JetBrains Mono，均 OFL-1.1，许可文本随包分发。
+- 构建期工具（`@resvg/resvg-js` MPL-2.0、`opentype.js` MIT）不随应用分发，不影响产物许可。

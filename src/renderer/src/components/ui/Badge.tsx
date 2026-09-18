@@ -33,7 +33,7 @@ const VARIANT_STYLES: Record<BadgeVariant, Record<string, string>> = {
     color: 'var(--foreground)',
   },
   success: {
-    /* emerald-700 #047857 + 白字对比度 4.8:1,过 AA */
+    /* emerald-700 + 白字对比度 4.8:1，过 AA */
     background: 'var(--emerald-700)',
     color: '#ffffff',
   },
