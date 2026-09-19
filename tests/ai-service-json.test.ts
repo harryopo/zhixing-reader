@@ -5,7 +5,22 @@
 // 之前无单测（只在集成测试里被间接调用），本轮补齐。
 
 import { describe, it, expect } from 'vitest'
+import * as aiService from '../electron/ai-service'
 import { extractAndParseJSON, repairJSON } from '../electron/ai-service'
+
+const { getJsonRepairStats } = aiService
+
+type JsonRepairStats = ReturnType<typeof getJsonRepairStats>
+
+/** 两次快照的差值 —— 让断言不受同文件其他用例已产生的计数影响 */
+function delta(after: JsonRepairStats, before: JsonRepairStats): JsonRepairStats {
+  return {
+    parseFailed: after.parseFailed - before.parseFailed,
+    repaired: after.repaired - before.repaired,
+    salvaged: after.salvaged - before.salvaged,
+    failed: after.failed - before.failed,
+  }
+}
 
 describe('ai-service — extractAndParseJSON', () => {
   describe('数组提取', () => {
@@ -172,5 +187,64 @@ describe('ai-service — repairJSON', () => {
   it('截断且一个完整对象都没有时，仍抛错（不能假装成功）', () => {
     const truncated = '[\n  {"name":"A","steps":[\n    "半截'
     expect(() => extractAndParseJSON<unknown[]>(truncated, true)).toThrow(/JSON解析失败/)
+  })
+})
+
+// B1 取证：老通路的 repairJSON / salvageArrayItems 到底多久命中一次，
+// 决定剩下两个 JSON 数组型功能是「硬迁 zod 严格 schema」还是「必须留容错层」。
+// 断言一律用**增量**（不要求测试间重置计数器 —— 那需要一个只有测试会调的生产方法）。
+describe('ai-service — JSON 抢救命中计数', () => {
+  const cleanArray = '[{"name":"A"},{"name":"B"}]'
+  const trailingComma = '[{"front":"Q","back":"A",},]'
+  const truncatedArray = [
+    '[',
+    '  {"name":"A","tags":["x"]},',
+    '  {"name":"C","steps":[',
+    '    "只有半截',
+  ].join('\n')
+  const hopeless = '[\n  {"name":"A","steps":[\n    "半截'
+
+  it('干净 JSON 一次都不计入（这是"可以直接硬迁"的判据）', () => {
+    const before = getJsonRepairStats()
+    extractAndParseJSON(cleanArray, true)
+    expect(delta(getJsonRepairStats(), before)).toEqual({
+      parseFailed: 0,
+      repaired: 0,
+      salvaged: 0,
+      failed: 0,
+    })
+  })
+
+  it('repairJSON 修好时 parseFailed 与 repaired 各 +1', () => {
+    const before = getJsonRepairStats()
+    expect(extractAndParseJSON(trailingComma, true)).toEqual([{ front: 'Q', back: 'A' }])
+    expect(delta(getJsonRepairStats(), before)).toEqual({
+      parseFailed: 1,
+      repaired: 1,
+      salvaged: 0,
+      failed: 0,
+    })
+  })
+
+  it('数组被截断走抢救时 salvaged +1，且不算 repaired', () => {
+    const before = getJsonRepairStats()
+    expect(extractAndParseJSON<Array<{ name: string }>>(truncatedArray, true).map((r) => r.name)).toEqual(['A'])
+    expect(delta(getJsonRepairStats(), before)).toEqual({
+      parseFailed: 1,
+      repaired: 0,
+      salvaged: 1,
+      failed: 0,
+    })
+  })
+
+  it('彻底失败时 failed +1 并抛错', () => {
+    const before = getJsonRepairStats()
+    expect(() => extractAndParseJSON(hopeless, true)).toThrow(/JSON解析失败/)
+    expect(delta(getJsonRepairStats(), before)).toEqual({
+      parseFailed: 1,
+      repaired: 0,
+      salvaged: 0,
+      failed: 1,
+    })
   })
 })

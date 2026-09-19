@@ -341,6 +341,20 @@ async function callAI(messages: Message[], optsOrTokens?: number | CallOptions):
   return response
 }
 
+/**
+ * 老通路 JSON 抢救命中计数 —— B1 取证用。
+ *
+ * 剩下两个功能（extractMethodologies / distillKnowledgeCards）要不要换成 zod 严格
+ * schema，取决于 repairJSON / salvageArrayItems **多久真的救一次**：命中接近 0 就
+ * 直接硬迁，经常要救就说明必须给 SDK 侧留一层容错。只靠人眼翻日志数不出来，
+ * 所以每次命中都把这组累计值随日志落盘（进程重启即清零，看最后一次即可）。
+ */
+const jsonRepairStats = { parseFailed: 0, repaired: 0, salvaged: 0, failed: 0 };
+
+export function getJsonRepairStats(): Readonly<typeof jsonRepairStats> {
+  return { ...jsonRepairStats };
+}
+
 export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
   let cleaned = content.trim();
 
@@ -370,6 +384,7 @@ export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
   try {
     return JSON.parse(jsonStr) as T;
   } catch (parseError) {
+    jsonRepairStats.parseFailed++;
     const originalError = parseError instanceof Error ? parseError.message : String(parseError);
 
     logger.warn('Initial JSON parse failed, attempting repair...', {
@@ -380,20 +395,28 @@ export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
     const repaired = repairJSON(jsonStr);
 
     try {
-      return JSON.parse(repaired) as T;
+      const parsed = JSON.parse(repaired) as T;
+      jsonRepairStats.repaired++;
+      // 这条是"模型没一次给对"的直接证据，累计值随每行落盘
+      logger.info('JSON 经 repairJSON 修复后才解析成功', { ...jsonRepairStats });
+      return parsed;
     } catch {
       // 补救：数组被截断时，抢救出已完整的对象，避免整批作废
       if (isArray) {
         const salvaged = salvageArrayItems(jsonStr);
         if (salvaged.length > 0) {
+          jsonRepairStats.salvaged++;
           logger.warn('JSON 被截断，已抢救出部分完整对象', {
             originalError,
             salvagedCount: salvaged.length,
             contentLength: content.length,
+            ...jsonRepairStats,
           });
           return salvaged as T;
         }
       }
+
+      jsonRepairStats.failed++;
 
       // 上报「原始」错误而不是修复后的错误：修复常把问题挪到别处
       // （实测出现过原始报 position 1476、修复后改报 position 22，把排查引偏）。
@@ -403,6 +426,7 @@ export function extractAndParseJSON<T>(content: string, isArray: boolean): T {
         fullContent: content,
         fullJsonStr: jsonStr,
         repairedFull: repaired,
+        ...jsonRepairStats,
       });
       throw new Error(`JSON解析失败: ${originalError}`);
     }
