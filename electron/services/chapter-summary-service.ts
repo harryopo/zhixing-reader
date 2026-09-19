@@ -13,7 +13,7 @@
  */
 import { logger } from '../logger'
 import { booksDb, highlightsDb, bookSummariesDb, chapterSummariesDb } from '../database'
-import { generateBookSummary, generateChapterSummary } from '../ai-service'
+import { generateBookSummary, generateChapterSummary } from '../ai-sdk-service'
 import {
   formatChapterContents,
   formatChapterSummariesForBook,

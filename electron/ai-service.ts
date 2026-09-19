@@ -1,25 +1,7 @@
 import { logger } from './logger';
 import { tokenUsageDb } from './database';
 import { fetchWithTimeout, fetchWithRetry, RETRY_CONFIGS, HttpAbortError, HttpNetworkError, RetryConfig } from './http-client';
-import { getPromptTemplate } from './services/prompt-storage';
-import { renderTemplate } from './services/template-engine';
-
-function buildMessages(feature: string, systemExtra: string, userVars: Record<string, string | number | undefined>): Message[] {
-  const systemId = `ai.${feature}.system`
-  const userId = `ai.${feature}.user`
-  const systemTemplate = getPromptTemplate(systemId)
-  const userTemplate = getPromptTemplate(userId)
-  return [
-    {
-      role: 'system',
-      content: systemTemplate + (systemExtra ? `\n${systemExtra}` : ''),
-    },
-    {
-      role: 'user',
-      content: renderTemplate(userTemplate, userVars),
-    },
-  ]
-}
+import { buildMessages } from './services/prompt-messages';
 
 export type AIProvider = 'openai' | 'anthropic' | 'custom';
 
@@ -600,73 +582,6 @@ export function repairJSON(jsonStr: string): string {
   return repaired;
 }
 
-/**
- * 层级摘要 L1：一章的划线圈 → 一段章节摘要（纯文本）。
- * 提示词要求纯文本，但模型仍可能包一层代码块，这里兜底剥掉。
- */
-export async function generateChapterSummary(
-  bookTitle: string,
-  chapterTitle: string,
-  highlightTexts: string
-): Promise<string> {
-  if (!highlightTexts || highlightTexts.trim() === '') {
-    throw new Error('No highlights provided for chapter summary generation');
-  }
-
-  const messages = buildMessages('generateChapterSummary', '', {
-    bookTitle,
-    chapterTitle,
-    highlightTexts,
-  });
-
-  const startTime = Date.now();
-  const response = await callAI(messages);
-  const durationMs = Date.now() - startTime;
-  if (response.usage) {
-    recordTokenUsage('generateChapterSummary', response.usage, durationMs);
-  }
-
-  const summary = response.content
-    .replace(/^```(?:\w*)?\s*/, '')
-    .replace(/\s*```$/, '')
-    .trim();
-
-  if (!summary) throw new Error('AI 返回的章节摘要为空');
-  return summary;
-}
-
-/**
- * 层级摘要 L2：各章摘要 → 全书摘要。
- * 输入是 L1 的二手概括，所以单独一对提示词，不复用 generateSummary（那个吃的是划线原文）。
- */
-export async function generateBookSummary(
-  bookTitle: string,
-  chapterSummaryTexts: string
-): Promise<{ summary: string; keyPoints: string[] }> {
-  const messages = buildMessages('generateBookSummary', '', {
-    bookTitle,
-    chapterSummaryTexts,
-  });
-
-  const startTime = Date.now();
-  const response = await callAI(messages);
-  const durationMs = Date.now() - startTime;
-  if (response.usage) {
-    recordTokenUsage('generateBookSummary', response.usage, durationMs);
-  }
-
-  const result = extractAndParseJSON<Record<string, unknown>>(response.content, false);
-  if (!result.summary || typeof result.summary !== 'string') {
-    throw new Error('AI返回的全书摘要格式无效');
-  }
-
-  const keyPoints = (Array.isArray(result.keyPoints) ? result.keyPoints : [])
-    .filter((point: unknown): point is string => typeof point === 'string' && point.trim().length > 0)
-    .map((point) => point.trim());
-
-  return { summary: result.summary.trim(), keyPoints };
-}
-
 export interface ExtractedMethodology {
   name: string
   nameEn?: string
@@ -968,103 +883,6 @@ async function distillSingleBatch(
 
   logger.info(`Distilled ${validCards.length} knowledge cards from ${highlights.length} highlights (${durationMs}ms)`)
   return validCards
-}
-
-export async function generateCardInterpretation(
-  bookTitle: string,
-  cardTitle: string,
-  cardContent: string,
-  cardType: string
-): Promise<string> {
-  const messages = buildMessages('generateCardInterpretation', '', {
-    bookTitle,
-    cardTitle,
-    cardContent,
-    cardType,
-  })
-
-  const startTime = Date.now()
-  try {
-    const response = await callAI(messages, {
-      maxTokensOverride: 600,
-      retryConfig: RETRY_CONFIGS.AI_SERVICE,
-    })
-    const durationMs = Date.now() - startTime
-    if (response.usage) {
-      recordTokenUsage('generateCardInterpretation', response.usage, durationMs)
-    }
-    return response.content.trim()
-  } catch (error) {
-    logger.error('Failed to generate card interpretation', error)
-    throw error
-  }
-}
-
-export async function generateCardApplication(
-  bookTitle: string,
-  cardTitle: string,
-  cardContent: string,
-  cardType: string
-): Promise<string> {
-  const messages = buildMessages('generateCardApplication', '', {
-    bookTitle,
-    cardTitle,
-    cardContent,
-    cardType,
-  })
-
-  const startTime = Date.now()
-  try {
-    const response = await callAI(messages, {
-      maxTokensOverride: 600,
-      retryConfig: RETRY_CONFIGS.AI_SERVICE,
-    })
-    const durationMs = Date.now() - startTime
-    if (response.usage) {
-      recordTokenUsage('generateCardApplication', response.usage, durationMs)
-    }
-    return response.content.trim()
-  } catch (error) {
-    logger.error('Failed to generate card application', error)
-    throw error
-  }
-}
-
-export async function generateSkill(
-  methodology: ExtractedMethodology & { id?: string; bookId?: string; bookTitle?: string }
-): Promise<string> {
-  // 生成英文名称：将中文名转换为拼音风格或直接使用英文名
-  const nameEn = methodology.nameEn || methodology.name
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'methodology'
-
-  const messages = buildMessages('generateSkill', '', {
-    name: methodology.name,
-    nameEn: nameEn,
-    triggerScenario: methodology.triggerScenario || 'N/A',
-    description: methodology.description || 'N/A',
-    steps: methodology.steps ? methodology.steps.join('\n') : 'N/A',
-    outputFormat: methodology.outputFormat || 'N/A',
-    examples: methodology.examples || 'N/A',
-    bookTitle: methodology.bookTitle || '未知书籍',
-  })
-
-  const startTime = Date.now()
-  try {
-    const response = await callAI(messages)
-    const durationMs = Date.now() - startTime
-
-    if (response.usage) {
-      recordTokenUsage('generateSkill', response.usage, durationMs)
-    }
-
-    return response.content
-  } catch (error) {
-    logger.error('Failed to generate skill', error)
-    throw error
-  }
 }
 
 /**

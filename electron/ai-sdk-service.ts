@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { logger } from './logger';
 import { tokenUsageDb } from './database';
 import { resolveChatTier, type ModelTier } from '../src/shared/model-routing';
+import { formatSkillNameEnLine } from '../src/shared/skill-name';
+import { buildMessages } from './services/prompt-messages';
 
 type AIProvider = 'openai' | 'anthropic' | 'custom';
 
@@ -26,6 +28,15 @@ let config: AISDKConfig | null = null;
 
 /** Active chat stream — only one at a time; cancelActiveStream aborts network read */
 let activeStreamController: AbortController | null = null;
+
+/**
+ * 非流式任务（抽取 / 概括 / 翻译 / 结构化输出）一律关掉「深度思考」。
+ *
+ * 这不是偏好而是上一代手写通路实测出来的结论：deepseek-flash 这类模型**默认就会思考**，
+ * 把输出预算先烧在 reasoning 上 —— 小预算（200/600）直接返回空内容，
+ * 大预算（8000）被截断成半截 JSON。经验跟着函数一起迁到 SDK 通路，别丢。
+ */
+const REASONING_OFF = { openaiCompatible: { reasoningEffort: 'none' } } as const;
 
 export function setAIConfig(cfg: AISDKConfig): void {
   config = { ...cfg };
@@ -361,12 +372,15 @@ export async function sdkStreamChat(
 }
 
 /**
- * 结构化输出 — 替换 generateCards / generateSummary / extractMethodologies / distillKnowledgeCards
+ * 结构化输出 —— 由 zod schema 约束返回形状。
+ *
+ * 与老通路最大的区别：老的是「让模型自由发挥，回来用 repairJSON 把坏 JSON 修好」，
+ * 这里是「不合规就抛错」。宁可报错，也不要把一半被截断的 JSON 当成成功结果写进库。
  */
 export async function sdkGenerateObject<T>(
   schema: z.ZodSchema<T>,
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  options?: { maxOutputTokens?: number; signal?: AbortSignal },
+  options?: { maxOutputTokens?: number; temperature?: number; signal?: AbortSignal; feature?: string },
 ): Promise<T> {
   if (!config) throw new Error('AI SDK not configured');
 
@@ -376,15 +390,139 @@ export async function sdkGenerateObject<T>(
     normalizedCount: normalizedMessages.length,
   });
 
+  const { languageModel, modelName } = getModel();
+  const startedAt = Date.now();
   const result = await generateObject({
-    model: getModel().languageModel,
+    model: languageModel,
     schema,
     messages: normalizedMessages,
+    temperature: options?.temperature ?? config.temperature ?? 0.7,
     maxOutputTokens: options?.maxOutputTokens ?? config.maxTokens ?? 2000,
     abortSignal: options?.signal,
+    providerOptions: REASONING_OFF,
   });
 
+  recordGenerateUsage(
+    result.usage as { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
+    options?.feature ?? 'generate',
+    Date.now() - startedAt,
+    modelName,
+  );
+
   return result.object;
+}
+
+/** 结构化输出的严格 schema —— 模型不合财会抛错，不再靠 repairJSON 硬修 */
+const bookSummarySchema = z.object({
+  summary: z.string().min(1, 'summary 不能为空'),
+  keyPoints: z.array(z.string()).default([]),
+});
+
+/**
+ * 层级摘要 L1：一章的划线圈 → 一段章节摘要（纯文本）。
+ * 提示词要求纯文本，但模型仍可能包一层代码块，这里兜底剥掉。
+ */
+export async function generateChapterSummary(
+  bookTitle: string,
+  chapterTitle: string,
+  highlightTexts: string,
+): Promise<string> {
+  if (!highlightTexts || highlightTexts.trim() === '') {
+    throw new Error('No highlights provided for chapter summary generation');
+  }
+
+  const text = await sdkGenerateText(
+    buildMessages('generateChapterSummary', '', { bookTitle, chapterTitle, highlightTexts }),
+    { feature: 'generateChapterSummary' },
+  );
+  const summary = text
+    .replace(/^```(?:\w*)?\s*/, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  if (!summary) throw new Error('AI 返回的章节摘要为空');
+  return summary;
+}
+
+/**
+ * 层级摘要 L2：各章摘要 → 全书摘要。
+ * 输入是 L1 的二手概括，所以单独一对提示词，不复用「从划线生成摘要」那条。
+ */
+export async function generateBookSummary(
+  bookTitle: string,
+  chapterSummaryTexts: string,
+): Promise<{ summary: string; keyPoints: string[] }> {
+  const parsed = await sdkGenerateObject(
+    bookSummarySchema,
+    buildMessages('generateBookSummary', '', { bookTitle, chapterSummaryTexts }),
+    { feature: 'generateBookSummary' },
+  );
+
+  return {
+    summary: parsed.summary.trim(),
+    keyPoints: parsed.keyPoints.map((point) => point.trim()).filter((point) => point.length > 0),
+  };
+}
+
+/** 卡片解读 / 卡片应用：同形状的两种输出，只有提示词模板不同 */
+async function generateCardText(
+  feature: 'generateCardInterpretation' | 'generateCardApplication',
+  bookTitle: string,
+  cardTitle: string,
+  cardContent: string,
+  cardType: string,
+): Promise<string> {
+  const text = await sdkGenerateText(
+    buildMessages(feature, '', { bookTitle, cardTitle, cardContent, cardType }),
+    { maxOutputTokens: 600, feature },
+  );
+  return text.trim();
+}
+
+export function generateCardInterpretation(
+  bookTitle: string,
+  cardTitle: string,
+  cardContent: string,
+  cardType: string,
+): Promise<string> {
+  return generateCardText('generateCardInterpretation', bookTitle, cardTitle, cardContent, cardType);
+}
+
+export function generateCardApplication(
+  bookTitle: string,
+  cardTitle: string,
+  cardContent: string,
+  cardType: string,
+): Promise<string> {
+  return generateCardText('generateCardApplication', bookTitle, cardTitle, cardContent, cardType);
+}
+
+export interface SkillMethodologyInput {
+  name: string
+  nameEn?: string
+  triggerScenario?: string
+  description?: string
+  steps?: string[]
+  outputFormat?: string
+  examples?: string
+  bookTitle?: string
+}
+
+/** 方法论 → 可复用 Skill 文件（Markdown 正文） */
+export async function generateSkill(methodology: SkillMethodologyInput): Promise<string> {
+  return sdkGenerateText(
+    buildMessages('generateSkill', '', {
+      name: methodology.name,
+      nameEn: formatSkillNameEnLine(methodology.name, methodology.nameEn),
+      triggerScenario: methodology.triggerScenario || 'N/A',
+      description: methodology.description || 'N/A',
+      steps: methodology.steps ? methodology.steps.join('\n') : 'N/A',
+      outputFormat: methodology.outputFormat || 'N/A',
+      examples: methodology.examples || 'N/A',
+      bookTitle: methodology.bookTitle || '未知书籍',
+    }),
+    { feature: 'generateSkill' },
+  );
 }
 
 /** 非流式补全用量落库（与 recordChatUsage 同机制，feature 区分）：0 用量不记，失败不报错 */
@@ -392,6 +530,7 @@ function recordGenerateUsage(
   usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
   feature: string,
   durationMs: number,
+  modelUsed?: string,
 ): void {
   const inputTokens = usage?.inputTokens ?? 0;
   const outputTokens = usage?.outputTokens ?? 0;
@@ -399,7 +538,7 @@ function recordGenerateUsage(
   try {
     tokenUsageDb.create({
       provider: config.provider,
-      model: config.model || 'default',
+      model: modelUsed || config.model || 'default',
       feature,
       inputTokens,
       outputTokens,
@@ -412,28 +551,39 @@ function recordGenerateUsage(
 }
 
 /**
- * 非流式文本补全 — 用于离线/内部任务（历史滚动摘要等）。
- * 用量按 feature 落库（默认 'summary'），便于观测摘要成本、核算净节省。
+ * 非流式文本补全 —— 用于离线/内部任务（历史滚动摘要、章节摘要、卡片解读、Skill 生成等）。
+ * 用量按 feature 落库，便于逐个功能核算成本。
+ *
+ * 默认值跟着用户配置走（温度 / 输出预算），只有需要特殊预算的调用才显式传：
+ * 历史摘要要 500/0.3，卡片解读要 600 —— 传死值会让换模型时预算不合理。
  */
 export async function sdkGenerateText(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  options?: { maxOutputTokens?: number; temperature?: number; feature?: string; signal?: AbortSignal },
+  options?: {
+    maxOutputTokens?: number;
+    temperature?: number;
+    feature?: string;
+    signal?: AbortSignal;
+  },
 ): Promise<string> {
   if (!config) throw new Error('AI SDK not configured');
   const normalizedMessages = normalizeMessages(messages);
   const startedAt = Date.now();
+  const { languageModel, modelName } = getModel();
   const result = await generateText({
-    model: getModel().languageModel,
+    model: languageModel,
     messages: normalizedMessages,
-    maxOutputTokens: options?.maxOutputTokens ?? 500,
-    temperature: options?.temperature ?? 0.3,
+    maxOutputTokens: options?.maxOutputTokens ?? config.maxTokens ?? 2000,
+    temperature: options?.temperature ?? config.temperature ?? 0.7,
     abortSignal: options?.signal,
+    providerOptions: REASONING_OFF,
   });
 
   recordGenerateUsage(
     result.usage as { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
     options?.feature ?? 'summary',
     Date.now() - startedAt,
+    modelName,
   );
 
   return result.text;

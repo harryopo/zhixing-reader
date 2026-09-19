@@ -1,21 +1,25 @@
-// 知行读书 — AI SDK service 测试（2026-07-23，Phase 18 T4 扩展）
+// 知行读书 — AI SDK service 测试（2026-07-23，Phase 18 T4 扩展；
+// 2026-09-19 补：从 ai-service 迁过来的非流式函数）
 //
 // 覆盖：
 //   - setAIConfig / cancelActiveStream 的基本行为（smoke）
 //   - sdkStreamChat：未配置 / 流式输出 / 取消 / 错误处理（mock ai 模块）
 //   - sdkGenerateObject：未配置 / 结构化输出 / 错误处理（mock ai 模块）
+//   - sdkGenerateText + 迁移过来的章节摘要 / 全书摘要 / 卡片解读与应用 / Skill 生成
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-// Mock ai 模块的 streamText / generateObject
+// Mock ai 模块的 streamText / generateText / generateObject
 // 用 vi.hoisted 确保 mock 在模块导入前注册
-const { mockStreamText, mockGenerateObject } = vi.hoisted(() => ({
+const { mockStreamText, mockGenerateText, mockGenerateObject } = vi.hoisted(() => ({
   mockStreamText: vi.fn(),
+  mockGenerateText: vi.fn(),
   mockGenerateObject: vi.fn(),
 }))
 
 vi.mock('ai', () => ({
   streamText: mockStreamText,
+  generateText: mockGenerateText,
   generateObject: mockGenerateObject,
 }))
 
@@ -24,13 +28,27 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   createOpenAICompatible: vi.fn(() => (model: string) => ({ modelId: model })),
 }))
 
+// Mock database：用量落库只断言调用参数，不写真库
+vi.mock('../electron/database', () => ({
+  tokenUsageDb: { create: vi.fn() },
+}))
+
 import {
   setAIConfig,
   cancelActiveStream,
   sdkStreamChat,
   sdkGenerateObject,
+  sdkGenerateText,
+  generateChapterSummary,
+  generateBookSummary,
+  generateCardInterpretation,
+  generateCardApplication,
+  generateSkill,
 } from '../electron/ai-sdk-service'
+import { tokenUsageDb } from '../electron/database'
 import { z } from 'zod'
+
+const mockedUsageCreate = vi.mocked(tokenUsageDb.create)
 
 describe('AI SDK Service — Smoke Tests', () => {
   describe('setAIConfig', () => {
@@ -362,5 +380,208 @@ describe('AI SDK Service — sdkGenerateObject', () => {
         { role: 'user', content: 'Hi' },
       ]),
     ).rejects.toThrow('API error')
+  })
+})
+
+// ============ 从 ai-service 迁过来的非流式函数（B1） ============
+
+/** 取第 N 次 generateText 调用的入参 */
+function lastGenerateTextCall(index = 0): {
+  messages: Array<{ role: string; content: string }>
+  maxOutputTokens: number
+  temperature: number
+  providerOptions?: Record<string, unknown>
+} {
+  return mockGenerateText.mock.calls[index][0] as never
+}
+
+describe('AI SDK Service — sdkGenerateText', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setAIConfig({
+      provider: 'custom',
+      apiKey: 'k',
+      model: 'deepseek-chat',
+      maxTokens: 3000,
+      temperature: 0.4,
+    })
+  })
+
+  it('输出预算与温度跟随用户配置，且默认关闭深度思考', async () => {
+    mockGenerateText.mockResolvedValue({ text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } })
+
+    await sdkGenerateText([{ role: 'user', content: 'Hi' }], { feature: 'summary' })
+
+    const args = lastGenerateTextCall()
+    expect(args.maxOutputTokens).toBe(3000)
+    expect(args.temperature).toBe(0.4)
+    // 不关思考的话，模型先把预算烧在 reasoning 上，正文可能一个字都不出
+    expect(args.providerOptions).toEqual({ openaiCompatible: { reasoningEffort: 'none' } })
+  })
+
+  it('调用方显式给的预算优先于配置（卡片解读只要 600）', async () => {
+    mockGenerateText.mockResolvedValue({ text: 'ok', usage: { inputTokens: 1, outputTokens: 1 } })
+
+    await sdkGenerateText([{ role: 'user', content: 'Hi' }], { maxOutputTokens: 600 })
+
+    expect(lastGenerateTextCall().maxOutputTokens).toBe(600)
+  })
+
+  it('用量按 feature 落库，带缓存命中数与本次实际模型', async () => {
+    mockGenerateText.mockResolvedValue({
+      text: 'ok',
+      usage: { inputTokens: 1200, outputTokens: 80, cachedInputTokens: 1024 },
+    })
+
+    await sdkGenerateText([{ role: 'user', content: 'Hi' }], { feature: 'generateChapterSummary' })
+
+    expect(mockedUsageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'deepseek-chat',
+        feature: 'generateChapterSummary',
+        inputTokens: 1200,
+        outputTokens: 80,
+        cachedTokens: 1024,
+      }),
+    )
+  })
+
+  it('0 用量不落库（被中断或空响应，记进去只会污染统计）', async () => {
+    mockGenerateText.mockResolvedValue({ text: '', usage: { inputTokens: 0, outputTokens: 0 } })
+
+    await sdkGenerateText([{ role: 'user', content: 'Hi' }], { feature: 'summary' })
+
+    expect(mockedUsageCreate).not.toHaveBeenCalled()
+  })
+
+  it('system 指令合并进首条 user 消息 —— 部分服务商不接受 system role', async () => {
+    mockGenerateText.mockResolvedValue({ text: 'ok', usage: { inputTokens: 1, outputTokens: 1 } })
+
+    await sdkGenerateText([
+      { role: 'system', content: '你是一个助手' },
+      { role: 'user', content: '问题' },
+    ])
+
+    const { messages } = lastGenerateTextCall()
+    expect(messages.map((m) => m.role)).toEqual(['user'])
+    expect(messages[0].content).toContain('你是一个助手')
+    expect(messages[0].content).toContain('问题')
+  })
+})
+
+describe('AI SDK Service — 章节摘要（L1）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setAIConfig({ provider: 'custom', apiKey: 'k', model: 'm', maxTokens: 2000 })
+    mockGenerateText.mockResolvedValue({ text: '本章正文', usage: { inputTokens: 10, outputTokens: 5 } })
+  })
+
+  it('没有划线直接报错，不发 AI 请求', async () => {
+    await expect(generateChapterSummary('书', '第一章', '   ')).rejects.toThrow('No highlights provided')
+    expect(mockGenerateText).not.toHaveBeenCalled()
+    expect(mockedUsageCreate).not.toHaveBeenCalled()
+  })
+
+  it('剥掉模型自多加的代码块围栏', async () => {
+    mockGenerateText.mockResolvedValue({
+      text: '```text\n本章讲了心理创伤并不存在。\n```',
+      usage: { inputTokens: 1, outputTokens: 1 },
+    })
+
+    expect(await generateChapterSummary('书', '第一章', '一条划线')).toBe('本章讲了心理创伤并不存在。')
+  })
+
+  it('围栏里也是空的 → 报错，不把空摘要当成功写进库', async () => {
+    mockGenerateText.mockResolvedValue({ text: '```', usage: { inputTokens: 1, outputTokens: 1 } })
+
+    await expect(generateChapterSummary('书', '第一章', '一条划线')).rejects.toThrow('章节摘要为空')
+  })
+
+  it('用 generateChapterSummary 自己的提示词与 feature 记账', async () => {
+    await generateChapterSummary('被讨厌的勇气', '第二夜', '1. 一条划线')
+
+    // 归一化后只剩一条 user 消息：系统指令并到最前面
+    const { messages } = lastGenerateTextCall()
+    expect(messages).toHaveLength(1)
+    expect(messages[0].content).toContain('你在为一本书写「章节摘要」')
+    expect(messages[0].content).not.toContain('Skill 生成助手')
+    expect(messages[0].content).toContain('《被讨厌的勇气》——第二夜')
+    expect(messages[0].content).toContain('1. 一条划线')
+    expect(mockedUsageCreate).toHaveBeenCalledWith(expect.objectContaining({ feature: 'generateChapterSummary' }))
+  })
+})
+
+describe('AI SDK Service — 全书摘要（L2）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setAIConfig({ provider: 'custom', apiKey: 'k', model: 'm', maxTokens: 2000 })
+  })
+
+  it('走结构化输出，并清掉首尾空白与空的 keyPoint', async () => {
+    mockGenerateObject.mockResolvedValue({
+      object: { summary: '  全书一句话  ', keyPoints: [' 要点一 ', '', '  ', '要点二'] },
+      usage: { inputTokens: 20, outputTokens: 6 },
+    })
+
+    const result = await generateBookSummary('书', '[第一章] 章摘要')
+
+    expect(result).toEqual({ summary: '全书一句话', keyPoints: ['要点一', '要点二'] })
+    expect(mockedUsageCreate).toHaveBeenCalledWith(expect.objectContaining({ feature: 'generateBookSummary' }))
+  })
+
+  it('generateObject 抛错（模型不合规）时原样上抛，不静默降级', async () => {
+    mockGenerateObject.mockRejectedValue(new Error('No object generated'))
+
+    await expect(generateBookSummary('书', '[第一章] 章摘要')).rejects.toThrow('No object generated')
+  })
+})
+
+describe('AI SDK Service — 卡片解读 / 应用 / Skill 导出', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setAIConfig({ provider: 'custom', apiKey: 'k', model: 'm', maxTokens: 2000 })
+  })
+
+  it('两种卡片文案共用形状、各用自己的模板和 feature', async () => {
+    mockGenerateText
+      .mockResolvedValueOnce({ text: ' 解读正文 ', usage: { inputTokens: 5, outputTokens: 2 } })
+      .mockResolvedValueOnce({ text: '应用正文', usage: { inputTokens: 5, outputTokens: 2 } })
+
+    expect(await generateCardInterpretation('书', '卡名', '卡内容', '概念')).toBe('解读正文')
+    expect(await generateCardApplication('书', '卡名', '卡内容', '概念')).toBe('应用正文')
+
+    // 卡片文案一段话就够，给到 2000 只是白花钱
+    expect(lastGenerateTextCall(0).maxOutputTokens).toBe(600)
+    expect(mockedUsageCreate.mock.calls[0][0].feature).toBe('generateCardInterpretation')
+    expect(mockedUsageCreate.mock.calls[1][0].feature).toBe('generateCardApplication')
+  })
+
+  it('Skill：英文名 slug 化后自带换行，不顶坏下一行', async () => {
+    mockGenerateText.mockResolvedValue({ text: 'yaml', usage: { inputTokens: 5, outputTokens: 2 } })
+
+    await generateSkill({ name: 'Pomodoro Technique', description: 'd' })
+
+    const userMessage = lastGenerateTextCall().messages[0].content
+    expect(userMessage).toContain('英文名称: pomodoro-technique\n触发场景:')
+  })
+
+  it('Skill：纯中文名没有英文名时，整行省略而不是留个空标签', async () => {
+    mockGenerateText.mockResolvedValue({ text: 'yaml', usage: { inputTokens: 5, outputTokens: 2 } })
+
+    await generateSkill({ name: '番茄工作法' })
+
+    const userMessage = lastGenerateTextCall().messages[0].content
+    expect(userMessage).not.toContain('英文名称:')
+    expect(userMessage).toContain('名称: 番茄工作法')
+  })
+
+  it('Skill：缺省字段填 N/A，步骤数组拼成多行', async () => {
+    mockGenerateText.mockResolvedValue({ text: 'yaml', usage: { inputTokens: 5, outputTokens: 2 } })
+
+    await generateSkill({ name: 'Deep Work', steps: ['第一步', '第二步'] })
+
+    const userMessage = lastGenerateTextCall().messages[0].content
+    expect(userMessage).toContain('步骤: 第一步\n第二步')
+    expect(userMessage).toContain('示例: N/A')
   })
 })

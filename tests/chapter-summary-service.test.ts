@@ -15,7 +15,7 @@ const { mockChapterSummary, mockBookSummary } = vi.hoisted(() => ({
   mockBookSummary: vi.fn(async () => ({ summary: '全书摘要', keyPoints: ['要点一', '要点二'] })),
 }))
 
-vi.mock('../electron/ai-service', () => ({
+vi.mock('../electron/ai-sdk-service', () => ({
   generateChapterSummary: mockChapterSummary,
   generateBookSummary: mockBookSummary,
 }))

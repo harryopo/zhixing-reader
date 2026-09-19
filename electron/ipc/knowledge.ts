@@ -10,7 +10,8 @@ import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { knowledgeCardService } from '../services/knowledge-card-service';
 import { fetchAllContent } from '../weread-api';
 import { resolveWereadContent } from '../../src/shared/weread-content';
-import { extractMethodologies, generateCardInterpretation, generateCardApplication, generateSkill } from '../ai-service';
+import { extractMethodologies } from '../ai-service';
+import { generateCardInterpretation, generateCardApplication, generateSkill } from '../ai-sdk-service';
 import type { HandleFn } from './types';
 
 /**

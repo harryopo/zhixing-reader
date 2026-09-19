@@ -1,10 +1,11 @@
 // 知行读书 — AI service 函数测试（Phase 8 T2，2026-07-22）
 //
-// 覆盖：generateChapterSummary / generateBookSummary（callAI 载体）/
-//       extractMethodologies / analyzeBookArchitecture / distillKnowledgeCards /
-//       generateCardInterpretation / generateCardApplication / generateSkill /
-//       translateArticle /
+// 覆盖：callAI 各分支（以 extractMethodologies 为载体）/
+//       extractMethodologies / distillKnowledgeCards / translateArticle /
 //       setAIConfig / getAIConfig / initFromSettings
+//
+// 已迁到 AI SDK 路径的非流式函数（章节摘要 / 全书摘要 / 卡片解读与应用 /
+// 方法论导出 Skill）由 tests/ai-sdk-service.test.ts 覆盖。
 //
 // 策略：
 //   - vi.mock fetchWithTimeout + fetchWithRetry，避免真实网络调用
@@ -40,13 +41,8 @@ import {
   setAIConfig,
   getAIConfig,
   initFromSettings,
-  generateChapterSummary,
-  generateBookSummary,
   extractMethodologies,
   distillKnowledgeCards,
-  generateCardInterpretation,
-  generateCardApplication,
-  generateSkill,
   translateArticle,
   testConnection,
 } from '../electron/ai-service'
@@ -142,7 +138,7 @@ describe('callOpenAI 错误处理', () => {
     } as unknown as Response)
 
     await expect(
-      generateChapterSummary('test-book-callai-empty', '第一章', '一条划线')
+      extractMethodologies([{ content: '一条划线' }], 'test-book-callai-empty')
     ).rejects.toThrow('Invalid response from OpenAI API: no choices returned')
   })
 
@@ -160,7 +156,7 @@ describe('callOpenAI 错误处理', () => {
     } as unknown as Response)
 
     await expect(
-      generateChapterSummary('test-book-callai-no-message', '第一章', '一条划线')
+      extractMethodologies([{ content: '一条划线' }], 'test-book-callai-no-message')
     ).rejects.toThrow('Invalid response from OpenAI API: no choices returned')
   })
 })
@@ -176,10 +172,7 @@ describe('callAnthropic 基本路径', () => {
       temperature: 0.5,
     })
 
-    const summaryPayload = JSON.stringify({
-      summary: 'Anthropic 摘要',
-      keyPoints: ['要点 A', '要点 B'],
-    })
+    const methodPayload = JSON.stringify([{ name: 'Anthropic 方法', description: 'desc' }])
 
     mockedFetchWithRetry.mockResolvedValueOnce({
       ok: true,
@@ -187,21 +180,18 @@ describe('callAnthropic 基本路径', () => {
       statusText: 'OK',
       body: null,
       json: async () => ({
-        content: [{ type: 'text', text: summaryPayload }],
+        content: [{ type: 'text', text: methodPayload }],
         usage: { input_tokens: 10, output_tokens: 20 },
         stop_reason: 'end_turn',
       }),
       text: async () => '',
     } as unknown as Response)
 
-    const result = await generateBookSummary(
-      'test-book-anthropic-summary',
-      '[第一章] 章节摘要'
-    )
+    const result = await extractMethodologies([{ content: '一条划线' }], 'test-book-anthropic-summary')
 
-    expect(result.summary).toBe('Anthropic 摘要')
-    expect(result.keyPoints).toEqual(['要点 A', '要点 B'])
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateBookSummary')
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe('Anthropic 方法')
+    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('extractMethodologies')
   })
 
   it('13b. Anthropic 返回空 content 数组时抛错', async () => {
@@ -227,7 +217,7 @@ describe('callAnthropic 基本路径', () => {
     } as unknown as Response)
 
     await expect(
-      generateBookSummary('test-book-anthropic-empty', '[第一章] 章节摘要')
+      extractMethodologies([{ content: '一条划线' }], 'test-book-anthropic-empty')
     ).rejects.toThrow('Invalid response from Anthropic API: no content returned')
   })
 })
@@ -296,7 +286,6 @@ describe('extractMethodologies', () => {
     ).rejects.toThrow('Network failure')
   })
 })
-
 
 describe('distillKnowledgeCards', () => {
   it('22. 单批蒸馏正常返回卡片（highlights ≤ batchSize）', async () => {
@@ -559,69 +548,6 @@ describe('extractMethodologies — 来源划线', () => {
   })
 })
 
-describe('generateCardInterpretation', () => {
-  it('27. 正常返回解读内容（trim 处理）', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('  这是解读  '))
-
-    const result = await generateCardInterpretation('书名', '卡片标题', '卡片内容', 'concept')
-
-    expect(result).toBe('这是解读')
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateCardInterpretation')
-  })
-
-  it('28. 网络错误时抛错', async () => {
-    mockedFetchWithRetry.mockRejectedValueOnce(new Error('Interpretation fail'))
-
-    await expect(
-      generateCardInterpretation('书名', '标题', '内容', 'methodology')
-    ).rejects.toThrow('Interpretation fail')
-  })
-})
-
-describe('generateCardApplication', () => {
-  it('29. 正常返回应用建议（trim 处理）', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('  应用建议  '))
-
-    const result = await generateCardApplication('书名', '卡片标题', '卡片内容', 'quote')
-
-    expect(result).toBe('应用建议')
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateCardApplication')
-  })
-
-  it('30. 网络错误时抛错', async () => {
-    mockedFetchWithRetry.mockRejectedValueOnce(new Error('Application fail'))
-
-    await expect(
-      generateCardApplication('书名', '标题', '内容', 'concept')
-    ).rejects.toThrow('Application fail')
-  })
-})
-
-describe('generateSkill', () => {
-  it('31. 正常返回技能内容（nameEn 存在时直接使用）', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('skill content'))
-
-    const result = await generateSkill({
-      name: '深度学习',
-      nameEn: 'deep-learning',
-      description: 'desc',
-      steps: ['step1', 'step2'],
-      bookTitle: '书名',
-    })
-
-    expect(result).toBe('skill content')
-    expect(mockedTokenUsageCreate.mock.calls[0][0].feature).toBe('generateSkill')
-  })
-
-  it('32. nameEn 缺失时不抛错（走 name 转换 fallback）', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('skill no nameEn'))
-
-    const result = await generateSkill({ name: '中文名' })
-
-    expect(result).toBe('skill no nameEn')
-  })
-})
-
 describe('translateArticle', () => {
   it('35. 正常分段翻译：标题 + 多段落', async () => {
     mockedFetchWithRetry
@@ -687,7 +613,7 @@ describe('callAI 错误处理', () => {
     })
 
     await expect(
-      generateChapterSummary('test-book-unsupported', '第一章', '一条划线')
+      extractMethodologies([{ content: '一条划线' }], 'test-book-unsupported')
     ).rejects.toThrow('Unsupported AI provider: unsupported')
   })
 
@@ -722,24 +648,25 @@ describe('callAI 错误处理', () => {
     })
 
     await expect(
-      generateChapterSummary('test-book-empty-provider', '第一章', '一条划线')
+      extractMethodologies([{ content: '一条划线' }], 'test-book-empty-provider')
     ).rejects.toThrow('Unsupported AI provider: ')
   })
 
-  it('47. temperature/maxTokens/model/baseUrl 缺失时使用 fallback', async () => {
+  // maxTokens 不在此断言：剩下的 callAI 调用方全部显式给预算，
+  // callAI 内部的默认值已无载体（它会随 callAI 一起删除）。
+  it('47. temperature/model/baseUrl 缺失时使用 fallback', async () => {
     setAIConfig({
       provider: 'openai',
       apiKey: 'sk-test',
     })
 
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('本章讲了心理创伤并不存在。'))
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([{ name: '方法', description: 'desc' }])))
 
-    const result = await generateChapterSummary('test-book-fallback', '第一章', '一条划线')
+    const result = await extractMethodologies([{ content: '一条划线' }], 'test-book-fallback')
 
-    expect(result).toBe('本章讲了心理创伤并不存在。')
+    expect(result).toHaveLength(1)
     const body = JSON.parse(mockedFetchWithRetry.mock.calls[0][1].body as string)
     expect(body.temperature).toBe(0.7)
-    expect(body.max_tokens).toBe(4000)
     expect(body.model).toBe('gpt-4o-mini')
     expect(mockedFetchWithRetry.mock.calls[0][0]).toBe('https://api.openai.com/v1/chat/completions')
   })
@@ -775,19 +702,17 @@ describe('callAI 错误处理', () => {
   it('49. 相同输入调用两次时第二次命中缓存', async () => {
     setOpenAIConfig()
 
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('cached response'))
+    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse(JSON.stringify([{ name: 'cached', description: 'desc' }])))
 
-    const result1 = await generateChapterSummary('book', '第一章', '一条划线')
-    expect(result1).toBe('cached response')
+    const result1 = await extractMethodologies([{ content: '一条划线' }], 'book-cache')
+    expect(result1[0].name).toBe('cached')
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1)
 
-    const result2 = await generateChapterSummary('book', '第一章', '一条划线')
-    expect(result2).toBe('cached response')
+    const result2 = await extractMethodologies([{ content: '一条划线' }], 'book-cache')
+    expect(result2[0].name).toBe('cached')
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1)
   })
 })
-
-
 
 describe('缓存命中 tokens 记账', () => {
   // 统计页的「缓存命中率」此前只有走 AI SDK 的调用有数（对话/历史摘要），
@@ -806,7 +731,7 @@ describe('缓存命中 tokens 记账', () => {
       statusText: 'OK',
       body: null,
       json: async () => ({
-        choices: [{ message: { content: '章节摘要正文', role: 'assistant' }, finish_reason: 'stop' }],
+        choices: [{ message: { content: JSON.stringify([{ name: '方法', description: 'desc' }]), role: 'assistant' }, finish_reason: 'stop' }],
         usage: {
           prompt_tokens: 1200,
           completion_tokens: 80,
@@ -816,7 +741,7 @@ describe('缓存命中 tokens 记账', () => {
       text: async () => '',
     } as unknown as Response)
 
-    await generateChapterSummary('缓存记账这本书', '第一章', '一条划线')
+    await extractMethodologies([{ content: '一条划线' }], '缓存记账这本书')
 
     const row = mockedTokenUsageCreate.mock.calls[0][0]
     expect(row.inputTokens).toBe(1200)
@@ -831,9 +756,11 @@ describe('缓存命中 tokens 记账', () => {
       baseUrl: 'https://example.com',
     })
 
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('没有明细字段'))
+    mockedFetchWithRetry.mockResolvedValueOnce(
+      createOpenAIResponse(JSON.stringify([{ name: '方法', description: 'desc' }])),
+    )
 
-    await generateChapterSummary('无明细这本书', '第一章', '一条划线')
+    await extractMethodologies([{ content: '一条划线' }], '无明细这本书')
 
     const row = mockedTokenUsageCreate.mock.calls[0][0]
     expect(row.cachedTokens).toBeUndefined()
