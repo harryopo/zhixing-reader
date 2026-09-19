@@ -1,11 +1,11 @@
 // 知行读书 — AI service 函数测试（Phase 8 T2，2026-07-22）
 //
 // 覆盖：callAI 各分支（以 extractMethodologies 为载体）/
-//       extractMethodologies / distillKnowledgeCards / translateArticle /
+//       extractMethodologies / distillKnowledgeCards /
 //       setAIConfig / getAIConfig / initFromSettings
 //
 // 已迁到 AI SDK 路径的非流式函数（章节摘要 / 全书摘要 / 卡片解读与应用 /
-// 方法论导出 Skill）由 tests/ai-sdk-service.test.ts 覆盖。
+// Skill 导出 / 文章翻译）由 tests/ai-sdk-service.test.ts 覆盖。
 //
 // 策略：
 //   - vi.mock fetchWithTimeout + fetchWithRetry，避免真实网络调用
@@ -43,7 +43,6 @@ import {
   initFromSettings,
   extractMethodologies,
   distillKnowledgeCards,
-  translateArticle,
   testConnection,
 } from '../electron/ai-service'
 import { fetchWithTimeout, fetchWithRetry, HttpAbortError } from '../electron/http-client'
@@ -545,61 +544,6 @@ describe('extractMethodologies — 来源划线', () => {
     )
 
     expect(result[0].sourceHighlightIds).toEqual([])
-  })
-})
-
-describe('translateArticle', () => {
-  it('35. 正常分段翻译：标题 + 多段落', async () => {
-    mockedFetchWithRetry
-      .mockResolvedValueOnce(createOpenAIResponse('标题翻译')) // 标题
-      .mockResolvedValueOnce(createOpenAIResponse('段落1翻译')) // 段落1
-      .mockResolvedValueOnce(createOpenAIResponse('段落2翻译')) // 段落2
-
-    const result = await translateArticle('Article-35', 'Paragraph 1\n\nParagraph 2')
-
-    expect(result.title_zh).toBe('标题翻译')
-    expect(result.content_zh).toBe('段落1翻译\n\n段落2翻译')
-    // summary_zh = 第一段前 100 字符 + '...'
-    expect(result.summary_zh).toBe('段落1翻译...')
-  })
-
-  it('36. 空 content 时只翻译标题（content_zh + summary_zh 均为空字符串）', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(createOpenAIResponse('标题'))
-
-    const result = await translateArticle('Article-36', '')
-
-    expect(result.title_zh).toBe('标题')
-    expect(result.content_zh).toBe('')
-    // 修复后（Phase 11 T1）：原 ai-service.ts:1433 运算符优先级 bug 已修
-    //   修复前: `contentParagraphs[0]?.slice(0, 100) + '...' || ''` → 'undefined...'
-    //   修复后: `contentParagraphs[0] ? contentParagraphs[0].slice(0,100) + '...' : ''` → ''
-    expect(result.summary_zh).toBe('')
-  })
-
-  it('37. 标题与正文都返回空 → 必须抛错，不能默默写空字符串入库', async () => {
-    // 线上故障回归：deepseek-flash 默认开启思考，把 200/1000 的输出预算全烧在
-    // reasoning 上，正文返回空字符串。原实现不校验，把空串写进 articles 表并
-    // 当成功上报，前端因此永远显示「点击翻译」且不报错。
-    mockedFetchWithRetry
-      .mockResolvedValueOnce(createOpenAIResponse('')) // 标题空
-      .mockResolvedValueOnce(createOpenAIResponse('')) // 段落空
-
-    await expect(translateArticle('Article-37', 'Paragraph')).rejects.toThrow(/翻译返回空内容/)
-  })
-
-  it('38. 翻译请求显式关闭深度思考（reasoning_effort=none）', async () => {
-    mockedFetchWithRetry
-      .mockResolvedValueOnce(createOpenAIResponse('标题'))
-      .mockResolvedValueOnce(createOpenAIResponse('段落'))
-
-    await translateArticle('Article-38', 'Paragraph')
-
-    const bodies = mockedFetchWithRetry.mock.calls.map((c) => JSON.parse(String((c[1] as { body?: string })?.body ?? '{}')))
-    expect(bodies.length).toBeGreaterThan(0)
-    // 机械任务不应触发思考，否则小预算下正文会被 reasoning 挤空
-    for (const b of bodies) {
-      expect(b.reasoning_effort).toBe('none')
-    }
   })
 })
 

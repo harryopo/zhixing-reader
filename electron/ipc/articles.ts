@@ -9,7 +9,7 @@ import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { fetchAllRssSources, generateArticleId } from '../rss-fetcher';
 import { dictionaryService } from '../dictionary-service';
-import { translateArticle } from '../ai-service';
+import { translateArticle } from '../ai-sdk-service';
 import type { HandleFn } from './types';
 
 export function registerArticleHandlers(handle: HandleFn): void {

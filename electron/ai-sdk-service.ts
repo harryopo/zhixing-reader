@@ -525,6 +525,52 @@ export async function generateSkill(methodology: SkillMethodologyInput): Promise
   );
 }
 
+/**
+ * RSS 文章翻译：标题一次调用 + 正文逐段调用（分段是为了不把整篇塞进一次请求）。
+ *
+ * 两段提示词是硬编码的，没进提示词注册表 —— 翻译是机械任务，覆写它没有意义，
+ * 而「只返回翻译结果」这句一旦被改，界面拿到的就是模型的解释而不是译文。
+ */
+export async function translateArticle(
+  titleEn: string,
+  contentEn: string,
+): Promise<{ title_zh: string; summary_zh: string; content_zh: string }> {
+  const title_zh = (
+    await sdkGenerateText(
+      [
+        { role: 'system', content: '你是翻译助手，将英文翻译为中文，只返回翻译结果。' },
+        { role: 'user', content: `翻译以下英文标题为中文：\n${titleEn}` },
+      ],
+      { maxOutputTokens: 512, feature: 'translateArticle' },
+    )
+  ).trim();
+
+  const paragraphs = contentEn.split(/\n\s*\n/).filter((p) => p.trim());
+  const contentParagraphs: string[] = [];
+  for (const para of paragraphs) {
+    const translated = await sdkGenerateText(
+      [
+        { role: 'system', content: '你是翻译助手，将英文段落翻译为中文，保持段落结构，只返回翻译结果。' },
+        { role: 'user', content: `翻译以下英文段落为中文：\n${para}` },
+      ],
+      { maxOutputTokens: 2000, feature: 'translateArticle' },
+    );
+    contentParagraphs.push(translated.trim());
+  }
+
+  const content_zh = contentParagraphs.join('\n\n');
+  const summary_zh = contentParagraphs[0] ? `${contentParagraphs[0].slice(0, 100)}...` : '';
+
+  // 必须校验：模型返回空内容时不报错的话，空字符串会被当成功写进 articles 表，
+  // 界面因此永远停在「点击翻译」且从不提示失败（线上真实故障）。
+  if (!title_zh && !content_zh) {
+    throw new Error('翻译返回空内容。可能是输出预算被「深度思考」占满或服务商拒绝请求，请重试。');
+  }
+
+  logger.info('Article translated', { paragraphs: contentParagraphs.length });
+  return { title_zh, summary_zh, content_zh };
+}
+
 /** 非流式补全用量落库（与 recordChatUsage 同机制，feature 区分）：0 用量不记，失败不报错 */
 function recordGenerateUsage(
   usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,

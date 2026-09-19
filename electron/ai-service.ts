@@ -174,15 +174,6 @@ interface CallOptions {
   retryConfig?: RetryConfig;
   maxTokensOverride?: number;
   signal?: AbortSignal;
-  /**
-   * 显式关闭服务商侧的「深度思考」。
-   *
-   * 翻译、摘要这类机械任务不需要推理，但 deepseek-flash 等模型**默认就会思考**，
-   * 会把输出预算先烧在 reasoning 上 —— 预算小的时候正文直接为空。
-   * （线上故障：翻译标题给 200 token、每段给 1000 token，全部被 reasoning 吃光，
-   *  返回空字符串并写入数据库，前端因此永远显示「点击翻译」。）
-   */
-  disableReasoning?: boolean;
 }
 
 async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptions): Promise<AIResponse> {
@@ -198,14 +189,10 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
   const temperature = config.temperature || 0.7;
   const retryConfig = opts.retryConfig || RETRY_CONFIGS.AI_SERVICE;
 
-  // 默认关闭深度思考：非流式 callAI 服务于抽取 / 翻译 / 摘要 / 卡片生成等
-  // **机械任务**，不需要推理。而 deepseek-flash 这类模型默认就会思考，
-  // 把输出预算先烧在 reasoning 上 —— 小预算（200/600）直接返回空内容，
-  // 大预算（8000）则被截断成半截 JSON。
-  // 对话场景走 AI SDK（ai-sdk-service），不受此处影响；确需推理的调用
-  // 可显式传 disableReasoning: false 打开。
-  const disableReasoning = opts.disableReasoning !== false;
-
+  // 关闭深度思考：非流式 callAI 只剩抽取 / 蒸馏这类**机械任务**，不需要推理。
+  // 而 deepseek-flash 这类模型默认就会思考，把输出预算先烧在 reasoning 上 ——
+  // 小预算直接返回空内容，大预算则被截断成半截 JSON。
+  // 对话场景走 AI SDK（ai-sdk-service），不受此处影响。
   logger.info(`Calling OpenAI API`, { model, messageCount: messages.length });
 
   const response = await fetchWithRetry(
@@ -221,7 +208,7 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
         messages,
         temperature,
         max_tokens: maxTokens,
-        ...(disableReasoning ? { reasoning_effort: 'none' } : {}),
+        reasoning_effort: 'none',
       }),
     },
     {
@@ -883,68 +870,4 @@ async function distillSingleBatch(
 
   logger.info(`Distilled ${validCards.length} knowledge cards from ${highlights.length} highlights (${durationMs}ms)`)
   return validCards
-}
-
-/**
- * 翻译 RSS 文章为中文
- * 分段翻译避免超长，返回标题、摘要、正文的中文翻译
- */
-export async function translateArticle(
-  titleEn: string,
-  contentEn: string
-): Promise<{ title_zh: string; summary_zh: string; content_zh: string }> {
-  if (!config) throw new Error('AI service not configured');
-  const startMs = Date.now()
-
-  // 翻译标题
-  const titleMessages: Message[] = [
-    { role: 'system', content: '你是翻译助手，将英文翻译为中文，只返回翻译结果。' },
-    { role: 'user', content: `翻译以下英文标题为中文：\n${titleEn}` },
-  ];
-
-  const titleResponse = await callAI(titleMessages, { maxTokensOverride: 512, disableReasoning: true });
-  const title_zh = titleResponse.content.trim();
-  let totalPromptTokens = titleResponse.usage?.promptTokens || 0;
-  let totalCompletionTokens = titleResponse.usage?.completionTokens || 0;
-
-  // 分段翻译正文
-  const paragraphs = contentEn.split(/\n\s*\n/).filter(p => p.trim());
-  const contentParagraphs: string[] = [];
-
-  for (const para of paragraphs) {
-    const paraMessages: Message[] = [
-      { role: 'system', content: '你是翻译助手，将英文段落翻译为中文，保持段落结构，只返回翻译结果。' },
-      { role: 'user', content: `翻译以下英文段落为中文：\n${para}` },
-    ];
-
-    const paraResponse = await callAI(paraMessages, { maxTokensOverride: 2000, disableReasoning: true });
-    contentParagraphs.push(paraResponse.content.trim());
-    if (paraResponse.usage) {
-      totalPromptTokens += paraResponse.usage.promptTokens || 0;
-      totalCompletionTokens += paraResponse.usage.completionTokens || 0;
-    }
-  }
-
-  const content_zh = contentParagraphs.join('\n\n');
-  // 修复：原代码 `contentParagraphs[0]?.slice(0, 100) + '...' || ''` 有运算符优先级 bug
-  //   `+` 优先于 `||`，解析为 `(undefined + '...') || ''` = `'undefined...'`
-  //   当 contentParagraphs 为空时 summary_zh 应为空字符串
-  const summary_zh = contentParagraphs[0]
-    ? contentParagraphs[0].slice(0, 100) + '...'
-    : '';
-
-  const durationMs = Date.now() - startMs;
-  recordTokenUsage('translateArticle', { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens }, durationMs);
-  logger.info('Article translated', { durationMs, totalPromptTokens, totalCompletionTokens });
-
-  // 必须校验：模型返回空内容时，原实现会把空字符串写进库并当成功上报，
-  // 前端因此永远看不到译文（也永远不会报错）。宁可显式失败让用户重试。
-  if (!title_zh && !content_zh) {
-    throw new Error(
-      `翻译返回空内容（prompt ${totalPromptTokens} / completion ${totalCompletionTokens} token）。` +
-      '可能是输出预算被深度思考占满或服务商拒绝请求，请重试。'
-    );
-  }
-
-  return { title_zh, summary_zh, content_zh };
 }

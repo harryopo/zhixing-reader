@@ -5,7 +5,7 @@
 //   - setAIConfig / cancelActiveStream 的基本行为（smoke）
 //   - sdkStreamChat：未配置 / 流式输出 / 取消 / 错误处理（mock ai 模块）
 //   - sdkGenerateObject：未配置 / 结构化输出 / 错误处理（mock ai 模块）
-//   - sdkGenerateText + 迁移过来的章节摘要 / 全书摘要 / 卡片解读与应用 / Skill 生成
+//   - sdkGenerateText + 迁移过来的章节摘要 / 全书摘要 / 卡片解读与应用 / Skill 导出 / 文章翻译
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
@@ -44,6 +44,7 @@ import {
   generateCardInterpretation,
   generateCardApplication,
   generateSkill,
+  translateArticle,
 } from '../electron/ai-sdk-service'
 import { tokenUsageDb } from '../electron/database'
 import { z } from 'zod'
@@ -583,5 +584,59 @@ describe('AI SDK Service — 卡片解读 / 应用 / Skill 导出', () => {
     const userMessage = lastGenerateTextCall().messages[0].content
     expect(userMessage).toContain('步骤: 第一步\n第二步')
     expect(userMessage).toContain('示例: N/A')
+  })
+})
+
+describe('AI SDK Service — 文章翻译', () => {
+  const ok = (text: string) => ({ text, usage: { inputTokens: 10, outputTokens: 5 } })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setAIConfig({ provider: 'custom', apiKey: 'k', model: 'm', maxTokens: 2000 })
+  })
+
+  it('标题一次调用 + 正文逐段调用，段落译文按空行拼回', async () => {
+    mockGenerateText
+      .mockResolvedValueOnce(ok('标题翻译'))
+      .mockResolvedValueOnce(ok('段落1翻译'))
+      .mockResolvedValueOnce(ok('段落2翻译'))
+
+    const result = await translateArticle('Article', 'Paragraph 1\n\nParagraph 2')
+
+    expect(result).toEqual({
+      title_zh: '标题翻译',
+      summary_zh: '段落1翻译...',
+      content_zh: '段落1翻译\n\n段落2翻译',
+    })
+    expect(mockGenerateText).toHaveBeenCalledTimes(3)
+  })
+
+  it('正文为空时只翻标题，摘要为空字符串而不是 undefined...', async () => {
+    mockGenerateText.mockResolvedValueOnce(ok('标题'))
+
+    expect(await translateArticle('Article', '')).toEqual({
+      title_zh: '标题',
+      summary_zh: '',
+      content_zh: '',
+    })
+    expect(mockGenerateText).toHaveBeenCalledTimes(1)
+  })
+
+  it('标题与正文都空 → 抛错，不能把空译文写进库当成功', async () => {
+    mockGenerateText.mockResolvedValue(ok(''))
+
+    await expect(translateArticle('Article', 'Paragraph')).rejects.toThrow(/翻译返回空内容/)
+  })
+
+  it('每次调用都关思考，标题给 512、段落给 2000', async () => {
+    mockGenerateText.mockResolvedValue(ok('译文'))
+
+    await translateArticle('Article', 'P1\n\nP2')
+
+    const calls = mockGenerateText.mock.calls.map((c) => c[0] as { maxOutputTokens: number; providerOptions: unknown })
+    expect(calls.map((c) => c.maxOutputTokens)).toEqual([512, 2000, 2000])
+    for (const call of calls) {
+      expect(call.providerOptions).toEqual({ openaiCompatible: { reasoningEffort: 'none' } })
+    }
   })
 })
