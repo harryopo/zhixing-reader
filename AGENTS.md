@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（49 文件 / 901 用例）
+├── tests/                 # Vitest 单元测试（50 文件 / 917 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（901 用例；不含覆盖率）
+npm run test             # Vitest（917 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -244,7 +244,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（49 文件 / 901 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（50 文件 / 917 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
@@ -264,6 +264,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-20 | **摘要「只报不烧」**（commit 4179e5f）—— 划线改了之后 AI 摘要就过期，但界面上没有任何地方提醒，用户要么自己翻到书籍详情才发现，要么永远用着旧摘要。收口时立了一条边界：**启动/通知只做纯本地计算，一律不调 AI**（自动烧钱需要单独授权）。新增 `SUMMARIES.FRESHNESS`（通道 162→163）：`highlightsDb.getChapterCounts()` 一次 SQL 汇总 + `chapterSummariesDb.getAllSourceCounts()` → `src/shared/chapter-summaries.ts` 的 `findPendingSummaryBooks()` 纯判定（**与生成侧 `planChapterSummaries` 同一套分章口径**，空章节名归到 `UNGROUPED_CHAPTER`，划线数为 0 的章不计），按「欠更新的章数」倒序最多报 6 本。顶栏通知面板列「N 本书划线有变化，摘要待更新」，点某本 → `/bookshelf/{id}?tab=summary`（BookDetail 初始页签改为可读 `?tab=`），仍要用户自己按「生成 AI 摘要」才花钱。**踩坑一条**：SQL 汇总和内存分章是两条实现，口径漂移会静默变成「该报的不报」—— 项目里这类列名/口径漂移已咬过两次（`BookSummary` 的 `content` vs 真实 `summary`、934 条划线缺章节名），所以 `tests/summary-freshness.test.ts` 直接钉住**两者对同一份数据结果全等**，而不是只测其中一条。测试 901→917（50 文件），`npm run verify` 退出码 0。**界面部分只过了 typecheck/build/单测，没有实际点过** | AI Agent（接手） |
 | 2026-09-19（第四续） | **B1 第二批：6 个非流式函数迁到 AI SDK 通路**（commit 7cbb090 / f5eeda4）—— 章节摘要、全书摘要、卡片解读、卡片应用、Skill 导出、文章翻译全部从手写 `callAI` 改走 `sdkGenerateText` / `sdkGenerateObject`。**为什么这六个能走**：它们的输出形状要么是一段纯文本、要么是一个 `{summary, keyPoints}` —— 换 zod 严格 schema 的代价（不合规从「`repairJSON` 修修能用」变「抛错」）只在**模型自由输出 JSON 数组**的那两个函数上才真正刺眼，那两条留到人在电脑前真打 API 时做。**三处收口**：① `buildMessages` 从 ai-service 私有函数提成 `electron/services/prompt-messages.ts`，两条通路共用同一套模板（否则迁移期就是第三处双写）② 非流式调用统一下发 `reasoningEffort: 'none'`（沿用流式那边实测的教训：思考型模型会把输出预算先烧在 reasoning 上，小预算直接空正文）③ 用量按 `feature` 逐次落库，含 `cachedInputTokens`。**顺手修一个排版坑**：Skill 的 `{{nameEn}}` 在模板里顶在「触发场景:」前面，旧写法把**裸英文名**塞进去 → 渲染成 `Pomodoro触发场景: …`；纯中文名 slug 化后是空串，旧代码回退成 `methodology` 等于**编造名字**。现在提成 `src/shared/skill-name.ts`：整行自带换行、没有英文名就整行省略。**踩坑两条**：(a) 搬运测试时把载体从 `generateChapterSummary` 换成 `extractMethodologies`，那条 `max_tokens=4000` 断言量的已经不是同一个东西（抽取调用显式给 8000）—— 换载体时必须逐条重读断言，失去意义的就删掉并说明原因；(b) 用脚本按大括号计数删 `describe` 块，**字符串字面量里的 `{` `}` 会把计数带偏**，留下三行孤立 `)` 让整份测试无法 transform（**`npm run typecheck` 抓不到**：根 `tsconfig.json` 的 `include` 只有 `electron` / `src` / `scripts`，测试文件不在其中，只有真跑 vitest 才暴露）。删块用「行号 + 该行内容断言」而不是数括号。结果：ai-service 1132→873 行，测试 892→901（SDK 侧新写 30 条含红绿验证），`npm run verify` 退出码 0 | AI Agent（接手） |
 | 2026-09-19（再续） | **VIS 第三轮：字标转曲 + 调色板单一真值** —— ① **字标**：思源黑体 SemiBold(600) 描骨后用 `opentype.js@2.0.0`（MIT）转曲成 `brand/wordmark.svg`（+0.04em 字距，墨迹框 `22 -847 4058 940`，`currentColor`），另出错落版 `brand/logo-horizontal.svg`（viewBox `0 0 164 48`：字标高 24 = 环外径 38 的 63%、间距 12 = 徽标箱 25%）。**为什么必须转曲**：SVG 里的 `<text>` 吃本机系统字体，换机器/CI 就变样（上一轮实测过）。字重选 600 是因为它等于 UI 的 `--font-weight-semibold`，字标和界面"一种口气"。**UI 里不用字标** —— 侧栏/关于页仍是真文本，可选可译可读屏。组合结果用像素矩阵量过：中心线偏差 **0.0px**、间距区着墨 **0.00%** ② **调色板收口**：新增 `tokens/brand.json`（DTCG）作全部色值唯一真值，`scripts/build-tokens.mjs` 生成 `styles/generated-palette.css` + `design/palette.ts`，`design-tokens.css` 的语义 token 全部改成 `var(--emerald-600)` 这类引用、**裸 hex 清零**，`colors.ts` 改为消费 palette；带 `--check` 模式，测试跑它判产物是否过期 ③ **顺手扩范围**：grep 发现"双写"远不止两处 —— admin-charts.tsx（5 处）、token-usage/constants.ts（2 处）、Topbar 的 `var(--chart-1, #10b981)` 兜底、Badge 注释都夹带裸 hex，一并改为引用；全仓库 hex 统一小写 ④ 验证：打包后入口 CSS 同时含 `--emerald-600` 定义与 `--primary:var(--emerald-600)`，var 链闭合（Tailwind 工具类走同一条链）。**踩坑两条**：测试自己写的断言反被绊倒 —— (a) 把 `white:#ffffff` 纳入"禁止裸 hex"导致误报，禁止范围必须限定 emerald+brand 两组；(b) SVG 用大写 hex 而 JSON 小写，大小写不一致会静默漏检，已全库统一小写。新增 `tests/design-tokens.test.ts` 7 条，测试 885→892（49 文件），`npm run verify` 全绿 | AI Agent（接手） |
 | 2026-09-19（续） | **VIS 第二轮：字体本地化 + 中文字体栈补齐** —— 上一轮查出的两个遗留一起修：① `--font-sans` 只有 `"DM Sans"`（**无中文字形**），四个中文字一直在吃 Windows 默认回退，字体气质不可控；② 字体从 `fonts.googleapis.com` 拉（**桌面应用离线打不开、国内常被墙**）。现在三款字体全部本地打包：`@fontsource-variable/{noto-sans-sc,dm-sans,jetbrains-mono}`（**OFL-1.1，可变字重 100–900 一个文件**，devDependency，woff2 由 Vite 打进 `dist/renderer/assets`，实测 105 个 woff2 / 4.7MB / 最大分片 76KB，不进 git）。字体栈顺序是 **拉丁在前、中文在后**（`"DM Sans Variable", "Noto Sans SC Variable", "Microsoft YaHei UI", "PingFang SC", ui-sans-serif`）—— 反过来会让英文和数字换一套字形。OFL 义务：三份许可文本（含 `Copyright` 行）放进 `src/renderer/public/licenses/` 随包分发，关于页开源许可表加三行。**顺手删掉 `--font-serif`（定义了但全项目零消费的死 token）**。新增 `tests/typography-assets.test.ts` 8 条：无 CDN、依赖声明与入口引入、字体栈含中文族、拉丁族在前、许可文本存在且含版权行、关于页列出的字体数 = 3、死 token 不许回来。打包实测 `dist/renderer` 无 `fonts.googleapis.com`、CSS 里是 `url(./…woff2)` 相对路径（`file://` 下可用）、4 个 <4KB 子集被 Vite 内联为 base64（正常）。测试 877→885（48 文件） | AI Agent（接手） |
