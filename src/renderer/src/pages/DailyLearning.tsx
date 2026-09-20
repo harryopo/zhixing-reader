@@ -49,6 +49,13 @@ import {
 import { normalizeArticle } from './daily-learning/format'
 import { VocabPanel } from './daily-learning/VocabPanel'
 import { ArticleListPanel } from './daily-learning/ArticleListPanel'
+/**
+ * 列表长度会被直接当成界面上的数字（「还有 N 个待掌握」「现有文章都读完了」），
+ * 而主进程默认只给 articles 50 条 / vocabulary 200 条 —— 本机实测已有 80 篇文章，
+ * 用默认值就是把「还有没读完的」算成「都读完了」。一次取够，别拿被截断的列表当计数。
+ */
+const FULL_LIST_LIMIT = 1000
+
 // ===== 主组件 =====
 export default function DailyLearning() {
   const navigate = useNavigate()
@@ -111,7 +118,7 @@ export default function DailyLearning() {
     }
     try {
       setLoading(true)
-      const data = await window.electronAPI.article.getAll()
+      const data = await window.electronAPI.article.getAll(FULL_LIST_LIMIT)
       const raw = Array.isArray(data) ? data : []
       // 在边界处把 0/1 掰成真 boolean（见 normalizeArticle 的注释）
       const articleList = raw.map((a) => normalizeArticle(a as Record<string, unknown>))
@@ -129,7 +136,7 @@ export default function DailyLearning() {
   const loadVocabulary = useCallback(async () => {
     if (!window.electronAPI?.vocabulary) return
     try {
-      const data = await window.electronAPI.vocabulary.getAll()
+      const data = await window.electronAPI.vocabulary.getAll(FULL_LIST_LIMIT)
       const vocabList = Array.isArray(data) ? data : []
       setVocabulary(vocabList as unknown as Vocabulary[])
     } catch (error) {

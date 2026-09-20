@@ -768,7 +768,7 @@ export default function SettingsAgent() {
                 识别出的意图映射为教学模式与起始 Bloom 层级（难度会随后续答题表现自动调整）
               </div>
             </div>
-            <Badge variant="default">4 条映射</Badge>
+            <Badge variant="default">{INTENT_META.length} 条映射</Badge>
           </div>
 
           <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>

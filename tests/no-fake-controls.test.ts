@@ -19,6 +19,9 @@ const SETTINGS = 'src/renderer/src/pages/settings/SettingsData.tsx'
 const SETTINGS_UTILS = 'src/renderer/src/pages/settings/data-utils.ts'
 const TOPBAR = 'src/renderer/src/components/layout/Topbar.tsx'
 const REVIEW_IO = 'src/renderer/src/pages/settings/use-data-io.ts'
+const KC_ARTICLE = 'src/renderer/src/pages/knowledge-cards/KnowledgeCardArticle.tsx'
+const DAILY_LEARNING = 'src/renderer/src/pages/DailyLearning.tsx'
+const SETTINGS_AGENT = 'src/renderer/src/pages/settings/SettingsAgent.tsx'
 
 describe('假控件不许回来', () => {
   it('设置页不再出现「难度衰减」（引擎不读这个值，改了没反应）', () => {
@@ -45,5 +48,20 @@ describe('假控件不许回来', () => {
     for (const dead of ['ease_factor', 'easeFactor', 'quality', 'reviewedAt']) {
       expect(src).not.toContain(dead)
     }
+  })
+
+  it('知识卡片不再显示「复习 N 次」（review_count 没有任何写入方）', () => {
+    expect(read(KC_ARTICLE)).not.toContain('复习 {safeNum(card.reviewCount)} 次')
+  })
+
+  it('每日学习取文章/生词必须显式给 limit，不能用主进程默认的 50 / 200', () => {
+    const src = read(DAILY_LEARNING)
+    expect(src).toMatch(/article\.getAll\(FULL_LIST_LIMIT\)/)
+    expect(src).toMatch(/vocabulary\.getAll\(FULL_LIST_LIMIT\)/)
+  })
+
+  it('策略映射条数跟着 INTENT_META 走，不写死', () => {
+    const src = read(SETTINGS_AGENT)
+    expect(src).toContain('{INTENT_META.length} 条映射')
   })
 })

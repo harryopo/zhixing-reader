@@ -1,7 +1,7 @@
 /** 卡片正文（正面/反面翻转）（从 KnowledgeCards.tsx 原样搬出，逻辑未改） */
 import type { CSSProperties } from 'react'
 import Icon from '@/components/ui/Icon'
-import { formatDate, formatTimeAgo, safeNum } from '../../utils/db-mapper'
+import { formatDate, formatTimeAgo } from '../../utils/db-mapper'
 import { typeConfig, type KnowledgeCardItem } from './model'
 import { aiGenBtnStyle, iconBtnStyle, spinnerStyle } from './styles'
 
@@ -395,7 +395,8 @@ function KnowledgeCardArticle({
             </div>
           )}
 
-          {/* 复习信息 */}
+          {/* 卡片创建时间。「复习 N 次」已删：knowledge_cards.review_count 建了列但
+              没有任何写入方（FSRS 复习的是划线卡片，不是知识卡片），永远显示 0 次是假信息 */}
           <div
             style={{
               display: 'flex',
@@ -407,9 +408,6 @@ function KnowledgeCardArticle({
               borderTop: '1px solid var(--border)',
             }}
           >
-            <span>
-              复习 {safeNum(card.reviewCount)} 次
-            </span>
             <span title="基于您的划线/笔记提取">{formatDate(card.createdAt)}</span>
           </div>
 
