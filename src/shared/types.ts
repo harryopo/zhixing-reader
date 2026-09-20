@@ -49,13 +49,20 @@ export interface Card {
   updatedAt: Date
 }
 
-export interface Review {
+/**
+ * reviews 表的一行 —— 列名保持 snake_case，因为 sql.js 的 SELECT * 原样返回列名。
+ * 曾经的 quality/easeFactor/interval 是 SM-2 时代的字段，FSRS 换上来后就不存在了，
+ * 界面上的假字段（导出 CSV 五列全空）就是这么来的。
+ */
+export interface ReviewRow {
   id: string
-  cardId: string
-  quality: number
-  easeFactor: number
-  interval: number
-  reviewedAt: Date
+  card_id: string
+  /** FSRS Rating：1=忘了 2=困难 3=良好 4=轻松 */
+  rating: number
+  /** 'YYYY-MM-DD HH:MM:SS'（datetime('now') 的默认值） */
+  review_time: string
+  elapsed_days: number
+  scheduled_days: number
 }
 
 /** 全书摘要（层级摘要 L2）—— 与 book_summaries 表的实际列一一对应 */

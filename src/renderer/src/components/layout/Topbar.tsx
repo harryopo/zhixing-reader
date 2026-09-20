@@ -187,9 +187,11 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
   /** 拉取通知数据：未读笔记 + 今日复习 + 摘要待更新 + 同步状态 */
   const refreshNotifData = useCallback(async () => {
     try {
-      const [highlights, dueCards, pendingSummaries] = await Promise.all([
+      const [highlights, queue, pendingSummaries] = await Promise.all([
         window.electronAPI.highlight.getAll().catch(() => []),
-        window.electronAPI.card.getDue(100).catch(() => []),
+        // 取队列计数而不是拉一列表再 .length —— getDue(100) 最多只能报 100 张，
+        // 逾期卡片堆到几百张时，通知会一直显示「100 张待复习」，数字是假的
+        window.electronAPI.card.getQueueStats?.().catch(() => null) ?? Promise.resolve(null),
         window.electronAPI.summary?.pending().catch(() => []) ?? Promise.resolve([]),
       ])
 
@@ -224,7 +226,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
 
       setNotif({
         unreadNotes,
-        dueCards: (dueCards as unknown[]).length,
+        dueCards: queue?.actionable ?? 0,
         lastSyncAt,
         lastSyncOk,
         lastSyncCount,

@@ -2,7 +2,8 @@
 import { useCallback, useState } from 'react'
 import { toast } from '@/stores/toastStore'
 import { safeNum } from '@/utils/db-mapper'
-import { csvEscape, downloadBlob, type KpiStats } from './data-utils'
+import { downloadBlob, type KpiStats } from './data-utils'
+import { buildReviewCsv } from '../../../../shared/review-export'
 
 /**
  * 这一坨只碰 IPC、拼装文件和浏览器下载，不碰页面其它状态，所以整块搬走。
@@ -126,18 +127,9 @@ export function useDataIo(setKpiStats: (stats: KpiStats) => void) {
     const tId = toast.loading('正在导出复习数据...')
     try {
       // 拉取最近 1000 条复习记录（够分析用）
-      // 注：先转 unknown 再断言为 Record<string, unknown>[]，TS 官方推荐的 double assertion 模式
+      // 列清单与取数都走 REVIEW_CSV_COLUMNS，别再手写一遍字段名 —— 曾经写错过 5 列
       const reviews = (await api.review.getRecent(1000)) as unknown as Array<Record<string, unknown>>
-      const header = ['review_id', 'card_id', 'quality', 'ease_factor', 'interval', 'reviewed_at']
-      const rows = reviews.map((r) => [
-        r.id,
-        r.cardId,
-        r.quality,
-        r.easeFactor,
-        r.interval,
-        r.reviewedAt,
-      ].map(csvEscape).join(','))
-      const csv = [header.join(','), ...rows].join('\n')
+      const csv = buildReviewCsv(reviews)
       const filename = `zhixing-reviews-${new Date().toISOString().split('T')[0]}.csv`
       // 加 BOM 让 Excel 正确识别 UTF-8
       downloadBlob(filename, '\uFEFF' + csv, 'text/csv')

@@ -1,4 +1,4 @@
-import { Book, Highlight, Card, Review, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage } from '../shared/types'
+import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage } from '../shared/types'
 
 export interface TokenSummary {
   totalRequests: number
@@ -163,7 +163,7 @@ export interface ElectronAPI {
     review: (id: string, quality: number) => Promise<ReviewResult>
   }
   review: {
-    getRecent: (limit?: number) => Promise<Review[]>
+    getRecent: (limit?: number) => Promise<ReviewRow[]>
   }
   agent: {
     getPipelineInfo: () => Promise<{

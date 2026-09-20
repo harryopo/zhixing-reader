@@ -1,14 +1,11 @@
 /** 数据与存储页的常量、类型与纯工具（从 SettingsData.tsx 原样搬出，逻辑未改） */
 export const FSRS_DEFAULTS = {
   level: 3,
-  decay: 0.2,
   maxInterval: 365,
 } as const
 
 /** FSRS 参数配置里新增的「每日学习量」默认值（与 src/shared/study-limits.ts 保持一致） */
 export const DEFAULT_NEW_CARDS_PER_DAY = 15
-
-export const STORAGE_CAP_MB = 512
 
 /**
  * 真实的存储用量（字节）。
@@ -117,13 +114,4 @@ export function formatDaysAgo(isoTs: string): string {
   if (days <= 0) return '今天'
   if (days === 1) return '1 天前'
   return `${days} 天前`
-}
-
-/** CSV 字段转义 */
-export function csvEscape(v: unknown): string {
-  const s = v === null || v === undefined ? '' : String(v)
-  if (/[",\n\r]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
 }

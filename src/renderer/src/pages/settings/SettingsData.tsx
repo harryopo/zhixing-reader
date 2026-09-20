@@ -27,7 +27,6 @@ import {
   DEFAULT_NEW_CARDS_PER_DAY,
   FSRS_DEFAULTS,
   NAV_ITEMS,
-  STORAGE_CAP_MB,
   asNumber,
   asString,
   formatDaysAgo,
@@ -46,7 +45,6 @@ export default function SettingsData() {
 
   // ===== FSRS UI 参数 =====
   const [fsrsLevel, setFsrsLevel] = useState<number>(FSRS_DEFAULTS.level)
-  const [fsrsDecay, setFsrsDecay] = useState<number>(FSRS_DEFAULTS.decay)
   const [fsrsMaxInterval, setFsrsMaxInterval] = useState<number>(FSRS_DEFAULTS.maxInterval)
   const [fsrsDirty, setFsrsDirty] = useState<boolean>(false)
   const [fsrsSaving, setFsrsSaving] = useState<boolean>(false)
@@ -92,18 +90,14 @@ export default function SettingsData() {
       if (!api) return
       try {
         // 1. UI 值（settings.get）
-        const [lv, dc, mi, lastExp, ncpd] = await Promise.all([
+        const [lv, mi, lastExp, ncpd] = await Promise.all([
           api.settings.get('fsrsRequestLevel'),
-          api.settings.get('fsrsDifficultyDecay'),
           api.settings.get('fsrsMaxInterval'),
           api.settings.get('lastDataExportAt'),
           api.settings.get('newCardsPerDay'),
         ])
-        const level = asNumber(lv, FSRS_DEFAULTS.level)
-        const decay = asNumber(dc, FSRS_DEFAULTS.decay)
         const maxInterval = asNumber(mi, FSRS_DEFAULTS.maxInterval)
-        setFsrsLevel(level)
-        setFsrsDecay(decay)
+        setFsrsLevel(asNumber(lv, FSRS_DEFAULTS.level))
         setFsrsMaxInterval(maxInterval)
         setLastExportAt(asString(lastExp, ''))
         setNewCardsPerDay(asNumber(ncpd, DEFAULT_NEW_CARDS_PER_DAY))
@@ -182,10 +176,6 @@ export default function SettingsData() {
     setFsrsLevel(v)
     setFsrsDirty(true)
   }, [])
-  const handleChangeDecay = useCallback((v: number) => {
-    setFsrsDecay(v)
-    setFsrsDirty(true)
-  }, [])
   const handleChangeMaxInterval = useCallback((v: number) => {
     setFsrsMaxInterval(v)
     setFsrsDirty(true)
@@ -255,7 +245,6 @@ export default function SettingsData() {
     try {
       await Promise.all([
         api.settings.set('fsrsRequestLevel', fsrsLevel),
-        api.settings.set('fsrsDifficultyDecay', fsrsDecay),
         api.settings.set('fsrsMaxInterval', fsrsMaxInterval),
         api.settings.set('newCardsPerDay', newCardsPerDay),
         api.fsrs.setParameters({
@@ -272,7 +261,7 @@ export default function SettingsData() {
     } finally {
       setFsrsSaving(false)
     }
-  }, [fsrsLevel, fsrsDecay, fsrsMaxInterval, newCardsPerDay])
+  }, [fsrsLevel, fsrsMaxInterval, newCardsPerDay])
 
   // ===== 重置 FSRS 参数 =====
   const handleResetFsrs = useCallback(async () => {
@@ -285,7 +274,6 @@ export default function SettingsData() {
     try {
       await api.fsrs.resetParameters()
       setFsrsLevel(FSRS_DEFAULTS.level)
-      setFsrsDecay(FSRS_DEFAULTS.decay)
       setFsrsMaxInterval(FSRS_DEFAULTS.maxInterval)
       setNewCardsPerDay(DEFAULT_NEW_CARDS_PER_DAY)
       setFsrsDirty(false)
@@ -388,10 +376,7 @@ export default function SettingsData() {
     if (parts.some((p) => p === null)) return null
     return (parts as number[]).reduce((s, p) => s + p, 0) / 1024 / 1024
   }, [storageUsage])
-  const usagePct = useMemo(
-    () => (totalUsageMb === null ? null : Math.min(100, Math.round((totalUsageMb / STORAGE_CAP_MB) * 100))),
-    [totalUsageMb],
-  )
+  const usageTotalText = totalUsageMb === null ? '—' : `合计 ${totalUsageMb.toFixed(1)} MB`
   const totalRecords = useMemo(
     () => kpiStats.totalBooks + kpiStats.totalHighlights + kpiStats.totalCards,
     [kpiStats],
@@ -542,7 +527,7 @@ export default function SettingsData() {
                 title="存储用量看板"
                 action={
                   <span className="status-badge info" role="status">
-                    已占用 {usagePct === null ? '—' : `${usagePct}%`}
+                    {usageTotalText}
                   </span>
                 }
               />
@@ -573,61 +558,17 @@ export default function SettingsData() {
                     {formatSize(storageUsage?.logBytes ?? null).value}
                     <span className="unit">{formatSize(storageUsage?.logBytes ?? null).unit}</span>
                   </span>
-                  <div className="tiny">运行日志 · 可在「清理缓存」下查看路径</div>
+                  <div className="tiny">运行日志 · 每天一个文件，放在应用数据目录的 logs/ 下</div>
                 </div>
                 {/* 「向量库大小」这一格已删除：Vectra 语义检索 2026-09-16 整套移除，
                     那个目录不会再增长，继续显示只会让人以为还有这个功能。 */}              </div>
-              <div className="usage-bar-wrap" style={{ marginTop: 'calc(var(--spacing) * 3)' }}>
-                <div
-                  className="usage-bar-head"
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'baseline',
-                    gap: 'calc(var(--spacing) * 3)',
-                    marginBottom: 'calc(var(--spacing) * 2)',
-                  }}
-                >
-                  <strong style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--foreground)' }}>
-                    总用量 / 容量上限
-                  </strong>
-                  <span
-                    className="tiny"
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--muted-foreground)',
-                      fontSize: '0.78rem',
-                    }}
-                  >
-                    {totalUsageMb === null ? '—' : totalUsageMb.toFixed(1)} MB / {STORAGE_CAP_MB} MB
-                  </span>
-                </div>
-                <div
-                  className="usage-bar"
-                  role="progressbar"
-                  aria-valuenow={usagePct ?? 0}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label="存储总用量"
-                  style={{
-                    width: '100%',
-                    height: 8,
-                    borderRadius: 999,
-                    background: 'var(--muted)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    className="usage-bar-fill"
-                    style={{
-                      height: '100%',
-                      width: `${usagePct ?? 0}%`,
-                      borderRadius: 999,
-                      background: 'var(--chart-1)',
-                      transition: 'width 0.3s ease',
-                    }}
-                  />
-                </div>
+              {/* 「总用量 / 容量上限 512 MB」进度条已删除：那个 512 MB 是编的，
+                  应用从来没有容量上限，也没有配额可言 —— 磁盘是系统的，不是我们的。
+                  现在只报实测到的两个文件有多大。 */}
+              <div className="tiny" style={{ marginTop: 'calc(var(--spacing) * 3)' }}>
+                {totalUsageMb === null
+                  ? '还没量到本地文件大小'
+                  : `数据库 + 运行日志实测 ${totalUsageMb.toFixed(1)} MB，没有容量上限这个概念`}
               </div>
             </Card>
 
@@ -819,30 +760,8 @@ export default function SettingsData() {
                     ))}
                   </select>
                 </div>
-                {/* 难度衰减 */}
-                <div className="form-field">
-                  <label className="form-label" htmlFor="fsrs-decay">
-                    难度衰减
-                    <span
-                      className="info-tip"
-                      title="难度衰减系数：控制记忆衰减速度，建议 0.1-0.5 之间。默认 0.2。"
-                      aria-label="难度衰减说明"
-                    >
-                      i
-                    </span>
-                  </label>
-                  <input
-                    className="form-input mono"
-                    id="fsrs-decay"
-                    type="number"
-                    step={0.05}
-                    min={0}
-                    max={1}
-                    value={fsrsDecay}
-                    onChange={(e) => handleChangeDecay(Number(e.target.value) || 0)}
-                    data-dom-id="input-fsrs-decay"
-                  />
-                </div>
+                {/* 「难度衰减」输入框已删除：FSRS-6.0 的 decay 是算法常数（0.1542），
+                    引擎从来不接受这个值，改了不会影响任何排期 —— 假控件。 */}
                 {/* 最大间隔（full width） */}
                 <div className="form-field full">
                   <label className="form-label" htmlFor="fsrs-max-interval">
