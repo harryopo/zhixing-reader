@@ -1,3 +1,5 @@
+import type { ActivityDay } from './profile-stats'
+
 export interface Book {
   id: string
   title: string
@@ -93,12 +95,19 @@ export interface PendingSummaryEntry {
   pendingChapters: number
 }
 
-export interface DailyStats {
+/**
+ * daily_stats 表的一行原样。
+ * sql.js 的 `SELECT *` 交出来就是列名（下划线），界面别直接读 ——
+ * 先过 `profile-stats.normalizeDailyStatRow`，它同时兼容历史 camelCase 写法。
+ */
+export interface DailyStatsRow {
+  id: string
   date: string
-  readingTime: number
-  pagesRead: number
-  highlightsCount: number
-  reviewsCount: number
+  books_read: number
+  highlights_added: number
+  cards_reviewed: number
+  reading_time: number
+  created_at: string
 }
 
 export interface ReviewStats {
@@ -145,27 +154,31 @@ export interface Achievement {
   unlockedAt?: Date
 }
 
+/**
+ * 档案页的学习统计。
+ * 只放「取到哪就是哪」的计数，逐日明细交给 dailyRows ——
+ * 时长/日均/连击一律由 `src/shared/profile-stats.ts` 现算，界面不许自己再算一遍
+ * （原先 totalReadingTime + averageDailyReadingTime 两份预算结果，
+ *  正是「年度阅读 0h」配「日均 6min」这种自相矛盾的来源）。
+ */
 export interface LearningStats {
   totalBooks: number
   finishedBooks: number
   totalHighlights: number
   totalCards: number
   masteredCards: number
+  /** 复习次数（reviews 表条数） */
   totalReviews: number
+  /** 这些次复习覆盖了几张不同的卡 */
+  reviewedCards: number
+  /** 最近一次复习时间，'YYYY-MM-DD HH:MM:SS'；一次都没复习过是 null */
+  lastReviewAt: string | null
   currentStreak: number
   longestStreak: number
-  totalReadingTime: number
-  averageDailyReadingTime: number
-  weeklyReadingData: DailyReadingData[]
-  monthlyReadingData: DailyReadingData[]
-}
-
-export interface DailyReadingData {
-  date: string
-  readingTime: number
-  highlightsCount: number
-  reviewsCount: number
-  booksRead: number
+  /** 今年 1 月 1 日到今天的逐日明细（已归一化） */
+  dailyRows: ActivityDay[]
+  /** 库里最早一条书/划线记录的日期时间 —— 「用了多久」只能由它说，不许拿今天的日期倒推一个 */
+  firstRecordAt: string | null
 }
 
 export interface ReadLongestItem {

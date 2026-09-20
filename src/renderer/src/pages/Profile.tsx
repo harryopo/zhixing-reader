@@ -17,6 +17,18 @@ import { useProfileStore } from '../stores/profileStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { toast } from '../stores/toastStore'
 import { safeNum, safeStr } from '../utils/db-mapper'
+import {
+  averageMinutesPerActiveDay,
+  daysWithActivity,
+  formatReadingDuration,
+  heatLevels,
+  inRange,
+  lastActiveDate,
+  localDateStr,
+  shortDate,
+  sumReadingSeconds,
+  weekTrend,
+} from '../../../shared/profile-stats'
 
 /** 图表色板（与设计稿 chart-1/5/3/2 对齐） */
 const CHART_COLORS = ['var(--chart-1)', 'var(--chart-5)', 'var(--chart-3)', 'var(--chart-2)']
@@ -25,34 +37,12 @@ const CHART_COLORS = ['var(--chart-1)', 'var(--chart-5)', 'var(--chart-3)', 'var
 const HEAT_WEEKS = 26
 const HEAT_DAYS = 7
 
-/** 热力图等级阈值（按阅读秒数） */
-function levelForSeconds(seconds: number): number {
-  if (seconds <= 0) return 0
-  if (seconds < 1800) return 1 // < 30 分钟
-  if (seconds < 3600) return 2 // < 60 分钟
-  if (seconds < 7200) return 3 // < 120 分钟
-  return 4
-}
-
-/** 格式化阅读时长（中文长格式，保留原逻辑） */
-function formatTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}秒`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟`
-  return `${Math.floor(seconds / 3600)}小时${Math.floor((seconds % 3600) / 60)}分钟`
-}
-
 interface BookRow {
   id: string
   title: string
   author: string
   cover: string
   category?: string
-}
-
-interface DailyStatsRow {
-  date: string
-  readingTime: number
-  readingTimeSeconds?: number
 }
 
 interface UserProfile {
@@ -64,7 +54,10 @@ interface UserProfile {
 
 const DEFAULT_PROFILE: UserProfile = {
   nickname: '读书人',
-  joinedAt: new Date(Date.now() - 287 * 86400000).toISOString(),
+  // 空串 = 没填。这里绝不能放一个「今天往前 N 天」的假日期：
+  // 旧默认值 new Date(now - 287d) 会被写进 settings，于是界面长期显示
+  // 「2025-11-14 加入 · 310 天」，而库里最早一条记录其实是 2026-09-02。
+  joinedAt: '',
   location: '北京',
   bio: '通过阅读建立认知体系，用笔记与复习巩固成长。相信慢即是快。',
 }
@@ -90,10 +83,9 @@ export default function Profile() {
   const syncingProfile = useSettingsStore((s) => s.syncingProfile)
   const syncWeReadUserProfile = useSettingsStore((s) => s.syncWeReadUserProfile)
 
-  // 扩展数据源：生词数 / 用户设置 / 半年热力数据 / 类型分布
+  // 扩展数据源：生词数 / 用户设置 / 类型分布（热力图直接由 profileStore.dailyRows 现算）
   const [vocabCount, setVocabCount] = useState(0)
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE)
-  const [heatLevels, setHeatLevels] = useState<number[]>(() => Array(HEAT_WEEKS * HEAT_DAYS).fill(0))
   const [typeDist, setTypeDist] = useState<TypeSlice[]>([])
 
   // 编辑资料 Modal 状态
@@ -145,14 +137,10 @@ export default function Profile() {
         ])
         setProfile({
           nickname: safeStr(nickname) || safeStr(userNickname) || DEFAULT_PROFILE.nickname,
-          joinedAt: safeStr(joinedAt) || DEFAULT_PROFILE.joinedAt,
+          joinedAt: safeStr(joinedAt),
           location: safeStr(location) || '',
           bio: safeStr(bio) || '',
         })
-        // 首次访问：把加入日期写入 settings，从今天开始真实累计
-        if (!safeStr(joinedAt)) {
-          void api.settings.set('userJoinedAt', DEFAULT_PROFILE.joinedAt)
-        }
         if (safeStr(avatarUrl)) {
           setAvatarError(false)
         }
@@ -160,33 +148,7 @@ export default function Profile() {
         /* 非致命：保持默认 */
       }
 
-      // 3. 半年热力数据（过去 26 周 = 182 天）
-      try {
-        const today = new Date()
-        const end = today.toISOString().split('T')[0]
-        const start = new Date(today.getTime() - (HEAT_WEEKS * 7 - 1) * 86400000)
-          .toISOString()
-          .split('T')[0]
-        const range = (await api.stats.getRange(start, end)) as unknown as DailyStatsRow[]
-        const levels = Array(HEAT_WEEKS * HEAT_DAYS).fill(0)
-        const startMs = new Date(start).getTime()
-        for (const row of range ?? []) {
-          const seconds = safeNum(
-            row.readingTime ?? row.readingTimeSeconds ?? 0,
-          )
-          const dayIdx = Math.floor(
-            (new Date(row.date).getTime() - startMs) / 86400000,
-          )
-          if (dayIdx >= 0 && dayIdx < levels.length) {
-            levels[dayIdx] = levelForSeconds(seconds)
-          }
-        }
-        setHeatLevels(levels)
-      } catch {
-        /* 非致命：保持全 0 */
-      }
-
-      // 4. 类型分布（基于 book.getAll 的 category 字段聚合）
+      // 3. 类型分布（基于 book.getAll 的 category 字段聚合）
       try {
         const books = (await api.book.getAll()) as unknown as BookRow[]
         const grouped = new Map<string, number>()
@@ -222,26 +184,50 @@ export default function Profile() {
     [achievements],
   )
 
-  const joinedDays = useMemo(() => {
-    const ms = Date.now() - new Date(profile.joinedAt).getTime()
-    return Math.max(0, Math.floor(ms / 86400000))
-  }, [profile.joinedAt])
-
+  // 「加入日期」只有两个合法来源：用户自己填的，或库里最早一条记录。
+  // 两个都没有就显示「—」，绝不拿今天倒推一个天数出来。
   const joinedDateStr = useMemo(() => {
-    const d = new Date(profile.joinedAt)
-    if (isNaN(d.getTime())) return '—'
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }, [profile.joinedAt])
+    const manual = profile.joinedAt.slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(manual)) return manual
+    return stats.firstRecordAt?.slice(0, 10) ?? ''
+  }, [profile.joinedAt, stats.firstRecordAt])
 
-  const yearlyReadingHours = useMemo(
-    () => Math.floor(stats.totalReadingTime / 3600),
-    [stats.totalReadingTime],
+  const joinedDays = useMemo(() => {
+    if (!joinedDateStr) return 0
+    const ms = Date.now() - new Date(`${joinedDateStr}T00:00:00`).getTime()
+    // 首日算第 1 天：9 月 2 日开始记录，9 月 20 日就是第 19 天
+    return Math.max(1, Math.floor(ms / 86400000) + 1)
+  }, [joinedDateStr])
+
+  const today = useMemo(() => localDateStr(new Date()), [])
+
+  // 原先写死 GMT+8：换台机器就成假信息
+  const tzOffset = -new Date().getTimezoneOffset() / 60
+  const tzLabel = `GMT${tzOffset >= 0 ? '+' : ''}${tzOffset}`
+
+  /** 年度 KPI 只看今年：取数窗口为迁就 26 周热力图可能跨到去年 */
+  const yearlyRows = useMemo(
+    () => inRange(stats.dailyRows, `${today.slice(0, 4)}-01-01`, today),
+    [stats.dailyRows, today]
   )
 
-  const avgDailyMinutes = useMemo(
-    () => Math.floor(stats.averageDailyReadingTime / 60),
-    [stats.averageDailyReadingTime],
+  const yearlyReadingText = useMemo(
+    () => formatReadingDuration(sumReadingSeconds(yearlyRows)),
+    [yearlyRows]
   )
+
+  const activeReadingDays = daysWithActivity(yearlyRows)
+  const avgDailyMinutes = averageMinutesPerActiveDay(yearlyRows)
+  const readingTrend = weekTrend(stats.dailyRows, today)
+  const lastReadDay = shortDate(lastActiveDate(stats.dailyRows))
+  const lastReview = shortDate(stats.lastReviewAt)
+
+  /** 热力格：由 profileStore 已取到的逐日明细现算，不再单独发一次 IPC */
+  const heat = useMemo(
+    () => heatLevels(stats.dailyRows, today, HEAT_WEEKS),
+    [stats.dailyRows, today]
+  )
+  const heatActiveDays = heat.filter((l) => l > 0).length
 
   // 类型分布 conic-gradient 字符串
   const donutGradient = useMemo(() => {
@@ -311,10 +297,10 @@ export default function Profile() {
   const handleShare = async () => {
     const lines = [
       `「${profile.nickname}」的知行读书档案`,
-      `加入 ${joinedDateStr} · 已坚持 ${stats.currentStreak} 天`,
+      `加入 ${joinedDateStr || '—'} · 连续 ${stats.currentStreak} 天`,
       `藏书 ${stats.totalBooks} 本 · 完成 ${stats.finishedBooks} 本 · 笔记 ${stats.totalHighlights} 条`,
       `复习 ${stats.totalReviews} 次 · 卡片 ${stats.totalCards} 张 · 生词 ${vocabCount} 个`,
-      `年度阅读 ${yearlyReadingHours} 小时 · 日均 ${avgDailyMinutes} 分钟`,
+      `今年阅读 ${yearlyReadingText} · ${activeReadingDays} 天有读 · 平均每天 ${avgDailyMinutes} 分钟`,
       '— 来自「知行读书」阅读成长工作台',
     ]
     const text = lines.join('\n')
@@ -366,7 +352,7 @@ export default function Profile() {
     <>
       <PageHero
         title="个人档案"
-        subtitle={`知行读书 · 加入 ${joinedDays} 天`}
+        subtitle={joinedDateStr ? `知行读书 · 已记录 ${joinedDays} 天` : '知行读书'}
         actions={
           <>
             <Button
@@ -463,9 +449,9 @@ export default function Profile() {
                   flexWrap: 'wrap',
                 }}
               >
-                <span>{joinedDateStr} 加入</span>
+                <span>{joinedDateStr ? `${joinedDateStr} 开始记录` : '还没有阅读记录'}</span>
                 {profile.location && <span>{profile.location}</span>}
-                <span>GMT+8</span>
+                <span>{tzLabel}</span>
               </div>
               <p
                 className="profile-bio"
@@ -552,9 +538,13 @@ export default function Profile() {
                 color: 'var(--foreground)',
               }}
             >
-              {yearlyReadingHours}h
+              {yearlyReadingText}
             </div>
-            <Trend kind="up">↑ 日均 {avgDailyMinutes}min</Trend>
+            <Trend kind={readingTrend === 'up' ? 'up' : readingTrend === 'down' ? 'down' : 'default'}>
+              {activeReadingDays > 0
+                ? `${readingTrend === 'up' ? '↑ ' : readingTrend === 'down' ? '↓ ' : ''}${activeReadingDays} 天有读 · 日均 ${avgDailyMinutes} 分钟`
+                : '今年还没有阅读记录'}
+            </Trend>
           </Card>
 
           <Card interactive onClick={() => navigate('/stats')}>
@@ -604,7 +594,9 @@ export default function Profile() {
               {stats.totalReviews.toLocaleString('zh-CN')}
             </div>
             <Trend kind="default">
-              {stats.totalReviews > 0 ? `累计 ${formatTime(stats.totalReadingTime)}` : '尚未开始复习'}
+              {stats.totalReviews > 0
+                ? `覆盖 ${stats.reviewedCards} 张卡${lastReview ? ` · 最近 ${lastReview}` : ''}`
+                : '尚未开始复习'}
             </Trend>
           </Card>
 
@@ -632,8 +624,10 @@ export default function Profile() {
             </div>
             <Trend kind={stats.currentStreak > 0 ? 'up' : 'default'}>
               {stats.currentStreak > 0
-                ? `↑ 最长 ${stats.longestStreak} 天`
-                : '今日未打卡'}
+                ? `最长 ${stats.longestStreak} 天`
+                : lastReadDay
+                  ? `上次阅读 ${lastReadDay}`
+                  : '还没有阅读记录'}
             </Trend>
           </Card>
         </div>
@@ -650,8 +644,12 @@ export default function Profile() {
           <Card>
             <CardHead
               eyebrow="阅读热力"
-              title={`${new Date().getFullYear()} 全年`}
-              action={<Badge variant="ok">活跃</Badge>}
+              title={`近 ${HEAT_WEEKS} 周`}
+              action={
+                <Badge variant={heatActiveDays > 0 ? 'ok' : 'default'}>
+                  {heatActiveDays > 0 ? `${heatActiveDays} 天有读` : '近半年没读'}
+                </Badge>
+              }
             />
             <div
               className="heat-grid-year"
@@ -666,7 +664,7 @@ export default function Profile() {
               {Array.from({ length: HEAT_DAYS }).map((_, r) =>
                 Array.from({ length: HEAT_WEEKS }).map((__, c) => {
                   const dayIdx = r + c * HEAT_DAYS
-                  const level = heatLevels[dayIdx] ?? 0
+                  const level = heat[dayIdx] ?? 0
                   return (
                     <div
                       key={`${r}-${c}`}

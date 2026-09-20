@@ -1,4 +1,4 @@
-import { Book, Highlight, Card, Review, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStats, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage } from '../shared/types'
+import { Book, Highlight, Card, Review, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage } from '../shared/types'
 
 export interface TokenSummary {
   totalRequests: number
@@ -224,8 +224,8 @@ export interface ElectronAPI {
     pending: () => Promise<PendingSummaryEntry[]>
   }
   stats: {
-    getToday: () => Promise<DailyStats>
-    getRange: (startDate: string, endDate: string) => Promise<DailyStats[]>
+    getToday: () => Promise<DailyStatsRow>
+    getRange: (startDate: string, endDate: string) => Promise<DailyStatsRow[]>
   }
   weread: {
     setApiKey: (apiKey: string) => Promise<void>

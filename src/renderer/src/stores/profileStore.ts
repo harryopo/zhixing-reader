@@ -1,5 +1,13 @@
 import { create } from 'zustand'
-import { LearningStats, Achievement, DailyReadingData, Book, DailyStats as _DailyStats } from '../../../shared/types'
+import type { LearningStats, Achievement } from '../../../shared/types'
+import {
+  statsWindow,
+  localDateStr,
+  normalizeDailyStatRow,
+  computeStreaks,
+  summarizeReviews,
+  type ActivityDay,
+} from '../../../shared/profile-stats'
 
 interface ProfileState {
   stats: LearningStats
@@ -8,8 +16,6 @@ interface ProfileState {
   error: string | null
   fetchStats: () => Promise<void>
   checkAchievements: () => Promise<void>
-  getWeeklyData: () => Promise<void>
-  getMonthlyData: () => Promise<void>
 }
 
 const defaultStats: LearningStats = {
@@ -19,12 +25,12 @@ const defaultStats: LearningStats = {
   totalCards: 0,
   masteredCards: 0,
   totalReviews: 0,
+  reviewedCards: 0,
+  lastReviewAt: null,
   currentStreak: 0,
   longestStreak: 0,
-  totalReadingTime: 0,
-  averageDailyReadingTime: 0,
-  weeklyReadingData: [],
-  monthlyReadingData: [],
+  dailyRows: [],
+  firstRecordAt: null,
 }
 
 const defaultAchievements: Achievement[] = [
@@ -135,94 +141,42 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   fetchStats: async () => {
     set({ loading: true, error: null })
     try {
-      const books = await window.electronAPI.book.getAll()
-      const highlights = await window.electronAPI.highlight.getAll()
-      const cards = await window.electronAPI.card.getStats()
-      const reviews = await window.electronAPI.review.getRecent(1000)
-      const dailyStats = await window.electronAPI.stats.getRange(
-        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        new Date().toISOString().split('T')[0]
-      )
+      const now = new Date()
+      // 一次取数覆盖「今年至今」+「26 周热力图」两个窗口，别嘴上说年度、手上取 30 天
+      const { start, end } = statsWindow(now)
+
+      const [books, highlights, cards, reviews, range] = await Promise.all([
+        window.electronAPI.book.getAll(),
+        window.electronAPI.highlight.getAll(),
+        window.electronAPI.card.getStats(),
+        window.electronAPI.review.getRecent(1000),
+        window.electronAPI.stats.getRange(start, end),
+      ])
 
       const totalBooks = books.length
-      const finishedBooks = books.filter((b: Book) => {
+      const finishedBooks = books.filter((b) => {
         const row = b as unknown as Record<string, unknown>
-        return (row.reading_progress as number) >= 1 || (row.is_finished as number) === 1
+        return Number(row.reading_progress) >= 1 || Number(row.is_finished) === 1
       }).length
       const totalHighlights = highlights.length
-      // Backend getReviewStats: { total, due, new, learning, review } — not totalCards/masteredCards
+      // card.getStats() 给的是 { total, due, new, learning, review }（按 FSRS state 分桶）
       const cardStats = cards as unknown as Record<string, number>
-      const totalCards = cardStats.total ?? cardStats.totalCards ?? 0
-      // Approximate mastered as review-state cards (state=2); no separate mastered field
-      const masteredCards = cardStats.review ?? cardStats.masteredCards ?? 0
-      const totalReviews = reviews.length
+      const totalCards = cardStats.total ?? 0
+      // 本项目没有独立的"已掌握"字段，state=2（review 态）即已学过并进入排期
+      const masteredCards = cardStats.review ?? 0
 
-      let totalReadingTime = 0
-      const weeklyReadingData: DailyReadingData[] = []
-      const monthlyReadingData: DailyReadingData[] = []
-
-      for (const stat of dailyStats) {
-        const row = stat as unknown as Record<string, unknown>
-        const date = String(row.date ?? '')
-        // daily_stats columns are snake_case from sql.js rowsToObjects
-        const readingTime = Number(row.reading_time ?? row.readingTime ?? 0)
-        const highlightsCount = Number(row.highlights_added ?? row.highlightsCount ?? 0)
-        const reviewsCount = Number(row.cards_reviewed ?? row.reviewsCount ?? 0)
-        const booksRead = Number(row.books_read ?? 0)
-
-        totalReadingTime += readingTime
-
-        const data: DailyReadingData = {
-          date,
-          readingTime,
-          highlightsCount,
-          reviewsCount,
-          booksRead,
-        }
-
-        const daysDiff = Math.floor((Date.now() - new Date(date).getTime()) / (24 * 60 * 60 * 1000))
-        if (daysDiff < 7) {
-          weeklyReadingData.push(data)
-        }
-        monthlyReadingData.push(data)
-      }
-
-      const daysWithData = dailyStats.length || 1
-      const averageDailyReadingTime = Math.round(totalReadingTime / daysWithData)
-
-      let currentStreak = 0
-
-      const sortedDates = dailyStats
-        .map((s) => s.date)
+      const reviewSummary = summarizeReviews(
+        (reviews ?? []) as unknown as Record<string, unknown>[]
+      )
+      const dailyRows = (range ?? [])
+        .map((r) => normalizeDailyStatRow(r as unknown as Record<string, unknown>))
+        .filter((r): r is ActivityDay => r !== null)
+      const { current, longest } = computeStreaks(dailyRows, localDateStr(now))
+      const stamps = [...books, ...highlights]
+        .map((r) => String((r as unknown as Record<string, unknown>).created_at ?? ''))
+        .filter((s) => s.length >= 10)
         .sort()
-        .reverse()
-
-      // 当前连击：以今天结尾的连续阅读天数，遇到断档即止
-      for (let i = 0; i < sortedDates.length; i++) {
-        const currentDate = new Date(sortedDates[i])
-        const expectedDate = new Date()
-        expectedDate.setDate(expectedDate.getDate() - i)
-
-        if (currentDate.toISOString().split('T')[0] === expectedDate.toISOString().split('T')[0]) {
-          currentStreak++
-        } else {
-          break
-        }
-      }
-
-      // 最长连击：历史日期中的最大连续段（独立于"今天"锚点）
-      let longestStreak = 0
-      const uniqueDays = Array.from(new Set(dailyStats.map((s) => String(s.date).slice(0, 10))))
-        .filter((d) => d.length === 10)
-        .sort()
-      let runLength = 0
-      let prevDayMs = Number.NaN
-      for (const day of uniqueDays) {
-        const dayMs = Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)))
-        runLength = dayMs - prevDayMs === 86400000 ? runLength + 1 : 1
-        longestStreak = Math.max(longestStreak, runLength)
-        prevDayMs = dayMs
-      }
+      const firstRecordAt = stamps[0] ?? null
 
       set({
         stats: {
@@ -231,13 +185,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           totalHighlights,
           totalCards,
           masteredCards,
-          totalReviews,
-          currentStreak,
-          longestStreak,
-          totalReadingTime,
-          averageDailyReadingTime,
-          weeklyReadingData,
-          monthlyReadingData,
+          totalReviews: reviewSummary.times,
+          reviewedCards: reviewSummary.cardsCovered,
+          lastReviewAt: reviewSummary.lastAt,
+          currentStreak: current,
+          longestStreak: longest,
+          dailyRows,
+          firstRecordAt,
         },
         loading: false,
       })
@@ -280,47 +234,4 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ achievements: updatedAchievements })
   },
 
-  getWeeklyData: async () => {
-    try {
-      const endDate = new Date().toISOString().split('T')[0]
-      const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      const dailyStats = await window.electronAPI.stats.getRange(startDate, endDate)
-
-      const weeklyData: DailyReadingData[] = dailyStats.map((stat) => ({
-        date: stat.date,
-        readingTime: stat.readingTime || 0,
-        highlightsCount: stat.highlightsCount || 0,
-        reviewsCount: stat.reviewsCount || 0,
-        booksRead: 0,
-      }))
-
-      set((state) => ({
-        stats: { ...state.stats, weeklyReadingData: weeklyData },
-      }))
-    } catch (error) {
-      console.error('Failed to fetch weekly data:', error)
-    }
-  },
-
-  getMonthlyData: async () => {
-    try {
-      const endDate = new Date().toISOString().split('T')[0]
-      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      const dailyStats = await window.electronAPI.stats.getRange(startDate, endDate)
-
-      const monthlyData: DailyReadingData[] = dailyStats.map((stat) => ({
-        date: stat.date,
-        readingTime: stat.readingTime || 0,
-        highlightsCount: stat.highlightsCount || 0,
-        reviewsCount: stat.reviewsCount || 0,
-        booksRead: 0,
-      }))
-
-      set((state) => ({
-        stats: { ...state.stats, monthlyReadingData: monthlyData },
-      }))
-    } catch (error) {
-      console.error('Failed to fetch monthly data:', error)
-    }
-  },
 }))
