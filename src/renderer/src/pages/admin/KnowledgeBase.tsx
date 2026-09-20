@@ -16,13 +16,14 @@ interface Highlight {
   created_at: string
 }
 
+/** knowledge_cards 的真实列（后台直接吃 SQL 结果，不做 camel 映射） */
 interface KnowledgeCard {
   id: string
-  highlight_id: string
-  question: string
-  answer: string
-  card_type: string
-  highlight_content: string
+  type: string
+  title: string
+  content: string
+  interpretation: string | null
+  review_count: number
   created_at: string
 }
 
@@ -227,10 +228,13 @@ export default function KnowledgeBase() {
                               className="p-2 bg-emerald-50/50 rounded-lg border border-emerald-100"
                             >
                               <p className="text-[12px] text-emerald-700 font-medium">
-                                Q: {card.question}
+                                {card.title}
+                                <span className="ml-1 text-[10px] text-gray-400 font-normal">
+                                  {card.type}
+                                </span>
                               </p>
-                              <p className="text-[12px] text-gray-600 mt-0.5">
-                                A: {card.answer}
+                              <p className="text-[12px] text-gray-600 mt-0.5 line-clamp-3">
+                                {card.content}
                               </p>
                             </div>
                           ))}

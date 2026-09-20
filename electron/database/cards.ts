@@ -248,7 +248,9 @@ export const cardsDb = {
   getDueCards(limit: number = 100, newCardsPerDay: unknown = DEFAULT_NEW_CARDS_PER_DAY): Card[] {
     const now = new Date().toISOString();
     const reviewResult = getDatabase().exec(
-      'SELECT * FROM cards WHERE state != 0 AND due <= ? ORDER BY due ASC LIMIT ?',
+      `SELECT c.*, h.book_id AS book_id
+       FROM cards c JOIN highlights h ON c.highlight_id = h.id
+       WHERE c.state != 0 AND c.due <= ? ORDER BY c.due ASC LIMIT ?`,
       [now, limit]
     );
     const reviewCards = rowsToObjects(reviewResult).map(cardFromDb);
@@ -265,7 +267,9 @@ export const cardsDb = {
     if (newTake <= 0) return reviewCards;
 
     const newResult = getDatabase().exec(
-      'SELECT * FROM cards WHERE state = 0 ORDER BY created_at ASC, id ASC LIMIT ?',
+      `SELECT c.*, h.book_id AS book_id
+       FROM cards c JOIN highlights h ON c.highlight_id = h.id
+       WHERE c.state = 0 ORDER BY c.created_at ASC, c.id ASC LIMIT ?`,
       [newTake]
     );
     return [...reviewCards, ...rowsToObjects(newResult).map(cardFromDb)];
@@ -316,7 +320,7 @@ export const cardsDb = {
 
   getByBookId(bookId: string): Card[] {
     const result = getDatabase().exec(`
-      SELECT c.* FROM cards c
+      SELECT c.*, h.book_id AS book_id FROM cards c
       JOIN highlights h ON c.highlight_id = h.id
       WHERE h.book_id = ?
     `, [bookId]);

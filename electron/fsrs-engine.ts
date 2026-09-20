@@ -49,6 +49,13 @@ const VALID_WEIGHT_LENGTHS = [17, 19, 21] as const
 export interface Card {
   id: string;
   highlightId: string;
+  /**
+   * 卡片属于哪本书。cards 表没有这一列，它只能从 highlight 反查：
+   * cards.highlight_id → highlights.book_id。读卡片列表时由 SQL JOIN 带出来，
+   * 不带就是 undefined —— 之前首页/书架直接读 card.bookId，于是书名恒为
+   * 「未关联书籍」、每本书的卡片数恒为 0。
+   */
+  bookId?: string;
   state: CardState;
   step: number;
   stability: number;
@@ -293,6 +300,7 @@ export function cardFromDb(row: Record<string, unknown>): Card {
   return {
     id: row.id as string,
     highlightId: row.highlight_id as string,
+    bookId: (row.book_id ?? row._book_id) as string | undefined,
     state: row.state as CardState,
     step: row.step as number,
     stability: row.stability as number,

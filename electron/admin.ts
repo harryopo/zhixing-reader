@@ -85,13 +85,17 @@ export function getHighlightsByBook(bookId: string): Array<Record<string, unknow
 
 export function getCardsByBook(bookId: string): Array<Record<string, unknown>> {
   const db = getDatabase()
-  return rowsToObjects(db.exec(`
-    SELECT kc.*, h.content as highlight_content, h.book_id
-    FROM knowledge_cards kc
-    JOIN highlights h ON kc.highlight_id = h.id
-    WHERE h.book_id = ?
-    ORDER BY kc.created_at DESC
-  `, [bookId]))
+  // knowledge_cards 自带 book_id，直接查。
+  // 旧写法 JOIN highlights ON kc.highlight_id = h.id —— 这张表没有 highlight_id 列
+  // （只有 source_highlight_id），SQL 一执行就抛错，后台的卡片区因此永远是空的。
+  return rowsToObjects(db.exec(
+    `SELECT id, book_id, type, title, content, interpretation, application,
+            source_highlight_id, review_count, mastery_level, created_at
+     FROM knowledge_cards
+     WHERE book_id = ?
+     ORDER BY created_at DESC`,
+    [bookId]
+  ))
 }
 
 export function getAdminSessions(): Array<Record<string, unknown>> {
