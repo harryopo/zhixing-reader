@@ -15,11 +15,13 @@ import { logger } from '../logger'
 import { booksDb, highlightsDb, bookSummariesDb, chapterSummariesDb } from '../database'
 import { generateBookSummary, generateChapterSummary } from '../ai-sdk-service'
 import {
+  findPendingSummaryBooks,
   formatChapterContents,
   formatChapterSummariesForBook,
   groupHighlightsByChapter,
   planChapterSummaries,
 } from '../../src/shared/chapter-summaries'
+import type { PendingSummaryEntry } from '../../src/shared/types'
 
 export interface BookSummaryRunResult {
   bookTitle: string
@@ -41,6 +43,30 @@ let runningBookId: string | null = null
 
 export function isGenerating(): boolean {
   return runningBookId !== null
+}
+
+/** 通知面板一屏能放下的本数，剩下的下次再看 */
+const PENDING_LIST_LIMIT = 6
+
+/**
+ * 「哪些书欠摘要」——纯本地一次 SQL 汇总，不打 AI、不花钱。
+ *
+ * 数字必须与生成时用的判定同源（shared 的 findPendingSummaryBooks），
+ * 否则通知里写着 3 章、点进去发现无章可更。
+ */
+export function findPendingSummaries(limit = PENDING_LIST_LIMIT): PendingSummaryEntry[] {
+  const titles = new Map(
+    booksDb.getAll().map((book) => [String(book.id), String(book.title ?? '')]),
+  )
+  return findPendingSummaryBooks(
+    highlightsDb.getChapterCounts(),
+    chapterSummariesDb.getAllSourceCounts(),
+  )
+    .slice(0, limit)
+    .flatMap((entry) => {
+      const title = titles.get(entry.bookId)
+      return title ? [{ ...entry, title }] : []
+    })
 }
 
 export async function generateBookSummaries(bookId: string): Promise<BookSummaryRunResult> {

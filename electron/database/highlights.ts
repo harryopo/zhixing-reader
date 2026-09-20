@@ -7,12 +7,13 @@ import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 import { logger } from '../logger';
 import { cardsDb } from './cards';
+import { UNGROUPED_CHAPTER } from '../../src/shared/chapter-summaries';
 
 /**
  * 进程内的写计数器：每次增删改都 +1。
  *
  * 为什么签名不能只看「条数 + MAX(updated_at)」：
- * ' + q + 'updated_at' + q + ' 精度只到秒，**同一秒内**的插入与更新（例如导入划线后立刻回填章节名）
+ * updated_at 精度只到秒，**同一秒内**的插入与更新（例如导入划线后立刻回填章节名）
  * 会让签名完全相同 —— 检索索引就不会重建，用户会看到"新导入的划线搜不到"。
  * 计数器由本模块的写方法维护，进程重启后归零（索引缓存那时也一起重建了，无需持久化）。
  */
@@ -255,6 +256,34 @@ export const highlightsDb = {
       [bookId]
     );
     return result.length > 0 ? (result[0].values[0][0] as number) : 0;
+  },
+
+  /**
+   * 每本书每章还剩多少条**有正文**的划线 —— 摘要新鲜度判定的输入。
+   *
+   * 口径必须与 shared/chapter-summaries 的 groupHighlightsByChapter 一致
+   * （空正文不算、章节名先 trim、空章名归「未分章」），否则通知面板报的数字
+   * 和点进详情页真正要重做的章节对不上。tests/summary-freshness.test.ts 逐条钉住。
+   */
+  getChapterCounts(): Array<{ bookId: string; chapterTitle: string; count: number }> {
+    const result = getDatabase().exec(
+      `SELECT book_id, chapter_title, COUNT(*) AS count FROM (
+         SELECT book_id,
+                CASE WHEN chapter_title IS NULL OR TRIM(chapter_title) = ''
+                     THEN ? ELSE TRIM(chapter_title) END AS chapter_title
+         FROM highlights
+         WHERE content IS NOT NULL AND TRIM(content) <> ''
+       )
+       GROUP BY book_id, chapter_title
+       ORDER BY book_id, chapter_title`,
+      [UNGROUPED_CHAPTER]
+    );
+    const rows = result.length > 0 ? result[0].values : [];
+    return rows.map((row) => ({
+      bookId: String(row[0]),
+      chapterTitle: String(row[1]),
+      count: Number(row[2]),
+    }));
   },
 
   getRecent(limit: number = 20): Record<string, unknown>[] {

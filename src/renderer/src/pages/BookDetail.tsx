@@ -17,7 +17,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -109,7 +109,13 @@ export default function BookDetail() {
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
   const [summarizing, setSummarizing] = useState(false)
-  const [activeTab, setActiveTab] = useState<TabKey>('highlights')
+  // 通知面板的「摘要待更新」直接链到 ?tab=summary，点进来就在页签上，不用自己找
+  const requestedTab = useSearchParams()[0].get('tab')
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    requestedTab === 'notes' || requestedTab === 'cards' || requestedTab === 'summary'
+      ? requestedTab
+      : 'highlights',
+  )
 
   useEffect(() => {
     if (id) loadBookData(id)

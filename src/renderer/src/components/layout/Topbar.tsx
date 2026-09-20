@@ -8,7 +8,7 @@
  *   - 刷新按钮调 weread.getBookshelf + 写库，实现真实同步
  *   - 同步中：disabled + 图标旋转
  *   - 同步成功/失败：toast 提示
- *   - 通知按钮实现下拉面板：未读笔记数 + 今日复习数 + 同步状态
+ *   - 通知按钮实现下拉面板：未读笔记数 + 今日复习数 + 摘要待更新 + 同步状态
  *   - 面板外点击关闭
  *
  * T2 P0+P1 fix（phase5）：
@@ -24,6 +24,7 @@ import { toast } from '../../stores/toastStore'
 import { mapHighlights } from '../../utils/db-mapper'
 import { syncBookshelfToDb } from '../../utils/sync-bookshelf'
 import { useSettingsStore } from '../../stores/settingsStore'
+import type { PendingSummaryEntry } from '../../../../shared/types'
 
 interface TopbarProps {
   onToggleSidebar?: () => void
@@ -134,6 +135,8 @@ interface NotifData {
   lastSyncAt: string | null
   lastSyncOk: boolean | null
   lastSyncCount: number | null
+  /** 章节摘要欠更新的书（纯本地算出来的，不点就不花 AI 钱） */
+  pendingSummaries: PendingSummaryEntry[]
 }
 
 export default function Topbar({ onToggleSidebar }: TopbarProps) {
@@ -152,6 +155,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     lastSyncAt: null,
     lastSyncOk: null,
     lastSyncCount: null,
+    pendingSummaries: [],
   })
 
   /** 通知按钮容器 ref，用于面板外点击关闭 */
@@ -180,12 +184,13 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     return () => document.removeEventListener('mousedown', handler)
   }, [notifyOpen])
 
-  /** 拉取通知数据：未读笔记 + 今日复习 + 同步状态 */
+  /** 拉取通知数据：未读笔记 + 今日复习 + 摘要待更新 + 同步状态 */
   const refreshNotifData = useCallback(async () => {
     try {
-      const [highlights, dueCards] = await Promise.all([
+      const [highlights, dueCards, pendingSummaries] = await Promise.all([
         window.electronAPI.highlight.getAll().catch(() => []),
         window.electronAPI.card.getDue(100).catch(() => []),
+        window.electronAPI.summary?.pending().catch(() => []) ?? Promise.resolve([]),
       ])
 
       const lastViewAt = Number(localStorage.getItem(LAST_VIEW_NOTES_AT_KEY) || 0)
@@ -223,6 +228,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
         lastSyncAt,
         lastSyncOk,
         lastSyncCount,
+        pendingSummaries,
       })
     } catch {
       // 静默失败，不打扰用户
@@ -452,8 +458,8 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
             aria-haspopup="dialog"
             aria-controls="notif-panel"
           />
-          {/* 未读/复习数 > 0 时显示红点徽标 */}
-          {(notif.unreadNotes > 0 || notif.dueCards > 0) && !notifyOpen && (
+          {/* 未读/复习/摘要待更新 > 0 时显示红点徽标 */}
+          {(notif.unreadNotes > 0 || notif.dueCards > 0 || notif.pendingSummaries.length > 0) && !notifyOpen && (
             <span
               aria-hidden="true"
               style={{
@@ -626,6 +632,68 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                   </span>
                   <Icon name="chevron-right" size={16} />
                 </button>
+
+                {/* 摘要欠更新：只报数，不自动烧 AI —— 点进去仍要用户自己按「生成 AI 摘要」 */}
+                {notif.pendingSummaries.length > 0 && (
+                  <div style={{ padding: 'calc(var(--spacing) * 2) 0 0' }}>
+                    <span
+                      style={{
+                        display: 'block',
+                        padding: '0 calc(var(--spacing) * 4)',
+                        fontSize: '0.78rem',
+                        color: 'var(--muted-foreground)',
+                      }}
+                    >
+                      {notif.pendingSummaries.length} 本书划线有变化，摘要待更新
+                    </span>
+                    {notif.pendingSummaries.map((book) => (
+                      <button
+                        key={book.bookId}
+                        type="button"
+                        title="打开这本书的摘要页签，由你决定是否生成（会调用 AI）"
+                        onClick={() => {
+                          setNotifyOpen(false)
+                          navigate(`/bookshelf/${book.bookId}?tab=summary`)
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'calc(var(--spacing) * 3)',
+                          width: '100%',
+                          padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 4)',
+                          border: 'none',
+                          background: 'transparent',
+                          color: 'var(--foreground)',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'var(--muted)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                        }}
+                      >
+                        <span
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.85rem',
+                          }}
+                        >
+                          {book.title}
+                        </span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
+                          {book.pendingChapters} 章
+                        </span>
+                        <Icon name="chevron-right" size={16} />
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* 同步状态（仅展示，不可点击） */}
                 <div

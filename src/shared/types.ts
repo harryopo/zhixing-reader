@@ -86,6 +86,13 @@ export interface BookSummaryRunResult {
   bookSummary: boolean
 }
 
+/** 通知面板的一条「这本书欠摘要」，pendingChapters 就是点进去会重做的章节数 */
+export interface PendingSummaryEntry {
+  bookId: string
+  title: string
+  pendingChapters: number
+}
+
 export interface DailyStats {
   date: string
   readingTime: number

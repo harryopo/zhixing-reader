@@ -95,6 +95,56 @@ export function planChapterSummaries(
   return { toGenerate, toSkip }
 }
 
+export interface ChapterHighlightCount {
+  bookId: string
+  chapterTitle: string
+  count: number
+}
+
+export interface StoredChapterSummaryCount {
+  bookId: string
+  chapterTitle: string
+  sourceCount: number
+}
+
+export interface PendingSummaryBook {
+  bookId: string
+  /** 需要重做（含从没生成过）的章节数 —— 也就是点一下要烧多少次 AI */
+  pendingChapters: number
+}
+
+/**
+ * 跨书汇总「哪些书欠摘要」，给通知面板用。
+ *
+ * 判据必须和 planChapterSummaries 一模一样（该章划线条数 ≠ 已存摘要的 source_count
+ * 就得重做），否则会出现「报给用户却点不动」或「点了发现无事可做」。
+ * 划线被删空的章节不报 —— 生成不出东西，列出来只是噪音。
+ */
+export function findPendingSummaryBooks(
+  chapterCounts: ChapterHighlightCount[],
+  stored: StoredChapterSummaryCount[],
+): PendingSummaryBook[] {
+  const storedByKey = new Map(
+    stored.map((row) => [bookChapterKey(row.bookId, row.chapterTitle), row.sourceCount]),
+  )
+  const pendingByBook = new Map<string, number>()
+
+  for (const row of chapterCounts) {
+    if (row.count <= 0) continue
+    if (storedByKey.get(bookChapterKey(row.bookId, row.chapterTitle)) === row.count) continue
+    pendingByBook.set(row.bookId, (pendingByBook.get(row.bookId) ?? 0) + 1)
+  }
+
+  return [...pendingByBook.entries()]
+    .map(([bookId, pendingChapters]) => ({ bookId, pendingChapters }))
+    .sort((a, b) => b.pendingChapters - a.pendingChapters || a.bookId.localeCompare(b.bookId))
+}
+
+/** 章节名可能含任意字符，用 NUL 分隔避免拼接后互相撞 key */
+function bookChapterKey(bookId: string, chapterTitle: string): string {
+  return `${bookId}\u0000${chapterTitle}`
+}
+
 /** 送入提示词的章节正文（每章一份，逐条列出让模型能对回原文） */
 export function formatChapterContents(group: ChapterGroup): string {
   const lines = group.contents.map((content, i) => `${i + 1}. ${content}`)

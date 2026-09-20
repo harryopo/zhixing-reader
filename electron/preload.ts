@@ -176,6 +176,8 @@ const electronAPI = {
     chapters: (bookId: string) => invoke(IPC_CHANNELS.SUMMARIES.GET_CHAPTERS, bookId),
     /** 生成/增量补齐层级摘要，返回 {generated, skipped, failed, bookSummary} */
     generate: (bookId: string) => invoke(IPC_CHANNELS.SUMMARIES.GENERATE, bookId),
+    /** 哪些书的章节摘要欠更新（纯本地，不花 AI 钱） */
+    pending: () => invoke(IPC_CHANNELS.SUMMARIES.FRESHNESS),
   },
 
   stats: {

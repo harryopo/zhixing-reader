@@ -5,6 +5,7 @@
 // 这两件事都必须有测试兜着，不能靠 Review 眼睛看。
 
 import { describe, it, expect } from 'vitest'
+import * as chapterSummaries from '../src/shared/chapter-summaries'
 import {
   UNGROUPED_CHAPTER,
   MAX_CONTENTS_PER_CHAPTER,
@@ -13,6 +14,8 @@ import {
   groupHighlightsByChapter,
   planChapterSummaries,
 } from '../src/shared/chapter-summaries'
+
+const { findPendingSummaryBooks } = chapterSummaries
 
 const h = (chapterTitle: string | null, content: string) => ({ chapterTitle, content })
 
@@ -103,5 +106,73 @@ describe('formatSummaryContext —— 注入提示词的摘要段', () => {
 
   it('两层都是空的就整段不注入', () => {
     expect(formatSummaryContext({ bookSummary: null, chapters: [] })).toBe('')
+  })
+})
+
+// 通知面板的「N 本书的 AI 摘要待更新」用的就是这条判定。它和 planChapterSummaries
+// 必须是同一个口径 —— 报出来却点不动、或者点了没东西可生成，都是骗人。
+describe('findPendingSummaryBooks —— 哪些书欠摘要', () => {
+  const c = (bookId: string, chapterTitle: string, count: number) => ({ bookId, chapterTitle, count })
+  const s = (bookId: string, chapterTitle: string, sourceCount: number) => ({ bookId, chapterTitle, sourceCount })
+
+  it('每章条数都没变 → 一本书都不报', () => {
+    expect(
+      findPendingSummaryBooks(
+        [c('b1', '第一章', 5), c('b1', '第二章', 3)],
+        [s('b1', '第一章', 5), s('b1', '第二章', 3)],
+      ),
+    ).toEqual([])
+  })
+
+  it('某章新增了划线 → 只报这一本，且待办章节数是 1', () => {
+    expect(
+      findPendingSummaryBooks(
+        [c('b1', '第一章', 8), c('b1', '第二章', 3)],
+        [s('b1', '第一章', 5), s('b1', '第二章', 3)],
+      ),
+    ).toEqual([{ bookId: 'b1', pendingChapters: 1 }])
+  })
+
+  it('从没生成过摘要的书 → 待办章节数等于它的章节数', () => {
+    expect(findPendingSummaryBooks([c('b2', '第一章', 2), c('b2', '未分章', 1)], [])).toEqual([
+      { bookId: 'b2', pendingChapters: 2 },
+    ])
+  })
+
+  it('章节被删到没有划线 → 不报（补不出来，报了也点不动）', () => {
+    expect(findPendingSummaryBooks([], [s('b1', '第三章', 4)])).toEqual([])
+  })
+
+  it('待办多的排前面，同数按 bookId 保证顺序稳定', () => {
+    expect(
+      findPendingSummaryBooks(
+        [c('b9', '第一章', 9), c('b1', '第一章', 1), c('b1', '第二章', 1)],
+        [],
+      ),
+    ).toEqual([
+      { bookId: 'b1', pendingChapters: 2 },
+      { bookId: 'b9', pendingChapters: 1 },
+    ])
+  })
+
+  it('与 planChapterSummaries 同口径：同一份数据下报的章节数一致', () => {
+    const groups = groupHighlightsByChapter([
+      h('第一章', 'a'),
+      h('第一章', 'b'),
+      h('第二章', 'c'),
+    ])
+    // 第一章 1→2 变了；第二章 4→1 变了；第三章划线被删光，两边都不该算它
+    const existing = [
+      { chapterTitle: '第一章', sourceCount: 1 },
+      { chapterTitle: '第二章', sourceCount: 4 },
+      { chapterTitle: '第三章', sourceCount: 2 },
+    ]
+    expect(planChapterSummaries(groups, existing).toGenerate).toHaveLength(2)
+    expect(
+      findPendingSummaryBooks(
+        groups.map((g) => ({ bookId: 'b1', chapterTitle: g.chapterTitle, count: g.total })),
+        existing.map((e) => ({ bookId: 'b1', ...e })),
+      ),
+    ).toEqual([{ bookId: 'b1', pendingChapters: 2 }])
   })
 })

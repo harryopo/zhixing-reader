@@ -47,6 +47,8 @@ export const IPC_CHANNELS = {
     GET_CHAPTERS: 'summaries:getChapters',
     /** 生成/增量补齐层级摘要（L1 章节 + L2 全书），烧 AI，前端要防连点 */
     GENERATE: 'summaries:generate',
+    /** 哪些书的章节摘要欠更新（纯本地计算，不花 AI 钱） */
+    FRESHNESS: 'summaries:freshness',
   },
   DAILY_STATS: {
     GET_TODAY: 'dailyStats:getToday',

@@ -51,6 +51,16 @@ export const chapterSummariesDb = {
     }));
   },
 
+  /** 跨书版 getSourceCounts：一次取回全部书的「章节 + 当时划线条数」 */
+  getAllSourceCounts(): Array<{ bookId: string; chapterTitle: string; sourceCount: number }> {
+    const result = getDatabase().exec('SELECT * FROM chapter_summaries ORDER BY book_id, chapter_title');
+    return mapRows(rowsToObjects(result)).map((r) => ({
+      bookId: r.bookId,
+      chapterTitle: r.chapterTitle,
+      sourceCount: r.sourceCount,
+    }));
+  },
+
   upsertBatch(bookId: string, items: ChapterSummaryInput[]): number {
     if (items.length === 0) return 0;
     const stamp = Date.now();

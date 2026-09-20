@@ -9,7 +9,7 @@ import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { settingsService } from '../services/settings-service';
 import { backfillChapterTitles } from '../services/chapter-title-backfill';
-import { generateBookSummaries } from '../services/chapter-summary-service';
+import { findPendingSummaries, generateBookSummaries } from '../services/chapter-summary-service';
 import { DEFAULT_NEW_CARDS_PER_DAY } from '../../src/shared/study-limits';
 import type { HandleFn } from './types';
 
@@ -161,4 +161,6 @@ export function registerBookHandlers(handle: HandleFn): void {
 
   handle(IPC_CHANNELS.SUMMARIES.GET_CHAPTERS, (bookId: string) => chapterSummariesDb.getByBookId(bookId));
   handle(IPC_CHANNELS.SUMMARIES.GENERATE, (bookId: string) => generateBookSummaries(bookId));
+  /** 哪些书欠摘要：纯本地一次汇总，不触发任何 AI 调用 */
+  handle(IPC_CHANNELS.SUMMARIES.FRESHNESS, () => findPendingSummaries());
 }
