@@ -1,5 +1,6 @@
 /** 统计页的类型与常量（从 Stats.tsx 原样搬出，逻辑未改） */
 import type { ReadingMode } from '../../../../shared/types'
+import { READING_TREND_SPECS } from '../../../../shared/reading-trend'
 
 export type TabKey = 'reading' | 'books'
 export type SortColumn = 'title' | 'progress' | 'highlights' | 'cards'
@@ -26,15 +27,17 @@ export interface BookStat {
 /**
  * 顶部时段 chip（控制 KPI 与趋势图）。
  *
- * 2026-09-16：标签从「本周 / 本月 / 全年」改成「近 7 天 / 近 30 天 / 近 12 个月」——
- * 页面下方「年度书单」卡还有一排「7天 / 30天 / 90天 / 全部」，两套范围互不相干，
- * 旧标签（本周 vs 7天、本月 vs 30天）语义几乎重叠，用户分不清谁管谁。
+ * 标签、趋势图标题与分桶粒度全部取自 READING_TREND_SPECS —— 之前 chip 写「近 7 天 /
+ * 近 30 天 / 近 12 个月」，而微信读书的 mode 是**本周 / 本月 / 本年**（窗口不是滚动天数），
+ * 且下面的柱子各按各的切法，同一个数字在三处有三种说法。
  */
-export const PERIOD_CHIPS: { key: ReadingMode; label: string; domId: string }[] = [
-  { key: 'weekly', label: '近 7 天', domId: 'period-weekly' },
-  { key: 'monthly', label: '近 30 天', domId: 'period-monthly' },
-  { key: 'annually', label: '近 12 个月', domId: 'period-annually' },
-]
+export const PERIOD_CHIPS: { key: ReadingMode; label: string; domId: string }[] = (
+  ['weekly', 'monthly', 'annually'] as ReadingMode[]
+).map((key) => ({
+  key,
+  label: READING_TREND_SPECS[key].chipLabel,
+  domId: `period-${key}`,
+}))
 
 /** 周标签（周一到周日） */
 export const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']

@@ -6,9 +6,9 @@
  *   - hero: 标题 + 副标题 + 3 chip 时段切换 + 导出报告按钮 + 同步按钮
  *   - 子 tab: 阅读统计 / 书籍统计
  *   - 阅读统计视图：
- *       Layer 1: 4 KPI 卡片网格（本月阅读/完成书籍/复习卡片/笔记总数）
+ *       Layer 1: 4 KPI 卡片网格（{时段}阅读 / 完成书籍 / 卡片总数 / 笔记总数）
  *       Layer 2: 1.7fr 1fr（阅读趋势柱状图 + 书籍分布甜甜圈）
- *       Layer 3: 1fr 1fr（复习热力 12 周网格 + 本周节奏 7 日柱状图）
+ *       Layer 3: 1fr 1fr（复习热力 12 周网格 + 一天 24 小时的时段分布）
  *       Layer 4: 年度书单表格（5 列 grid）
  *       附录: 阅读方式/读得最多/用户画像/偏好作者/排名徽章
  *   - 书籍统计视图：3 KPI + 书籍表格（进度/笔记/卡片三列可排序）
@@ -33,6 +33,7 @@ import { mapBooks, mapHighlights, mapCards, safeNum } from '../utils/db-mapper'
 import { useReadingDataStore, formatReadingTime } from '../stores/readingDataStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { ReadingMode, Book } from '../../../shared/types'
+import { READING_TREND_SPECS, recentDayKeys } from '../../../shared/reading-trend'
 import {
   PERIOD_CHIPS,
   formatExportTimestamp,
@@ -261,10 +262,9 @@ export default function Stats() {
   useEffect(() => {
     if (!window.electronAPI?.stats) return
     let isCancelled = false
-    const end = new Date()
-    const start = new Date(end.getTime() - (12 * 7 - 1) * 86400000)
+    const days = recentDayKeys(new Date())
     window.electronAPI.stats
-      .getRange(start.toISOString().split('T')[0], end.toISOString().split('T')[0])
+      .getRange(days[0], days[days.length - 1])
       .then((rows) => {
         if (isCancelled) return
         const map: Record<string, number> = {}
@@ -367,11 +367,12 @@ export default function Stats() {
   const totalHighlights = bookStats.reduce((sum, s) => sum + s.highlightCount, 0)
   const totalCards = bookStats.reduce((sum, s) => sum + s.cardCount, 0)
 
+  // 时段名字与趋势图共用 READING_TREND_SPECS，避免 chip / KPI 卡 / 图标题三套说法
   const modeLabels: Record<ReadingMode, string> = {
-    weekly: '本周',
-    monthly: '本月',
-    annually: '本年',
-    overall: '总计',
+    weekly: READING_TREND_SPECS.weekly.chipLabel,
+    monthly: READING_TREND_SPECS.monthly.chipLabel,
+    annually: READING_TREND_SPECS.annually.chipLabel,
+    overall: READING_TREND_SPECS.overall.chipLabel,
   }
 
   // ===== 派生 KPI 数据（用真实数据填充设计稿的 4 个 KPI 卡） =====

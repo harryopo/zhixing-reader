@@ -5,8 +5,10 @@ import { Tiny } from '@/components/ui/Feedback'
 import { safeNum, safeStr } from '../../utils/db-mapper'
 import { formatReadingTime } from '../../stores/readingDataStore'
 import type { ReadingMode, PreferCategory } from '../../../../shared/types'
+import { buildReadingTrendPoints, recentDayKeys, READING_TREND_SPECS } from '../../../../shared/reading-trend'
 import { DONUT_PALETTE, WEEKDAY_LABELS } from './constants'
 
+// ===== 阅读趋势柱状图（分桶与标签来自 src/shared/reading-trend.ts 的同一份口径）=====
 export function ReadingTrendBars({
   readTimes,
   mode,
@@ -16,17 +18,12 @@ export function ReadingTrendBars({
   mode: ReadingMode
   loading: boolean
 }) {
-  const points = useMemo(() => {
-    if (!readTimes) return []
-    return Object.entries(readTimes)
-      .map(([ts, seconds]) => ({ ts: Number(ts), seconds }))
-      .sort((a, b) => a.ts - b.ts)
-  }, [readTimes])
+  const spec = READING_TREND_SPECS[mode] ?? READING_TREND_SPECS.monthly
 
-  const displayPoints = useMemo(() => {
-    const showCount = mode === 'annually' ? 12 : 7
-    return points.slice(-showCount)
-  }, [points, mode])
+  const displayPoints = useMemo(
+    () => buildReadingTrendPoints(readTimes, mode),
+    [readTimes, mode],
+  )
 
   const displayMax = useMemo(() => {
     if (displayPoints.length === 0) return 1
@@ -72,7 +69,7 @@ export function ReadingTrendBars({
     <>
       <div
         role="img"
-        aria-label={`近 ${displayPoints.length} 个时段的阅读时长柱状图`}
+        aria-label={`${spec.trendTitle}（${displayPoints.length} 根柱子）`}
         style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${displayPoints.length}, 1fr)`,
@@ -86,11 +83,7 @@ export function ReadingTrendBars({
           const heightPct = displayMax > 0 ? (p.seconds / displayMax) * 100 : 0
           const isMax = p.seconds === displayMax && p.seconds > 0
           const minutes = Math.round(p.seconds / 60)
-          const date = new Date(p.ts * 1000)
-          const label =
-            mode === 'annually'
-              ? `${date.getMonth() + 1}月`
-              : `${date.getMonth() + 1}/${date.getDate()}`
+          const label = p.label
           return (
             <div
               key={p.ts}
@@ -461,17 +454,9 @@ export function CategoryDonut({
 
 // ===== 复习热力 12 周网格（设计稿 12×7 color-mix chart-1；真实数据：每日 FSRS 评分次数） =====
 export function ReviewHeatmap12Weeks({ dailyCards }: { dailyCards: Record<string, number> }) {
-  // 12 周 × 7 天 = 84 格，按日历对齐（从 83 天前到今天），取每日真实复习次数
+  // 12 周 × 7 天 = 84 格，格子与取数窗口共用 recentDayKeys（本地日期，不按 UTC 切）
   const cells = useMemo(() => {
-    const total = 84
-    const today = new Date()
-    const arr: { date: string; count: number }[] = []
-    for (let i = 0; i < total; i++) {
-      const d = new Date(today.getTime() - (total - 1 - i) * 86400000)
-      const dateStr = d.toISOString().split('T')[0]
-      arr.push({ date: dateStr, count: dailyCards[dateStr] ?? 0 })
-    }
-    return arr
+    return recentDayKeys(new Date()).map((dateStr) => ({ date: dateStr, count: dailyCards[dateStr] ?? 0 }))
   }, [dailyCards])
 
   const maxVal = useMemo(() => Math.max(...cells.map((c) => c.count), 1), [cells])
@@ -564,7 +549,7 @@ export function ReviewHeatmap12Weeks({ dailyCards }: { dailyCards: Record<string
 }
 
 // ===== 阅读时段分布柱状图（数据来源为微信读书 24 小时时段分布） =====
-export function WeeklyBars({
+export function HourlyBars({
   preferTime,
   preferTimeWord,
 }: {

@@ -4,7 +4,7 @@ import { EmptyState } from '@/components/ui/Feedback'
 import { formatTimeAgo } from '../../utils/db-mapper'
 import type { TokenRecord } from '../../../../types/renderer'
 import { FEATURE_LABELS } from './constants'
-import { formatCost, formatTokensFull, getModelColor, getModelDisplayName } from './format'
+import { formatTokensFull, getModelColor, getModelDisplayName } from './format'
 import { spinnerStyle } from './styles'
 
 export function RequestLogTable({ records, loading }: { records: TokenRecord[]; loading: boolean }) {
@@ -35,7 +35,7 @@ export function RequestLogTable({ records, loading }: { records: TokenRecord[]; 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 0.8fr 0.7fr',
+          gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 0.7fr',
           gap: 'calc(var(--spacing) * 3)',
           padding: '0 calc(var(--spacing) * 4) calc(var(--spacing) * 2)',
           fontSize: '0.78rem',
@@ -48,7 +48,6 @@ export function RequestLogTable({ records, loading }: { records: TokenRecord[]; 
         <span>模型</span>
         <span>输入 tokens</span>
         <span>输出 tokens</span>
-        <span>费用</span>
         <span>时间</span>
       </div>
       <div
@@ -68,7 +67,7 @@ export function RequestLogTable({ records, loading }: { records: TokenRecord[]; 
               // 现在老老实实当一行数据。
               style={{
                 display: 'grid',
-                gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 0.8fr 0.7fr',
+                gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 0.7fr',
                 gap: 'calc(var(--spacing) * 3)',
                 alignItems: 'center',
                 background: 'var(--background)',
@@ -132,16 +131,6 @@ export function RequestLogTable({ records, loading }: { records: TokenRecord[]; 
                 }}
               >
                 {formatTokensFull(record.output_tokens)}
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.85rem',
-                  whiteSpace: 'nowrap',
-                  color: 'var(--foreground)',
-                }}
-              >
-                {formatCost(record.cost_usd || 0)}
               </span>
               <span
                 style={{

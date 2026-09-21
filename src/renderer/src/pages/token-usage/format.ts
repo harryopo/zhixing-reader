@@ -1,5 +1,5 @@
 /** TokenUsage 页的纯格式化/取数工具（从 TokenUsage.tsx 原样搬出，逻辑未改） */
-import { DAYS_MAP, FILTER_DAYS_MAP, USD_TO_CNY } from './constants'
+import { DAYS_MAP, FILTER_DAYS_MAP } from './constants'
 import type { FilterDateRange, TimeRange } from './constants'
 
 /** 模型 → 颜色 token（设计稿：GPT-4o chart-1, Claude chart-5, mini chart-3, 其他 chart-2） */
@@ -30,10 +30,6 @@ export function formatTokens(n: number): string {
 
 export function formatTokensFull(n: number): string {
   return n.toLocaleString()
-}
-
-export function formatCost(usd: number): string {
-  return '¥' + (usd * USD_TO_CNY).toFixed(2)
 }
 
 export function formatDuration(ms: number): string {

@@ -65,3 +65,37 @@ describe('假控件不许回来', () => {
     expect(src).toContain('{INTENT_META.length} 条映射')
   })
 })
+
+const REQUEST_LOG = 'src/renderer/src/pages/token-usage/RequestLogTable.tsx'
+const STATS_CONSTANTS = 'src/renderer/src/pages/stats/constants.ts'
+const STATS_CHARTS = 'src/renderer/src/pages/stats/charts.tsx'
+const STATS_PAGE = 'src/renderer/src/pages/Stats.tsx'
+const READING_VIEW = 'src/renderer/src/pages/stats/ReadingStatsView.tsx'
+
+describe('统计口径与无写入方的列不许再被当成事实展示', () => {
+  it('请求日志不再有「费用」列（token_usage.cost_usd 没有写入方，恒为 0）', () => {
+    const src = read(REQUEST_LOG)
+    expect(src).not.toMatch(/formatCost|USD_TO_CNY/)
+    expect(src).not.toContain('<span>费用</span>')
+  })
+
+  it('时段 chip 的名字只有一套，来自趋势 spec，不再各写一份窗口', () => {
+    const src = read(STATS_CONSTANTS)
+    expect(src).toContain('READING_TREND_SPECS[key].chipLabel')
+    // 承诺"滚动 N 天"而底层是"本周/本月"的那种写法不许回来
+    expect(src).not.toMatch(/label:\s*'近/)
+  })
+
+  it('趋势柱状必须走 shared 的分桶口径，页面里不再自己切点数', () => {
+    const src = read(STATS_CHARTS)
+    expect(src).toContain('buildReadingTrendPoints')
+    expect(src).not.toMatch(/showCount\s*=\s*mode ===/)
+  })
+
+  it('热力图的日期 key 走本地日期串，不用 UTC（凌晨会把今天算成昨天）', () => {
+    for (const file of [STATS_CHARTS, STATS_PAGE, READING_VIEW]) {
+      expect(read(file)).not.toMatch(/toISOString\(\)\.split\('T'\)\[0\]/)
+    }
+    expect(read(STATS_CHARTS)).toContain('recentDayKeys')
+  })
+})

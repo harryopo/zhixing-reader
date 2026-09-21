@@ -5,7 +5,7 @@
  * 结构：
  *   - hero: 标题 + 副标题（时间范围）+ actions（时间 chips + 导出 + 清空）
  *   - 清空确认 banner（showClearConfirm 时显示）
- *   - 4 KPI 卡（用量 / 预估费用 / 会话数 / 平均消耗）
+ *   - 3 KPI 卡（用量 / 会话数 / 平均消耗）
  *   - 双 panel: 模型分布 donut + 用量趋势柱状图
  *   - Layer 2.5: 用量趋势折线图（input/output 双线，复用 chartDailyStats 日历填充）
  *   - 用量明细 card：tab 切换（调用记录 / 模型统计 / 功能统计）
@@ -16,7 +16,8 @@
  *   - 时间范围筛选（today / 7d / 14d / 30d）
  *   - 数据聚合（summary / records / providerStats / featureStats / dailyStats）
  *   - 模型分组统计 + donut conic-gradient 渲染
- *   - 成本计算（cost_usd × 汇率）
+ *   - 成本计算（cost_usd × 汇率）—— 已删：token_usage.cost_usd 没有任何写入方，
+ *     恒为 0 的列乘任何汇率都是 0，展示出来只会让人以为"没花钱"
  *   - 用量趋势柱状图（日常 / 高峰 双色）
  *   - 用量趋势折线图（input / output 双线，recharts + CHART_COLORS 常量）
  *   - tab 切换（logs / providers / features）
@@ -195,13 +196,12 @@ export default function TokenUsagePage() {
     cutoff.setHours(0, 0, 0, 0)
     // 用 records（可能是更宽范围拉回来的）按顶部时段过滤 —— 这就是卡片标注的那个周期
     const filteredRecords = records.filter((r) => new Date(r.created_at) >= cutoff)
-    const totalCostUsd = filteredRecords.reduce((s, r) => s + (r.cost_usd || 0), 0)
     const avgTokens = totalRequests > 0 ? Math.round(totalTokens / totalRequests) : 0
     // 缓存命中率 = 命中输入 tokens / 总输入 tokens（前缀缓存友好化的核心观测指标）
     const totalInput = filteredRecords.reduce((s, r) => s + (r.input_tokens || 0), 0)
     const cachedTokens = filteredRecords.reduce((s, r) => s + (r.cached_tokens || 0), 0)
     const cachedHitRate = totalInput > 0 ? Math.round((cachedTokens / totalInput) * 100) : 0
-    return { totalTokens, totalRequests, totalCostUsd, avgTokens, cachedHitRate }
+    return { totalTokens, totalRequests, avgTokens, cachedHitRate }
   }, [chartDailyStats, records, timeRange])
 
   // 模型分布：聚合 providerStats，按显示名分组，取前 3 + 其他

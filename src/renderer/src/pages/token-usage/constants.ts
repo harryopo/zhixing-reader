@@ -38,9 +38,6 @@ export const FILTER_DAYS_MAP: Record<FilterDateRange, number> = {
   all: 3650,
 }
 
-// USD → CNY 汇率（用于预估费用展示，与设计稿 ¥18.60 / 1.24M tokens 量级一致）
-export const USD_TO_CNY = 7
-
 /** Layer 2.5 折线图配色（统一 emerald 系，input 深色 / output 浅色，保持双色对比） */
 export const CHART_COLORS = {
   input: COLORS.emerald[700], // 输入 tokens（深色）

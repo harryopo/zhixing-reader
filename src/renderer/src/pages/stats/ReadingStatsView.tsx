@@ -7,8 +7,9 @@ import Icon from '@/components/ui/Icon'
 import { EmptyState, Metric, Trend } from '@/components/ui/Feedback'
 import { formatReadingTime } from '../../stores/readingDataStore'
 import type { ReadingMode, ReadingDataResponse } from '../../../../shared/types'
+import { recentDayKeys, READING_TREND_SPECS } from '../../../../shared/reading-trend'
 import { STATS_DATE_RANGES, STATS_RANGE_DAYS, type BookStat, type StatsDateRange } from './constants'
-import { CategoryDonut, ReadingTrendBars, ReviewHeatmap12Weeks, WeeklyBars, WeeklyTrendMini } from './charts'
+import { CategoryDonut, ReadingTrendBars, ReviewHeatmap12Weeks, HourlyBars, WeeklyTrendMini } from './charts'
 import { YearlyBookTable } from './YearlyBookTable'
 import { ReadingDataDetails } from './ReadingDataDetails'
 
@@ -50,6 +51,9 @@ export function ReadingStatsView({
   onConfigureWeread: () => void
   heatmapDaily: Record<string, number>
 }) {
+  // 趋势图的标题/徽标与柱子分桶同源（口径见 src/shared/reading-trend.ts）
+  const trendSpec = READING_TREND_SPECS[readingMode] ?? READING_TREND_SPECS.monthly
+
   // 汇总所选日期范围内的每日阅读统计
   const rangeSummary = useMemo(() => {
     let books = 0
@@ -65,6 +69,13 @@ export function ReadingStatsView({
     }
     return { books, highlights, cards, readingTime, days: dailyRangeData.length }
   }, [dailyRangeData])
+
+  // 热力图那张卡承诺的是「近 12 周」，徽标就必须按同一批格子算 ——
+  // 以前这里挂的是全库卡片总数，跟密度毫无关系
+  const reviewedIn12Weeks = useMemo(() => {
+    const keys = recentDayKeys(new Date())
+    return keys.reduce((sum, day) => sum + Number(heatmapDaily?.[day] ?? 0), 0)
+  }, [heatmapDaily])
 
   // 年度书单：以 is_finished 或进度 100% 判定已读完，并按 updatedAt 近似完成时间过滤当年
   const yearFinishedBookStats = useMemo(() => {
@@ -97,7 +108,7 @@ export function ReadingStatsView({
           <EmptyState
             icon={<Icon name="bookshelf" size={24} />}
             title="未配置微信读书"
-            description="阅读趋势、书籍分布、本周节奏等数据需要连接微信读书后才能显示。请前往「设置 > 微信读书」配置 API Key。"
+            description="阅读趋势、书籍分布、时段偏好等数据需要连接微信读书后才能显示。请前往「设置 > 微信读书」配置 API Key。"
             action={
               <Button variant="primary" onClick={onConfigureWeread} data-dom-id="cta-config-weread">
                 <Icon name="settings" size={16} /> 前往配置
@@ -161,10 +172,11 @@ export function ReadingStatsView({
               letterSpacing: '0.08em',
             }}
           >
-            复习卡片
+            卡片总数
           </div>
           <Metric value={kpiData.totalCards} />
-          <Trend>共 {kpiData.totalCards} 张</Trend>
+          {/* 库里建了多少卡是真值，但"复习过多少张"不在这个数里 —— 别把它写成期间复习数 */}
+          <Trend>由划线自动建卡，累计至今</Trend>
         </Card>
 
         <Card>
@@ -195,8 +207,8 @@ export function ReadingStatsView({
         <Card>
           <CardHead
             eyebrow="阅读趋势"
-            title={`近 ${readingMode === 'annually' ? '12 月' : '7 日'} 时长`}
-            action={<Badge variant="ok">{readingMode === 'annually' ? '每月' : '每日'}</Badge>}
+            title={trendSpec.trendTitle}
+            action={<Badge variant="ok">{trendSpec.badge}</Badge>}
           />
           <ReadingTrendBars
             readTimes={readingData?.readTimes || readingData?.dailyReadTimes}
@@ -215,7 +227,7 @@ export function ReadingStatsView({
         </Card>
       </div>
 
-      {/* ===== Layer 3: 复习热力 12 周 + 本周节奏 7 日（1fr 1fr） ===== */}
+      {/* ===== Layer 3: 复习热力 12 周 + 一天 24 小时时段分布（1fr 1fr） ===== */}
       <div
         className="grid panels"
         style={{
@@ -228,7 +240,7 @@ export function ReadingStatsView({
           <CardHead
             eyebrow="复习热力"
             title="近 12 周密度"
-            action={<Badge>{kpiData.totalCards} 张</Badge>}
+            action={<Badge>近 12 周复习 {reviewedIn12Weeks} 次</Badge>}
           />
           <ReviewHeatmap12Weeks dailyCards={heatmapDaily} />
         </Card>
@@ -239,7 +251,7 @@ export function ReadingStatsView({
             title="时段分布"
             action={<Badge variant="ok">24 小时</Badge>}
           />
-          <WeeklyBars
+          <HourlyBars
             preferTime={readingData?.preferTime}
             preferTimeWord={readingData?.preferTimeWord}
           />
