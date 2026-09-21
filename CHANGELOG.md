@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-21
+
+### Added
+- **书籍层级摘要（RAPTOR 简化）**：新增 `chapter_summaries` 表，L1 逐章 → L2 由 L1 汇总；L1 未变不重烧 L2，同书并发直接报错。书籍详情新增「摘要」页签与「生成 AI 摘要」入口，摘要与 BM25 挑出的章节一起注入对话上下文
+- **摘要「只报不烧」**：顶栏通知面板列出「N 本书划线有变化，摘要待更新」并可一键跳到该书的摘要页签。启动/通知全程零 AI 调用，花钱那一下留给用户自己按
+- **模型分级路由**：`casual_chat` 等白名单意图可分流到经济档（新增设置项 `llmModelFast`），未配置时恒走主模型
+- **品牌 VIS**：徽标改「玉璧」（开口环 + 铜金方，一套几何四种配色）、思源黑体描骨转曲成字标、`tokens/brand.json` 作全部色值的唯一真值（`npm run build:tokens` / `build:icons` 生成产物入库）
+- **字体本地打包**：Noto Sans SC / DM Sans / JetBrains Mono 三款可变字体随包分发（OFL，woff2 由 Vite 打进渲染层），补齐中文字体栈并移除 Google Fonts CDN 依赖——桌面应用离线可用
+- **Modal / Drawer 弹层原语**：全应用 6 处重复实现的弹层收口到一处，统一 `aria-modal` + ESC + 焦点管理
+- **档案页统计算法**：窗口/连续/热力/趋势/时长全部提成纯模块 `src/shared/profile-stats.ts`，一次 `Promise.all` 取数，热力图由同一批 `dailyRows` 派生（顺手修掉 `toISOString()` 的 UTC off-by-one）
+
+### Changed
+- **AI 非流式调用换通路**：章节摘要、全书摘要、卡片解读/应用、Skill 导出、文章翻译从手写 `callAI` 改走 `sdkGenerateText` / `sdkGenerateObject`；`buildMessages` 收口成一处（`prompt-messages.ts`），统一下发 `reasoningEffort: 'none'`，用量按 `feature` 逐次落库含 `cachedInputTokens`
+- **巨型页拆分**：Stats 2993→553、TokenUsage 1612→974、SettingsData 1541→1185、DailyLearning 2190→1622、VocabularyPage 1972→1091、KnowledgeCards 1789→1058、Methodologies 1787→1004（子组件搬进各自 `pages/<page>/` 目录）
+- **测试基线**：885 → 968 用例（42 → 54 文件），新增源码扫描类守卫（品牌资产 / 设计 token / 字体资产 / 假控件）
+
+### Fixed
+- **前端假数字与断线字段清扫**（口径：界面上每个数字必须能追到真实数据库列，追不到的删掉而不是编）
+  - 档案页「加入知行 N 天」是算出来的假值 → 回退到「第一条真实记录」
+  - 复习 CSV 六列里五列常年空白：读的是 SM-2 时代的字段名，而 reviews 真实列是 `card_id/rating/review_time/elapsed_days/scheduled_days` → 表头与取数共用 `src/shared/review-export.ts` 一份 spec，测试拿 `PRAGMA table_info(reviews)` 双向对账
+  - 顶栏「N 张卡片待复习」用 `getDue(100).length` 当计数，卡片堆到几百张时永远显示 100 → 改走 `getQueueStats().actionable`
+  - 每日学习拿被默认 limit 截断的列表长度当计数（实测 80 篇文章 > 默认 50，会把「还有没读完的」算成「都读完了」）→ 显式取全量
+  - 知识卡片「复习 0 次」：`review_count` 建了列但没有任何写入方 → 删掉该显示
+  - 策略表写死的「4 条映射」→ `INTENT_META.length`
+  - 后台 `admin.getCardsByBook` JOIN 了不存在的 `knowledge_cards.highlight_id`（一进后台就抛错）、`cards` 查询丢 `book_id`（卡片无法归属到书）→ 都补上
+- **Skill 导出英文名排版**：`{{nameEn}}` 顶在「触发场景:」前渲染成 `Pomodoro触发场景: …`；纯中文名 slug 化后是空串，旧代码回退成 `methodology` 等于编造名字 → 提成 `src/shared/skill-name.ts`，整行自带换行、没有英文名就整行省略
+- **老通路丢失 `cached_tokens`**：解析响应时丢掉 `prompt_tokens_details.cached_tokens`，导致统计页缓存命中率对部分功能恒为 0
+- **`Review` 类型与真实列对齐**：接口声明的 `cardId/quality/easeFactor/interval/reviewedAt` 在数据库里一个都不存在，换成真实的 `ReviewRow`（snake_case）
+
+### Removed
+- **26 条渲染层零调用的 IPC 死链**（通道 188→163）：整条手写流式实现（`ai.streamChat` / `streamOpenAI` / `streamAnthropic`）、4 个被取代的非流式函数、Skill 批量导出、20 条数据读取死链，及 `book_architecture` 全链路
+- **假控件**：设置页「难度衰减」（FSRS-6.0 的 decay 是常数，引擎从不接受该值）、存储进度的 `/ 512 MB` 上限（本应用没有容量上限这个概念）
+
 ## [1.2.0] - 2026-09-17
 
 ### Added
@@ -115,10 +148,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 链接
 
+[1.3.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.0
 [1.2.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.2.0
 [1.1.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.1.0
 [1.0.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.0.0
 
 ---
 
-*最后更新：2026-09-17*
+*最后更新：2026-09-21*

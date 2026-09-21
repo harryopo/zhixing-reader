@@ -4,15 +4,15 @@
 
 > **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS-6.0 · 微信读书深度同步
 >
-> **v1.2.0** | 2026-09-17 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
+> **v1.3.0** | 2026-09-21 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
 
-[![Version](https://img.shields.io/badge/version-1.2.0-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-35-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-885%20%E7%94%A8%E4%BE%8B%20/%2042%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-968%20%E7%94%A8%E4%BE%8B%20/%2054%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
 
 ---
@@ -29,8 +29,8 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 52,000+ 行 TypeScript strict 代码 |
-| **测试覆盖** | 885 用例 / 42 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
-| **存储** | sql.js (SQLite WASM) · 15 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
+| **测试覆盖** | 968 用例 / 54 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
+| **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
 | **打包** | electron-builder → Windows NSIS 安装包（**125MB**）|
@@ -137,7 +137,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 2.x | 885 用例 / 42 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 2.x | 968 用例 / 54 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 25.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -207,7 +207,7 @@ zhixing-reader/
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
 ├── src/shared/                              # 跨进程共享（类型 + IPC 通道常量）
-├── tests/                                   # Vitest 单元测试（885 用例 / 42 文件）
+├── tests/                                   # Vitest 单元测试（968 用例 / 54 文件）
 ├── resources/
 │   ├── dictionary.json                      # ECDICT 15.0MB / 59,118 词条
 │   ├── icon.ico / icon.png
@@ -264,7 +264,7 @@ zhixing-reader/
 
 ## 十一、快速开始
 
-1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.2.0.exe`（Windows），或安装后由应用内自动更新
+1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.3.0.exe`（Windows），或安装后由应用内自动更新
 2. **配置 AI** — 设置页选择 AI 服务商（火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot），填入 API Key
 3. **连接微信读书** — 设置页填入微信读书 API Key，同步书架与划线数据
 4. **开始使用** — 浏览书架、AI 对话、知识卡片复习、每日英语学习
@@ -345,6 +345,7 @@ npm run package:win
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
+| 2026-09-21 | v1.3.0 | 书籍层级摘要（L1 分章 → L2 全书）+ 摘要「只报不烧」提醒 / 模型分级路由 / 品牌 VIS（玉璧徽标 + 转曲字标 + brand.json 单一色值真值）/ 字体本地打包（离线可用）/ 前端假数字与断线字段清扫 / 26 条 IPC 死链砍除（通道 188→163）/ 测试 968 用例 | 张子涵 |
 | 2026-09-17 | v1.2.0 | 应用内自动更新（electron-updater）/ 本地 BM25 检索替换向量链路 / 检索可视化 / 数据血缘四处断点修复 / 微信读书后台自动同步 / 每日新卡上限 / 测试 885 用例 | 张子涵 |
 | 2026-08-28 | v1.1.0 | 维护迭代：间隔复习闭环 / Token 用量实时统计 / 档案画像注入 AI / 首页重构 / 导航与假数据治理 / database·ipc 拆分 | 张子涵 |
 | 2026-07-28 | v1.0.0 | 文档体系完善：技术白皮书（提交2/3）+ README 更新到核心亮点 + 15 大模块 | 张子涵 |
@@ -413,4 +414,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-09-18 | 与 v1.2.0 代码一致*
+*最后更新：2026-09-21 | 与 v1.3.0 代码一致*
