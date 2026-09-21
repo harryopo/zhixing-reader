@@ -3,7 +3,7 @@
 > **面向对象**：所有 AI Agent（Claude Code / Cursor / Continue / Trae）
 > **生效日期**：2026-07-20
 > **配套规范**：[CLAUDE.md](CLAUDE.md) + [.learnings/LEARNINGS.md](.learnings/LEARNINGS.md) + [.learnings/PROGRESS.md](.learnings/PROGRESS.md)
-> **最近核验**：2026-09-21（v1.3.1 发版时对代码与文档口径复核；见第十章变更记录）
+> **最近核验**：2026-09-21（v1.3.3 发版时对代码与文档口径复核；见第十章变更记录）
 
 ---
 
@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（56 文件 / 985 用例）
+├── tests/                 # Vitest 单元测试（56 文件 / 990 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（985 用例；不含覆盖率）
+npm run test             # Vitest（990 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -244,7 +244,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（56 文件 / 985 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（56 文件 / 990 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
@@ -264,6 +264,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-21（六续） | **更新失败提示收成一条 + v1.3.3 出包发布** —— 用户在装到 `测试专用/` 的应用里点「检查更新」，界面弹出 `更新失败: net::ERR_CONNECTION_RESET`。**先定性**：这不是代码缺陷，是本机到 GitHub 的网络不通（实测 `api.github.com` 200，但 `github.com` / `raw.githubusercontent.com` / 下载主机均 000，`latest.yml` 取不到）；**这条结论同时作废了上面几行「本机仍没装过任何 exe」的旧陈述**（用户已真装过，注册表有安装记录）。真正能修的是**提示本身两处**：① **同一次失败弹两条** —— 查 `node_modules/electron-updater/out/AppUpdater.js` 证实 `checkForUpdates` 是 `emit("error")` 之后又 `throw`（271-272 行），`downloadUpdate` 走 `dispatchError` 同理，于是「状态事件」和「按钮返回值」各报一次。改成**只认 `error` 事件这一路**，按钮拿到 `result.error` 只回滚状态不再弹；`applyUpdateStatus(status, fromCache)` 新增第二参，**「关于」页进页回读缓存时不再重放提示**（否则历史失败/成功会在新挂载时再弹一遍）② **错误码不该给用户看** —— 判定逻辑提成 `src/shared/update-notice.ts` 的 `describeUpdateError()`：网络类（`ERR_CONNECTION*`/`ECONN*`/`socket hang up`/超时…）收成一句「连不上更新服务器（GitHub）」，证书异常、访问频率受限、找不到安装包各给一句，其余保留原文便于排查。`tests/update-notice.test.ts` 6→11 条（含「不得出现 `net::` 与错误码」的负向断言）。**顺手**：「设置 → 关于」的更新历史改为短句分条、一条只说一件事；去掉 '• ' 手打前缀后圆点会全丢（**Tailwind v4 preflight 把 `ul` 的 `list-style` 清成 none**），靠内联 `listStyleType: 'disc'` 写回来。**发版**：走六处同步点，`npm run verify` 退出码 0（990 用例 / 56 文件，lint 0 error / 176 warning），`installer/zhixing-reader-Setup-1.3.3.exe` 119,246,454 字节（比 1.3.2 少 850 字节），随包 exe FileVersion 1.3.3、`latest.yml` 的 version/size/sha512 与本机 exe 逐字节自洽、`dictionary.json` 随包字节与源文件相同。`.gitignore` 加 `测试专用/`（试装树 465 MB 不入库，没删用户安装）。**仍没验的**：装 1.3.x 后顶栏出现「新版本 v1.3.3」这条链路——GitHub 连不通就还是测不了。| AI Agent（接手） |
 | 2026-09-21（五续） | **v1.3.2 出包并发布** —— 把上一批统计页口径修复打出去。走 `tests/version-sync.test.ts` 的六处同步点（`npm version` / `APP_META` / CHANGELOG `## [1.3.2]` + 链接行 / README 五处 / 关于页 `UPDATE_HISTORY` 首条），`npm run verify` 退出码 0（985 用例 / 56 文件，lint 0 error / 176 warning）。**产物实测**：`installer/zhixing-reader-Setup-1.3.2.exe` 119,247,304 字节（113.7 MiB，比 1.3.1 只 +619），`win-unpacked/知行读书.exe` FileVersion 1.3.2，`latest.yml` 的 `version: 1.3.2` + `size` 与 exe 一致、sha512 与本机 exe 逐字节自洽，`dictionary.json` 随包字节与源文件相同。**已发布**：tag `v1.3.2` 已推、Release 标为 Latest、三件同传并从线上回下载对账。**这一版顺带是那条更新提示链路的第一次真验机会**：装 1.3.1 的应用启动后应能在顶栏看到「新版本 v1.3.2」——但**本机仍没装过任何 exe**（注册表无安装记录），所以这条链路依然是代码推理，没人肉眼看过。| AI Agent（接手） |
 | 2026-09-21（四续） | **统计页三处假口径 + 恒为 0 的「费用」列**（commit 12896a9，已随 v1.3.2 发布）—— 承接 09-20 清单里剩下的候选。① **趋势图**：chip 上写「近 7 天 / 近 30 天 / 近 12 个月」，可微信读书 `mode=weekly/monthly/annually` 给的是**本周 / 本月 / 本年**窗口，而 `ReadingTrendBars` 自己又切一次 —— `showCount = annually ? 12 : 7` ⇒ 选「近 30 天」只画**最后 7 根**、选「本年」把 12 个**按天**的点直接标成「1月…12月」。修法：口径收进 `src/shared/reading-trend.ts`（`READING_TREND_SPECS` 一处定 chip 名 / 图标题 / 徽标 / 分桶粒度），`buildReadingTrendPoints` 按月聚合走本地月份（跨年不把两个 3 月并一个）；chip 与 `modeLabels` 都从同一份 spec 生成，**名字只有一套**，7 条测试钉住「给 30 天必须画 30 根」 ② **热力图整列错位**：取数窗口和格子都用 `toISOString().split('T')[0]`（UTC 日），UTC+8 凌晨把「今天」算成昨天 ⇒ 今天那一格永远空 —— 新增 `recentDayKeys()` 本地日期串，取数 / 格子 / 徽标三处共用（同 09-20 档案页那个 off-by-one 的同类） ③ **两张卡的徽标挂错数**：KPI「复习卡片」显示的是全库卡片总数（`bookStats.reduce(cardCount)`，含从没复习过的）却摆在时段卡旁边；「复习热力 · 近 12 周密度」的徽标也挂总数 —— 改成标题如实写「卡片总数 / 由划线自动建卡，累计至今」，热力徽标改成**近 12 周实际复习次数**（与格子同一批 key 求和）④ **`cost_usd` 一列恒 ¥0.00**：`token_usage.cost_usd` 有列、`DEFAULT 0`，全仓库**没有任何写入方**（只有 entities 类型 + 渲染层读），旁边还留着 `USD_TO_CNY = 7` 的注释「与设计稿 ¥18.60 量级一致」—— 一个为了让设计稿看起来对而定的汇率。砍掉请求日志的费用列 + `formatCost` + `USD_TO_CNY` + KPI 里没地方用的 `totalCostUsd`；CSV 仍按数据库原样导出该列（那是真列，不是界面承诺）。`WeeklyBars` 顺手改名 `HourlyBars`（它一直画的是 24 小时分布，名字与注释都在说"一周/7 日"）。测试 974→985（55→56 文件），typecheck 0 / eslint 0 error。**没验的**：统计页与 Token 页**没有逐个点过**（`npm run dev` 需要微信读书数据才有图，本轮只做 typecheck/eslint/单测/build）| AI Agent（接手） |
 | 2026-09-21（再续） | **v1.3.1 出包** —— 把上面那批「检查到更新却没人知道」的修复打成可安装版本。走 `tests/version-sync.test.ts` 钉住的六处同步点（`npm version` / `APP_META` / CHANGELOG `## [1.3.1]` + 链接行 / README 五处 / 关于页 `UPDATE_HISTORY` 首条），一次改完全绿才算发版。**产物实测**：`installer/zhixing-reader-Setup-1.3.1.exe` 119,246,685 字节（113.7 MiB，比 1.3.0 只 +909 字节），`win-unpacked/知行读书.exe` FileVersion 1.3.1，随包 `latest.yml` 的 `version: 1.3.1` + `size` 与 exe 逐字节对上、sha512 与本机 exe 实测一致，`dictionary.json` 随包字节与源文件相同。`npm run verify` 退出码 0（974 用例 / 55 文件）。**仍未做**：没跑安装包装一遍（这台机器注册表里没有已安装记录，从没在真安装态下点过）。**已发布（用户说「该推送的都推送」）**：tag `v1.3.1` 已推，Release 标为 Latest，三件同传后从线上回下载对账 —— `latest.yml` 与本机产物**逐字节相同**、`.blockmap` 字节数相同、exe 服务端报的 size 119,246,685 与本机一致 | AI Agent（接手） |

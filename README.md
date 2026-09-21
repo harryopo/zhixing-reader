@@ -33,7 +33,7 @@
 | **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
-| **打包** | electron-builder → Windows NSIS 安装包（v1.3.2 实测 **113.7 MB** / 119,247,304 字节）|
+| **打包** | electron-builder → Windows NSIS 安装包（v1.3.3 实测 **113.7 MB** / 119,246,454 字节）|
 | **License** | MIT（自由使用 / 修改 / 商用）|
 
 ---
@@ -137,7 +137,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 2.x | 985 用例 / 56 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 2.x | 990 用例 / 56 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 25.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -207,7 +207,7 @@ zhixing-reader/
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
 ├── src/shared/                              # 跨进程共享（类型 + IPC 通道常量）
-├── tests/                                   # Vitest 单元测试（985 用例 / 56 文件）
+├── tests/                                   # Vitest 单元测试（990 用例 / 56 文件）
 ├── resources/
 │   ├── dictionary.json                      # ECDICT 15.0MB / 59,118 词条
 │   ├── icon.ico / icon.png

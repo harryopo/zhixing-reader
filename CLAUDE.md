@@ -109,7 +109,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 |------|------|------|
 | `npm run lint` | ESLint 0 错误 | 手动 + CI |
 | `npm run typecheck` | tsc --noEmit 0 错误 | 手动 + CI |
-| `npm run test` | vitest 全通过（974 用例）| 手动 + CI |
+| `npm run test` | vitest 全通过（990 用例）| 手动 + CI |
 | `npm run test:cov` | 覆盖率（阈值 83/80/75/83）| 手动（**未接入 CI**）|
 | `npm run build` | electron-vite 编译 | CI |
 | `npm run verify` | 上面四项一键串行 | 手动 |
@@ -142,10 +142,10 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 ## 8. 项目状态（2026-09-21 更新）
 
 - **当前版本**：v1.3.1（维护迭代期，比赛已于 2026-07 结束；1.3.0 与 1.3.1 同日发布）
-- **git 锚点**：tag 序列 `v1.0.0` → `v1.1.0` → `v1.2.0` → `v1.3.0` → `v1.3.1`（发版即打 tag 并推，Release 三件同传：exe / `.blockmap` / `latest.yml`）
+- **git 锚点**：tag 序列 `v1.0.0` → `v1.1.0` → `v1.2.0` → `v1.3.0` → `v1.3.1` → `v1.3.2` → `v1.3.3`（发版即打 tag 并推，Release 三件同传：exe / `.blockmap` / `latest.yml`）
 - **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
-- **门禁基线（2026-09-21 实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **974 用例 · 55 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / `npm run package:win` 出包并逐字节对账 ✅
+- **门禁基线（2026-09-21 实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **990 用例 · 56 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / `npm run package:win` 出包并逐字节对账 ✅
 - **发版要走的六处版本同步点**（漏一处界面与文档就各说一个版本；已由 `tests/version-sync.test.ts` 4 条钉住）：`package.json`+lock、`src/shared/external-links.ts` 的 `APP_META`、`CHANGELOG.md` 的 `## [x]` 与链接行、`README.md`（横幅/Version 徽标/`Setup-x.exe`/变更记录表/页脚）、关于页 `UPDATE_HISTORY` 首条
 - **门禁基线（2026-09-16 实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（197 warning）✅ / Vitest **885 用例 · 42 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / 覆盖率 91.09-85.05-93.81-91.09 ✅
 - **2026-09-16 数据血缘修复**：量真实数据库（`%APPDATA%\zhixing-reader\zhixing.db`）列出「应该有的 vs 实际有的」，5 个差值为 0 的字段全部修完 —— ① 934 条划线章节名全丢（`chapters` 对照表取了不用）② 90 张知识卡片来源划线全丢（提示词没问、写死 null；现在 `sourceIndex` 需在本批内换算）③ 对话意图不落库 ④ 对话引用来源不落库（`chunkId` 是 Qdrant 遗留字段名，新增 `RagSourceRef` 唯一真值）⑤ 阅读时长恒为 0（改为同步微信读书月度数据，累加改覆盖）。**外加启动自动修复** `electron/services/startup-repair.ts`：历史数据不会自己变好，回填藏在设置页等于不修，改为启动后台自动跑（本地步骤零网络；网络步骤先查缺口、带节流）。测试 790→875（40 文件）
@@ -182,5 +182,5 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-*最后更新：2026-09-21 | v1.3.1 发布（自动更新提示接通 + 书籍层级摘要 + 假数字清扫）· 974 用例 / 55 文件*
+*最后更新：2026-09-21 | v1.3.3 发布（更新失败提示收成一条 + 关于页更新历史分条）· 990 用例 / 56 文件*
 *与 AGENTS.md 不一致时，两者均以上述实测代码配置为准（`package.json` / `eslint.config.js` / `tsconfig.json` / `vitest.config.ts`）*
