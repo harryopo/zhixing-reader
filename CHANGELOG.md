@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-09-21
+
+### Fixed
+- **检查更新失败时的提示**：原先把 `net::ERR_CONNECTION_RESET` 一类的网络错误码直接显示出来，且同一次失败会弹两条提示（状态事件与按钮返回值各报一次）。现在网络类失败统一收成一句可行动的中文说明，证书异常、访问频率受限、找不到安装包各给一句，其余仍保留原文便于排查；后台静默检查的失败也不会在打开页面时重复提示。
+- **「设置 → 关于」的更新历史**：改为短句分条，一条只说一件事。
+
 ## [1.3.2] - 2026-09-21
 
 ### Fixed
@@ -176,6 +182,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 链接
 
+[1.3.3]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.3
 [1.3.2]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.2
 [1.3.1]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.1
 [1.3.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.0

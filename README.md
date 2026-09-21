@@ -4,15 +4,15 @@
 
 > **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS-6.0 · 微信读书深度同步
 >
-> **v1.3.2** | 2026-09-21 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
+> **v1.3.3** | 2026-09-21 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
 
-[![Version](https://img.shields.io/badge/version-1.3.2-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
+[![Version](https://img.shields.io/badge/version-1.3.3-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-35-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-985%20%E7%94%A8%E4%BE%8B%20/%2056%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-990%20%E7%94%A8%E4%BE%8B%20/%2056%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
 
 ---
@@ -29,7 +29,7 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 52,000+ 行 TypeScript strict 代码 |
-| **测试覆盖** | 985 用例 / 56 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
+| **测试覆盖** | 990 用例 / 56 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
 | **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -264,7 +264,7 @@ zhixing-reader/
 
 ## 十一、快速开始
 
-1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.3.2.exe`（Windows），或安装后由应用内自动更新
+1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.3.3.exe`（Windows），或安装后由应用内自动更新
 2. **配置 AI** — 设置页选择 AI 服务商（火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot），填入 API Key
 3. **连接微信读书** — 设置页填入微信读书 API Key，同步书架与划线数据
 4. **开始使用** — 浏览书架、AI 对话、知识卡片复习、每日英语学习
@@ -345,6 +345,7 @@ npm run package:win
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
+| 2026-09-21 | v1.3.3 | 检查更新失败时的提示改为可执行的中文说明（不再显示网络错误码），同一次失败只提示一次；「设置 → 关于」更新历史改为短句分条 / 测试 990 用例 | 张子涵 |
 | 2026-09-21 | v1.3.2 | 统计页数据口径修正：趋势图与所选时间范围对齐（本周/本月按天、本年按月）+ 复习热力图改用本地日期 + 卡片总数与近 12 周复习次数分别标注 + 移除未接入计费数据的费用列 / 测试 985 用例 | 张子涵 |
 | 2026-09-21 | v1.3.1 | 修复应用内更新提示不显示：状态可回读 + 顶栏「新版本」提示 + 每 6 小时重查；维持「只提示、不自动下载」/ 测试 974 用例 | 张子涵 |
 | 2026-09-21 | v1.3.0 | 书籍层级摘要（L1 分章 → L2 全书）+ 摘要「只报不烧」提醒 / 模型分级路由 / 品牌 VIS（玉璧徽标 + 转曲字标 + brand.json 单一色值真值）/ 字体本地打包（离线可用）/ 界面数据接到真实存储 / 26 条未使用的 IPC 链路清理（通道 188→163）/ 测试 968 用例 | 张子涵 |
@@ -416,4 +417,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-09-21 | 与 v1.3.2 代码一致*
+*最后更新：2026-09-21 | 与 v1.3.3 代码一致*
