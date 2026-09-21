@@ -3,7 +3,7 @@
 > **面向对象**：所有 AI Agent（Claude Code / Cursor / Continue / Trae）
 > **生效日期**：2026-07-20
 > **配套规范**：[CLAUDE.md](CLAUDE.md) + [.learnings/LEARNINGS.md](.learnings/LEARNINGS.md) + [.learnings/PROGRESS.md](.learnings/PROGRESS.md)
-> **最近核验**：2026-09-21（v1.3.0 发版时对代码与文档口径复核；见第十章变更记录）
+> **最近核验**：2026-09-21（v1.3.1 发版时对代码与文档口径复核；见第十章变更记录）
 
 ---
 
@@ -28,8 +28,8 @@ zhixing-reader/
 ├── electron/              # Main 进程：DB、IPC、AI、FSRS、WeChat Read API
 │   ├── main.ts            # 入口（窗口创建 + 初始化序列）
 │   ├── preload.ts         # contextBridge API 暴露面
-│   ├── ipc/               # IPC handlers（按领域 12 文件，index.ts 统一注册）
-│   ├── database/          # sql.js DB（16 个领域文件 + index.ts 出口 + schema.ts）
+│   ├── ipc/               # IPC handlers（按领域 11 文件 + index.ts 统一注册 + types.ts 契约）
+│   ├── database/          # sql.js DB（按领域 14 文件 + index.ts / schema.ts / connection.ts）
 │   ├── fsrs-engine.ts     # FSRS-6.0 适配层（基于 ts-fsrs 5.4.1，对外 API 100% 兼容）
 │   ├── agent/             # 智能体（意图分类 / 编排 / 策略）
 │   └── services/          # 业务服务（RAG / 知识卡片 / Prompt 模板 / 启动修复）
@@ -38,7 +38,7 @@ zhixing-reader/
 │   └── src/
 │       ├── pages/         # 路由页面（Bookshelf / Review / Chat / Settings / ...）
 │       ├── components/    # 通用 UI 组件（layout / chat / ui 等）
-│       ├── stores/        # Zustand 状态管理（8 个 store）
+│       ├── stores/        # Zustand 状态管理（6 个 store）
 │       ├── design/        # 设计系统
 │       ├── utils/         # 渲染层工具
 │       └── styles/        # Tailwind CSS

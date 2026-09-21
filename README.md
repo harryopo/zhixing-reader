@@ -33,7 +33,7 @@
 | **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
-| **打包** | electron-builder → Windows NSIS 安装包（v1.3.0 实测 **113.7 MB**）|
+| **打包** | electron-builder → Windows NSIS 安装包（v1.3.1 实测 **113.7 MB** / 119,246,685 字节）|
 | **License** | MIT（自由使用 / 修改 / 商用）|
 
 ---
@@ -180,14 +180,14 @@
 zhixing-reader/
 ├── electron/                                # Main 进程
 │   ├── main.ts                              # 入口
-│   ├── preload.ts                           # contextBridge（423 行）
-│   ├── ipc/                                 # IPC handlers（按领域 12 文件）
-│   ├── database/                            # sql.js DB（按领域 16 文件 + index.ts）
+│   ├── preload.ts                           # contextBridge（524 行）
+│   ├── ipc/                                 # IPC handlers（按领域 11 文件 + index 注册 + types 契约）
+│   ├── database/                            # sql.js DB（按领域 14 文件 + index / schema / connection）
 │   ├── fsrs-engine.ts                       # ⭐ FSRS-6.0 适配层（ts-fsrs 5.4.1）
-│   ├── ai-service.ts                        # AI 卡片/摘要（800+ 行）
-│   ├── ai-sdk-service.ts                    # AI 流式（500+ 行）
-│   ├── weread-api.ts                        # 微信读书 Skill API（1000+ 行）
-│   ├── weread-sync-manager.ts               # 同步管理（300+ 行）
+│   ├── ai-service.ts                        # AI 卡片/摘要（897 行，仅剩 2 个 JSON 型功能）
+│   ├── ai-sdk-service.ts                    # AI 流式 + 已迁的非流式（637 行）
+│   ├── weread-api.ts                        # 微信读书 Skill API（923 行）
+│   ├── weread-sync-manager.ts               # 同步管理（281 行）
 │   ├── agent/                               # ⭐ AI Agent 编排
 │   │   ├── orchestrator.ts                  # 六步流水线主控
 │   │   ├── context-manager.ts               # 5 维构建器协调
@@ -203,7 +203,7 @@ zhixing-reader/
 │   └── src/
 │       ├── pages/                           # 14 个页面文件 / 22 条路由
 │       ├── components/                      # UI 组件
-│       ├── stores/                          # 8 个 Zustand Store
+│       ├── stores/                          # 6 个 Zustand Store
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
 ├── src/shared/                              # 跨进程共享（类型 + IPC 通道常量）
