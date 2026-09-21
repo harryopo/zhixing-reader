@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-09-21
+
+### Fixed
+- **统计页趋势图三处口径不一致**：时段 chip 写「近 7 天 / 近 30 天 / 近 12 个月」，而微信读书的 `mode` 给的是**本周 / 本月 / 本年**窗口；同时柱状图自己又按 `annually ? 12 : 7` 切一次 —— 结果选「近 30 天」只画最后 7 根柱子，选「本年」把 12 个**按天**的数据点直接标成「1月…12月」。现在 chip 名、图标题、徽标、分桶粒度都取自 `src/shared/reading-trend.ts` 里同一份 spec，按月聚合走本地月份（跨年不会把两个 3 月并成一个）。
+- **复习热力整列错位**：取数窗口与格子日期都用 `toISOString()` 生成（UTC 日），UTC+8 的凌晨会把「今天」算成昨天，今天那一格永远空着。改成本地日期串，取数、格子、徽标三处共用同一批 key。
+- **两张卡的徽标挂错数**：KPI 那张标题写「复习卡片」、值却是全库建卡总数（含从没复习过的）→ 标题如实改为「卡片总数」并说明来源；「复习热力 · 近 12 周密度」的徽标同样挂的是总数 → 改成这 12 周**实际复习了多少次**。
+- **请求日志「费用」列永远 ¥0.00**：`token_usage.cost_usd` 有列、默认 0，但全仓库没有任何写入方，界面还按一个 `USD_TO_CNY = 7` 的汇率去乘（那个汇率当初是为了让设计稿上的 ¥18.60 看着合理而定的）。删掉这一列与相关换算；CSV 导出仍按数据库真列原样输出。
+
+### Changed
+- `WeeklyBars` 更名 `HourlyBars`：它一直画的是**一天 24 小时**的分布，组件名和相关注释却在说"一周 / 7 日"。
+
+测试 974 → 985 用例（55 → 56 文件）；`tests/no-fake-controls.test.ts` 新增 4 条守卫（费用列不许回来、chip 名字只有一套、趋势必须走 shared 口径、日期 key 不许用 UTC）。
+
 ## [1.3.1] - 2026-09-21
 
 ### Fixed
@@ -163,6 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 链接
 
+[1.3.2]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.2
 [1.3.1]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.1
 [1.3.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.0
 [1.2.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.2.0
