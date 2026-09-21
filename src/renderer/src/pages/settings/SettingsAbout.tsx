@@ -15,6 +15,7 @@ import BrandMark from '@/components/ui/BrandMark'
 import Icon from '@/components/ui/Icon'
 import { toast } from '@/stores/toastStore'
 import type { UpdateStatusView } from '../../../../types/renderer'
+import { describeUpdateError } from '../../../../shared/update-notice'
 import {
   APP_META,
   FEEDBACK_TILES,
@@ -59,112 +60,108 @@ const UPDATE_HISTORY: HistoryEntry[] = [
     date: '2026-09-21',
     notes: '统计页数据口径修正：时间范围、图表与角标说的是同一个数。',
     details: [
-      '• 趋势图与所选时间范围对齐：本周 / 本月按天显示完整区间，本年按月聚合并标注 1—12 月',
-      '• 复习热力图改用本地日期统计，凌晨打开应用时今天的记录不再漏掉',
-      '• 「卡片总数」标注累计建卡数并注明来源，热力图角标改为近 12 周的实际复习次数',
-      '• AI 调用日志移除「费用」列（计费数据尚未接入），CSV 导出保持原样',
+      '趋势图与所选时间范围对齐',
+      '本年改为按月聚合，标注 1—12 月',
+      '复习热力图改用本地日期统计',
+      '卡片总数与近 12 周复习次数分开标注',
+      'AI 调用日志移除「费用」列',
     ],
   },
   {
     version: 'v1.3.1',
     date: '2026-09-21',
-    notes: '修复应用内更新提示：启动时会查更新，现在查到的结果能正常显示出来。',
+    notes: '修复应用内更新提示：查到的新版本能正常显示出来了。',
     details: [
-      '• 顶栏通知里会出现「新版本 vX」，点一下直达「设置 → 关于」；查到已是最新会把提示收回',
-      '• 应用连着开也会每 6 小时重查一次，不再只在启动那一刻查',
-      '• 进「设置 → 关于」自动补查一次，不用手点「检查更新」',
-      '• 口径不变：只提示，不替你在后台下载；下载和安装仍由你点',
+      '顶栏通知出现「新版本 vX」，点击直达本页',
+      '查到已是最新时自动收回提示',
+      '应用连着开也每 6 小时重查一次',
+      '进入本页自动补查，不必手点',
     ],
   },
   {
     version: 'v1.3.0',
     date: '2026-09-21',
-    notes: '书籍层级摘要上线：AI 用量分档、中文字体离线化，界面数据全面接到真实存储。',
+    notes: '书籍层级摘要上线，字体离线化，界面数据接到真实存储。',
     details: [
-      '• 书籍层级摘要：逐章概括（L1）汇总成全书摘要（L2），一并注入 AI 对话上下文；书籍详情新增「摘要」页签',
-      '• 摘要提醒「只报不烧」：划线改了多少章就报多少章，要不要花钱由你按；启动与通知全程零 AI 调用',
-      '• 模型分级路由：闲聊类提问可分流到经济档模型，未配置则仍走主模型',
-      '• 界面数据对齐：档案页、复习计数、复习导出 CSV、卡片复习次数逐条接到真实数据库列',
-      '• 离线可用：中文字体随包分发，不再从 Google Fonts 拉取',
-      '• 品牌：新徽标「玉璧」+ 转曲字标，全部色值收进单一真值文件',
-      '• 精简：清理 26 条前端已不再调用的后端链路，7 个巨型页面拆分',
+      '逐章摘要汇总成全书摘要，一并注入对话',
+      '书籍详情新增「摘要」页签',
+      '划线变更只提醒，不自动调用 AI',
+      'AI 用量分档：闲聊类可走经济档模型',
+      '中文字体随包分发，离线可用',
+      '新徽标「玉璧」，色值收进单一真值',
     ],
   },
   {
     version: 'v1.2.0',
     date: '2026-09-17',
-    notes: '自动更新版：应用内一键升级，检索链路换本地 BM25，数据血缘全面修复。',
+    notes: '应用内自动更新上线，检索链路换成本地 BM25。',
     details: [
-      '• 自动更新：启动静默检查，本页可手动检查、一键下载（含进度）、重启安装',
-      '• 本地 BM25 检索：替换原向量语义检索，零 API 依赖，中文提问不再检索为空',
-      '• 检索可视化：对话页实时展示 5 路知识库调取过程与命中原文',
-      '• Token 优化：历史滚动摘要 + 前缀缓存友好，长会话成本显著下降',
-      '• 每日学习重做：每日新卡上限、复习连续作答、掌握度人话展示',
-      '• 数据修复：章节名 / 卡片来源 / 阅读时长 / 引用来源四类历史缺口启动自动补齐',
-      '• 健壮性：落盘失败退避重试并通知，重置数据库不再丢结果',
+      '启动静默检查，本页可下载与重启安装',
+      '本地 BM25 检索，无需向量服务',
+      '中文提问可检索到自己的划线',
+      '对话页展示检索过程与命中原文',
+      '每日新卡上限，避免复习队列堆积',
+      '章节名、卡片来源等历史数据自动补齐',
     ],
   },
   {
     version: 'v1.1.0',
     date: '2026-08-28',
-    notes: '维护迭代版：复习闭环落地、画像注入 AI、界面数据接到真实存储。',
+    notes: '复习闭环落地，画像注入 AI，界面数据接到真实存储。',
     details: [
-      '• 间隔复习：新增复习页，划线原文做卡面，四级评分带间隔预览与键盘快捷键',
-      '• Token 统计：AI 对话用量实时落库并即时刷新界面',
-      '• 用户画像：个人档案自述资料注入 AI 对话上下文，回答更懂你',
-      '• 首页重构：继续阅读 + 最新划线/笔记 + 复习队列，统计内容收敛到统计页',
-      '• 界面治理：移除无数据来源的控件与失效链路，智能体编排迁入设置，书籍详情展示动态数据',
-      '• 架构优化：主进程 database / ipc 按领域拆分，提升可维护性',
+      '新增复习页：划线原文做卡面，四级评分',
+      '键盘快捷键评分',
+      'AI 用量实时统计',
+      '个人画像注入对话上下文',
+      '首页重构，统计内容收敛到统计页',
     ],
   },
   {
     version: 'v1.0.0',
     date: '2026-07-25',
-    notes: '首个正式版本，完整核心功能上线。',
+    notes: '首个正式版本，核心功能完整。',
     details: [
-      '• 微信读书同步：拉取书架、划线、笔记、书评，本地 sql.js 离线缓存，支持 1d/3d/7d 自动同步',
-      '• AI 智能体对话：5 维上下文构建、意图分类、苏格拉底式教学，支持 DeepSeek / OpenAI / 自定义端点',
-      '• FSRS-6.0 间隔重复：基于 ts-fsrs 5.4.1（该版本实现 FSRS-6.0），DSR 模型 + 21 参数完整遗忘曲线，与 Anki 数据互通',
-      '• 知识卡片体系：概念卡 / 方法论卡 / 金句卡，AI 自动蒸馏，反向链接到原文',
-      '• 英语词汇学习：~8 万词频词典、上下文例句、SM-2 混合调度',
-      '• 统计与可视化：Apache ECharts 5.5 仪表盘，阅读趋势、复习进度、Token 用量全维度呈现',
-      '• MCP Server 子项目：支持 Claude Desktop / Cursor 查询本地阅读数据库',
+      '微信读书同步：书架、划线、笔记、书评',
+      'AI 智能体对话',
+      'FSRS-6.0 间隔重复',
+      '知识卡片体系：概念 / 方法论 / 金句',
+      '英语词汇学习',
+      'ECharts 统计仪表盘',
+      'MCP Server 子项目',
     ],
   },
   {
     version: 'v0.9.0',
     date: '2026-06-20',
-    notes: '新增 AI 智能复习调度，优化知识卡片生成流程，修复同步冲突问题。',
+    notes: '新增智能复习调度，优化卡片生成流程。',
     details: [
-      '• 新增 FSRS 智能复习调度算法，根据遗忘曲线自动安排复习计划',
-      '• 优化知识卡片 AI 蒸馏流程，生成质量提升 40%',
-      '• 修复微信读书同步时的书籍数据冲突问题',
-      '• 改进 AI 对话上下文管理，支持更长对话历史',
-      '• 新增 Token 用量统计页面，实时追踪 API 调用成本',
+      '按遗忘曲线自动安排复习计划',
+      '知识卡片蒸馏流程优化',
+      '修复微信读书同步的数据冲突',
+      '新增 Token 用量统计页',
     ],
   },
   {
     version: 'v0.8.0',
     date: '2026-06-15',
-    notes: '引入 FSRS 间隔重复算法，新增生词本与笔记联动，改进统计图表。',
+    notes: '引入 FSRS 间隔重复，新增生词本。',
     details: [
-      '• 引入 FSRS-5 间隔重复算法，替代传统 SM-2 算法',
-      '• 新增生词本功能，支持 ~8 万词频词典',
-      '• 生词本与笔记系统联动，阅读中自动收集生词',
-      '• 改进统计图表，新增阅读趋势与书籍类型占比',
-      '• 优化移动端响应式布局',
+      'FSRS 算法替代 SM-2',
+      '生词本：约 8 万词频词典',
+      '生词本与笔记联动，阅读中自动收集',
+      '统计图表新增阅读趋势与类型占比',
     ],
   },
   {
     version: 'v0.7.0',
     date: '2026-06-05',
-    notes: '首发内测版本，支持微信读书同步、AI 对话、知识卡片核心功能。',
+    notes: '首发内测版本。',
     details: [
-      '• 支持微信读书账号绑定与书架同步',
-      '• 三栏 AI 对话界面，支持流式输出',
-      '• 知识卡片自动蒸馏：概念卡、方法论卡、金句卡',
-      '• 本地 SQLite 数据库存储，数据完全离线可用',
-      '• 支持深色/浅色主题切换',
+      '微信读书账号绑定与书架同步',
+      '三栏 AI 对话，支持流式输出',
+      '知识卡片自动蒸馏',
+      '本地数据库存储，离线可用',
+      '深色 / 浅色主题切换',
     ],
   },
 ]
@@ -235,7 +232,7 @@ export default function SettingsAbout() {
   }, [navigate])
 
   /** 主进程状态 → 本页状态机。事件推送和本页回读缓存走同一个函数，避免两套口径 */
-  const applyUpdateStatus = useCallback((status: UpdateStatusView) => {
+  const applyUpdateStatus = useCallback((status: UpdateStatusView, fromCache = false) => {
     switch (status.stage) {
       case 'checking':
         setChecking(true)
@@ -262,14 +259,16 @@ export default function SettingsAbout() {
         setProgress(null)
         setUpdateState('downloaded')
         setLatestVersion((v) => status.version ?? v)
-        toast.success(`新版本 ${status.version ?? ''} 已下载完成，可重启安装`)
+        // 回读缓存只铺状态，按钮本身就是「重启安装」，不必再弹一次
+        if (!fromCache) toast.success(`新版本 ${status.version ?? ''} 已下载完成，可重启安装`)
         break
       case 'error':
         downloadingRef.current = false
         setChecking(false)
         setProgress(null)
         setUpdateState('unknown')
-        toast.error(`更新失败: ${status.message ?? '未知错误'}`)
+        // 启动/后台那几次静默检查失败不该在进页时补一刀，只有刚点过的动作才报
+        if (!fromCache) toast.error(describeUpdateError(status.message))
         break
     }
   }, [])
@@ -309,15 +308,16 @@ export default function SettingsAbout() {
             toast.success('当前已是最新版本')
           }
         } catch (err) {
-          toast.error(`检查更新失败: ${(err as Error).message}`)
+          toast.error(describeUpdateError((err as Error).message))
         } finally {
           setChecking(false)
         }
         return
       }
+      // 打包环境的失败由 onUpdateStatus 的 error 事件报（electron-updater 先 emit 再 reject），
+      // 这里只收尾状态 —— 两处都弹同一个错会叠成两条提示。
       if (result.error) {
         setChecking(false)
-        toast.error(`检查更新失败: ${result.error}`)
         return
       }
       // 正常路径：结果以 onUpdateStatus 事件为准（checking → available / not-available）
@@ -329,7 +329,7 @@ export default function SettingsAbout() {
       // updateAvailable=true 时等 available 事件落地，checking 由事件关闭
     } catch (err) {
       setChecking(false)
-      toast.error(`检查更新失败: ${(err as Error).message}`)
+      toast.error(describeUpdateError((err as Error).message))
     }
   }, [checking])
 
@@ -347,7 +347,7 @@ export default function SettingsAbout() {
       const cached = await window.electronAPI?.update?.getStatus?.().catch(() => null)
       if (!cached) return
       if (cached.status) {
-        applyUpdateStatus(cached.status)
+        applyUpdateStatus(cached.status, true)
         return
       }
       if (cached.supported) void handleCheckUpdate()
@@ -360,20 +360,21 @@ export default function SettingsAbout() {
     downloadingRef.current = true
     setUpdateState('downloading')
     setProgress({ percent: 0, transferredMb: 0, totalMb: 0 })
+    // 失败提示统一由 onUpdateStatus 的 error 事件给（electron-updater 先 emit 再 reject），
+    // 这里只把界面退回「有新版本」让用户能重试，不重复弹一条
     try {
       const result = await window.electronAPI.update.download()
       if (result.error) {
         downloadingRef.current = false
         setUpdateState('available')
         setProgress(null)
-        toast.error(`下载更新失败: ${result.error}`)
       }
       // 成功路径由 onUpdateStatus 的 downloading/downloaded 事件推进
     } catch (err) {
       downloadingRef.current = false
       setUpdateState('available')
       setProgress(null)
-      toast.error(`下载更新失败: ${(err as Error).message}`)
+      toast.error(describeUpdateError((err as Error).message))
     }
   }, [])
 
@@ -798,7 +799,17 @@ export default function SettingsAbout() {
                     >
                       <div style={{ marginBottom: '0.5rem' }}>{entry.notes}</div>
                       {entry.details && entry.details.length > 0 && (
-                        <ul style={{ margin: 0, paddingLeft: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: '1.1rem',
+                            // Tailwind preflight 把 ul 的 list-style 清了，圆点得自己写回来
+                            listStyleType: 'disc',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.3rem',
+                          }}
+                        >
                           {entry.details.map((detail, idx) => (
                             <li key={idx} style={{ lineHeight: 1.6 }}>{detail}</li>
                           ))}

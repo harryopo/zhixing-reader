@@ -107,3 +107,6 @@ dogfood.mjs
 test-api.ps1
 resources/demo.db
 PRODUCT.md
+
+# 本地试装目录（安装包装在这里，几百 MB 不入库）
+测试专用/
