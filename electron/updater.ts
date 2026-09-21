@@ -13,8 +13,10 @@
  *   前端据此显示「开发环境不支持」，绝不报错弹窗。
  *
  * ## 状态推送
- * 所有状态变化通过 IPC_CHANNELS.UPDATE.STATUS 推给渲染层（设置页「关于」），
+ * 所有状态变化通过 IPC_CHANNELS.UPDATE.STATUS 推给渲染层（顶栏提示 + 设置页「关于」），
  * 状态机：checking → available/not-available → downloading → downloaded / error。
+ * 推送是单向的、错过不补，所以同时把最后一次状态缓存下来（lastStatus），
+ * 页面挂载时用 UPDATE.GET_STATUS 回读 —— 启动那次检查往往早于任何订阅者出现。
  */
 
 import { app, BrowserWindow } from 'electron';
@@ -33,7 +35,22 @@ export type UpdateStatusPayload =
 let getWindow: (() => BrowserWindow | null) | null = null;
 let initialized = false;
 
+/**
+ * 最后一次更新状态。
+ *
+ * 主→渲染是单向推送，页面没挂载时收到也等于没收到：启动那次静默检查通常发生在
+ * 用户还在首页的时候，「关于」页这时才有订阅者。缓存一份让后开的页面回读，
+ * 否则检查结果就永久丢了（界面上表现为「永远没有新版本」）。
+ */
+let lastStatus: UpdateStatusPayload | null = null;
+
+/** 定时重查间隔：应用可以连续开好几天，只查一次会一直发现不了新版 */
+export const UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;
+
+let recheckTimer: NodeJS.Timeout | null = null;
+
 function sendStatus(payload: UpdateStatusPayload): void {
+  lastStatus = payload;
   const win = getWindow?.();
   if (win && !win.isDestroyed()) {
     win.webContents.send(IPC_CHANNELS.UPDATE.STATUS, payload);
@@ -96,10 +113,31 @@ export function initAutoUpdater(windowGetter: () => BrowserWindow | null): void 
     sendStatus({ stage: 'error', message: err?.message ?? String(err) });
   });
 
-  // 启动后静默检查一次：有更新就推送 available 状态给前端徽章，不打扰用户
+  // 启动后静默检查一次：有更新就推送 available 状态，不弹窗打扰
   void autoUpdater.checkForUpdates().catch((e) => {
     logger.warn('Silent update check failed', { error: String(e) });
   });
+
+  // 应用常连着开好几天，只查一次会一直发现不了新版
+  recheckTimer = setInterval(() => {
+    // 下载中不打断；已下载完再查也不会改变结果
+    if (lastStatus?.stage === 'downloading' || lastStatus?.stage === 'downloaded') return;
+    void autoUpdater.checkForUpdates().catch((e) => {
+      logger.warn('Scheduled update check failed', { error: String(e) });
+    });
+  }, UPDATE_RECHECK_MS);
+}
+
+/** 回读最后一次更新状态（顶栏与「关于」页挂载晚于启动检查时用）。 */
+export function getUpdateStatus(): { supported: boolean; status: UpdateStatusPayload | null } {
+  return { supported: app.isPackaged, status: lastStatus };
+}
+
+export function stopUpdateChecks(): void {
+  if (recheckTimer) {
+    clearInterval(recheckTimer);
+    recheckTimer = null;
+  }
 }
 
 export interface UpdateActionResult {

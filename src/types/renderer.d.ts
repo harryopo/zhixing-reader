@@ -346,6 +346,8 @@ export interface ElectronAPI {
     download: () => Promise<UpdateActionResult>
     /** 退出并安装已下载的更新 */
     install: () => Promise<UpdateActionResult>
+    /** 回读最后一次更新状态（STATUS 是单向推送，挂载晚于启动检查时用它补一次） */
+    getStatus: () => Promise<{ supported: boolean; status: UpdateStatusView | null }>
   }
   fsrs: {
     setParameters: (params: Record<string, unknown>) => Promise<void>

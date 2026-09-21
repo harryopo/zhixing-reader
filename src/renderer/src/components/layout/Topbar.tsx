@@ -25,6 +25,7 @@ import { mapHighlights } from '../../utils/db-mapper'
 import { syncBookshelfToDb } from '../../utils/sync-bookshelf'
 import { useSettingsStore } from '../../stores/settingsStore'
 import type { PendingSummaryEntry } from '../../../../shared/types'
+import { updateNoticeFrom, type UpdateNotice } from '../../../../shared/update-notice'
 
 interface TopbarProps {
   onToggleSidebar?: () => void
@@ -160,6 +161,31 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
 
   /** 通知按钮容器 ref，用于面板外点击关闭 */
   const notifyWrapRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * 新版本提示：来自主进程刚查到的 latest.yml，没有就是 null。
+   * 主进程的 STATUS 是单向推送，启动那次检查通常早于本组件挂载，所以先回读缓存再订阅。
+   */
+  const [updateNotice, setUpdateNotice] = useState<UpdateNotice | null>(null)
+
+  useEffect(() => {
+    let disposed = false
+    void window.electronAPI?.update
+      ?.getStatus()
+      .then((cached) => {
+        if (!disposed) setUpdateNotice(updateNoticeFrom(cached.status))
+      })
+      .catch(() => {
+        /* 拿不到就不提示，宁缺不假 */
+      })
+    const dispose = window.electronAPI?.onUpdateStatus?.((status) => {
+      setUpdateNotice(updateNoticeFrom(status))
+    })
+    return () => {
+      disposed = true
+      dispose?.()
+    }
+  }, [])
 
   // 读取主题偏好
   useEffect(() => {
@@ -460,8 +486,11 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
             aria-haspopup="dialog"
             aria-controls="notif-panel"
           />
-          {/* 未读/复习/摘要待更新 > 0 时显示红点徽标 */}
-          {(notif.unreadNotes > 0 || notif.dueCards > 0 || notif.pendingSummaries.length > 0) && !notifyOpen && (
+          {/* 未读/复习/摘要待更新/有新版本 时显示红点徽标 */}
+          {(notif.unreadNotes > 0 ||
+            notif.dueCards > 0 ||
+            notif.pendingSummaries.length > 0 ||
+            updateNotice !== null) && !notifyOpen && (
             <span
               aria-hidden="true"
               style={{
@@ -695,6 +724,60 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                       </button>
                     ))}
                   </div>
+                )}
+
+                {/* 有新版本：只报不催 —— 下载与安装都留在「设置 → 关于」里由用户点 */}
+                {updateNotice && (
+                  <button
+                    type="button"
+                    title={updateNotice.readyToInstall ? '重启后会装上新版本' : '到「设置 → 关于」决定是否下载'}
+                    onClick={() => {
+                      setNotifyOpen(false)
+                      navigate('/settings/about')
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'calc(var(--spacing) * 3)',
+                      width: '100%',
+                      padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--foreground)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--muted)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: 'var(--primary)',
+                        color: 'var(--primary-foreground)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon name="arrow-up" size={16} />
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: '0.88rem', fontWeight: 500 }}>
+                        新版本 {updateNotice.version}
+                      </span>
+                      <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
+                        {updateNotice.readyToInstall ? '已下载完成，下次退出或重启即装上' : '还没下载，去「关于」里点一下'}
+                      </span>
+                    </span>
+                    <Icon name="chevron-right" size={16} />
+                  </button>
                 )}
 
                 {/* 同步状态（仅展示，不可点击） */}

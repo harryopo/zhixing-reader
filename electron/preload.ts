@@ -420,6 +420,7 @@ const electronAPI = {
     check: () => invoke(IPC_CHANNELS.UPDATE.CHECK),
     download: () => invoke(IPC_CHANNELS.UPDATE.DOWNLOAD),
     install: () => invoke(IPC_CHANNELS.UPDATE.INSTALL),
+    getStatus: () => invoke(IPC_CHANNELS.UPDATE.GET_STATUS),
   },
 
   fsrs: {

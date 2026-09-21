@@ -222,6 +222,8 @@ export const IPC_CHANNELS = {
     INSTALL: 'update:install',
     /** 主→渲染事件：更新状态机变化（checking/available/progress/downloaded/not-available/error） */
     STATUS: 'update:status',
+    /** 回读最后一次更新状态：STATUS 是单向推送，页面挂载晚于启动检查时需要补一次 */
+    GET_STATUS: 'update:getStatus',
   },
   FSRS: {
     SET_PARAMETERS: 'fsrs:setParameters',

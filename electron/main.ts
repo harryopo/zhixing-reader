@@ -13,7 +13,7 @@ import { initRepositoryFactory } from './repositories';
 import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
 import { runStartupRepair } from './services/startup-repair';
 import { knowledgeCardService } from './services/knowledge-card-service';
-import { initAutoUpdater } from './updater';
+import { initAutoUpdater, stopUpdateChecks } from './updater';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 const isDev = !app.isPackaged;
@@ -304,6 +304,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   logger.info('App quitting...');
   stopWereadAutoSync();
+  stopUpdateChecks();
   knowledgeCardService.shutdown();
   closeDatabase();
   logger.close();

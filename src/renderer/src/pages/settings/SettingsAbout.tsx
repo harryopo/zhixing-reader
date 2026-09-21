@@ -14,6 +14,7 @@ import Badge from '@/components/ui/Badge'
 import BrandMark from '@/components/ui/BrandMark'
 import Icon from '@/components/ui/Icon'
 import { toast } from '@/stores/toastStore'
+import type { UpdateStatusView } from '../../../../types/renderer'
 import {
   APP_META,
   FEEDBACK_TILES,
@@ -211,48 +212,51 @@ export default function SettingsAbout() {
     navigate(path)
   }, [navigate])
 
+  /** 主进程状态 → 本页状态机。事件推送和本页回读缓存走同一个函数，避免两套口径 */
+  const applyUpdateStatus = useCallback((status: UpdateStatusView) => {
+    switch (status.stage) {
+      case 'checking':
+        setChecking(true)
+        break
+      case 'available':
+        setChecking(false)
+        setUpdateState('available')
+        setLatestVersion(status.version ?? '')
+        break
+      case 'not-available':
+        setChecking(false)
+        setUpdateState('latest')
+        break
+      case 'downloading':
+        setUpdateState('downloading')
+        setProgress({
+          percent: status.percent ?? 0,
+          transferredMb: status.transferredMb ?? 0,
+          totalMb: status.totalMb ?? 0,
+        })
+        break
+      case 'downloaded':
+        downloadingRef.current = false
+        setProgress(null)
+        setUpdateState('downloaded')
+        setLatestVersion((v) => status.version ?? v)
+        toast.success(`新版本 ${status.version ?? ''} 已下载完成，可重启安装`)
+        break
+      case 'error':
+        downloadingRef.current = false
+        setChecking(false)
+        setProgress(null)
+        setUpdateState('unknown')
+        toast.error(`更新失败: ${status.message ?? '未知错误'}`)
+        break
+    }
+  }, [])
+
   // ===== 订阅主进程更新状态事件 =====
   useEffect(() => {
-    const dispose = window.electronAPI?.onUpdateStatus?.((status) => {
-      switch (status.stage) {
-        case 'checking':
-          setChecking(true)
-          break
-        case 'available':
-          setChecking(false)
-          setUpdateState('available')
-          setLatestVersion(status.version ?? '')
-          break
-        case 'not-available':
-          setChecking(false)
-          setUpdateState('latest')
-          break
-        case 'downloading':
-          setUpdateState('downloading')
-          setProgress({
-            percent: status.percent ?? 0,
-            transferredMb: status.transferredMb ?? 0,
-            totalMb: status.totalMb ?? 0,
-          })
-          break
-        case 'downloaded':
-          downloadingRef.current = false
-          setProgress(null)
-          setUpdateState('downloaded')
-          setLatestVersion((v) => status.version ?? v)
-          toast.success(`新版本 ${status.version ?? ''} 已下载完成，可重启安装`)
-          break
-        case 'error':
-          downloadingRef.current = false
-          setChecking(false)
-          setProgress(null)
-          setUpdateState('unknown')
-          toast.error(`更新失败: ${status.message ?? '未知错误'}`)
-          break
-      }
-    })
+    const dispose = window.electronAPI?.onUpdateStatus?.(applyUpdateStatus)
     return () => dispose?.()
-  }, [])
+  }, [applyUpdateStatus])
 
   // ===== 检查更新 =====
   const handleCheckUpdate = useCallback(async () => {
@@ -306,6 +310,27 @@ export default function SettingsAbout() {
       toast.error(`检查更新失败: ${(err as Error).message}`)
     }
   }, [checking])
+
+  // ===== 进页补一次检查 =====
+  /**
+   * 主进程启动时静默查过一次，但那时本页还没挂载、事件推过来没人接（错过不补）。
+   * 所以：缓存里有结果就直接呈现；没有再自动查一次。
+   * 开发环境不自动查 —— 那里的降级通路会直接打开浏览器下载页，不该由页面挂载触发。
+   */
+  const didAutoCheckRef = useRef(false)
+  useEffect(() => {
+    if (didAutoCheckRef.current) return
+    didAutoCheckRef.current = true
+    void (async () => {
+      const cached = await window.electronAPI?.update?.getStatus?.().catch(() => null)
+      if (!cached) return
+      if (cached.status) {
+        applyUpdateStatus(cached.status)
+        return
+      }
+      if (cached.supported) void handleCheckUpdate()
+    })()
+  }, [applyUpdateStatus, handleCheckUpdate])
 
   // ===== 下载更新 =====
   const handleDownloadUpdate = useCallback(async () => {
