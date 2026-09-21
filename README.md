@@ -4,9 +4,9 @@
 
 > **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS-6.0 · 微信读书深度同步
 >
-> **v1.3.0** | 2026-09-21 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
+> **v1.3.1** | 2026-09-21 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
 
-[![Version](https://img.shields.io/badge/version-1.3.0-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
+[![Version](https://img.shields.io/badge/version-1.3.1-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-35-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
@@ -264,7 +264,7 @@ zhixing-reader/
 
 ## 十一、快速开始
 
-1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.3.0.exe`（Windows），或安装后由应用内自动更新
+1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.3.1.exe`（Windows），或安装后由应用内自动更新
 2. **配置 AI** — 设置页选择 AI 服务商（火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot），填入 API Key
 3. **连接微信读书** — 设置页填入微信读书 API Key，同步书架与划线数据
 4. **开始使用** — 浏览书架、AI 对话、知识卡片复习、每日英语学习
@@ -345,6 +345,7 @@ npm run package:win
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
+| 2026-09-21 | v1.3.1 | 修复「检查了更新但界面永远不知道」：状态可回读 + 顶栏「新版本」提示 + 每 6 小时重查；口径维持「只提示、不自动下载」/ 测试 974 用例 | 张子涵 |
 | 2026-09-21 | v1.3.0 | 书籍层级摘要（L1 分章 → L2 全书）+ 摘要「只报不烧」提醒 / 模型分级路由 / 品牌 VIS（玉璧徽标 + 转曲字标 + brand.json 单一色值真值）/ 字体本地打包（离线可用）/ 前端假数字与断线字段清扫 / 26 条 IPC 死链砍除（通道 188→163）/ 测试 968 用例 | 张子涵 |
 | 2026-09-17 | v1.2.0 | 应用内自动更新（electron-updater）/ 本地 BM25 检索替换向量链路 / 检索可视化 / 数据血缘四处断点修复 / 微信读书后台自动同步 / 每日新卡上限 / 测试 885 用例 | 张子涵 |
 | 2026-08-28 | v1.1.0 | 维护迭代：间隔复习闭环 / Token 用量实时统计 / 档案画像注入 AI / 首页重构 / 导航与假数据治理 / database·ipc 拆分 | 张子涵 |
@@ -414,4 +415,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-09-21 | 与 v1.3.0 代码一致*
+*最后更新：2026-09-21 | 与 v1.3.1 代码一致*

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-09-21
+
+### Fixed
+- **自动更新「检查了但没人知道」**：打包版启动确实会静默查一次更新，但那条状态是单向推送、错过不补，而全应用唯一的订阅者是晚挂载的「设置 → 关于」——用户还在首页时检查结果就永久丢弃，界面表现为「永远没有新版本」。现在主进程缓存最后一次状态并新增 `UPDATE.GET_STATUS` 回读通道（163→164），顶栏（常驻组件）也订阅该事件。
+
+### Added
+- **顶栏通知面板新增「新版本 vX」一条**：没下载时提示「去『关于』里点一下」，已下载完提示「下次退出或重启即装上」，点击跳「设置 → 关于」。查到「已是最新」会把这条**收回**，红点不会永远挂着。判定口径提成纯模块 `src/shared/update-notice.ts`（只有 `available`/`downloaded` 才提示）。
+- **每 6 小时重查一次**：应用常连着开好几天，只在启动时查一次等于没有。下载中与已下载完不打断，退出时清定时器。
+- **「设置 → 关于」进页自动补一次检查**：先回读缓存，没有结果才发起检查；开发环境不自动触发（那里的降级通路会直接打开浏览器下载页）。
+
+### 口径
+按用户选择维持**「只提示，不自动下载」**：`autoDownload=false` 保留，下载与安装那两下永远由用户点（后台静默拉一百多兆占带宽）。
+
+测试 968 → 974 用例（54 → 55 文件）。
+
 ## [1.3.0] - 2026-09-21
 
 ### Added
@@ -148,6 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 链接
 
+[1.3.1]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.1
 [1.3.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.0
 [1.2.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.2.0
 [1.1.0]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.1.0
