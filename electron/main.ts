@@ -18,6 +18,14 @@ import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 const isDev = !app.isPackaged;
 
+// 开发版必须和装机版分开数据目录：sql.js 落盘是整文件写回，两边共用
+// %APPDATA%\zhixing-reader 会互相覆盖数据；单实例锁也按 userData 上锁，
+// 后启动的那个会静默退出，表现为「装的版本打不开」。
+// 装机版目录一个字都不能改 —— 用户升级后能不能看到自己的数据全看这个路径。
+if (isDev) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'zhixing-reader-dev'));
+}
+
 // 开发环境启用 CDP 调试端口（供截图脚本使用）
 if (isDev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222');
