@@ -16,7 +16,7 @@ import Modal from '@/components/ui/Modal'
 import { useProfileStore } from '../stores/profileStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { toast } from '../stores/toastStore'
-import { safeNum, safeStr } from '../utils/db-mapper'
+import { safeNum, safeStr, mapBooks } from '../utils/db-mapper'
 import {
   averageMinutesPerActiveDay,
   daysWithActivity,
@@ -36,14 +36,6 @@ const CHART_COLORS = ['var(--chart-1)', 'var(--chart-5)', 'var(--chart-3)', 'var
 /** 热力图尺寸：26 周 × 7 天 = 182 格 */
 const HEAT_WEEKS = 26
 const HEAT_DAYS = 7
-
-interface BookRow {
-  id: string
-  title: string
-  author: string
-  cover: string
-  category?: string
-}
 
 interface UserProfile {
   nickname: string
@@ -150,14 +142,14 @@ export default function Profile() {
 
       // 3. 类型分布（基于 book.getAll 的 category 字段聚合）
       try {
-        const books = (await api.book.getAll()) as unknown as BookRow[]
+        const books = mapBooks((await api.book.getAll()) as unknown[])
         const grouped = new Map<string, number>()
-        for (const b of books ?? []) {
-          const cat = safeStr(b.category) || '其他'
+        for (const b of books) {
+          const cat = b.category || '其他'
           grouped.set(cat, (grouped.get(cat) ?? 0) + 1)
         }
         const sorted = Array.from(grouped.entries()).sort((a, b) => b[1] - a[1])
-        const totalBooks = books?.length ?? 0
+        const totalBooks = books.length
         if (totalBooks > 0) {
           const top3 = sorted.slice(0, 3)
           const restCount = sorted.slice(3).reduce((s, [, n]) => s + n, 0)

@@ -1,28 +1,15 @@
 /** 知识卡片页的类型与常量表（从 KnowledgeCards.tsx 原样搬出，逻辑未改） */
 import type { CSSProperties } from 'react'
+import type { KnowledgeCardRow, KnowledgeCardType } from '../../utils/db-mapper'
 
-export type CardType = 'concept' | 'methodology' | 'quote'
+export type CardType = KnowledgeCardType
 
 export type FilterType = 'all' | 'concept' | 'methodology' | 'quote' | 'reflection'
 
 export type TabKey = 'cards' | 'distill'
 
-export interface KnowledgeCardItem {
-  id: string
-  bookId: string
-  type: CardType
-  title: string
-  content: string
-  interpretation?: string
-  application?: string
-  relatedCardIds?: string[]
-  tags?: string[]
-  sourceHighlightId?: string
-  reviewCount: number
-  masteryLevel: number
-  createdAt: string
-  updatedAt: string
-}
+/** 界面口径 = 映射器保证会写出的那一组字段，不再自己另立一份行类型 */
+export type KnowledgeCardItem = KnowledgeCardRow
 
 export interface DistillProgress {
   bookId: string
@@ -34,12 +21,7 @@ export interface DistillProgress {
   error?: string
 }
 
-export interface BookRow {
-  id: string
-  title: string
-  author: string
-  cover: string
-}
+export type { BookRow } from '../../utils/db-mapper'
 
 // ===== 类型 → 视觉配置（设计稿 1:1） =====
 export const typeConfig: Record<CardType, { label: string; badgeStyle: CSSProperties }> = {

@@ -1,21 +1,8 @@
 /** 方法论页的类型与常量表（从 Methodologies.tsx 原样搬出，逻辑未改） */
-export interface MethodologyItem {
-  id: string
-  bookId: string
-  name: string
-  nameEn?: string
-  triggerScenario?: string
-  description?: string
-  steps?: string[]
-  outputFormat?: string
-  examples?: string
-  tags?: string[]
-  sourceHighlightIds?: string[]
-  masteryLevel: number
-  practiceCount: number
-  createdAt: string
-  updatedAt: string
-}
+import type { MethodologyRow } from '../../utils/db-mapper'
+
+/** 界面口径 = 映射器保证会写出的那一组字段，不再自己另立一份行类型 */
+export type MethodologyItem = MethodologyRow
 
 export interface BookInfo {
   id: string

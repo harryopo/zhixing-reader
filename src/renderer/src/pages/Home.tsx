@@ -19,35 +19,8 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny, Muted } from '@/components/ui/Feedback'
 import { mapBooks, mapCards, mapHighlights, safeNum, formatTimeAgo } from '../utils/db-mapper'
+import type { BookRow, CardRow, HighlightRow } from '../utils/db-mapper'
 import { describeDailyQueue } from '../../../shared/study-limits'
-
-interface BookRow {
-  id: string
-  title: string
-  author: string
-  cover: string
-  progress: number
-  lastReadAt: string
-  isFinished?: number
-}
-
-interface CardRow {
-  id: string
-  bookId: string
-  nextReviewAt: string
-  lastReviewAt: string
-  reviewCount: number
-}
-
-interface HighlightRow {
-  id: string
-  bookId: string
-  content: string
-  note: string
-  chapterTitle: string
-  type?: string
-  createdAt: string
-}
 
 /**
  * 标准化进度到 0-1 范围。
@@ -97,15 +70,15 @@ export default function Home() {
         window.electronAPI.card.getDue(50),
         window.electronAPI.card.getQueueStats?.().catch(() => null) ?? Promise.resolve(null),
       ])
-      setBooks(mapBooks(booksRaw as unknown[]) as unknown as BookRow[])
-      setDueCards(mapCards(cardsRaw as unknown[]) as unknown as CardRow[])
+      setBooks(mapBooks(booksRaw as unknown[]))
+      setDueCards(mapCards(cardsRaw as unknown[]))
       setQueue(queueRaw ?? null)
 
       // 最新划线/笔记（非致命：接口不可用时保持空列表）
       if (window.electronAPI?.highlight?.getAll) {
         try {
           const highlightsRaw = await window.electronAPI.highlight.getAll()
-          setHighlights(mapHighlights(highlightsRaw as unknown[]) as unknown as HighlightRow[])
+          setHighlights(mapHighlights(highlightsRaw as unknown[]))
         } catch (err) {
           console.warn('加载划线数据失败（非致命）:', err)
         }
@@ -493,12 +466,12 @@ export default function Home() {
                             {book?.title || '未关联书籍'}
                           </strong>
                           <Tiny>
-                            {card.reviewCount > 0
-                              ? `已复习 ${card.reviewCount} 次 · ${overdue > 0 ? `逾期 ${overdue} 天` : '今日到期'}`
+                            {card.reps > 0
+                              ? `已复习 ${card.reps} 次 · ${overdue > 0 ? `逾期 ${overdue} 天` : '今日到期'}`
                               : '新卡 · 还没学过'}
                           </Tiny>
                         </div>
-                        {card.reviewCount > 0 ? (
+                        {card.reps > 0 ? (
                           overdue > 0 ? <Badge variant="alert">逾期 {overdue} 天</Badge> : <Badge variant="ok">今日</Badge>
                         ) : (
                           <Badge variant="default">新卡</Badge>

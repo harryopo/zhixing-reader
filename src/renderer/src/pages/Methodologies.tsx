@@ -20,7 +20,7 @@ import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
-import { safeStr, safeNum, formatDate, mapMethodologies } from '../utils/db-mapper'
+import { safeStr, safeNum, formatDate, mapMethodologies, mapBooks } from '../utils/db-mapper'
 import {
   MASTERY_FILTERS,
   VIEW_TOGGLES,
@@ -78,13 +78,12 @@ export default function Methodologies() {
         window.electronAPI.methodology.getAll(),
         window.electronAPI.book.getAll(),
       ])
-      const mappedMethods = mapMethodologies(methodsRaw as unknown as Record<string, unknown>[])
-      setMethodologies(mappedMethods as unknown as MethodologyItem[])
-      setBooks((booksRaw as BookInfo[]) || [])
+      setMethodologies(mapMethodologies(methodsRaw as unknown[]))
+      const books = mapBooks(booksRaw as unknown[])
+      setBooks(books)
       // 默认提取书籍：第一本
-      if (booksRaw && Array.isArray(booksRaw) && booksRaw.length > 0) {
-        const firstBook = (booksRaw as BookInfo[])[0]
-        setExtractBook((prev) => prev || safeStr(firstBook.id))
+      if (books.length > 0) {
+        setExtractBook((prev) => prev || books[0].id)
       }
     } catch (error) {
       console.error('加载方法论数据失败:', error)

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { LearningStats, Achievement } from '../../../shared/types'
+import { mapBooks, mapHighlights } from '../utils/db-mapper'
 import {
   statsWindow,
   localDateStr,
@@ -145,7 +146,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       // 一次取数覆盖「今年至今」+「26 周热力图」两个窗口，别嘴上说年度、手上取 30 天
       const { start, end } = statsWindow(now)
 
-      const [books, highlights, cards, reviews, range] = await Promise.all([
+      const [booksRaw, highlightsRaw, cards, reviews, range] = await Promise.all([
         window.electronAPI.book.getAll(),
         window.electronAPI.highlight.getAll(),
         window.electronAPI.card.getStats(),
@@ -153,11 +154,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         window.electronAPI.stats.getRange(start, end),
       ])
 
+      const books = mapBooks(booksRaw as unknown[])
+      const highlights = mapHighlights(highlightsRaw as unknown[])
       const totalBooks = books.length
-      const finishedBooks = books.filter((b) => {
-        const row = b as unknown as Record<string, unknown>
-        return Number(row.reading_progress) >= 1 || Number(row.is_finished) === 1
-      }).length
+      const finishedBooks = books.filter((b) => b.progress >= 1 || b.isFinished === 1).length
       const totalHighlights = highlights.length
       const totalCards = cards.total
       // 本项目没有独立的"已掌握"字段，state=2（review 态）即已学过并进入排期
@@ -171,7 +171,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         .filter((r): r is ActivityDay => r !== null)
       const { current, longest } = computeStreaks(dailyRows, localDateStr(now))
       const stamps = [...books, ...highlights]
-        .map((r) => String((r as unknown as Record<string, unknown>).created_at ?? ''))
+        .map((r) => r.createdAt)
         .filter((s) => s.length >= 10)
         .sort()
       const firstRecordAt = stamps[0] ?? null

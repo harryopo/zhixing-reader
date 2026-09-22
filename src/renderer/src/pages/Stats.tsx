@@ -29,7 +29,7 @@ import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
-import { mapBooks, mapHighlights, mapCards, safeNum } from '../utils/db-mapper'
+import { mapBooks, mapHighlights, mapCards } from '../utils/db-mapper'
 import { useReadingDataStore, formatReadingTime } from '../stores/readingDataStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { ReadingMode, Book } from '../../../shared/types'
@@ -111,29 +111,19 @@ export default function Stats() {
           } catch (_e) {
             // 单本书卡片查询失败不阻断整体加载
           }
-          const bookAny = book as unknown as {
-            category?: string
-            lastReadAt?: string
-            updatedAt?: string
-            publishDate?: string
-            isFinished?: number | boolean
-            is_finished?: number | boolean
-            finishedAt?: string
-            finished_at?: string
-          }
           return {
-            id: book.id as string,
-            title: book.title as string,
-            author: book.author as string,
-            cover: book.cover as string,
-            category: bookAny.category || '其他',
-            progress: safeNum(book.progress),
+            id: book.id,
+            title: book.title,
+            author: book.author,
+            cover: book.cover,
+            category: book.category || '其他',
+            progress: book.progress,
             highlightCount,
             cardCount,
-            lastReadAt: bookAny.lastReadAt,
-            updatedAt: bookAny.updatedAt,
-            publishDate: bookAny.publishDate,
-            isFinished: Boolean(bookAny.isFinished ?? bookAny.is_finished),
+            lastReadAt: book.lastReadAt,
+            updatedAt: book.updatedAt,
+            publishDate: book.publishDate,
+            isFinished: book.isFinished === 1,
           }
         })
       )

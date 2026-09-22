@@ -19,23 +19,8 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { mapBooks, mapHighlights, formatTimeAgo } from '../utils/db-mapper'
+import type { BookRow, HighlightRow } from '../utils/db-mapper'
 import { toast } from '../stores/toastStore'
-
-// ===== 类型 =====
-interface BookRow {
-  id: string
-  title: string
-  author: string
-}
-
-interface HighlightRow {
-  id: string
-  bookId: string
-  chapterTitle: string
-  content: string
-  note: string
-  createdAt: string
-}
 
 // ===== 工具函数 =====
 
@@ -79,8 +64,8 @@ export default function Notes() {
         window.electronAPI.highlight.getAll(),
         window.electronAPI.book.getAll(),
       ])
-      setHighlights(mapHighlights(highlightsRaw as unknown[]) as unknown as HighlightRow[])
-      setBooks(mapBooks(booksRaw as unknown[]) as unknown as BookRow[])
+      setHighlights(mapHighlights(highlightsRaw as unknown[]))
+      setBooks(mapBooks(booksRaw as unknown[]))
     } catch (error) {
       console.error('加载数据失败:', error)
       toast.error('加载笔记失败，请稍后重试')

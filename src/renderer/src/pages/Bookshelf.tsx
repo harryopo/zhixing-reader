@@ -19,27 +19,10 @@ import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 import { importWereadContentForBook, describeImportResult } from '../utils/import-weread-content'
-import { mapBooks, mapHighlights, mapCards, safeNum, formatTimeAgo } from '../utils/db-mapper'
+import { mapBooks, mapHighlights, mapCards, formatTimeAgo } from '../utils/db-mapper'
+import type { BookRow, HighlightRow, CardRow } from '../utils/db-mapper'
 import { syncBookshelfToDb } from '../utils/sync-bookshelf'
 import { RecommendationItem } from '../../../shared/types'
-
-// ===== 类型 =====
-interface BookRow {
-  id: string
-  title: string
-  author: string
-  cover: string
-  isbn: string
-  publisher: string
-  progress: number
-  reading_progress?: number
-  lastReadAt: string
-  lastReadTime?: string
-  isFinished?: number
-  is_finished?: number
-  totalChapter?: number
-  total_chapter?: number
-}
 
 // ===== 常量 =====
 
@@ -104,9 +87,14 @@ function sortByReadTime(books: BookRow[]): BookRow[] {
   })
 }
 
+/** 卡片是否已到期（due 时间在过去） */
+function isDueCard(card: CardRow): boolean {
+  return !!card.nextReviewAt && new Date(card.nextReviewAt).getTime() <= Date.now()
+}
+
 function getReadingStatus(book: BookRow): { label: string; variant: 'ok' | 'alert' | 'default' } {
-  const progress = normalizeProgress(safeNum(book.progress ?? book.reading_progress))
-  const isFinished = safeNum(book.isFinished ?? book.is_finished)
+  const progress = normalizeProgress(book.progress)
+  const isFinished = book.isFinished
   if (isFinished === 1 || progress >= 1) return { label: '已读完', variant: 'ok' }
   if (progress > 0) return { label: '在读', variant: 'ok' }
   return { label: '想读', variant: 'default' }
@@ -123,8 +111,8 @@ export default function Bookshelf() {
   const urlQuery = searchParams.get('q') ?? ''
 
   const [books, setBooks] = useState<BookRow[]>([])
-  const [highlights, setHighlights] = useState<Record<string, unknown>[]>([])
-  const [cards, setCards] = useState<Record<string, unknown>[]>([])
+  const [highlights, setHighlights] = useState<HighlightRow[]>([])
+  const [cards, setCards] = useState<CardRow[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [importingBookId, setImportingBookId] = useState<string | null>(null)
@@ -169,7 +157,7 @@ export default function Bookshelf() {
     if (!window.electronAPI?.weread?.getBookProgress) return
 
     const pending = list
-      .filter((b) => b.lastReadAt && normalizeProgress(safeNum(b.progress ?? b.reading_progress)) <= 0)
+      .filter((b) => b.lastReadAt && normalizeProgress(b.progress) <= 0)
       .map((b) => b.id)
       .filter((id) => id && !progressTriedRef.current.has(id))
       .slice(0, PROGRESS_MAX_PER_SESSION)
@@ -217,7 +205,7 @@ export default function Bookshelf() {
         window.electronAPI.book.getAll(),
         window.electronAPI.highlight.getAll(),
       ])
-      const mappedBooks = sortByReadTime(mapBooks(booksRaw as unknown[]) as unknown as BookRow[])
+      const mappedBooks = sortByReadTime(mapBooks(booksRaw as unknown[]))
       setBooks(mappedBooks)
       setHighlights(mapHighlights(highlightsRaw as unknown[]))
 
@@ -318,16 +306,10 @@ export default function Bookshelf() {
     if (filter !== 'all') {
       list = list.filter((b) => {
         // 使用 normalizeProgress 兼容 0-1 与 0-100 两种进度格式
-        const progress = normalizeProgress(safeNum(b.progress ?? b.reading_progress))
-        const isFinished = safeNum(b.isFinished ?? b.is_finished)
-        const bookCards = cards.filter(
-          (c) => (c.bookId as string) === b.id,
-        )
-        const hasDueCard = bookCards.some((c) => {
-          const due = c.nextReviewAt as string
-          if (!due) return false
-          return new Date(due).getTime() <= Date.now()
-        })
+        const progress = normalizeProgress(b.progress)
+        const isFinished = b.isFinished
+        const bookCards = cards.filter((c) => c.bookId === b.id)
+        const hasDueCard = bookCards.some(isDueCard)
 
         switch (filter) {
           case 'reading':
@@ -372,19 +354,14 @@ export default function Bookshelf() {
         list.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
         break
       case 'progress':
-        list.sort(
-          (a, b) =>
-            normalizeProgress(safeNum(b.progress ?? b.reading_progress)) -
-            normalizeProgress(safeNum(a.progress ?? a.reading_progress)),
-        )
+        list.sort((a, b) => normalizeProgress(b.progress) - normalizeProgress(a.progress))
         break
     }
     return list
   }, [books, cards, filter, sort, query])
 
-  const getBookHighlights = (bookId: string) =>
-    highlights.filter((h) => h.bookId === bookId)
-  const getBookCards = (bookId: string) => cards.filter((c) => (c.bookId as string) === bookId)
+  const getBookHighlights = (bookId: string) => highlights.filter((h) => h.bookId === bookId)
+  const getBookCards = (bookId: string) => cards.filter((c) => c.bookId === bookId)
 
   if (loading) {
     return <Loading hint="正在加载书架..." />
@@ -460,13 +437,9 @@ export default function Bookshelf() {
           >
             {filteredBooks.map((book, i) => {
               // 标准化进度到 0-1，确保 pct 显示与筛选逻辑一致
-              const progress = normalizeProgress(safeNum(book.progress ?? book.reading_progress))
+              const progress = normalizeProgress(book.progress)
               const status = getReadingStatus(book)
-              const bookCards = getBookCards(book.id)
-              const hasDueCard = bookCards.some((c) => {
-                const due = c.nextReviewAt as string
-                return due && new Date(due).getTime() <= Date.now()
-              })
+              const hasDueCard = getBookCards(book.id).some(isDueCard)
               const showBadge =
                 status.variant !== 'default' || hasDueCard || progress > 0
               const badgeVariant: 'ok' | 'alert' | 'default' = hasDueCard

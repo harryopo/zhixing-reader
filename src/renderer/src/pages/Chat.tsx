@@ -26,17 +26,7 @@ import SessionDrawer from '@/components/chat/SessionDrawer'
 import BookChip from '@/components/chat/BookChip'
 import { useChatStore } from '../stores/chatStore'
 import { toast } from '../stores/toastStore'
-
-// ===== 类型 =====
-interface BookRow {
-  id: string
-  title: string
-  author: string
-  cover: string
-  progress: number
-  isFinished?: number
-  is_finished?: number
-}
+import { mapBooks, type BookRow } from '../utils/db-mapper'
 
 // ===== 常量 =====
 
@@ -149,16 +139,7 @@ export default function Chat() {
   const loadContextData = async () => {
     if (!window.electronAPI?.book) return
     try {
-      const raw = (await window.electronAPI.book.getAll()) as unknown as BookRow[]
-      const list = (raw || []).map((b) => ({
-        id: String(b.id ?? ''),
-        title: String(b.title ?? ''),
-        author: String(b.author ?? ''),
-        cover: String(b.cover ?? ''),
-        progress: Number(b.progress ?? 0),
-        isFinished: b.isFinished ?? b.is_finished,
-      }))
-      setBooks(list)
+      setBooks(mapBooks((await window.electronAPI.book.getAll()) as unknown[]))
     } catch (err) {
       console.warn('加载书籍列表失败:', err)
     }

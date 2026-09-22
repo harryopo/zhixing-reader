@@ -30,10 +30,12 @@ import {
   mapBooks,
   mapHighlights,
   mapCards,
-  safeNum,
   safeStr,
   formatDate,
   formatDateShort,
+  type BookRow,
+  type HighlightRow,
+  type CardRow,
 } from '../utils/db-mapper'
 import { getCardMastery } from '../../../shared/fsrs-metrics'
 import type { BookSummary, ChapterSummary } from '../../../shared/types'
@@ -44,52 +46,6 @@ const CARD_MASTERY_BADGE: Record<string, 'success' | 'ok' | 'warning' | 'default
   熟练: 'ok',
   进阶: 'warning',
   入门: 'default',
-}
-
-// ===== 类型 =====
-interface BookRow {
-  id: string
-  title: string
-  author: string
-  cover: string
-  isbn: string
-  publisher: string
-  description: string
-  category: string
-  progress: number
-  reading_progress?: number
-  totalChapter?: number
-  total_chapter?: number
-  lastReadAt: string
-  createdAt: string
-  source?: string
-}
-
-interface HighlightRow {
-  id: string
-  bookId: string
-  content: string
-  note: string
-  chapterTitle: string
-  chapterId: string
-  type?: string
-  createdAt: string
-}
-
-interface CardRow {
-  id: string
-  bookId: string
-  /** 来源划线 id —— 用于和 highlights 做本地 join，展示卡面原文 */
-  highlightId: string
-  reviewCount: number
-  nextReviewAt: string
-  lastReviewAt: string
-  createdAt: string
-  /** FSRS 调度状态（mapCard 通过 ...row 透传，用于推导掌握度） */
-  stability: number
-  difficulty: number
-  reps: number
-  lapses: number
 }
 
 // ===== 工具 =====
@@ -132,10 +88,10 @@ export default function BookDetail() {
         window.electronAPI.highlight.getByBook(bookId),
         window.electronAPI.card.getByBook(bookId),
       ])
-      const books = mapBooks(bookData ? [bookData] : []) as unknown as BookRow[]
+      const books = mapBooks(bookData ? [bookData] : [])
       setBook(books.length > 0 ? books[0] : null)
-      setHighlights(mapHighlights(highlightsRaw as unknown[]) as unknown as HighlightRow[])
-      setCards(mapCards(cardsRaw as unknown[]) as unknown as CardRow[])
+      setHighlights(mapHighlights(highlightsRaw as unknown[]))
+      setCards(mapCards(cardsRaw as unknown[]))
       const [chapterRows, summaryRow] = await Promise.all([
         window.electronAPI.summary?.chapters(bookId) ?? Promise.resolve([]),
         window.electronAPI.summary?.getByBook(bookId) ?? Promise.resolve(null),
@@ -230,11 +186,11 @@ export default function BookDetail() {
   }
 
   // ===== 派生数据 =====
-  const progress = safeNum(book?.progress ?? book?.reading_progress)
+  const progress = book?.progress ?? 0
   const progressPct = Math.round(progress * 100)
 
   const highlightList = useMemo(
-    () => highlights.filter((h) => !h.type || h.type === 'highlight'),
+    () => highlights.filter((h) => h.type === 'highlight'),
     [highlights],
   )
   const noteList = useMemo(() => highlights.filter((h) => h.type === 'note'), [highlights])
@@ -260,7 +216,7 @@ export default function BookDetail() {
     return parts.join(' · ')
   }, [book])
 
-  const totalChapter = safeNum(book?.totalChapter ?? book?.total_chapter)
+  const totalChapter = book?.totalChapter ?? 0
 
   if (loading) {
     return <Loading hint="正在加载书籍详情..." />
@@ -681,7 +637,7 @@ function HighlightList({
               margin: 0,
             }}
           >
-            {safeStr(h.content) || '（无内容）'}
+            {h.content || '（无内容）'}
           </p>
           {noteMode && h.note && (
             <p
@@ -849,10 +805,10 @@ function CardList({
         const source = contentByHighlight.get(c.highlightId)
         // 掌握度由 FSRS 状态推导（见 src/shared/fsrs-metrics.ts），不读写死的列
         const mastery = getCardMastery({
-          stability: safeNum(c.stability),
-          difficulty: safeNum(c.difficulty),
-          reps: safeNum(c.reps ?? c.reviewCount),
-          lapses: safeNum(c.lapses),
+          stability: c.stability,
+          difficulty: c.difficulty,
+          reps: c.reps,
+          lapses: c.lapses,
         })
         return (
           <div
@@ -879,7 +835,7 @@ function CardList({
                 <Badge variant={CARD_MASTERY_BADGE[mastery.level] ?? 'default'}>
                   掌握度 {mastery.score}
                 </Badge>
-                <Badge variant="ok">已复习 {c.reviewCount} 次</Badge>
+                <Badge variant="ok">已复习 {c.reps} 次</Badge>
               </div>
             </div>
 
@@ -913,7 +869,7 @@ function CardList({
               {source?.chapterTitle ? source.chapterTitle + ' · ' : ''}
               创建于 {formatDate(c.createdAt)}
               {c.nextReviewAt ? ' · 下次复习 ' + formatDate(c.nextReviewAt) : ''}
-              {safeNum(c.lapses) > 0 ? ' · 遗忘 ' + safeNum(c.lapses) + ' 次' : ''}
+              {c.lapses > 0 ? ' · 遗忘 ' + c.lapses + ' 次' : ''}
             </Tiny>
           </div>
         )

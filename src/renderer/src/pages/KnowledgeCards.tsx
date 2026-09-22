@@ -28,7 +28,7 @@ import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Metric } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
-import { safeStr, mapKnowledgeCards, mapBook } from '../utils/db-mapper'
+import { safeStr, mapKnowledgeCards, mapBooks } from '../utils/db-mapper'
 import {
   TABS,
   TYPE_FILTERS,
@@ -96,10 +96,8 @@ export default function KnowledgeCards() {
         window.electronAPI.knowledgeCard.getAll(),
         window.electronAPI.book.getAll(),
       ])
-      const mappedCards = mapKnowledgeCards(cardsRaw) as unknown as KnowledgeCardItem[]
-      const mappedBooks = (booksRaw as unknown as Record<string, unknown>[]).map((b) => mapBook(b)) as unknown as BookRow[]
-      setCards(mappedCards)
-      setBooks(mappedBooks)
+      setCards(mapKnowledgeCards(cardsRaw as unknown[]))
+      setBooks(mapBooks(booksRaw as unknown[]))
     } catch (error) {
       console.error('加载知识卡片失败:', error)
       toast.error('加载知识卡片失败')
