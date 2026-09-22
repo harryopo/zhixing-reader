@@ -23,6 +23,7 @@ import { app, BrowserWindow } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 import { logger } from './logger';
+import { shutdownForExit } from './shutdown';
 
 export type UpdateStatusPayload =
   | { stage: 'checking' }
@@ -184,12 +185,29 @@ export async function downloadUpdate(): Promise<UpdateActionResult> {
   }
 }
 
-/** 退出并安装（下载完成后调用）。会触发 app before-quit → 数据库正常落盘关闭。 */
+/**
+ * 退出并安装（下载完成后调用）。
+ *
+ * 不能只交给 electron-updater 的 app.quit()：它先 spawn 安装进程、再把 quit 排到
+ * 下一个 tick，而 quit 是异步的 —— 窗口拆除、close / before-quit 处理器都能让主进程
+ * 再多活几百毫秒。NSIS 安装进程一起来就按映像名 taskkill 找「知行读书.exe」
+ * （app-builder-lib 的 allowOnlyOneInstallerInstance.nsh），两边抢同一段时间窗；
+ * 主进程没及时消失，安装界面就弹「知行读书 无法关闭」卡在重试框上（2026-09-21 实测撞上）。
+ * 所以 spawn 返回后（安装进程已在跑）我们同步把数据落盘，再 app.exit(0) 立刻退。
+ * exit 跳过 before-quit，收尾必须由 shutdownForExit() 做全。
+ */
 export function quitAndInstall(): UpdateActionResult {
   if (!app.isPackaged) {
     return { supported: false, error: '开发环境不支持自动更新' };
   }
+  // electron-updater 没有公开的「安装包已就绪」判定：没下载完时它只会 dispatchError
+  // 然后返回，那时退出等于把应用白关一次。拦在 spawn 之前。
+  if (lastStatus?.stage !== 'downloaded') {
+    return { supported: false, error: '尚未下载完成，暂时无法安装' };
+  }
   // isSilent=false：让用户看到安装进度；isForceRunAfter=true：装完自动启动
-  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  autoUpdater.quitAndInstall(false, true);
+  shutdownForExit();
+  app.exit(0);
   return { supported: true };
 }

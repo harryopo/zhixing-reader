@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, nativeImage, shell, dialog, NativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { initDatabase, closeDatabase, forceSaveDatabase } from './database';
+import { initDatabase, forceSaveDatabase } from './database';
 import { registerIpcHandlers } from './ipc';
 import { initFromSettings as initWereadSettings } from './weread-api';
 import { initFromSettings as initAISettings } from './ai-service';
@@ -10,10 +10,10 @@ import { logger } from './logger';
 import { settingsService } from './services/settings-service';
 import { getDatabase } from './database/connection';
 import { initRepositoryFactory } from './repositories';
-import { startWereadAutoSync, stopWereadAutoSync } from './weread-sync-manager';
+import { startWereadAutoSync } from './weread-sync-manager';
 import { runStartupRepair } from './services/startup-repair';
-import { knowledgeCardService } from './services/knowledge-card-service';
 import { initAutoUpdater, stopUpdateChecks } from './updater';
+import { shutdownForExit } from './shutdown';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 const isDev = !app.isPackaged;
@@ -310,12 +310,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  logger.info('App quitting...');
-  stopWereadAutoSync();
   stopUpdateChecks();
-  knowledgeCardService.shutdown();
-  closeDatabase();
-  logger.close();
+  shutdownForExit();
 });
 
 app.on('certificate-error', (event, _webContents, _url, _error, _certificate, callback) => {
