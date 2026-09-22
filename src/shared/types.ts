@@ -117,13 +117,17 @@ export interface DailyStatsRow {
   created_at: string
 }
 
+/**
+ * 复习卡片按 FSRS state 分桶的计数（cards:getStats 的返回）。
+ * due 只算**已学过且到期**的卡（state != 0）：从未学过的划线归 new，
+ * 混进 due 会让界面显示几百张「今天必须做完」的卡（2026-09-15 踩过）。
+ */
 export interface ReviewStats {
-  totalCards: number
-  masteredCards: number
-  learningCards: number
-  newCards: number
-  averageEase: number
-  retentionRate: number
+  total: number
+  due: number
+  new: number
+  learning: number
+  review: number
 }
 
 export interface IPCResponse<T = unknown> {

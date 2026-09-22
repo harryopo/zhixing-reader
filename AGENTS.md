@@ -3,7 +3,7 @@
 > **面向对象**：所有 AI Agent（Claude Code / Cursor / Continue / Trae）
 > **生效日期**：2026-07-20
 > **配套规范**：[CLAUDE.md](CLAUDE.md) + [.learnings/LEARNINGS.md](.learnings/LEARNINGS.md) + [.learnings/PROGRESS.md](.learnings/PROGRESS.md)
-> **最近核验**：2026-09-22（应用内「重启安装」退出路径加固；见第十章变更记录）
+> **最近核验**：2026-09-22（重启安装退出路径加固 + ReviewStats 类型对账；见第十章变更记录）
 
 ---
 
@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（58 文件 / 998 用例）
+├── tests/                 # Vitest 单元测试（59 文件 / 1004 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（998 用例；不含覆盖率）
+npm run test             # Vitest（1004 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test+build（推荐）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -245,7 +245,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（58 文件 / 998 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（59 文件 / 1004 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
 
@@ -265,6 +265,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-22（九续） | **ReviewStats 是一份六个字段全不存在的类型，顺带查出两份实现口径不同** —— ① `src/shared/types.ts` 的 `ReviewStats` 写的是 `totalCards / masteredCards / learningCards / newCards / averageEase / retentionRate`，而 `cardsDb.getReviewStats()` 真交出来的是 `{ total, due, new, learning, review }`：**一个都对不上**，`averageEase`/`retentionRate` 还是 SM-2 时代的概念（FSRS 换上来后早就不存在）。`renderer.d.ts` 把 `card.getStats` 标成这个谎类型，于是 `profileStore.ts` 只能写 `as unknown as Record<string, number>` 把类型绕过去 —— 界面没出错只因为读的人知道真相、绕开了类型。② **横扫同类抓到第二个真问题**：同一个 `getReviewStats()` 有**两份实现且 `due` 口径不同** —— `database/cards.ts` 带 `state != 0`（2026-09-15 那批修的），`repositories/card-repository.ts` 仍是老写法。同一份数据实测：cardsDb `{total:5, due:2, new:2}` vs 仓储 `{total:5, due:4, new:2}`（两张从未学过的划线被算成待办）。**用户画像服务 `analyzeCognitiveLevel()` 用的正是仓储那一份**，但它只读 `total/review/new/learning`、没读 `due` ⇒ 界面上当前没有错数字，这是颗等着踩的地雷。③ 修法：`ReviewStats` 改成真实五字段并把「due 只算已学过且到期」写进注释；三处声明（`cards.ts` / `card-repository.ts` / `types/repositories.ts`）统一引用同一份类型、不再各自内联形状；仓储那份的 `due` 补上 `state != 0`；`profileStore` 删掉绕类型的 cast。④ 测试 `tests/review-stats-type.test.ts` 6 条：真库里 seed 5 张卡（2 张新卡 due 已过 / 1 张学习态到期 / 1 张复习态到期 / 1 张复习态未到期），钉住「interface 字段集合 == 真实返回」「两份实现对同一份数据结果全等」「三处声明不再内联」「cast 不许回来」，红→绿。**踩坑两条**：(a) 我第一版把 `masteredCards` 也列进「虚构字段黑名单」，但它同时是 `LearningStats` 的合法派生字段（档案页在用）—— 黑名单会把「历史上写过这件事」当成「现在还在用」，收窄到 `averageEase`/`retentionRate` 两个真死字段；(b) 我先断言 `due === 1` 跑出来是 2，**是我的算术错**（学习态那张也过期了），期望值错就改期望值，不许改被测代码凑绿灯。**门禁实测**：`npm run verify` 退出码 0（**1004 用例 / 59 文件**，eslint 0 error / 176 warning，typecheck 0 错误，三进程 build 成功）。**没验的**：档案页与统计页没有点开看过 —— `card.getStats` 的运行时值本来就没变，这次动的是类型声明和仓储那份的 `due`。| AI Agent（接手） |
 | 2026-09-22（八续） | **应用内「重启安装」弹「知行读书 无法关闭」的根因与加固** —— 用户完整走了「检查更新 → 下载更新 → 重启安装」，前两步在应用日志里都有（`Update status {"stage":"downloaded"...}`），第三步安装界面卡在重试框。**时间线是抢出来的**：`node_modules/electron-updater/out/BaseUpdater.js:13-27` 的 `quitAndInstall` 先**同步** spawn 安装进程，再把 `app.quit()` 排进 `setImmediate` —— 安装进程比主进程先起来；而 `node_modules/app-builder-lib/templates/nsis/include/allowOnlyOneInstallerInstance.nsh` 一开工就用 `tasklist /FI "IMAGENAME eq 知行读书.exe"` 找同名进程，`taskkill /im`（优雅）→ 循环 → `taskkill /f` 两轮后才弹 `$(appCannotBeClosed)`。**即主进程只要比这几百毫秒慢一步，就被当成「关不掉的程序」**。模板自带的注释写的是「App likely running with elevated permissions」—— 提权不匹配这条解释**没排除，也没证据**（本机没复现条件）。**加固（只改退出路径，不动安装器）**：① 新增 `electron/shutdown.ts` 的 `shutdownForExit()`，把原本散在 `before-quit`（和窗口 close）里的收尾收成一个幂等函数：`cancelActiveStream()` → `stopWereadAutoSync()` → `knowledgeCardService.shutdown()` → `closeDatabase()`（内部先 `forceSaveDatabase()`，同步 `writeFileSync`）→ `logger.close()`。② `updater.ts` 的 `quitAndInstall()` 改为 **spawn → shutdownForExit() → `app.exit(0)`**，不再把退出交给 `app.quit()`（`exit` 跳过 before-quit，所以落盘必须由我们自己做完，这是数据安全路径上的关键顺序）。③ `before-quit` 改调同一个 `shutdownForExit()` —— 两条退出路各写一套收尾，迟早有一条漏步骤。④ 新增守卫：`lastStatus.stage !== 'downloaded'` 时直接返回「尚未下载完成，暂时无法安装」，**spawn 之前拦住**，否则 electron-updater 内部只会 `dispatchError` 而我们已经把应用白关一次。**测试**：新增 `tests/install-exit-path.test.ts` 5 条（顺序固定 / 不许再出现 `app.quit()` 与 `setImmediate` / 未下载不得退出 / 库关闭排在日志之前 / 两条路共用同一收尾），红→绿验过。**门禁实测**：`npm run verify` 退出码 0（**998 用例 / 58 文件**，eslint 0 error / 176 warning，typecheck 0 错误，三进程 build 成功）。**没做的**：没为这条重新出包 —— **修复要随 v1.3.4 才到装机版，线上 1.3.3 仍是旧退出路径**；本机那次卡住的处理仍是人工通路（点「重试」或直接跑 `%LOCALAPPDATA%\zhixing-reader-updater\` 里已下载的安装包）；`app.exit(0)` 取代优雅 quit 之后**没有再实跑一次应用内更新**，安装器与主进程的实际赛跑只有推理、没有复测。| AI Agent（接手） |
 | 2026-09-21（七续） | **装机版「继承了开发版的数据」根因查清并隔离** —— 用户把包装到 `测试专用/`，启动后发现书架/划线/API Key 全是开发期那套，没有全新安装的感觉。**证据链**（先量再判，没猜）：① 全盘只有一个 `%APPDATA%\zhixing-reader`（不存在 `知行读书` 目录），当天 21:42 那次启动的日志写着 `Database connected: C:\Users\Administrator\AppData\Roaming\zhixing-reader\zhixing.db`（1,531,904 字节），且**没有**「Auto updater disabled in dev」那行 —— 说明写这条日志的是装机版（`@electron/asar` 读包内 `package.json`：只有 `name: "zhixing-reader"`、`version: 1.3.1`，**没有 `productName` 字段**，`知行读书` 只用在 exe 名与卸载项）。② Electron 的 userData 取自 `app.getName()`，与安装位置无关 ⇒ 两边算出同一个目录。**结论：不是异常的 bug，是「数据目录跟着应用名、不跟着安装目录」的设计后果**（升级不丢数据靠的就是它）。**同类再扫一层发现更危险的**：`requestSingleInstanceLock()` 的锁也按 userData 上，所以开发版开着再点装机版，第二个进程会**静默 `app.quit()`**、只是把前一个窗口顶到前台（`main.ts:227` 注释自己写了「sql.js 不支持多实例并发写同一库」，而 sql.js 是整文件写回 ⇒ 两边同时跑真的会互相覆盖）。**修法（只改开发环境，装机版路径一个字不动）**：`main.ts` 在 `isDev` 时 `app.setPath('userData', appData/zhixing-reader-dev)`，且**必须排在申请单实例锁之前**（顺序反了锁仍然互斥）。新增 `tests/dev-userdata-isolation.test.ts` 3 条钉住「目录名不同 / 仅限非打包 / 排在锁之前」，红→绿验过；`npm run verify` 退出码 0（**993 用例 / 57 文件**，lint 0 error / 176 warning）。**本机善后**：先把 `%APPDATA%\zhixing-reader` 的 `zhixing.db`+`settings.json`+`Local Storage` 备份到 `%APPDATA%\zhixing-reader.bak-20260921`（1.5 MB），再把这份数据复制进 `-dev` 目录给开发版用，最后把装机版的三个数据文件移走 ⇒ 开发版保留原有书架、装机版从零开始。**没做的**：没为这条修改动重新出包（只影响非打包环境，用户侧无感）；装机版「重置数据库」这条 UI 通路没点过（改用的是移动文件，可逆）。| AI Agent（接手） |
 | 2026-09-21（六续） | **更新失败提示收成一条 + v1.3.3 出包发布** —— 用户在装到 `测试专用/` 的应用里点「检查更新」，界面弹出 `更新失败: net::ERR_CONNECTION_RESET`。**先定性**：这不是代码缺陷，是本机到 GitHub 的网络不通（实测 `api.github.com` 200，但 `github.com` / `raw.githubusercontent.com` / 下载主机均 000，`latest.yml` 取不到）；**这条结论同时作废了上面几行「本机仍没装过任何 exe」的旧陈述**（用户已真装过，注册表有安装记录）。真正能修的是**提示本身两处**：① **同一次失败弹两条** —— 查 `node_modules/electron-updater/out/AppUpdater.js` 证实 `checkForUpdates` 是 `emit("error")` 之后又 `throw`（271-272 行），`downloadUpdate` 走 `dispatchError` 同理，于是「状态事件」和「按钮返回值」各报一次。改成**只认 `error` 事件这一路**，按钮拿到 `result.error` 只回滚状态不再弹；`applyUpdateStatus(status, fromCache)` 新增第二参，**「关于」页进页回读缓存时不再重放提示**（否则历史失败/成功会在新挂载时再弹一遍）② **错误码不该给用户看** —— 判定逻辑提成 `src/shared/update-notice.ts` 的 `describeUpdateError()`：网络类（`ERR_CONNECTION*`/`ECONN*`/`socket hang up`/超时…）收成一句「连不上更新服务器（GitHub）」，证书异常、访问频率受限、找不到安装包各给一句，其余保留原文便于排查。`tests/update-notice.test.ts` 6→11 条（含「不得出现 `net::` 与错误码」的负向断言）。**顺手**：「设置 → 关于」的更新历史改为短句分条、一条只说一件事；去掉 '• ' 手打前缀后圆点会全丢（**Tailwind v4 preflight 把 `ul` 的 `list-style` 清成 none**），靠内联 `listStyleType: 'disc'` 写回来。**发版**：走六处同步点，`npm run verify` 退出码 0（990 用例 / 56 文件，lint 0 error / 176 warning），`installer/zhixing-reader-Setup-1.3.3.exe` 119,246,454 字节（比 1.3.2 少 850 字节），随包 exe FileVersion 1.3.3、`latest.yml` 的 version/size/sha512 与本机 exe 逐字节自洽、`dictionary.json` 随包字节与源文件相同。`.gitignore` 加 `测试专用/`（试装树 465 MB 不入库，没删用户安装）。**已发布**：tag `v1.3.3` 已推、Release 标为 Latest、三件同传（服务端报 exe 119,246,454 与本机一致），并从线上回下载对账——`gh release download` 与直连 `github.com/.../releases/download/v1.3.3/latest.yml` 各取一次，两份都是 357 字节且与本机产物**逐字节相同**（`curl` 走通这点本身是个新信息：上面那条 `ERR_CONNECTION_RESET` 至少在此刻不再复现，顶栏「新版本 v1.3.3」这条链路下次装 1.3.x 时可以直接试）。**仍没验的**：应用内点「检查更新 → 下载更新 → 重启安装」的完整一遭，仍没人肉眼走过。| AI Agent（接手） |

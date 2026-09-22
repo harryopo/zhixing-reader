@@ -13,6 +13,7 @@ import {
   KnowledgeCard,
   Memory,
 } from './entities'
+import { ReviewStats } from '../../src/shared/types'
 
 // ============================================================================
 // 基础 Repository 接口
@@ -71,7 +72,7 @@ export interface ICardRepository extends IBaseRepository<Card> {
   updateBatch(cards: Card[]): void
   deleteByHighlightId(highlightId: string): void
   createForExistingHighlights(): { created: number; skipped: number }
-  getReviewStats(): { total: number; due: number; new: number; learning: number; review: number }
+  getReviewStats(): ReviewStats
 }
 
 // ============================================================================

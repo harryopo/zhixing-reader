@@ -7,6 +7,7 @@ import { BaseRepository, DatabaseAccessor } from './base-repository'
 import { Card } from '../types/entities'
 import { ICardRepository } from '../types/repositories'
 import { createCard, cardFromDb as _cardFromDb, cardToRow, CardState } from '../fsrs-engine'
+import { ReviewStats } from '../../src/shared/types'
 
 export class SqlCardRepository extends BaseRepository<Card> implements ICardRepository {
   constructor(getDb: DatabaseAccessor) {
@@ -228,9 +229,11 @@ export class SqlCardRepository extends BaseRepository<Card> implements ICardRepo
   /**
    * 获取复习统计
    */
-  getReviewStats(): { total: number; due: number; new: number; learning: number; review: number } {
+  getReviewStats(): ReviewStats {
     const total = this.queryScalar('SELECT COUNT(*) FROM cards')
-    const due = this.queryScalar("SELECT COUNT(*) FROM cards WHERE due <= datetime('now')")
+    // due 只算**已学过且到期**的卡，与 database/cards.ts 同一口径：
+    // 少了 state != 0 这一条，从未学过的划线会被算成待办（tests/review-stats-type.test.ts 钉住）
+    const due = this.queryScalar("SELECT COUNT(*) FROM cards WHERE state != 0 AND due <= datetime('now')")
     const newCards = this.queryScalar('SELECT COUNT(*) FROM cards WHERE state = 0')
     const learning = this.queryScalar('SELECT COUNT(*) FROM cards WHERE state = 1 OR state = 3')
     const review = this.queryScalar('SELECT COUNT(*) FROM cards WHERE state = 2')

@@ -5,6 +5,7 @@
 import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 import { Card, cardFromDb, cardToRow, createCard, CardState } from '../fsrs-engine';
+import { ReviewStats } from '../../src/shared/types';
 import {
   DEFAULT_NEW_CARDS_PER_DAY,
   computeNewCardAllowance,
@@ -327,7 +328,7 @@ export const cardsDb = {
     return rowsToObjects(result).map(cardFromDb);
   },
 
-  getReviewStats(): { total: number; due: number; new: number; learning: number; review: number } {
+  getReviewStats(): ReviewStats {
     const execScalar = (sql: string): number => {
       const result = getDatabase().exec(sql);
       return result.length > 0 ? (result[0].values[0][0] as number) : 0;

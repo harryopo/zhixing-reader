@@ -159,11 +159,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         return Number(row.reading_progress) >= 1 || Number(row.is_finished) === 1
       }).length
       const totalHighlights = highlights.length
-      // card.getStats() 给的是 { total, due, new, learning, review }（按 FSRS state 分桶）
-      const cardStats = cards as unknown as Record<string, number>
-      const totalCards = cardStats.total ?? 0
+      const totalCards = cards.total
       // 本项目没有独立的"已掌握"字段，state=2（review 态）即已学过并进入排期
-      const masteredCards = cardStats.review ?? 0
+      const masteredCards = cards.review
 
       const reviewSummary = summarizeReviews(
         (reviews ?? []) as unknown as Record<string, unknown>[]
