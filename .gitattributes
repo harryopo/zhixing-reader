@@ -1,0 +1,23 @@
+# 检出统一用 LF。
+# Windows CI Runner 的 git 默认 core.autocrlf=true，checkout 时会把文本换成 CRLF，
+# 而 scripts/build-tokens.mjs --check 对产物做的是逐字节比对 —— 换行符一漂，
+# CI 就把「内容完全一致」的产物判成过期（2026-09-19 起 master 每次推送都红的原因）。
+* text=auto eol=lf
+
+# 二进制资产：不做任何换行处理
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.exe binary
+*.blockmap binary
+*.zip binary
+*.gz binary
+*.db binary
+*.node binary

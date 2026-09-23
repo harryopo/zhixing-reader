@@ -23,6 +23,13 @@ describe('tokens/brand.json 是唯一真值', () => {
     ).not.toThrow()
   })
 
+  it('仓库必须钉死 LF 检出（--check 是逐字节比对，换行符一漂 CI 就永远判红）', () => {
+    expect(read('.gitattributes')).toContain('* text=auto eol=lf')
+    for (const f of ['src/renderer/src/styles/generated-palette.css', 'src/renderer/src/design/palette.ts']) {
+      expect(read(f), `${f} 里出现了回车符`).not.toContain('\r')
+    }
+  })
+
   it('design-tokens.css 里不再出现任何 emerald / brand 原始 hex', () => {
     const raw = new Set(
       ['emerald', 'brand'].flatMap((g) => Object.values(TOKENS[g]).map((v) => v.$value))

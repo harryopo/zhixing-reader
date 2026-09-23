@@ -127,13 +127,6 @@ export const tokenUsageDb = {
     };
   },
 
-  deleteOlderThan(days: number): void {
-    getDatabase().run(
-      `DELETE FROM token_usage WHERE created_at < datetime('now', '-${days} days')`
-    );
-    saveDatabase();
-  },
-
   clearAll(): void {
     getDatabase().run('DELETE FROM token_usage');
     forceSaveDatabase();
