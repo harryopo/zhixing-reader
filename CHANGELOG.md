@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - README 的数字与口径按代码重新核对：构建器预算表改为代码里真实存在的机制（一个全局上限 + 每维取数条数），撤掉无测量支撑的延迟与节省百分比，代码行数、IPC 领域数、覆盖率命令口径同步更正
 - 性能一节为每一行标注口径（实测 / 未做基准）
+- 依赖在 `package.json` 声明的 semver 范围内整体刷新一次（`package.json` 未改，只改锁文件）：Electron 35.0.0→35.7.5、react-router 7.16→7.18.4、js-yaml 4.1.1→4.3.2、@xmldom/xmldom 0.9.10→0.9.12、postcss 8.5.15→8.5.28、nanoid / form-data / browserslist / ip-address / brace-expansion 同步跟进，按 GitHub 的 85 条依赖告警逐条对账**清掉 33 条**；仍需跨大版本的 52 条另列待办（Electron 31、tar 8、vite/vitest 6、electron-builder 2、echarts 1、esbuild 1、glob 1、extract-zip 2 无上游补丁）
 
 ### Added
 - `.github/ISSUE_TEMPLATE/`：Bug 反馈 / 功能建议 / 环境与构建 三类模板，并关闭空白 Issue
