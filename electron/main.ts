@@ -249,6 +249,20 @@ if (!app.requestSingleInstanceLock()) {
 
       registerIpcHandlers();
 
+      // 历史明文密钥一次性搬进加密存储（必须在读设置之前：否则这一轮启动仍然
+      // 用着明文，界面也说不清到底加密了没有）。搬不动就留着，不丢用户的 key。
+      const secretsMigration = settingsService.migratePlainSecrets();
+      if (secretsMigration.migrated.length > 0) {
+        logger.info('Migrated plaintext secrets to encrypted storage', {
+          keys: secretsMigration.migrated,
+        });
+      }
+      if (secretsMigration.keptPlaintext.length > 0) {
+        logger.error('System encryption unusable; these secrets stay in plaintext settings.json', {
+          keys: secretsMigration.keptPlaintext,
+        });
+      }
+
       const settings = settingsService.getAll();
 
       // 记录本机是否真的能用系统加密（false 时密钥是明文存在 settings.json 里的）。

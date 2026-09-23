@@ -40,7 +40,7 @@
 | Electron 进程隔离 | `electron/main.ts`：`contextIsolation: true`、`nodeIntegration: false`。渲染层只能通过 `electron/preload.ts` 暴露的方法访问主进程。**`sandbox` 是关的**（preload 需要 Node 能力），所以这一层靠的是 contextBridge 边界而不是 OS 沙箱 |
 | IPC 通道集中定义 | `src/shared/ipc-channels.ts`（164 条），渲染层写死通道字符串会被 `tests/ipc-channels.test.ts` 判红 |
 | SQL 值全走占位符 | `electron/database/**` 与 `electron/repositories/**` 的取值一律用 `?`；动态表名只出现在后台管理页，走白名单正则过滤并拒绝 `sqlite_*` 内部表（`electron/admin.ts`）|
-| API Key 走系统加密 | Electron `safeStorage`（Windows DPAPI）；`isEncryptionAvailable()` 为 false 时如实告知密钥将以明文保存，不做静默降级（`electron/services/settings-service.ts`）|
+| API Key 走系统加密 | Electron `safeStorage`（Windows DPAPI）。密钥存 `userData/secure/<名字>.enc`，`settings.json` 里不留明文；历史明文在启动时一次性迁移（`electron/services/settings-service.ts` + `migratePlainSecrets()`）。可用性判定不是只看 `isEncryptionAvailable()`，而是**做一次加密-解密自检**，跑不通就把 `secureStorageAvailable` 记成 false 让界面如实说明；**任何失败路径都退回写明文而不是丢掉用户已配的密钥** |
 | 日志脱敏 | `electron/logger.ts` 的 `redactSensitive()` 递归遍历对象/数组，命中敏感键名的非空字符串值替换为 `[REDACTED]` |
 | 自动更新校验 | electron-updater 按 `latest.yml` 的 sha512 校验安装包，校验不过不装 |
 | 仓库侧 | GitHub Secret Scanning + Push Protection 已开启（`secret_scanning_push_protection: enabled`）|

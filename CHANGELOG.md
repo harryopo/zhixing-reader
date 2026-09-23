@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **API 密钥改为系统加密存储**：此前 `safeStorage` 那套加密读写从未被任何调用方接上，微信读书与 AI 服务的密钥实际一直以明文写在 `%APPDATA%` 下的 `settings.json` 里。现在密钥写到 `userData/secure/<名字>.enc`（Windows 上由 DPAPI 保护），设置文件里不再留明文；已配过密钥的老用户在下次启动时自动完成迁移，**加密不可用或加解密失败时退回明文而不是丢掉已配置的密钥**。可用性判定也改成"真做一次加密-解密自检"，界面关于密钥保存方式的说明跟着自检结果走
+
 ### Fixed
 - **开发模式下设置与日志仍写入装机版的数据目录**：数据目录的区分写在 `main.ts` 本体里，而负责读这个目录的两个模块在更早的「模块加载期」就把路径固定下来了，于是它们拿到的始终是装机版目录。表现为开发版读不到已配置的密钥（提示「请先设置微信读书 API Key」），且开发版每次保存设置会覆盖装机版的设置。切换逻辑改为独立模块并排在最前，守卫由 3 条加到 5 条（含一条反证，防止排序检查变成空转）
 - **CI 自 2026-09-19 起每次推送都失败**：`npm run build:tokens --check` 对产物做逐字节比对，而 windows-latest Runner 检出时把 LF 换成 CRLF，导致「产物已过期」恒定判定。新增 `.gitattributes` 固定 `* text=auto eol=lf`，并加一条守卫断言钉住它

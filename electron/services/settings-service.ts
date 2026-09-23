@@ -2,6 +2,7 @@ import { app, safeStorage } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { logger } from '../logger'
+import { SECRET_SETTING_KEYS, isSecretSetting } from '../../src/shared/settings-secrets'
 
 class SettingsService {
   private static instance: SettingsService | null = null
@@ -42,76 +43,133 @@ class SettingsService {
   }
 
   get(key: string): unknown {
+    if (isSecretSetting(key)) {
+      return this.readSecret(key)
+    }
     return this.settings[key]
   }
 
+  /**
+   * 密钥一律走加密存储，其余设置照旧明文。
+   *
+   * 加密不可用或加密失败时**退回明文写入** —— 用户的密钥不能因为操作系统
+   * 拒绝访问就丢掉；退回时会在日志里留一条 error，并由 `secureStorageAvailable`
+   * 让界面如实说明"当前是明文保存"。
+   */
   set(key: string, value: unknown): void {
+    if (isSecretSetting(key)) {
+      this.setSecureKey(key, typeof value === 'string' ? value : '')
+      return
+    }
     this.settings[key] = value
     this.save()
   }
 
   getAll(): Record<string, unknown> {
-    return { ...this.settings }
+    const all: Record<string, unknown> = { ...this.settings }
+    for (const key of SECRET_SETTING_KEYS) {
+      const value = this.readSecret(key)
+      if (value === null) {
+        delete all[key]
+      } else {
+        all[key] = value
+      }
+    }
+    return all
   }
 
   /**
-   * 本机能否用系统加密保存密钥。
+   * 本机能不能真的用系统加密保存密钥。
    *
-   * 2026-09-16：本机实测 safeStorage.isEncryptionAvailable() 返回 false，
-   * 于是 setSecureKey 走的是**明文写进 settings.json** 的分支 —— 而界面从未提过这件事。
-   * 这个只读方法让渲染层能如实告诉用户"你的密钥是明文存的"。
+   * `isEncryptionAvailable()` 只说"API 可用"，不等于加解密真跑得通（换机器、
+   * DPAPI 拒绝访问时它仍然返回 true），所以这里做一次自检往返 ——
+   * 界面那句"你的密钥是明文存的"必须跟着实测结果走，不能跟着一个布尔值走。
    */
   isEncryptionAvailable(): boolean {
     try {
-      return safeStorage.isEncryptionAvailable()
-    } catch {
+      if (!safeStorage.isEncryptionAvailable()) return false
+      const probe = safeStorage.encryptString('zhixing-secure-probe')
+      return safeStorage.decryptString(probe) === 'zhixing-secure-probe'
+    } catch (e) {
+      logger.error('safeStorage self-check failed; falling back to plaintext', { error: String(e) })
       return false
     }
   }
 
+  private encPath(keyName: string): string {
+    return path.join(this.secureDir, `${keyName}.enc`)
+  }
+
   getSecureKey(keyName: string): string | null {
+    return this.readSecret(keyName)
+  }
+
+  private readSecret(keyName: string): string | null {
+    const file = this.encPath(keyName)
+    const legacy = typeof this.settings[keyName] === 'string' ? (this.settings[keyName] as string) : null
     try {
-      if (!fs.existsSync(this.secureDir)) {
-        fs.mkdirSync(this.secureDir, { recursive: true })
+      if (!fs.existsSync(file)) {
+        return legacy
       }
-      const keyPath = path.join(this.secureDir, `${keyName}.enc`)
-      if (!fs.existsSync(keyPath)) {
-        return null
+      if (!this.isEncryptionAvailable()) {
+        logger.warn(`Encryption unavailable, reading ${keyName} from settings.json if present`)
+        return legacy
       }
-      const encrypted = fs.readFileSync(keyPath)
-      if (!safeStorage.isEncryptionAvailable()) {
-        logger.warn('Encryption not available, falling back to settings.json')
-        return this.settings[keyName] as string || null
-      }
-      return safeStorage.decryptString(encrypted)
+      return safeStorage.decryptString(fs.readFileSync(file))
     } catch (e) {
+      // 解不开也要留着密文文件，并且还能用就退回明文 —— 两条路都不能让用户丢密钥
       logger.error(`Failed to read secure key: ${keyName}`, { error: String(e) })
-      return null
+      return legacy
     }
   }
 
   setSecureKey(keyName: string, value: string): void {
+    const writePlaintext = (reason: string): void => {
+      this.settings[keyName] = value
+      this.save()
+      logger.error(`${reason}; ${keyName} was kept in plaintext in settings.json`)
+    }
+
+    if (!this.isEncryptionAvailable()) {
+      writePlaintext('System encryption unavailable')
+      return
+    }
     try {
-      if (!fs.existsSync(this.secureDir)) {
-        fs.mkdirSync(this.secureDir, { recursive: true })
-      }
-      const keyPath = path.join(this.secureDir, `${keyName}.enc`)
-      if (!safeStorage.isEncryptionAvailable()) {
-        logger.warn('Encryption not available, falling back to settings.json')
-        this.settings[keyName] = value
-        this.save()
-        return
-      }
+      fs.mkdirSync(this.secureDir, { recursive: true })
       const encrypted = safeStorage.encryptString(value)
-      fs.writeFileSync(keyPath, encrypted)
+      fs.writeFileSync(this.encPath(keyName), encrypted)
       delete this.settings[keyName]
       this.save()
       logger.info(`Secure key saved: ${keyName}`)
     } catch (e) {
+      writePlaintext(`Failed to encrypt ${keyName}`)
       logger.error(`Failed to save secure key: ${keyName}`, { error: String(e) })
     }
+  }
+
+  /**
+   * 把历史明文密钥一次性搬进加密存储。
+   *
+   * 只处理"读不到密文、但 settings.json 里躺着明文"的项；加密不可用或加密失败时
+   * 明文原样留着（`setSecureKey` 的失败分支会把它写回去）。幂等：搬完再跑就是空操作。
+   */
+  migratePlainSecrets(): { migrated: string[]; keptPlaintext: string[] } {
+    const migrated: string[] = []
+    const keptPlaintext: string[] = []
+    for (const key of SECRET_SETTING_KEYS) {
+      const plaintext = this.settings[key]
+      if (typeof plaintext !== 'string' || plaintext.length === 0) continue
+      this.setSecureKey(key, plaintext)
+      // 迁移结果按**落盘后的实际状态**判定，不按 setSecureKey 有没有抛错判定 ——
+      // 报"已迁移"就必须做到两件事：明文从 settings.json 消失了，且密文文件真在那儿。
+      if (Object.prototype.hasOwnProperty.call(this.settings, key) || !fs.existsSync(this.encPath(key))) {
+        keptPlaintext.push(key)
+      } else {
+        migrated.push(key)
+      }
+    }
+    return { migrated, keptPlaintext }
   }
 }
 
 export const settingsService = SettingsService.getInstance()
-export default settingsService
