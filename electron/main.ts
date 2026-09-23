@@ -1,4 +1,7 @@
 import { app, BrowserWindow, Menu, nativeImage, shell, dialog, NativeImage } from 'electron';
+// 必须排在其它本地 import 之前：它负责把开发版的 userData 换到独立目录，
+// 而 logger / settings-service 在模块加载期就会读这个路径。
+import { isDev } from './user-data';
 import * as path from 'path';
 import * as fs from 'fs';
 import { initDatabase, forceSaveDatabase } from './database';
@@ -15,16 +18,6 @@ import { runStartupRepair } from './services/startup-repair';
 import { initAutoUpdater, stopUpdateChecks } from './updater';
 import { shutdownForExit } from './shutdown';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
-
-const isDev = !app.isPackaged;
-
-// 开发版必须和装机版分开数据目录：sql.js 落盘是整文件写回，两边共用
-// %APPDATA%\zhixing-reader 会互相覆盖数据；单实例锁也按 userData 上锁，
-// 后启动的那个会静默退出，表现为「装的版本打不开」。
-// 装机版目录一个字都不能改 —— 用户升级后能不能看到自己的数据全看这个路径。
-if (isDev) {
-  app.setPath('userData', path.join(app.getPath('appData'), 'zhixing-reader-dev'));
-}
 
 // 开发环境启用 CDP 调试端口（供截图脚本使用）
 if (isDev) {

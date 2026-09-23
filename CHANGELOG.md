@@ -8,13 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **开发模式下设置与日志仍写入装机版的数据目录**：数据目录的区分写在 `main.ts` 本体里，而负责读这个目录的两个模块在更早的「模块加载期」就把路径固定下来了，于是它们拿到的始终是装机版目录。表现为开发版读不到已配置的密钥（提示「请先设置微信读书 API Key」），且开发版每次保存设置会覆盖装机版的设置。切换逻辑改为独立模块并排在最前，守卫由 3 条加到 5 条（含一条反证，防止排序检查变成空转）
 - **CI 自 2026-09-19 起每次推送都失败**：`npm run build:tokens --check` 对产物做逐字节比对，而 windows-latest Runner 检出时把 LF 换成 CRLF，导致「产物已过期」恒定判定。新增 `.gitattributes` 固定 `* text=auto eol=lf`，并加一条守卫断言钉住它
 - 删除 `tokenUsageDb.deleteOlderThan()`：无任何调用方，且是全仓库唯一把值直接拼进 SQL 字面量的地方
 
 ### Changed
+- **运行时候体 Electron 由 35.7.5 升级到 39.8.10**（`package.json` 声明 `^35.0.0` → `^39.0.0`）：随包发出去的运行时本身卡着 32 条依赖告警，逐条读它们要求的最低修复版本后确定 39.8.10 是全部覆盖到的最低点。主进程用到的 API 逐条对照官方 36–39 的破坏性变更清单核过，无一命中；已重新出包并在本机启动到主窗口。按 GitHub 的 85 条告警对新锁文件重算：**累计清掉 64 条、剩 21 条**（tar 8、vite 3、vitest 3、extract-zip 2、electron-builder 2、echarts 1、esbuild 1、glob 1，其中 extract-zip 上游没有补丁）
 - README 的数字与口径按代码重新核对：构建器预算表改为代码里真实存在的机制（一个全局上限 + 每维取数条数），撤掉无测量支撑的延迟与节省百分比，代码行数、IPC 领域数、覆盖率命令口径同步更正
 - 性能一节为每一行标注口径（实测 / 未做基准）
-- 依赖在 `package.json` 声明的 semver 范围内整体刷新一次（`package.json` 未改，只改锁文件）：Electron 35.0.0→35.7.5、react-router 7.16→7.18.4、js-yaml 4.1.1→4.3.2、@xmldom/xmldom 0.9.10→0.9.12、postcss 8.5.15→8.5.28、nanoid / form-data / browserslist / ip-address / brace-expansion 同步跟进，按 GitHub 的 85 条依赖告警逐条对账**清掉 33 条**；仍需跨大版本的 52 条另列待办（Electron 31、tar 8、vite/vitest 6、electron-builder 2、echarts 1、esbuild 1、glob 1、extract-zip 2 无上游补丁）
+- 依赖在 `package.json` 声明的 semver 范围内整体刷新一次（`package.json` 未改，只改锁文件）：Electron 35.0.0→35.7.5、react-router 7.16→7.18.4、js-yaml 4.1.1→4.3.2、@xmldom/xmldom 0.9.10→0.9.12、postcss 8.5.15→8.5.28、nanoid / form-data / browserslist / ip-address / brace-expansion 同步跟进，按 GitHub 的 85 条依赖告警逐条对账**清掉 33 条**；仍需跨大版本的 52 条另列待办（Electron 31、tar 8、vite/vitest 6、electron-builder 2、echarts 1、esbuild 1、glob 1、extract-zip 2 无上游补丁；其中 Electron 那 31 条已由上面一条做完）
 
 ### Added
 - `.github/ISSUE_TEMPLATE/`：Bug 反馈 / 功能建议 / 环境与构建 三类模板，并关闭空白 Issue
