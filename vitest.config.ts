@@ -31,11 +31,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // React 19 组件测试使用 happy-dom：jsdom 25 会过滤掉含 CSS 变量的内联样式（如 color: var(--primary)），
-    // 导致 MessageBubble / admin-charts 等样式断言失败；happy-dom 对 CSS 变量支持更完整。
-    environmentMatchGlobs: [
-      ['src/renderer/src/**/*.test.tsx', 'happy-dom'],
-    ],
+    // 需要 DOM 的测试在自己文件首行写 `// @vitest-environment happy-dom`。
+    // 原先这里用 environmentMatchGlobs 统一指环境，Vitest 3 已把它标废（4 会删），
+    // 而且它和文件头的 docblock 谁生效说不清 —— admin-charts 就同时被 glob 指到
+    // happy-dom、又在第 24 行自己声明了 jsdom。环境交给每个文件自己说，只留一套口径。
     include: [
       'tests/**/*.test.ts',
       'electron/**/*.test.ts',

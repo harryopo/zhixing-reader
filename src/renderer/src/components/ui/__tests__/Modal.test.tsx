@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 // Modal 弹层原语行为测试
 //
 // 钉住原语承诺：dialog 语义、ESC/遮罩关闭、面板内点击不冒泡关闭、

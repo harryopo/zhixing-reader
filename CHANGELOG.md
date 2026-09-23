@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 删除 `tokenUsageDb.deleteOlderThan()`：无任何调用方，且是全仓库唯一把值直接拼进 SQL 字面量的地方
 
 ### Changed
+- **测试框架 Vitest 由 2.1.9 升到 3.2.7**（含 `@vitest/coverage-v8`）：清掉那条唯一的 **critical** 依赖告警。刻意停在 3.x —— 4.x 把 vite 变成 peer 且要求 ≥6，会连锁拽着 vite 与 electron-vite 一起跨大版本。顺带去掉一个双口径：`environmentMatchGlobs`（Vitest 3 已标废）与测试文件自己的 `@vitest-environment` 同时在指环境，谁生效说不清；现在统一由每个文件自己声明
 - **运行时候体 Electron 由 35.7.5 升级到 39.8.10**（`package.json` 声明 `^35.0.0` → `^39.0.0`）：随包发出去的运行时本身卡着 32 条依赖告警，逐条读它们要求的最低修复版本后确定 39.8.10 是全部覆盖到的最低点。主进程用到的 API 逐条对照官方 36–39 的破坏性变更清单核过，无一命中；已重新出包并在本机启动到主窗口。按 GitHub 的 85 条告警对新锁文件重算：**累计清掉 64 条、剩 21 条**（tar 8、vite 3、vitest 3、extract-zip 2、electron-builder 2、echarts 1、esbuild 1、glob 1，其中 extract-zip 上游没有补丁）
 - README 的数字与口径按代码重新核对：构建器预算表改为代码里真实存在的机制（一个全局上限 + 每维取数条数），撤掉无测量支撑的延迟与节省百分比，代码行数、IPC 领域数、覆盖率命令口径同步更正
 - 性能一节为每一行标注口径（实测 / 未做基准）
