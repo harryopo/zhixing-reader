@@ -1,0 +1,69 @@
+name: "环境与构建问题"
+description: "npm install / build / 打包 / CI 跑不过（不是应用内的功能问题）"
+title: "[Build] "
+labels: ["bug"]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: 跑的是哪条命令
+      description: 原样贴，包括你加的参数
+      placeholder: "npm run verify"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: 完整输出
+      description: 从命令开始到报错结束，整段贴上来（不要只截最后一行）
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node 版本
+      description: node -v
+      placeholder: "v24.18.0"
+    validations:
+      required: true
+  - type: input
+    id: npm
+    attributes:
+      label: npm 版本
+      description: npm -v
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 系统
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+        - WSL
+    validations:
+      required: true
+  - type: dropdown
+    id: branch
+    attributes:
+      label: 代码来源
+      options:
+        - master 最新提交
+        - 某个 tag（下面填）
+        - 自己的分支 / 改过代码
+    validations:
+      required: true
+  - type: input
+    id: ref
+    attributes:
+      label: tag 或 commit
+      placeholder: "v1.3.4 / 35a2e32"
+  - type: textarea
+    id: tried
+    attributes:
+      label: 你已经试过什么
+      placeholder: |
+        删过 node_modules 重装、换过 npmmirror 镜像、npm ci 也试过

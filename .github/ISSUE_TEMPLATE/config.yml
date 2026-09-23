@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题（密钥 / 越权 / 注入 / 安装包被篡改）
+    url: https://github.com/harryopo/zhixing-reader/blob/master/SECURITY.md
+    about: 这类问题请不要公开发在 Issue 里，按 SECURITY.md 的私有渠道上报
+  - name: 用不动先查 FAQ
+    url: https://github.com/harryopo/zhixing-reader/blob/master/FAQ.md
+    about: 安装、更新、同步失败、数据存在哪里、离线能不能用 —— 大概率已经有答案
+  - name: 版本与安装包
+    url: https://github.com/harryopo/zhixing-reader/releases
+    about: 每个版本改了什么、下载最新的 Setup exe

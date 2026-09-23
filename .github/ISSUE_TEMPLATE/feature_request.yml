@@ -1,0 +1,54 @@
+name: "功能建议"
+description: "想加一个能力、或者改变某个现有行为"
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这个项目的一条既定原则是**去伪存真**：一个按钮要么真能用，要么不摆在界面上。
+        所以提需求时请顺带说清"这个功能需要什么数据才能成立"——如果那个数据本机根本没有，我们会优先考虑别做，而不是做一个看起来能点的空壳。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么
+      description: 从你实际遇到的场景说起，不要从"应该有个什么按钮"说起
+      placeholder: |
+        我读英文书时想把生词一次性加进生词本，现在只能一个个点。
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 你设想的作法
+      description: 说清输入是什么、结果是什么、在哪里点
+      validations:
+        required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 不这么做的话，有什么替代
+      description: 现在你打算怎么绕过这件事？没有替代也请写"没有"
+  - type: dropdown
+    id: data-source
+    attributes:
+      label: 这个功能需要的数据，本机有吗
+      options:
+        - 已经有（本地数据库里就存着）
+        - 要联网拿（微信读书 / AI 服务商）
+        - 需要用户自己填
+        - 不确定
+    validations:
+      required: true
+  - type: textarea
+    id: cost
+    attributes:
+      label: 会花钱吗
+      description: 需要调 AI 吗？大概多少次？（本项目规定：启动、通知、后台一律只做本地计算，自动烧钱要单独设计）
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 我理解的事项
+      options:
+        - label: 这是单人业余维护的开源项目，排期由维护者定，不接受"什么时候能做出来"的时间承诺
+          required: true

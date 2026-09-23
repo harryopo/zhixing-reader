@@ -109,7 +109,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 |------|------|------|
 | `npm run lint` | ESLint 0 错误 | 手动 + CI |
 | `npm run typecheck` | tsc --noEmit 0 错误 | 手动 + CI |
-| `npm run test` | vitest 全通过（1019 用例）| 手动 + CI |
+| `npm run test` | vitest 全通过（1020 用例）| 手动 + CI |
 | `npm run test:cov` | 覆盖率（阈值 83/80/75/83）| 手动（**未接入 CI**）|
 | `npm run build` | electron-vite 编译 | CI |
 | `npm run verify` | 上面四项一键串行 | 手动 |
@@ -145,6 +145,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 - **git 锚点**：tag 序列 `v1.0.0` → `v1.1.0` → `v1.2.0` → `v1.3.0` → `v1.3.1` → `v1.3.2` → `v1.3.3` → `v1.3.4`（发版即打 tag 并推，Release 三件同传：exe / `.blockmap` / `latest.yml`）
 - **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
+- **门禁基线（2026-09-23 续实测 · GitHub 维护批次）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **1020 用例 · 60 文件**全通过 ✅ / `npm run verify` 退出码 0 ✅ / **CI 长期红的根因确认并修**：windows-latest 检出时 `core.autocrlf=true` 把 LF 换成 CRLF，而 `build-tokens.mjs --check` 做逐字节比对 ⇒ 产物永远判「过期」；新克隆复现退 1、加 `.gitattributes`（`* text=auto eol=lf`）后同条件退 0；最后一次绿的 run 是 2026-09-18 15:04。**未验**：CI 真转绿要等推上去那一次；Issue/PR 模板只验了 YAML 可解析，界面没看过；SECURITY.md 指的私有上报表单是否已开启未确认
 - **门禁基线（2026-09-23 实测 · v1.3.4 已发布）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **1019 用例 · 60 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / `npm run package:win` 出包并逐字节对账 ✅：`zhixing-reader-Setup-1.3.4.exe` 119,246,768 字节、随包 `app.asar` 内 `package.json` 版本 1.3.4、`latest.yml` sha512 自洽；tag `v1.3.4` 已推、Release 标为 Latest、三件同传、`latest.yml` 回下载与本机相同。**未验**：远端 exe 未整份回下载重算 sha512（本机 `github.com` 下载主机此刻被 reset），装机版应用内「检查更新→下载→重启安装」在新退出路径上仍未真跑过一遍
 - **门禁基线（2026-09-22 再续实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **1019 用例 · 60 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / 渲染层 `as unknown as` 硬转 63 → 32 处，行类型只在 `utils/db-mapper.ts` 一处定义；「笔记」页签此前按不存在的 `type` 列筛，恒为空，现按 `note` 是否非空推导
 - **门禁基线（2026-09-22 实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **1004 用例 · 59 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / **本轮未出包**：「重启安装」退出路径加固要随下一版才到装机版，线上 1.3.3 仍是旧路径
@@ -185,5 +186,5 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-*最后更新：2026-09-23 | v1.3.4 出包并发布（重启安装退出路径 + 复习统计口径 + 笔记页签 + 开发版数据目录）· 1019 用例 / 60 文件*
+*最后更新：2026-09-23 | v1.3.4 已发布；之后 master 上补了 CI 换行符修复与 GitHub 维护面（issue 模板 / PR 模板 / SECURITY.md）· 1020 用例 / 60 文件*
 *与 AGENTS.md 不一致时，两者均以上述实测代码配置为准（`package.json` / `eslint.config.js` / `tsconfig.json` / `vitest.config.ts`）*

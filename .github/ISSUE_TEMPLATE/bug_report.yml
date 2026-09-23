@@ -1,0 +1,90 @@
+name: "Bug 反馈"
+description: "报告一个和预期不一致的行为（界面数字、同步、复习、AI 对话等）"
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先说一句：**安全问题请不要走这个表单**，按 [SECURITY.md](https://github.com/harryopo/zhixing-reader/blob/master/SECURITY.md) 的私享渠道联系。
+        涉及密钥、越权、注入、数据被传到本机的公开 Issue 会被直接删除。
+  - type: input
+    id: version
+    attributes:
+      label: 版本号
+      description: 「设置 → 关于」里的那一行，例如 v1.3.4
+      placeholder: "v1.3.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-type
+    attributes:
+      label: 你跑的是哪一种
+      options:
+        - 官方安装包（Releases 里的 Setup exe）
+        - 源码 npm run dev
+        - 源码 npm run start
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: 系统版本
+      description: 例如 Windows 11 24H2 / Windows 10 22H2
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么
+      description: 一句话说清「我做了什么 → 我看到了什么 → 我预期看到什么」
+      placeholder: |
+        我在「设置 → 关于」点「检查更新」，界面提示"更新失败"，预期是提示已是最新版本或给出新版本号。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从打开应用开始，一步一步写；能稳定复现还是偶发也请说明
+      placeholder: |
+        1. 打开应用，进入书架页
+        2. 点右上角「同步微信读书」
+        3. 等进度条走完
+        4. 划线数量没变（预期 +3）
+    validations:
+      required: true
+  - type: textarea
+    id: error-text
+    attributes:
+      label: 报错原文
+      description: 界面上显示的中文提示、或 devtools 控制台的原文（原样贴，不要转述）
+      render: shell
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志片段（可选）
+      description: |
+        位置：`%APPDATA%\zhixing-reader\logs\`（源码跑的是 `zhixing-reader-dev`）。
+        日志落盘时已对 API Key 类字段做脱敏，**贴出来之前仍请自查一遍有没有把密钥带出来**。
+      render: shell
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 出现频率
+      options:
+        - 每一步都这样（必现）
+        - 偶尔出现
+        - 只出现过一次
+    validations:
+      required: true
+  - type: checkboxes
+    id: search
+    attributes:
+      label: 提交前请确认
+      options:
+        - label: 我已经搜过 open + closed 的 Issue，没有重复
+          required: true
+        - label: 我确认贴上来的内容里没有 API Key、微信读书凭据等敏感信息
+          required: true

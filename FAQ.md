@@ -99,7 +99,11 @@
 4. 仍有问题请到 [Issues](https://github.com/harryopo/zhixing-reader/issues) 反馈，附上系统版本和复现步骤
 
 ### Q19：如何反馈 Bug 或提功能建议？
-到 [GitHub Issues](https://github.com/harryopo/zhixing-reader/issues) 提交，描述清楚：使用版本、操作步骤、预期行为、实际行为（最好附截图）。
+到 [New Issue](https://github.com/harryopo/zhixing-reader/issues/new/choose) 选模板提交（Bug 反馈 / 功能建议 / 环境与构建问题）。仓库关闭了空白 Issue，模板会带着问你需要填的东西。
+
+不管哪一类，请一并给出：**版本号**（设置 → 关于）、**是安装包还是源码跑的**、**复现步骤**、**报错原文**。日志在 `%APPDATA%\zhixing-reader\logs\`（源码跑的是 `zhixing-reader-dev`），贴出来之前请自查一遍有没有把 API Key 带出去。
+
+涉及密钥、越权、注入这类安全问题不要公开发，按 [SECURITY.md](SECURITY.md) 的私有渠道上报。
 
 ### Q20：如何参与贡献？
 阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发环境搭建和 PR 流程，提交前确保 `npm run verify` 全绿（lint / typecheck / test / build）。

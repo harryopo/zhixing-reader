@@ -180,9 +180,9 @@ npm run lint -- --fix   # 自动修复
 ### 6.1 创建分支
 
 ```bash
-# 从 main 拉最新代码
-git checkout main
-git pull upstream main
+# 从 master 拉最新代码（本仓库默认分支是 master，不是 main）
+git checkout master
+git pull upstream master
 
 # 创建特性分支（命名：type/简短描述）
 git checkout -b feat/fsrs-preview
@@ -200,32 +200,11 @@ git push origin feat/fsrs-preview
 
 ### 6.3 创建 Pull Request
 
-1. 在 GitHub 上发起 PR，目标分支为 `harryopo/zhixing-reader` 的 `main`
+1. 在 GitHub 上发起 PR，目标分支为 `harryopo/zhixing-reader` 的 `master`
 2. PR 标题遵循 Conventional Commits 格式
-3. PR 描述模板：
+3. 打开 PR 时正文会自动带上 `.github/PULL_REQUEST_TEMPLATE.md`，其中「我验证过什么」这一栏请照实填，包括**没有验证的部分**
 
-```markdown
-## 变更类型
-- [ ] feat（新功能）
-- [ ] fix（Bug 修复）
-- [ ] docs（文档）
-- [ ] refactor（重构）
-- [ ] test（测试）
-- [ ] chore（杂项）
-
-## 变更说明
-<!-- 简要说明本次变更的目的与内容 -->
-
-## 关联 Issue
-Closes #<issue 编号>
-
-## 检查清单
-- [ ] `npm run verify` 全绿
-- [ ] 新增代码有对应测试
-- [ ] 测试覆盖率不下降
-- [ ] 公共 API 变更已更新文档
-- [ ] commit message 符合 Conventional Commits
-```
+> PR 模板的正文（变更类型 / 变更说明 / 关联 Issue / 本仓库守卫清单）只维护在 `.github/PULL_REQUEST_TEMPLATE.md` 一处，本文不再复制，避免两份对不上。
 
 ### 6.4 Code Review
 
@@ -289,8 +268,10 @@ describe('reviewCard', () => {
 
 ## 八、反馈渠道
 
-- **Bug 报告 / 功能建议**：[GitHub Issues](https://github.com/harryopo/zhixing-reader/issues)
-- **代码讨论**：通过 PR Review
+- **提 Issue 请走模板**：[New Issue](https://github.com/harryopo/zhixing-reader/issues/new/choose) 里有三类 —— Bug 反馈 / 功能建议 / 环境与构建问题。仓库关闭了空白 Issue，就是为了少来回追问一次。
+- **上手可做**：带 `good first issue` 标签的 Issue（每条都写清了改哪个文件和判定标准）。
+- **安全问题**：不要公开发，走 [SECURITY.md](SECURITY.md) 的私有渠道。
+- **代码讨论**：通过 PR Review。
 
 ---
 

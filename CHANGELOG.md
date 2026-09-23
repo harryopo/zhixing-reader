@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **CI 自 2026-09-19 起每次推送都失败**：`npm run build:tokens --check` 对产物做逐字节比对，而 windows-latest Runner 检出时把 LF 换成 CRLF，导致「产物已过期」恒定判定。新增 `.gitattributes` 固定 `* text=auto eol=lf`，并加一条守卫断言钉住它
+- 删除 `tokenUsageDb.deleteOlderThan()`：无任何调用方，且是全仓库唯一把值直接拼进 SQL 字面量的地方
+
+### Changed
+- README 的数字与口径按代码重新核对：构建器预算表改为代码里真实存在的机制（一个全局上限 + 每维取数条数），撤掉无测量支撑的延迟与节省百分比，代码行数、IPC 领域数、覆盖率命令口径同步更正
+- 性能一节为每一行标注口径（实测 / 未做基准）
+
+### Added
+- `.github/ISSUE_TEMPLATE/`：Bug 反馈 / 功能建议 / 环境与构建 三类模板，并关闭空白 Issue
+- `.github/PULL_REQUEST_TEMPLATE.md`：含「我验证过什么」必填栏与本仓库守卫清单
+- `SECURITY.md`：安全问题私有上报渠道 + 现状安全边界与已知限制
+- README 新增「已知限制」与「反馈问题」两节；`CODE_OF_CONDUCT.md` 的举报通路改为私享（原写法会把举报内容放到公开 Issue 上）
+- Issue #1–#10 建立公开待办清单（含 4 条 `good first issue`）
+
 ## [1.3.4] - 2026-09-23
 
 ### Fixed

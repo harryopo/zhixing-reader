@@ -12,8 +12,9 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-1019%20%E7%94%A8%E4%BE%8B%20/%2060%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
-[![Lines](https://img.shields.io/badge/code-52%2C000%2B%20TS-blueviolet)]()
+[![Tests](https://img.shields.io/badge/tests-1020%20%E7%94%A8%E4%BE%8B%20/%2060%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![CI](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml?query=branch%3Amaster)
+[![Lines](https://img.shields.io/badge/code-53%2C800%2B%20TS-blueviolet)]()
 
 ---
 
@@ -28,8 +29,8 @@
 | 维度 | 详情 |
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
-| **代码规模** | 52,000+ 行 TypeScript strict 代码 |
-| **测试覆盖** | 1019 用例 / 60 文件（覆盖率阈值 lines 83% / branches 80%，见 `vitest.config.ts`）|
+| **代码规模** | 53,823 行 TypeScript strict（`electron/` + `src/` 下 `.ts`/`.tsx` 实测，v1.3.4）|
+| **测试** | 1020 用例 / 60 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（25 个已配测试的文件），不是全库覆盖率** |
 | **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -45,23 +46,24 @@
 | # | 创新点 | 一句话 | 关键指标 |
 |---|--------|--------|----------|
 | **1** | **方法论自动注入 Agent**（行业首创） | AI 回答时自动引用书中方法论，实时追踪掌握度 | mastery_level 追踪 |
-| **2** | **5 维 ContextBuilder**（预算制懒加载） | 书籍/方法论/卡片/记忆/画像 5 维按需注入 | **Token 节省 33%-55%** |
+| **2** | **5 维 ContextBuilder**（预算制懒加载） | 书籍/方法论/卡片/记忆/画像 5 维按需注入，超预算跳过后面的维度 | 上下文硬上限 4000 token（`MAX_CONTEXT_TOKENS`，按 2 字符≈1 token 估算）|
 | **3** | **FSRS-6.0 同源科学记忆引擎** | 集成 ts-fsrs 5.4.1（该版本实现的即 **FSRS-6.0**，Anki 24.06+ 同源），DSR 三变量模型 | 目标保持率 0.9 可配置；对 SM-2 的优势见 [FSRS 基准测试](https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm)（**非本项目实测**）|
 | **4** | **本地优先架构 · 数据主权还给用户** | sql.js + 本地检索 + safeStorage 三重本地化，零遥测 | AI 直连不过中转 |
 | **5** | **多模型深度思考归一化 + ECDICT 离线词典** | DeepSeek / OpenAI / Anthropic 推理格式统一 + 15.0MB 离线词典 | 多模型无感切换 / 59,118 词条 |
 
-### 5 维 ContextBuilder 详细预算
+### 5 维 ContextBuilder 实际取数量（以代码为准）
 
-| 优先级 | 构建器 | 数据源 | Token 预算 |
-|--------|--------|--------|------------|
-| 90 | 书籍内容 | 本地 BM25 检索（中文 2 字滑窗，命中用户自己的划线）| 1500 |
-| 80 | 方法论 | 相关性评分 Top 5 | 1000 |
-| 70 | 知识卡片 | 相关性评分 Top 10 | 800 |
-| 50 | 长期记忆 | 相关记忆 3 条 + 摘要 | 500 |
-| 40 | 用户画像 | 动态生成 | 200 |
-| **合计** | - | - | **4000** |
+| 优先级 | 构建器 | 取数方式 | 单次上限 |
+|--------|--------|----------|----------|
+| 90 | 书籍内容 | 本地 BM25 检索（中文 2 字滑窗）命中用户自己的划线；选了书只搜那本书，没选书搜全部 | 命中 3 条 |
+| 80 | 方法论 | 同一套 BM25 按相关性取 | 命中 5 条 |
+| 70 | 知识卡片 | 同一套 BM25 按相关性取；一条都没命中就不注入 | 命中 10 条 |
+| 50 | 长期记忆 | 相关记忆 + 摘要 | 3 条 |
+| 40 | 用户画像 | 动态生成；空白资料不注入 | 单字段超 200 字截断 |
 
-**三条硬规则**：① 预算不足时低优先级自动跳过；② 每个构建器独立失败不拖垮整体（fail-soft 柔性容错）；③ 超预算截断并显式标记 `...(已截断)`。
+**总量与三条硬规则**（`electron/agent/context-manager.ts`）：五维合起来上限 `MAX_CONTEXT_TOKENS = 4000`，按 `CHARS_PER_TOKEN = 2` 估算。① 预算用完直接跳过后面的构建器；② 允许最后一个构建器部分截断，并显式标记 `...(已截断)`；③ 单个构建器失败不拖垮整体（fail-soft）。
+
+> 早期版本这张表的"每维 Token 预算 1500/1000/800/500/200"是设计稿数字，代码里从未按维度分配过预算——只有上面这一条全局上限。2026-09-23 按代码实测改正。
 
 ---
 
@@ -107,7 +109,7 @@
    AI 打字机输出
 ```
 
-**本地决策链路 52-207ms**（步骤 ①-⑤），**用户输入到 AI 开始输出"几乎无白屏感"**。
+步骤 ①-⑤ 全部在本地完成，不产生任何网络请求（第九节给了各步口径；这几步没有单独计时）。用户感知上"回车之后就开始出字"，中间等待的是服务商的首 token 时间。
 
 **4 类意图**：
 - `knowledge_query` 知识查询 → 直接回答（Bloom 1 记忆）
@@ -127,7 +129,7 @@
 | **构建工具** | electron-vite | 2.x | Vite 5 + HMR，三进程并行开发 |
 | **UI 框架** | React | 19.x | Concurrent Mode、Suspense、自动批处理 |
 | **路由** | React Router | 7.x | 嵌套路由 + Data Router |
-| **类型** | TypeScript | 5.6 strict | 52,000+ 行 strict 模式 |
+| **类型** | TypeScript | 5.6 strict | 53,823 行 strict 模式（v1.3.4 实测）|
 | **样式** | Tailwind CSS | 4.x | 原子化 CSS + PostCSS + 设计 Token |
 | **状态** | Zustand | 5.x | 轻量（< 3KB）、hooks-first |
 | **数据库** | sql.js | 1.14 | SQLite WASM，跨平台一致 |
@@ -137,7 +139,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 2.x | 1019 用例 / 60 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 2.x | 1020 用例 / 60 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 25.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -145,11 +147,11 @@
 
 ## 六、系统架构
 
-**五层架构**：Renderer（React SPA）→ Preload（contextBridge 安全桥）→ IPC（12 个领域 handler）→ Service/Agent（RAG / FSRS / 智能体编排）→ Data（sql.js + safeStorage）。
+**五层架构**：Renderer（React SPA）→ Preload（contextBridge 安全桥，524 行）→ IPC（`electron/ipc/` 11 个领域 handler + `index.ts` 统一注册 + `types.ts` 契约，共 **164 条通道**）→ Service/Agent（RAG / FSRS / 智能体编排）→ Data（sql.js 16 张表 + safeStorage）。
+
+**跨进程类型只有一份**：所有 IPC 通道名收在 `src/shared/ipc-channels.ts`（写死字面量会被 `tests/ipc-channels.test.ts` 判红）；数据库行的 snake_case → 前端 camelCase 只过一次 `src/renderer/src/utils/db-mapper.ts`，页面直接 `as unknown as` 硬转行类型会被 `tests/db-row-types.test.ts` 判红。
 
 **Agent 编排**：六步流水线 = 意图分类 → 策略选择 → 难度适配 → 5 维上下文构建 → 提示组装 → 流式生成。
-
-> 可编辑架构画板见项目内 `diagrams/`（本地生成，未纳入版本控制）。
 
 ---
 
@@ -201,17 +203,25 @@ zhixing-reader/
 │   └── types/                               # 实体类型
 ├── src/renderer/                            # Renderer 进程（React）
 │   └── src/
-│       ├── pages/                           # 14 个页面文件 / 22 条路由
+│       ├── pages/                           # 14 个页面文件 / 22 条路由（巨型页拆到 pages/<page>/ 子目录）
 │       ├── components/                      # UI 组件
 │       ├── stores/                          # 6 个 Zustand Store
+│       ├── utils/db-mapper.ts               # ⭐ 数据库行 → 前端对象的唯一一处转换
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
-├── src/shared/                              # 跨进程共享（类型 + IPC 通道常量）
-├── tests/                                   # Vitest 单元测试（1019 用例 / 60 文件）
+├── src/shared/                              # 跨进程共享（类型 + 164 条 IPC 通道常量 + 纯函数）
+├── tokens/brand.json                        # 全部色值的唯一真值（产物由 npm run build:tokens 生成）
+├── brand/                                   # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal）
+├── scripts/                                 # 构建期脚本（build-tokens / build-icons）
+├── tests/                                   # Vitest 单元测试（1020 用例 / 60 文件）
+├── .github/
+│   ├── workflows/ci.yml                     # lint + typecheck + test + build（windows-latest）
+│   └── ISSUE_TEMPLATE/                      # Bug / 功能建议 / 环境与构建 三类模板
 ├── resources/
 │   ├── dictionary.json                      # ECDICT 15.0MB / 59,118 词条
 │   ├── icon.ico / icon.png
-├── landing/                                 # 宣传页源码（GitHub Pages 部署）
+├── landing/                                 # 宣传页源码（部署到 gh-pages 分支）
+├── .gitattributes                           # 检出统一 LF（逐字节比对的产物依赖它）
 ├── AGENTS.md                                # AI Agent 入口
 ├── CLAUDE.md                                # AI 辅助开发配置
 ├── CHANGELOG.md
@@ -220,6 +230,7 @@ zhixing-reader/
 ├── FAQ.md
 ├── LICENSE                                  # MIT
 ├── PRIVACY.md
+├── SECURITY.md                              # 安全问题走私享渠道，不公开提
 └── README.md
 ```
 
@@ -227,17 +238,20 @@ zhixing-reader/
 
 ## 九、性能画像
 
-| 指标 | 数值 | 说明 |
+> **口径先说清**：下表只有标「实测」的两行是这台机器上量出来的；其余是开发过程中的**本机单次观察量级，不是基准测试**（没有多次采样、没有统计分布、没有换机复现）。需要拿数字做承诺的，按第十四节命令自己跑一遍。
+
+| 指标 | 数值 | 口径 |
 |------|------|------|
-| 冷启动 → 主页可交互 | **< 1.0s** | 三进程预加载 |
-| 路由懒加载（Code Splitting） | **80ms/页** | Vite manualChunks |
-| 词典首次加载 | **150ms** | 15.0MB JSON → 内存 |
-| 检索索引首次构建 | **200-500ms** | 取决于划线数（实测 934 条划线 → 15,927 词项）|
-| 意图分类 | **1-5ms** | 本地关键词打分 |
-| 5 维上下文构建 | **50-200ms** | 本地检索优先，其余构建器按预算懒加载 |
-| **Agent 本地决策合计** | **52-207ms** | 步骤 ①-⑤ 全本地 |
-| AI 流式首 token | **500-2000ms** | 取决于服务商 |
-| 后续 token 速率 | **30-80 token/s** | 中文 |
+| 检索索引语料规模 | 934 条划线 → **15,927 词项** | **实测**（本机开发库，`src/shared/retrieval.ts` 建索引后计数）|
+| 检索命中（真实提问） | 「作者怎么看人际关系」命中 **5 条 / topScore 17.2**，`promptTokens` 358 → 1252 | **实测**（打包后的应用 + 真实数据 + 一次真实提问，2026-09-16）|
+| 冷启动 → 主页可交互 | < 1.0s | 未做基准，开发期观察 |
+| 路由懒加载 | 约 80ms/页 | 未做基准 |
+| 词典首次加载（15.0MB JSON → 内存） | 约 150ms | 未做基准 |
+| 检索索引首次构建 | 200-500ms | 未做基准，随划线条数线性变化 |
+| 意图分类 + 策略选择 + 难度适配 | 各 < 5ms | 纯本地字符串/状态机计算，未单独计时 |
+| 5 维上下文构建 | 50-200ms | 未做基准（含本地检索）|
+| AI 流式首 token | 500-2000ms | 完全取决于所选服务商与网络，本项目不控制 |
+| 后续 token 速率 | 30-80 token/s | 同上 |
 
 ---
 
@@ -275,7 +289,27 @@ zhixing-reader/
 
 ---
 
-## 十二、开发与构建
+## 十二、已知限制（v1.3.4）
+
+> 这一节只列**当前真实存在**的限制；正在办的会带上 Issue 编号，做完了会删行，不会留着占位。完整在办事项见 [Issues](https://github.com/harryopo/zhixing-reader/issues)。
+
+| 限制 | 事实 | 影响与替代做法 |
+|------|------|----------------|
+| 只出 Windows 安装包 | `electron-builder` 只配了 NSIS 目标，没有 macOS / Linux 的打包与签名配置（[#5](https://github.com/harryopo/zhixing-reader/issues/5)）| 其他平台目前从源码跑：`npm install && npm run build && npm run start` |
+| 应用内更新的「重启安装」尚未跑通一轮完整真人验证 | 2026-09-21 实跑时卡在安装器的「无法关闭」提示；退出顺序已在 09-22 改为「先同步落盘 → 再 `app.exit(0)`」，随 v1.3.4 发布，发布后还没有新的实跑记录（[#1](https://github.com/harryopo/zhixing-reader/issues/1)）| 若仍卡住：手动运行 `%LOCALAPPDATA%\zhixing-reader-updater\` 里已下载的安装包，数据在 `%APPDATA%`，不受影响 |
+| 部分页面没有访问口令 | 「设置 → 智能体编排」是界面里的真入口，能改提示词模板；`/admin` 管理后台没有界面入口，但路由仍在应用包里（能打开 devtools 的人可以直接跳） | 桌面单机的前提假设；共用电脑时请留意（[#2](https://github.com/harryopo/zhixing-reader/issues/2) 在定方向） |
+| 划线只保留原文、想法与章节名 | 微信读书同步落库的字段是 `content` / `note` / `chapter_title`，没有颜色与章节 id；「是划线还是笔记」由 `note` 是否为空推导 | 界面不显示高亮颜色；「笔记」页签要有想法类笔记才有内容 |
+| AI 能力需要自备 API Key | Key 存本机，系统加密可用时经 safeStorage 加密；不可用时界面会如实提示以明文保存 | 不填 Key 时同步、复习、词典、笔记全部照常可用 |
+| 词典为本地 ECDICT 单文件 | 15.0MB / 59,118 词条（实测 `resources/dictionary.json`），含 CEFR 分级，不含例句库 | 生词查询完全离线 |
+
+## 十三、反馈问题
+
+1. **用模板开 Issue** —— [New Issue](https://github.com/harryopo/zhixing-reader/issues/new/choose) 下拉里有三类：Bug 反馈 / 功能建议 / 环境与构建问题。带 `good first issue` 标签的欢迎直接认领。
+2. **请一并给出**：版本号（设置 → 关于）、复现步骤、报错原文。
+3. **日志位置**：`%APPDATA%\zhixing-reader\logs\`（开发模式是 `zhixing-reader-dev`）。日志落盘时已对 API Key 做脱敏，**贴出来之前仍请自查一遍**。
+4. **涉及密钥、越权、注入等安全问题**：请按 [SECURITY.md](SECURITY.md) 的私享渠道联系，不要公开发在 Issue 里。
+
+## 十四、开发与构建
 
 ```bash
 # 安装依赖（使用 npmmirror 镜像）
@@ -287,9 +321,12 @@ npm run dev
 # 质量门禁（提交前必跑）
 npm run lint            # ESLint
 npm run typecheck       # tsc --noEmit
-npm run test            # Vitest（含覆盖率）
+npm run test            # Vitest（npm run test = vitest run，不含覆盖率统计）
 npm run build           # 三进程编译
-npm run verify          # 一键跑上面四项
+npm run verify          # 一键跑 lint + typecheck + test + build（提交前必跑）
+
+# 覆盖率是另一条命令：只对 vitest.config.ts 的 include 清单（已配测试的 25 个文件）统计
+npm run test:cov
 
 # 打包 Windows NSIS 安装包
 npm run package:win
@@ -313,13 +350,15 @@ npm run package:win
 
 ---
 
-## 十三、相关链接
+## 十五、相关链接
 
 | 资源 | 链接 |
 |------|------|
 | 📦 安装包下载 | https://github.com/harryopo/zhixing-reader/releases |
 | 🌐 项目主页 | https://harryopo.github.io/zhixing-reader |
 | 🐛 Issue 反馈 | https://github.com/harryopo/zhixing-reader/issues |
+| 📝 提 Issue（选模板） | https://github.com/harryopo/zhixing-reader/issues/new/choose |
+| 🔒 安全漏洞上报 | [SECURITY.md](SECURITY.md) |
 | 📝 更新日志 | [CHANGELOG.md](CHANGELOG.md) |
 | ❓ 常见问题 | [FAQ.md](FAQ.md) |
 | 🔒 隐私政策 | [PRIVACY.md](PRIVACY.md) |
@@ -343,7 +382,7 @@ npm run package:win
 
 ---
 
-## 十四、变更记录
+## 十六、变更记录
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
@@ -361,7 +400,7 @@ npm run package:win
 
 ---
 
-## 十五、贡献指南
+## 十七、贡献指南
 
 我们欢迎任何形式的贡献：Bug 报告、功能建议、文档完善、代码修复、UI/UX 改进。
 
@@ -376,7 +415,7 @@ npm run package:win
 
 ---
 
-## 十六、开源许可证
+## 十八、开源许可证
 
 本项目基于 [**MIT License**](LICENSE) 开源，允许自由使用、修改、分发、商用，只需保留版权声明与许可证文本。
 
@@ -420,4 +459,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-09-23 | 与 v1.3.4 代码一致*
+*最后更新：2026-09-23 | 与 master 分支代码一致（最新发布 v1.3.4，1020 用例 / 60 文件）*
