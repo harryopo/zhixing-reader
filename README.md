@@ -140,7 +140,7 @@
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
 | **测试** | Vitest | 3.x | 1022 用例 / 60 文件，阈值见 `vitest.config.ts` |
-| **打包** | electron-builder | 25.x | Windows NSIS 安装包 |
+| **打包** | electron-builder | 26.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
 ---
@@ -433,7 +433,7 @@ npm run package:win
 | Apache ECharts | 5.5.1 | Apache-2.0 |
 | Recharts | 3.8.1 | MIT |
 | Vitest | 2 | MIT |
-| electron-builder | 25 | MIT |
+| electron-builder | 26 | MIT |
 | Vercel AI SDK | - | Apache-2.0 |
 
 > 完整依赖许可证清单可通过 `npx license-checker --summary` 生成。
