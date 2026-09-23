@@ -141,10 +141,11 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ## 8. 项目状态（2026-09-21 更新）
 
-- **当前版本**：v1.3.1（维护迭代期，比赛已于 2026-07 结束；1.3.0 与 1.3.1 同日发布）
-- **git 锚点**：tag 序列 `v1.0.0` → `v1.1.0` → `v1.2.0` → `v1.3.0` → `v1.3.1` → `v1.3.2` → `v1.3.3`（发版即打 tag 并推，Release 三件同传：exe / `.blockmap` / `latest.yml`）
+- **当前版本**：v1.3.4（2026-09-23 发布；维护迭代期，比赛已于 2026-07 结束）
+- **git 锚点**：tag 序列 `v1.0.0` → `v1.1.0` → `v1.2.0` → `v1.3.0` → `v1.3.1` → `v1.3.2` → `v1.3.3` → `v1.3.4`（发版即打 tag 并推，Release 三件同传：exe / `.blockmap` / `latest.yml`）
 - **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
+- **门禁基线（2026-09-23 实测 · v1.3.4 已发布）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **1019 用例 · 60 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / `npm run package:win` 出包并逐字节对账 ✅：`zhixing-reader-Setup-1.3.4.exe` 119,246,768 字节、随包 `app.asar` 内 `package.json` 版本 1.3.4、`latest.yml` sha512 自洽；tag `v1.3.4` 已推、Release 标为 Latest、三件同传、`latest.yml` 回下载与本机相同。**未验**：远端 exe 未整份回下载重算 sha512（本机 `github.com` 下载主机此刻被 reset），装机版应用内「检查更新→下载→重启安装」在新退出路径上仍未真跑过一遍
 - **门禁基线（2026-09-22 再续实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **1019 用例 · 60 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / 渲染层 `as unknown as` 硬转 63 → 32 处，行类型只在 `utils/db-mapper.ts` 一处定义；「笔记」页签此前按不存在的 `type` 列筛，恒为空，现按 `note` 是否非空推导
 - **门禁基线（2026-09-22 实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **1004 用例 · 59 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / **本轮未出包**：「重启安装」退出路径加固要随下一版才到装机版，线上 1.3.3 仍是旧路径
 - **门禁基线（2026-09-21 实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **993 用例 · 57 文件**全通过 ✅ / electron-vite 三进程 build 成功 ✅ / `npm run verify` 退出码 0 ✅ / `npm run package:win` 出包并逐字节对账 ✅
@@ -184,5 +185,5 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-*最后更新：2026-09-22 | 渲染层行类型统一（一处定义，硬转 63→32）· 1019 用例 / 60 文件*
+*最后更新：2026-09-23 | v1.3.4 出包并发布（重启安装退出路径 + 复习统计口径 + 笔记页签 + 开发版数据目录）· 1019 用例 / 60 文件*
 *与 AGENTS.md 不一致时，两者均以上述实测代码配置为准（`package.json` / `eslint.config.js` / `tsconfig.json` / `vitest.config.ts`）*
