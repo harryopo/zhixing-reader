@@ -4,9 +4,9 @@
 
 > **AI 驱动的阅读成长智能体** · Electron 桌面应用 · Anki 同源 FSRS-6.0 · 微信读书深度同步
 >
-> **v1.3.3** | 2026-09-21 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
+> **v1.3.4** | 2026-09-23 | [📦 下载安装包](https://github.com/harryopo/zhixing-reader/releases) | [🌐 项目主页](https://harryopo.github.io/zhixing-reader)
 
-[![Version](https://img.shields.io/badge/version-1.3.3-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
+[![Version](https://img.shields.io/badge/version-1.3.4-8b5cf6)](https://github.com/harryopo/zhixing-reader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-35-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
@@ -33,7 +33,7 @@
 | **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
-| **打包** | electron-builder → Windows NSIS 安装包（v1.3.3 实测 **113.7 MB** / 119,246,454 字节）|
+| **打包** | electron-builder → Windows NSIS 安装包（v1.3.4 实测 **113.7 MB** / 119,246,768 字节）|
 | **License** | MIT（自由使用 / 修改 / 商用）|
 
 ---
@@ -264,7 +264,7 @@ zhixing-reader/
 
 ## 十一、快速开始
 
-1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.3.3.exe`（Windows），或安装后由应用内自动更新
+1. **下载安装** — 从 [GitHub Releases](https://github.com/harryopo/zhixing-reader/releases) 下载 `zhixing-reader-Setup-1.3.4.exe`（Windows），或安装后由应用内自动更新
 2. **配置 AI** — 设置页选择 AI 服务商（火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot），填入 API Key
 3. **连接微信读书** — 设置页填入微信读书 API Key，同步书架与划线数据
 4. **开始使用** — 浏览书架、AI 对话、知识卡片复习、每日英语学习
@@ -347,6 +347,7 @@ npm run package:win
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
+| 2026-09-23 | v1.3.4 | 应用内「重启安装」不再弹「无法关闭」（退出前先同步写盘再结束进程）+ 复习待办数不再把新卡算进去 + 书籍详情「笔记」页签恢复可筛 + 开发版与安装版数据目录分开 / 测试 1019 用例 | 张子涵 |
 | 2026-09-21 | v1.3.3 | 检查更新失败时的提示改为可执行的中文说明（不再显示网络错误码），同一次失败只提示一次；「设置 → 关于」更新历史改为短句分条 / 测试 990 用例 | 张子涵 |
 | 2026-09-21 | v1.3.2 | 统计页数据口径修正：趋势图与所选时间范围对齐（本周/本月按天、本年按月）+ 复习热力图改用本地日期 + 卡片总数与近 12 周复习次数分别标注 + 移除未接入计费数据的费用列 / 测试 985 用例 | 张子涵 |
 | 2026-09-21 | v1.3.1 | 修复应用内更新提示不显示：状态可回读 + 顶栏「新版本」提示 + 每 6 小时重查；维持「只提示、不自动下载」/ 测试 974 用例 | 张子涵 |
@@ -419,4 +420,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-09-21 | 与 v1.3.3 代码一致*
+*最后更新：2026-09-23 | 与 v1.3.4 代码一致*

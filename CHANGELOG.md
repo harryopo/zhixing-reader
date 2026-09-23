@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.3] - 2026-09-21
+## [1.3.4] - 2026-09-23
+
+### Fixed
+- **「重启安装」弹「知行读书 无法关闭」**：安装包进程与主进程退出在抢时间 —— 安装器启动后立刻查找同名进程并结束它们，而原先主进程的退出是异步排队、退出前还要跑完异步收尾，慢几百毫秒就会被判成「关不掉的程序」。现在改为：先由应用自己把数据库同步写盘并关闭，再直接结束进程，退出顺序不再交给异步事件。
+- **复习卡片「今日到期」把新卡算了进去**：同一份统计有两处实现，其中一处没有排除从未学过的卡片，导致它们被计入待办数。现在两处共用同一份定义与同一套口径（`due` 只统计已学过且到期的卡片）。
+- **书籍详情页的「笔记」页签始终为空**：该页签按一个数据库里不存在的字段筛选，所以「笔记 N 条」这个数一直显示 0。现在按划线是否写了笔记来区分「划线」与「笔记」两类。
+- **开发版与已安装版共用同一份数据**：开发模式下运行的实例与安装版使用同一个数据目录（数据库、设置、日志互相覆盖），且单实例锁也相互排斥。现在开发版使用独立目录 `zhixing-reader-dev`，已安装版的数据位置不变。
+
+### Changed
+- 数据字段的前端类型收口到 `src/renderer/src/utils/db-mapper.ts` 一处定义，各界面不再各自声明一套行结构；新增双向对账测试 `tests/db-row-types.test.ts`（15 条），字段与数据库真实列名不符时门禁直接判红。
+
+测试 1004 → 1019 用例（59 → 60 文件）。
+
+
 
 ### Fixed
 - **检查更新失败时的提示**：原先把 `net::ERR_CONNECTION_RESET` 一类的网络错误码直接显示出来，且同一次失败会弹两条提示（状态事件与按钮返回值各报一次）。现在网络类失败统一收成一句可行动的中文说明，证书异常、访问频率受限、找不到安装包各给一句，其余仍保留原文便于排查；后台静默检查的失败也不会在打开页面时重复提示。
@@ -182,6 +195,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 链接
 
+[1.3.4]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.4
 [1.3.3]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.3
 [1.3.2]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.2
 [1.3.1]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.1
@@ -192,4 +206,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-*最后更新：2026-09-21*
+*最后更新：2026-09-23*
