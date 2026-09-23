@@ -9,7 +9,7 @@
 
 ## 如何上报安全问题
 
-1. 打开仓库 **Security** 页 → **Report a vulnerability**（GitHub 私有漏洞报告表单），提交前请在表单里选择 "Disclosures are handled privately"。这条通道创建的是只有你和维护者可见的私有 advisory。
+1. 直接用 **[Report a vulnerability](https://github.com/harryopo/zhixing-reader/security/advisories/new)** 表单（本仓库已开启私有漏洞报告，2026-09-23 实测 `private-vulnerability-reporting.enabled = true`），或在仓库 **Security** 页进同一个入口。这条通道创建的是只有你和维护者可见的私有 advisory，公开页面上看不到内容。
 2. 如果这个表单在你的账号下不可用，请开一个只写「**安全问题，请通过私有渠道联系我**」的 Issue（**不要在 Issue 正文里写任何细节**），我会随即开私有 advisory 把你拉进去。
 
 ### 上报时请一并给出
