@@ -355,6 +355,8 @@ describe('database-integration — sql.js 集成测试', () => {
         const card = cardsDb.create(hid)
         reviewsDb.create(card.id, 3)
         const reviewed = cardsDb.getById(card.id)
+        // 刚创建的卡片必须读得回来；读不回来下面那个 update 就是在写一份缺 id 的假卡
+        if (!reviewed) throw new Error(`cardsDb.getById(${card.id}) 返回了 null`)
         cardsDb.update({
           ...reviewed,
           state: 2,
@@ -546,30 +548,32 @@ describe('database-integration — sql.js 集成测试', () => {
 
   describe('conversationDb CRUD', () => {
     it('应创建对话并添加消息', async () => {
+      // `conversationDb.create()` 交的是数据库原始行（Record<string, unknown>），
+      // 所以取 id 要显式转成 string —— 下面几处同理，不再逐个注释
       const conversation = conversationDb.create('Test Conversation', 'book_1')
       expect(conversation.title).toBe('Test Conversation')
 
-      const messageId = conversationDb.addMessage(conversation.id, {
+      const messageId = conversationDb.addMessage(String(conversation.id), {
         role: 'user',
         content: 'Hello',
       } as any)
 
       expect(messageId).toContain('msg_')
 
-      const messages = conversationDb.getMessages(conversation.id)
+      const messages = conversationDb.getMessages(String(conversation.id))
       expect(messages).toHaveLength(1)
       expect((messages[0] as any).content).toBe('Hello')
     })
 
     it('应支持 search 和 delete', async () => {
       const conversation = conversationDb.create('Searchable')
-      conversationDb.addMessage(conversation.id, { role: 'user', content: 'Unique search text' } as any)
+      conversationDb.addMessage(String(conversation.id), { role: 'user', content: 'Unique search text' } as any)
 
       const results = conversationDb.search('Unique')
       expect(results).toHaveLength(1)
 
-      conversationDb.delete(conversation.id)
-      const deleted = conversationDb.getById(conversation.id)
+      conversationDb.delete(String(conversation.id))
+      const deleted = conversationDb.getById(String(conversation.id))
       expect(deleted).toBeUndefined()
     })
   })
@@ -987,7 +991,7 @@ describe('database-integration — sql.js 集成测试', () => {
     it('clearConversationsAndMessages 应只清空对话相关表', async () => {
       booksDb.create({ id: 'keep_book', title: 'Keep Book' } as any)
       const conversation = conversationDb.create('To Clear')
-      conversationDb.addMessage(conversation.id, { role: 'user', content: 'Hi' } as any)
+      conversationDb.addMessage(String(conversation.id), { role: 'user', content: 'Hi' } as any)
 
       clearConversationsAndMessages()
 
@@ -1000,7 +1004,7 @@ describe('database-integration — sql.js 集成测试', () => {
     it('chat_messages.role 应受 CHECK 约束', async () => {
       const conversation = conversationDb.create('Constraint Test')
       expect(() => {
-        conversationDb.addMessage(conversation.id, {
+        conversationDb.addMessage(String(conversation.id), {
           id: 'msg_bad',
           role: 'invalid_role',
           content: 'Bad',

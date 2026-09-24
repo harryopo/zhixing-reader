@@ -45,6 +45,7 @@ import {
   distillKnowledgeCards,
   testConnection,
 } from '../electron/ai-service'
+import type { AIProvider } from '../electron/ai-service'
 import { fetchWithTimeout, fetchWithRetry, HttpAbortError } from '../electron/http-client'
 import { tokenUsageDb } from '../electron/database'
 
@@ -550,7 +551,9 @@ describe('extractMethodologies — 来源划线', () => {
 describe('callAI 错误处理', () => {
   it('39. unsupported provider 抛错', async () => {
     setAIConfig({
-      provider: 'unsupported',
+      // 故意喂一个 AIProvider 之外的值：这条测的就是"不在名单里的 provider 必须抛错"，
+      // 所以显式绕开类型（类型系统在这儿是帮凶，它会替我们把非法值挡在编译期）
+      provider: 'unsupported' as unknown as AIProvider,
       apiKey: 'sk-test',
       model: 'unknown',
       baseUrl: 'https://example.com',

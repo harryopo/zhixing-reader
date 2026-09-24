@@ -13,7 +13,14 @@ import { join } from 'path'
 import { safeStorage } from 'electron'
 import { SECRET_SETTING_KEYS, isSecretSetting } from '../src/shared/settings-secrets'
 
-const DATA_DIR = join(process.cwd(), '.test-tmp', 'user-data')
+/**
+ * 这个文件会真写 settings.json 与 secure/ —— 用独占的 profile 目录，
+ * 否则与同样测密钥的 secret-ipc-boundary.test.ts 并行跑时会互删现场。
+ */
+const PROFILE = 'user-data-secret-storage'
+process.env.ZHIXING_TEST_PROFILE = PROFILE
+
+const DATA_DIR = join(process.cwd(), '.test-tmp', PROFILE)
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json')
 const SECURE_DIR = join(DATA_DIR, 'secure')
 

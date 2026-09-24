@@ -18,7 +18,10 @@ const { mockElectron } = vi.hoisted(() => ({
   mockElectron: {
     app: {
       getPath: vi.fn((name: string) => {
-        if (name === 'userData') return `${process.cwd()}/.test-tmp/user-data`
+        // 默认共用 .test-tmp/user-data；**会往 settings.json / secure/ 里真写东西的测试文件
+        // 必须各设一个 ZHIXING_TEST_PROFILE** —— vitest 按文件并行，共用目录会互删对方的现场
+        const profile = process.env.ZHIXING_TEST_PROFILE || 'user-data'
+        if (name === 'userData') return `${process.cwd()}/.test-tmp/${profile}`
         if (name === 'logs') return `${process.cwd()}/.test-tmp/logs`
         if (name === 'temp') return `${process.cwd()}/.test-tmp/temp`
         return `${process.cwd()}/.test-tmp/temp`

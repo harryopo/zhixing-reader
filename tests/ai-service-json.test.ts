@@ -69,7 +69,7 @@ describe('ai-service — extractAndParseJSON', () => {
 
   describe('对象提取', () => {
     it('纯 JSON 对象直接解析', () => {
-      const result = extractAndParseJSON<{ summary: string }>(
+      const result = extractAndParseJSON<{ summary: string; keyPoints: string[] }>(
         '{"summary":"好书","keyPoints":["a","b"]}',
         false,
       )

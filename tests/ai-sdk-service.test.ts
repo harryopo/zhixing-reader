@@ -190,16 +190,17 @@ describe('AI SDK Service — sdkStreamChat', () => {
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
     })
 
-    let capturedError: Error | null = null
+    // 对象持有而非 let：回调里的赋值 TS 看不见，let 的 narrowing 会停在 null
+    const captured: { error: Error | null } = { error: null }
     await sdkStreamChat(
       [{ role: 'user', content: 'Hi' }],
       () => {},
       () => {},
-      (err) => { capturedError = err },
+      (err) => { captured.error = err },
     )
 
-    expect(capturedError).toBeInstanceOf(Error)
-    expect(capturedError?.message).toBe('Network error')
+    expect(captured.error).toBeInstanceOf(Error)
+    expect(captured.error?.message).toBe('Network error')
   })
 
   it('streamText 抛非 Error 对象时应包装为 Error', async () => {
@@ -210,16 +211,16 @@ describe('AI SDK Service — sdkStreamChat', () => {
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
     })
 
-    let capturedError: Error | null = null
+    const captured: { error: Error | null } = { error: null }
     await sdkStreamChat(
       [{ role: 'user', content: 'Hi' }],
       () => {},
       () => {},
-      (err) => { capturedError = err },
+      (err) => { captured.error = err },
     )
 
-    expect(capturedError).toBeInstanceOf(Error)
-    expect(capturedError?.message).toBe('string error')
+    expect(captured.error).toBeInstanceOf(Error)
+    expect(captured.error?.message).toBe('string error')
   })
 
   it('cancelActiveStream 应中止当前流并返回 true', async () => {

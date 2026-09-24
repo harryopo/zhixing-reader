@@ -23,8 +23,11 @@ const {
   mockSelectStrategy: vi.fn(),
   mockGetSystemPrompt: vi.fn(),
   mockExtractMemories: vi.fn(),
-  mockMethodologiesDb: { getByBookId: vi.fn(() => []), update: vi.fn() },
-  mockConversationDb: { getHistorySummary: vi.fn(() => null), setHistorySummary: vi.fn() },
+  // 签名对齐生产：`methodologiesDb.getByBookId(): Record<string, unknown>[]`、
+  // `conversationDb.getHistorySummary(): string | null`。
+  // 不写返回类型会被推成 `never[]` / `null`，后面 mockReturnValue 喂真数据全判红。
+  mockMethodologiesDb: { getByBookId: vi.fn((): Record<string, unknown>[] => []), update: vi.fn() },
+  mockConversationDb: { getHistorySummary: vi.fn((): string | null => null), setHistorySummary: vi.fn() },
   mockSummarize: vi.fn(),
 }))
 
@@ -201,17 +204,19 @@ describe('orchestrator — processMessageStream 编排逻辑', () => {
         onError(new Error('网络错误'))
       },
     )
-    let capturedError: Error | null = null
+    // 用对象持有而不是 `let capturedError: Error | null = null`：回调里的赋值 TS 看不见，
+    // let 变量的 narrowing 会停在 null，`capturedError?.message` 直接被判成 never
+    const captured: { error: Error | null } = { error: null }
     await processMessageStream(
       { sessionId: 's1', conversationHistory: [] },
       '问题',
       () => {},
       () => {},
       (e) => {
-        capturedError = e
+        captured.error = e
       },
     )
-    expect(capturedError?.message).toBe('网络错误')
+    expect(captured.error?.message).toBe('网络错误')
   })
 
   it('完成后调用记忆提取（extractMemoriesFromConversation）', async () => {

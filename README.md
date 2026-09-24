@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-1050%20%E7%94%A8%E4%BE%8B%20/%2061%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-1054%20%E7%94%A8%E4%BE%8B%20/%2061%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![CI](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml?query=branch%3Amaster)
 [![Lines](https://img.shields.io/badge/code-53%2C800%2B%20TS-blueviolet)]()
 
@@ -30,7 +30,7 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 53,823 行 TypeScript strict（`electron/` + `src/` 下 `.ts`/`.tsx` 实测，v1.3.4）|
-| **测试** | 1050 用例 / 62 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（25 个已配测试的文件），不是全库覆盖率** |
+| **测试** | 1054 用例 / 63 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（25 个已配测试的文件），不是全库覆盖率** |
 | **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -139,7 +139,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 3.x | 1050 用例 / 62 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 3.x | 1054 用例 / 63 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 26.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -213,7 +213,7 @@ zhixing-reader/
 ├── tokens/brand.json                        # 全部色值的唯一真值（产物由 npm run build:tokens 生成）
 ├── brand/                                   # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal）
 ├── scripts/                                 # 构建期脚本（build-tokens / build-icons）
-├── tests/                                   # Vitest 单元测试（1050 用例 / 62 文件）
+├── tests/                                   # Vitest 单元测试（1054 用例 / 63 文件）
 ├── .github/
 │   ├── workflows/ci.yml                     # lint + typecheck + test + build（windows-latest）
 │   └── ISSUE_TEMPLATE/                      # Bug / 功能建议 / 环境与构建 三类模板
@@ -299,7 +299,7 @@ zhixing-reader/
 | 应用内更新的「重启安装」尚未跑通一轮完整真人验证 | 2026-09-21 实跑时卡在安装器的「无法关闭」提示；退出顺序已在 09-22 改为「先同步落盘 → 再 `app.exit(0)`」，随 v1.3.4 发布，发布后还没有新的实跑记录（[#1](https://github.com/harryopo/zhixing-reader/issues/1)）| 若仍卡住：手动运行 `%LOCALAPPDATA%\zhixing-reader-updater\` 里已下载的安装包，数据在 `%APPDATA%`，不受影响 |
 | 部分页面没有访问口令 | 「设置 → 智能体编排」是界面里的真入口，能改提示词模板；`/admin` 管理后台没有界面入口，但路由仍在应用包里（能打开 devtools 的人可以直接跳） | 桌面单机的前提假设；共用电脑时请留意（[#2](https://github.com/harryopo/zhixing-reader/issues/2) 在定方向） |
 | 划线只保留原文、想法与章节名 | 微信读书同步落库的字段是 `content` / `note` / `chapter_title`，没有颜色与章节 id；「是划线还是笔记」由 `note` 是否为空推导 | 界面不显示高亮颜色；「笔记」页签要有想法类笔记才有内容 |
-| AI 能力需要自备 API Key | Key 存本机，系统加密可用时经 safeStorage 加密；不可用时界面会如实提示以明文保存 | 不填 Key 时同步、复习、词典、笔记全部照常可用 |
+| AI 能力需要自备 API Key | Key 存本机：经系统加密（Windows DPAPI）写入 `secure/*.enc`，设置文件里不留明文；界面上也不回填原值，输入框留空表示"不修改" | 不填 Key 时同步、复习、词典、笔记全部照常可用；加密不可用时如实提示并退回明文保存（绝不会因此丢掉你已配置的 Key），想删除用设置页的「清除已保存的 Key」 |
 | 词典为本地 ECDICT 单文件 | 15.0MB / 59,118 词条（实测 `resources/dictionary.json`），含 CEFR 分级，不含例句库 | 生词查询完全离线 |
 
 ## 十三、反馈问题
@@ -320,7 +320,7 @@ npm run dev
 
 # 质量门禁（提交前必跑）
 npm run lint            # ESLint
-npm run typecheck       # tsc --noEmit
+npm run typecheck       # tsc --noEmit（覆盖 electron / src / scripts / tests）
 npm run test            # Vitest（npm run test = vitest run，不含覆盖率统计）
 npm run build           # 三进程编译
 npm run verify          # 一键跑 lint + typecheck + test + build（提交前必跑）
@@ -459,4 +459,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-09-23 | 与 master 分支代码一致（最新发布 v1.3.4，1050 用例 / 62 文件）*
+*最后更新：2026-09-23 | 与 master 分支代码一致（最新发布 v1.3.4，1054 用例 / 63 文件）*

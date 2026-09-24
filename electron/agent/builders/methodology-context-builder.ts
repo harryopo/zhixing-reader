@@ -52,7 +52,7 @@ export class MethodologyContextBuilder implements ContextBuilder {
   name = 'methodology'
   priority = 80
 
-  shouldBuild(): boolean {
+  shouldBuild(_context: BuildContext): boolean {
     return true
   }
 

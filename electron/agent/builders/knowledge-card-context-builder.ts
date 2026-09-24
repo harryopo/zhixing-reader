@@ -56,7 +56,7 @@ export class KnowledgeCardContextBuilder implements ContextBuilder {
   name = 'knowledgeCard'
   priority = 70
 
-  shouldBuild(): boolean {
+  shouldBuild(_context: BuildContext): boolean {
     return true
   }
 

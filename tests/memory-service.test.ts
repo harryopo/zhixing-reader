@@ -97,7 +97,8 @@ describe('memory-service — 记录与检索', () => {
       const longMsg = '我喜欢' + 'X'.repeat(200)
       extractMemoriesFromConversation(longMsg, 'ok')
       const all = memoriesDb.getAll()
-      expect(all[0].content.length).toBeLessThanOrEqual(100)
+      // getAll() 交的是数据库原始行（Record<string, unknown>），比较长度前先转字符串
+      expect(String(all[0].content).length).toBeLessThanOrEqual(100)
     })
   })
 

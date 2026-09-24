@@ -7,11 +7,12 @@
 // 这条链路此前完全没有测试 —— 原实现直接把返回值丢掉了。
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { useReviewStore } from '../src/renderer/src/stores/reviewStore'
+import { useReviewStore, type RatingPreview } from '../src/renderer/src/stores/reviewStore'
+import type { DueReviewCard } from '../src/types/renderer'
 import { getCardMastery } from '../src/shared/fsrs-metrics'
 
-/** 构造一张到期卡片（字段与 DueReviewCard 对齐） */
-function dueCard(over: Record<string, unknown> = {}) {
+/** 构造一张到期卡片（字段就是 DueReviewCard，写错列名会被类型拦下） */
+function dueCard(over: Partial<DueReviewCard> = {}): DueReviewCard {
   return {
     id: 'card_1',
     highlightId: 'hl_1',
@@ -36,7 +37,7 @@ function dueCard(over: Record<string, unknown> = {}) {
 
 /** 安装一个可写的 electronAPI stub（setup.ts 的 Proxy 只能读，无法注入返回值） */
 function installApi(overrides: {
-  dueCards?: unknown[]
+  dueCards?: DueReviewCard[]
   reviewResult?: unknown
   reviewError?: Error
 }) {
@@ -57,13 +58,13 @@ function installApi(overrides: {
 }
 
 const INITIAL = {
-  dueCards: [] as unknown[],
+  dueCards: [] as DueReviewCard[],
   currentIndex: 0,
   showAnswer: false,
   completed: 0,
   loading: false,
   error: null as string | null,
-  previews: [] as unknown[],
+  previews: [] as RatingPreview[],
   lastMasteryDelta: null,
   roundStats: {
     reviewed: 0,

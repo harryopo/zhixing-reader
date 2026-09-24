@@ -31,7 +31,14 @@ function installApi(overrides: { ragSources?: RagSourceRef[]; intent?: string; e
     complete: null,
     retrieval: null,
   }
-  const addMessage = vi.fn(async () => 'msg_assistant')
+  // 参数签名与 src/types/renderer.d.ts 的 conversation.addMessage 一致 ——
+  // 不写签名的话 mock.calls 的元素类型是空元组，取 c[1] 全靠 as，测试自己的类型也盯不住了
+  const addMessage = vi.fn(
+    async (
+      _conversationId: string,
+      _message: { role: string; content: string; intent?: string; sources?: RagSourceRef[] },
+    ) => 'msg_assistant',
+  )
   const streamChatWithContext = vi.fn(async () => {
     if (overrides.error) throw overrides.error
     // 顺序与主进程一致：先检索完成（带意图与引用来源），再流式，最后 complete
@@ -88,7 +95,7 @@ describe('chatStore — 助手消息的意图与引用来源', () => {
     await useChatStore.getState().sendMessage('什么是元认知')
 
     const assistantCall = api.addMessage.mock.calls.find(
-      (c) => (c[1] as { role: string }).role === 'assistant',
+      (c) => c[1].role === 'assistant',
     )
     expect(assistantCall).toBeTruthy()
     expect(assistantCall![1]).toMatchObject({
@@ -111,25 +118,25 @@ describe('chatStore — 助手消息的意图与引用来源', () => {
     const api = installApi({ ragSources: [] })
     await useChatStore.getState().sendMessage('随便聊聊')
     const assistantCall = api.addMessage.mock.calls.find(
-      (c) => (c[1] as { role: string }).role === 'assistant',
+      (c) => c[1].role === 'assistant',
     )
-    expect((assistantCall![1] as { sources?: unknown }).sources).toBeUndefined()
+    expect(assistantCall![1].sources).toBeUndefined()
   })
 
   it('意图缺失时不写 intent', async () => {
     const api = installApi({ intent: '' })
     await useChatStore.getState().sendMessage('随便聊聊')
     const assistantCall = api.addMessage.mock.calls.find(
-      (c) => (c[1] as { role: string }).role === 'assistant',
+      (c) => c[1].role === 'assistant',
     )
-    expect((assistantCall![1] as { intent?: unknown }).intent).toBeUndefined()
+    expect(assistantCall![1].intent).toBeUndefined()
   })
 
   it('流式失败时不保存助手消息', async () => {
     const api = installApi({ error: new Error('网络错误') })
     await useChatStore.getState().sendMessage('会失败的问题')
     const assistantCall = api.addMessage.mock.calls.find(
-      (c) => (c[1] as { role: string }).role === 'assistant',
+      (c) => c[1].role === 'assistant',
     )
     expect(assistantCall).toBeUndefined()
   })

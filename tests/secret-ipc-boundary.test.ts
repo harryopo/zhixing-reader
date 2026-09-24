@@ -24,7 +24,11 @@ import {
   withStoredApiKey,
 } from '../src/shared/settings-secrets'
 
-const DATA_DIR = join(process.cwd(), '.test-tmp', 'user-data')
+/** 独占 profile 目录：与 secret-storage.test.ts 并行跑时不互删 settings.json / secure/ */
+const PROFILE = 'user-data-secret-ipc'
+process.env.ZHIXING_TEST_PROFILE = PROFILE
+
+const DATA_DIR = join(process.cwd(), '.test-tmp', PROFILE)
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json')
 const SECURE_DIR = join(DATA_DIR, 'secure')
 /** 一个"绝对不该出现在渲染层收到的对象里"的字符串 */

@@ -5,7 +5,7 @@ import { buildMessages } from './services/prompt-messages';
 
 export type AIProvider = 'openai' | 'anthropic' | 'custom';
 
-interface AIServiceConfig {
+export interface AIServiceConfig {
   provider: AIProvider;
   apiKey: string;
   baseUrl?: string;

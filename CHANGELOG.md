@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **开发模式下设置与日志仍写入装机版的数据目录**：数据目录的区分写在 `main.ts` 本体里，而负责读这个目录的两个模块在更早的「模块加载期」就把路径固定下来了，于是它们拿到的始终是装机版目录。表现为开发版读不到已配置的密钥（提示「请先设置微信读书 API Key」），且开发版每次保存设置会覆盖装机版的设置。切换逻辑改为独立模块并排在最前，守卫由 3 条加到 5 条（含一条反证，防止排序检查变成空转）
 - **CI 自 2026-09-19 起每次推送都失败**：`npm run build:tokens --check` 对产物做逐字节比对，而 windows-latest Runner 检出时把 LF 换成 CRLF，导致「产物已过期」恒定判定。新增 `.gitattributes` 固定 `* text=auto eol=lf`，并加一条守卫断言钉住它
+- **`npm run typecheck` 不覆盖测试文件**：根 `tsconfig.json` 的 `include` 只有 `electron` / `src` / `scripts`，`tests/` 完全在类型检查之外 —— 测试里写错的列名、类型、mock 签名只有真跑 Vitest 时才可能暴露（且只暴露跑到运行时的那部分）。现在把 `tests/**/*.ts` 纳入覆盖，一并清零此前积压的 61 处类型错误；新增 `tests/typecheck-coverage.test.ts` 钉住这个覆盖面（带反证：谁把 `tests/` 从 `include` 里删掉，这条立刻判红）。顺带修正三处被类型检查照出来的声明与实现不一致：`renderTemplate()` 的实现按「缺值」处理 `null` 但签名不含它、`AIServiceConfig` 被三个导出函数的签名使用却未导出、三个上下文构建器的 `shouldBuild()` 省略了接口声明的形参
 - 删除 `tokenUsageDb.deleteOlderThan()`：无任何调用方，且是全仓库唯一把值直接拼进 SQL 字面量的地方
 
 ### Changed

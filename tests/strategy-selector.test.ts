@@ -17,9 +17,10 @@ vi.mock('../electron/services/prompt-storage', () => ({
 import {
   selectStrategy,
   strategyToPromptHint,
-  type UserIntent,
 } from '../electron/agent/strategy-selector'
 import type { StrategyPlan } from '../electron/agent/strategy-selector'
+// UserIntent 定义在 intent-classifier（strategy-selector 只是用它，没 re-export）
+import type { UserIntent } from '../electron/agent/intent-classifier'
 
 const ALL_INTENTS: UserIntent[] = [
   'knowledge_query',

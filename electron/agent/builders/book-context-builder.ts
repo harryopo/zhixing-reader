@@ -31,7 +31,7 @@ export class BookContextBuilder implements ContextBuilder {
   name = 'book'
   priority = 90
 
-  shouldBuild(): boolean {
+  shouldBuild(_context: BuildContext): boolean {
     // 永远参与：没关联书籍时跨全部书检索。
     // 历史：先是按意图 gate（导致"选了书却说没提供任何笔记"），后改成必须有书，
     // 而默认对话根本没有书 —— 于是 934 条划线在默认路径上永远不参与回答。

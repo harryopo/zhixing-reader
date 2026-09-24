@@ -152,7 +152,7 @@ npm run lint -- --fix   # 自动修复
 
 ### 5.2 TypeScript Strict 模式
 
-- `tsconfig.json` 启用 `strict: true`
+- `tsconfig.json` 启用 `strict: true`，`include` 覆盖 `electron` / `src` / `scripts` / **`tests`**（测试文件也在类型检查内，别以为 `.test.ts` 里的错没人管）
 - **0 `any` 原则**（除遗留代码外，禁止新增 `any`）
 - 公共 API 必须有完整类型定义
 
@@ -224,7 +224,7 @@ git push origin feat/fsrs-preview
 npm run verify
 # 等价于依次执行：
 #   npm run lint        # ESLint
-#   npm run typecheck   # tsc --noEmit
+#   npm run typecheck   # tsc --noEmit（含 tests/）
 #   npm run test        # Vitest（不含覆盖率）
 #   npm run build       # 三进程编译
 ```

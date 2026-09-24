@@ -72,6 +72,8 @@ describe('normalizeDailyStatRow — 必须读得到数据库的真实列名', ()
       reviewsCount: 1,
       booksRead: 1,
     })
+    // 合法行不该被判成 null —— 先把它钉死，下面的字段比较才有对象可比
+    if (n === null) throw new Error('合法行被 normalizeDailyStatRow 判成了 null')
     expect(n.readingTime).toBe(18)
     expect(n.highlightsAdded).toBe(2)
     expect(n.cardsReviewed).toBe(1)
@@ -79,8 +81,13 @@ describe('normalizeDailyStatRow — 必须读得到数据库的真实列名', ()
   })
 
   it('缺列/脏值一律归 0，日期非法就返回 null（不产出 NaN 传染界面）', () => {
-    expect(normalizeDailyStatRow({ date: '2026-09-12', reading_time: null }).readingTime).toBe(0)
-    expect(normalizeDailyStatRow(dbRow({ reading_time: 'abc' })).readingTime).toBe(0)
+    // 这两行的前提是"日期合法 ⇒ 不返回 null"，所以先把 null 断掉再比字段
+    const nullTime = normalizeDailyStatRow({ date: '2026-09-12', reading_time: null })
+    const dirtyTime = normalizeDailyStatRow(dbRow({ reading_time: 'abc' }))
+    expect(nullTime).not.toBeNull()
+    expect(dirtyTime).not.toBeNull()
+    expect(nullTime!.readingTime).toBe(0)
+    expect(dirtyTime!.readingTime).toBe(0)
     expect(normalizeDailyStatRow({ reading_time: 60 })).toBeNull()
     expect(normalizeDailyStatRow({ date: 'not-a-date', reading_time: 60 })).toBeNull()
   })

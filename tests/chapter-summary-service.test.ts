@@ -12,7 +12,11 @@ import { booksDb, chapterSummariesDb, getDatabase } from '../electron/database'
 
 const { mockChapterSummary, mockBookSummary } = vi.hoisted(() => ({
   mockChapterSummary: vi.fn(async (_bookTitle: string, chapterTitle: string) => `「${chapterTitle}」的章节摘要`),
-  mockBookSummary: vi.fn(async () => ({ summary: '全书摘要', keyPoints: ['要点一', '要点二'] })),
+  // 参数签名跟 `ai-sdk-service.generateBookSummary(bookTitle, chapterSummaryTexts)` 一致，
+  // 否则 mock.calls 的元素类型是空元组，第 70 行那个"看第二个实参"的断言根本没被类型盯住
+  mockBookSummary: vi.fn(
+    async (_bookTitle: string, _chapterSummaryTexts: string) => ({ summary: '全书摘要', keyPoints: ['要点一', '要点二'] }),
+  ),
 }))
 
 vi.mock('../electron/ai-sdk-service', () => ({

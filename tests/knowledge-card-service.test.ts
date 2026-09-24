@@ -8,7 +8,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // ===== vi.hoisted mock =====
 const { mockGetByBookId, mockKnowledgeCreate, mockFetchAllContent, mockDistill } = vi.hoisted(() => ({
-  mockGetByBookId: vi.fn(() => []),
+  // 显式标注返回类型：`vi.fn(() => [])` 会被推成 `never[]`，之后 mockReturnValue 喂真行数据全判红
+  // （生产签名是 `highlightsDb.getByBookId(): Record<string, unknown>[]`）
+  mockGetByBookId: vi.fn((): Record<string, unknown>[] => []),
   mockKnowledgeCreate: vi.fn(),
   mockFetchAllContent: vi.fn(),
   mockDistill: vi.fn(),
