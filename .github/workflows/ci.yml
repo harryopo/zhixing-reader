@@ -41,12 +41,24 @@ jobs:
         run: npm run typecheck
         timeout-minutes: 5
 
-      # 注：npm run test 不带 --coverage，故不产生 coverage/ 目录。
-      #     覆盖率门禁需先执行 `pnpm install`（本地 @vitest/coverage-v8 版本落后于 vitest），
-      #     确认 npm run test:cov 通过后再改为 CI 阻塞项（2026-09-11 核验）。
-      - name: Vitest (R6 硬约束)
-        run: npm run test
-        timeout-minutes: 5
+      # 覆盖率门禁（vitest.config.ts 的 thresholds：lines 83 / branches 80 / functions 75 /
+      # statements 83）只有跑 `--coverage` 才生效 —— 2026-09-24 之前 CI 跑的是不带覆盖率的
+      # `npm run test`，那套阈值在 CI 上是**装饰**，本地不手动跑 test:cov 没人会因它红。
+      # 老注释说"要先 pnpm install 才能开"也已作废：@vitest/coverage-v8 与 vitest 同为 3.2.7。
+      - name: Vitest + coverage thresholds (R6 硬约束)
+        run: npm run test:cov
+        timeout-minutes: 8
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/index.html
+            coverage/coverage-summary.json
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Build (主 + 预加载 + 渲染)
         run: npm run build

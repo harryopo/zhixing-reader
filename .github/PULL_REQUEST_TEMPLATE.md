@@ -19,7 +19,7 @@ Closes #<issue 编号>
 
 **请照实填，包括没验的部分。** 这个项目的一条硬规矩是：没有实测过的东西不写成已经好了。
 
-- [ ] `npm run verify` 全绿（lint / typecheck / test / build）
+- [ ] `npm run verify` 全绿（lint / typecheck / test:cov / build）
 - 门禁实跑结果（把用例数、eslint error/warning 数、typecheck 结果贴出来）：
 
 ```

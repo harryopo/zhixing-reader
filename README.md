@@ -30,7 +30,7 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 53,823 行 TypeScript strict（`electron/` + `src/` 下 `.ts`/`.tsx` 实测，v1.3.4）|
-| **测试** | 1054 用例 / 63 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（25 个已配测试的文件），不是全库覆盖率** |
+| **测试** | 1054 用例 / 63 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（实测 45 个文件），不是全库覆盖率**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
 | **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -215,7 +215,7 @@ zhixing-reader/
 ├── scripts/                                 # 构建期脚本（build-tokens / build-icons）
 ├── tests/                                   # Vitest 单元测试（1054 用例 / 63 文件）
 ├── .github/
-│   ├── workflows/ci.yml                     # lint + typecheck + test + build（windows-latest）
+│   ├── workflows/ci.yml                     # lint + typecheck + test:cov + build（windows-latest）
 │   └── ISSUE_TEMPLATE/                      # Bug / 功能建议 / 环境与构建 三类模板
 ├── resources/
 │   ├── dictionary.json                      # ECDICT 15.0MB / 59,118 词条
@@ -323,9 +323,10 @@ npm run lint            # ESLint
 npm run typecheck       # tsc --noEmit（覆盖 electron / src / scripts / tests）
 npm run test            # Vitest（npm run test = vitest run，不含覆盖率统计）
 npm run build           # 三进程编译
-npm run verify          # 一键跑 lint + typecheck + test + build（提交前必跑）
+npm run verify          # 一键跑 lint + typecheck + test:cov + build（提交前必跑）
 
-# 覆盖率是另一条命令：只对 vitest.config.ts 的 include 清单（已配测试的 25 个文件）统计
+# 覆盖率是另一条命令：只对 vitest.config.ts 的 include 清单（实测 45 个文件）统计
+# CI 的测试步骤跑的就是它 —— 阈值不达标流水线直接红
 npm run test:cov
 
 # 打包 Windows NSIS 安装包
@@ -408,7 +409,7 @@ npm run package:win
 
 1. 📖 阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发环境搭建、提交规范、PR 流程
 2. 🤝 查看 [GitHub Issues](https://github.com/harryopo/zhixing-reader/issues) 中带 `good first issue` 标签的入门 Issue
-3. ✅ 提交 PR 前请确保 `npm run verify` 全绿（lint / typecheck / test / build）
+3. ✅ 提交 PR 前请确保 `npm run verify` 全绿（lint / typecheck / **test:cov（含覆盖率阈值）** / build）
 4. 📝 Commit message 遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/v1.0.0/) 规范
 
 **行为准则**：参与本项目即代表你同意遵守 [Code of Conduct](CODE_OF_CONDUCT.md)。请在所有交流中保持友善与尊重。

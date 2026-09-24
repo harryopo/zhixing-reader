@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "verify": "npm run lint && npm run typecheck && npm run test:cov && npm run build",
     "prepare": "husky"
   },
   "dependencies": {

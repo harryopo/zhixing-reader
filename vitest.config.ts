@@ -63,8 +63,10 @@ export default defineConfig({
         'electron/agent/strategy-selector.ts',
         'electron/ai-service.ts',
         'electron/ai-sdk-service.ts',
-        'electron/database.ts',
-        'electron/services/http-client.ts',
+        // `electron/database.ts` 已拆成 `electron/database/`（14 个领域文件 + index），
+        // 逐条列文件名早就漂成了静默空匹配 —— 用 glob，index 由下方 exclude 挡掉
+        'electron/database/*.ts',
+        'electron/http-client.ts', // 原 `electron/services/http-client.ts`，2026-09 已移出 services/
         'electron/services/prompt-registry.ts',
         'electron/services/template-engine.ts',
         // 共享纯逻辑（main + renderer 双端复用）
@@ -72,6 +74,20 @@ export default defineConfig({
         'src/shared/study-limits.ts',
         'src/shared/fsrs-voice.ts',
         'src/shared/weread-content.ts',
+        // 以下这批早就有专属测试文件，却没进清单 —— 覆盖率只量了 18 个文件，
+        // 而实际被测试 import 的源文件有 62 个。纯函数纳入后门槛面积更真实。
+        // 只有常量/类型声明的（types.ts / ipc-channels.ts / external-links.ts）不列：
+        // 它们没有分支可盖，列进去只会把一个 0% 塞进分母。
+        'src/shared/chapter-summaries.ts',
+        'src/shared/csv.ts',
+        'src/shared/daily-tasks.ts',
+        'src/shared/model-routing.ts',
+        'src/shared/profile-stats.ts',
+        'src/shared/reading-trend.ts',
+        'src/shared/retrieval.ts',
+        'src/shared/review-export.ts',
+        'src/shared/settings-secrets.ts',
+        'src/shared/update-notice.ts',
         'electron/services/chapter-title-backfill.ts',
         'electron/services/reading-time-sync.ts',
         // renderer（colocated __tests__ 已有测试）

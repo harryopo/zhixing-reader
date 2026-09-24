@@ -225,7 +225,7 @@ npm run verify
 # 等价于依次执行：
 #   npm run lint        # ESLint
 #   npm run typecheck   # tsc --noEmit（含 tests/）
-#   npm run test        # Vitest（不含覆盖率）
+#   npm run test:cov    # Vitest + 覆盖率阈值（CI 跑的就是这条）
 #   npm run build       # 三进程编译
 ```
 
