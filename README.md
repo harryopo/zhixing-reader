@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-1071%20%E7%94%A8%E4%BE%8B%20/%2061%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-1133%20%E7%94%A8%E4%BE%8B%20/%2073%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![CI](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml?query=branch%3Amaster)
 [![Lines](https://img.shields.io/badge/code-53%2C800%2B%20TS-blueviolet)]()
 
@@ -29,8 +29,8 @@
 | 维度 | 详情 |
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
-| **代码规模** | 53,823 行 TypeScript strict（`electron/` + `src/` 下 `.ts`/`.tsx` 实测，v1.3.4）|
-| **测试** | 1071 用例 / 64 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（实测 45 个文件），不是全库覆盖率**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
+| **代码规模** | 55,516 行 TypeScript strict（`electron/` + `src/` 下跟踪的 `.ts`/`.tsx`，2026-09-24 实测）|
+| **测试** | 1133 用例 / 73 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（实测 48 个文件），不是全库覆盖率**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
 | **存储** | sql.js (SQLite WASM) · 16 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -139,7 +139,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 3.x | 1071 用例 / 64 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 3.x | 1133 用例 / 73 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 26.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -147,7 +147,7 @@
 
 ## 六、系统架构
 
-**五层架构**：Renderer（React SPA）→ Preload（contextBridge 安全桥，524 行）→ IPC（`electron/ipc/` 11 个领域 handler + `index.ts` 统一注册 + `types.ts` 契约，共 **163 条通道**）→ Service/Agent（RAG / FSRS / 智能体编排）→ Data（sql.js 16 张表 + safeStorage）。
+**五层架构**：Renderer（React SPA）→ Preload（contextBridge 安全桥，527 行）→ IPC（`electron/ipc/` 11 个领域 handler + `index.ts` 统一注册 + `types.ts` 契约，共 **161 条通道**）→ Service/Agent（RAG / FSRS / 智能体编排）→ Data（sql.js 16 张表 + safeStorage）。
 
 **跨进程类型只有一份**：所有 IPC 通道名收在 `src/shared/ipc-channels.ts`（写死字面量会被 `tests/ipc-channels.test.ts` 判红）；数据库行的 snake_case → 前端 camelCase 只过一次 `src/renderer/src/utils/db-mapper.ts`，页面直接 `as unknown as` 硬转行类型会被 `tests/db-row-types.test.ts` 判红。
 
@@ -213,7 +213,7 @@ zhixing-reader/
 ├── tokens/brand.json                        # 全部色值的唯一真值（产物由 npm run build:tokens 生成）
 ├── brand/                                   # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal）
 ├── scripts/                                 # 构建期脚本（build-tokens / build-icons）
-├── tests/                                   # Vitest 单元测试（1071 用例 / 64 文件）
+├── tests/                                   # Vitest 单元测试（1133 用例 / 73 文件）
 ├── .github/
 │   ├── workflows/ci.yml                     # lint + typecheck + test:cov + build（windows-latest）
 │   └── ISSUE_TEMPLATE/                      # Bug / 功能建议 / 环境与构建 三类模板
@@ -325,7 +325,7 @@ npm run test            # Vitest（npm run test = vitest run，不含覆盖率�
 npm run build           # 三进程编译
 npm run verify          # 一键跑 lint + typecheck + test:cov + build（提交前必跑）
 
-# 覆盖率是另一条命令：只对 vitest.config.ts 的 include 清单（实测 45 个文件）统计
+# 覆盖率是另一条命令：只对 vitest.config.ts 的 include 清单（实测 48 个文件）统计
 # CI 的测试步骤跑的就是它 —— 阈值不达标流水线直接红
 npm run test:cov
 
@@ -460,4 +460,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-09-23 | 与 master 分支代码一致（最新发布 v1.3.4，1071 用例 / 64 文件）*
+*最后更新：2026-09-24 | 与 master 分支代码一致（最新发布 v1.3.4，1133 用例 / 73 文件）*
