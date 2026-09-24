@@ -24,6 +24,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
+import Modal from '@/components/ui/Modal'
 import { toast } from '../stores/toastStore'
 import { importWereadContentForBook, describeImportResult } from '../utils/import-weread-content'
 import {
@@ -98,6 +99,78 @@ export default function BookDetail() {
       .getElementById(highlightAnchorDomId(anchorHighlightId))
       ?.scrollIntoView({ block: 'center' })
   }, [anchorHighlightId, activeTab, highlights])
+
+  /*
+    单条划线的改与删。以前一本书同步进来就只能整库重置 —— 划错一条、
+    或者想把某条从复习里拿掉，界面上没有任何办法。
+  */
+  const [editing, setEditing] = useState<HighlightRow | null>(null)
+  const [draftContent, setDraftContent] = useState('')
+  const [draftNote, setDraftNote] = useState('')
+
+  const openEditor = (h: HighlightRow) => {
+    setEditing(h)
+    setDraftContent(h.content || '')
+    setDraftNote(h.note || '')
+  }
+
+  const saveHighlight = async () => {
+    if (!editing) return
+    const content = draftContent.trim()
+    if (!content) {
+      toast.warning('划线正文不能为空')
+      return
+    }
+    const note = draftNote.trim()
+    try {
+      await window.electronAPI.highlight.update(editing.id, { content, note })
+      setHighlights((prev) =>
+        prev.map((h) =>
+          h.id === editing.id
+            ? { ...h, content, note, type: note ? 'note' : 'highlight' }
+            : h,
+        ),
+      )
+      setEditing(null)
+      toast.success('已保存')
+    } catch (err) {
+      toast.error(`保存失败：${(err as Error).message}`)
+    }
+  }
+
+  const removeHighlight = async (h: HighlightRow) => {    const cardCount = cards.filter((c) => c.highlightId === h.id).length
+    const detail = cardCount > 0 ? `由它生成的 ${cardCount} 张复习卡片会一起删掉` : '它还没有生成复习卡片'
+    if (!window.confirm(`删除这条划线？${detail}，且无法恢复。`)) return
+    try {
+      await window.electronAPI.highlight.delete(h.id)
+      setHighlights((prev) => prev.filter((x) => x.id !== h.id))
+      setCards((prev) => prev.filter((c) => c.highlightId !== h.id))
+      toast.success('已删除这条划线')
+    } catch (err) {
+      toast.error(`删除失败：${(err as Error).message}`)
+    }
+  }
+
+  /**
+   * 删除整本书。级联是真的（books→highlights→cards、knowledge_cards、methodologies
+   * 都带 ON DELETE CASCADE，tests/cascade-delete.test.ts 钉住），所以确认文案里
+   * 的数用本页已经算出来的真数，不写"一些"这种话。
+   */
+  const removeBook = async () => {
+    if (!book?.id) return
+    const ok = window.confirm(
+      `删除《${book.title}》？这本书的 ${highlights.length} 条划线、${cards.length} 张复习卡片，` +
+        '以及它的知识卡片与方法论会一起删掉，且无法恢复。',
+    )
+    if (!ok) return
+    try {
+      await window.electronAPI.book.delete(book.id)
+      toast.success('已从书架删除')
+      navigate('/bookshelf')
+    } catch (err) {
+      toast.error(`删除失败：${(err as Error).message}`)
+    }
+  }
 
   const loadBookData = async (bookId: string) => {
     if (!window.electronAPI?.book || !window.electronAPI?.highlight || !window.electronAPI?.card) {
@@ -290,6 +363,14 @@ export default function BookDetail() {
             onClick={goChatWithBook}
           >
             AI 对话此书
+          </Button>
+          <Button
+            variant="ghost"
+            data-dom-id="cta-delete-book"
+            onClick={() => void removeBook()}
+            style={{ color: 'var(--destructive)' }}
+          >
+            从书架删除
           </Button>
           <Button
             variant="ghost"
@@ -521,11 +602,20 @@ export default function BookDetail() {
             <HighlightList
               items={highlightList}
               anchorId={anchorHighlightId}
+              onEdit={openEditor}
+              onDelete={removeHighlight}
               emptyHint="还没有划线，点击「导入笔记」同步微信读书"
             />
           )}
           {activeTab === 'notes' && (
-            <HighlightList items={noteList} anchorId={anchorHighlightId} emptyHint="还没有笔记" noteMode />
+            <HighlightList
+              items={noteList}
+              anchorId={anchorHighlightId}
+              onEdit={openEditor}
+              onDelete={removeHighlight}
+              emptyHint="还没有笔记"
+              noteMode
+            />
           )}
           {activeTab === 'cards' && (
             <CardList
@@ -544,6 +634,61 @@ export default function BookDetail() {
           )}
         </div>
       </Card>
+
+      {/* 单条划线的编辑弹层：正文与笔记（改完 type 页签归属跟着变） */}
+      {editing && (
+        <Modal
+          onClose={() => setEditing(null)}
+          title="编辑这条划线"
+          description="改完这条会立刻反映到笔记页签与由它生成的复习卡片。"
+          ariaLabel="编辑划线"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 4)' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>划线正文</span>
+              <textarea
+                value={draftContent}
+                onChange={(e) => setDraftContent(e.target.value)}
+                rows={4}
+                style={{
+                  font: 'inherit',
+                  fontSize: '0.88rem',
+                  padding: 'calc(var(--spacing) * 2)',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--background)',
+                  color: 'var(--foreground)',
+                  resize: 'vertical',
+                }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>我的笔记（留空则这条算纯划线）</span>
+              <textarea
+                value={draftNote}
+                onChange={(e) => setDraftNote(e.target.value)}
+                rows={3}
+                style={{
+                  font: 'inherit',
+                  fontSize: '0.88rem',
+                  padding: 'calc(var(--spacing) * 2)',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--background)',
+                  color: 'var(--foreground)',
+                  resize: 'vertical',
+                }}
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 3)', justifyContent: 'flex-end' }}>
+              <Button variant="ghost" onClick={() => setEditing(null)}>取消</Button>
+              <Button variant="primary" onClick={() => void saveHighlight()} data-dom-id="cta-save-highlight">
+                保存
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </PageHero>
   )
 }
@@ -627,12 +772,18 @@ function HighlightList({
   emptyHint,
   noteMode,
   anchorId,
+  onEdit,
+  onDelete,
 }: {
   items: HighlightRow[]
   emptyHint: string
   noteMode?: boolean
   /** 深链指定的那一条：给它一圈描边，跳过来一眼能看到 */
   anchorId?: string | null
+  /** 单条编辑（改正文/笔记）。不传就不摆按钮 —— 不放点了没反应的假控件 */
+  onEdit?: (h: HighlightRow) => void
+  /** 单条删除 */
+  onDelete?: (h: HighlightRow) => void
 }) {
   if (items.length === 0) {
     return (
@@ -700,6 +851,25 @@ function HighlightList({
               </>
             )}
           </div>
+          {(onEdit || onDelete) && (
+            <div className="flex" style={{ gap: 'calc(var(--spacing) * 2)', marginTop: 'calc(var(--spacing) * 2)' }}>
+              {onEdit && (
+                <Button variant="ghost" onClick={() => onEdit(h)} data-dom-id={`cta-edit-${h.id}`}>
+                  <Icon name="edit" size={13} /> 编辑
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  variant="ghost"
+                  onClick={() => onDelete(h)}
+                  data-dom-id={`cta-delete-${h.id}`}
+                  style={{ color: 'var(--destructive)' }}
+                >
+                  <Icon name="trash" size={13} /> 删除
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       ))}
     </div>
