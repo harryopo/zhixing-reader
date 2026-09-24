@@ -1,6 +1,7 @@
 /** 卡片正文（正面/反面翻转）（从 KnowledgeCards.tsx 原样搬出，逻辑未改） */
 import type { CSSProperties } from 'react'
 import Icon from '@/components/ui/Icon'
+import { SourceHighlights } from '@/components/SourceHighlights'
 import { formatDate, formatTimeAgo } from '../../utils/db-mapper'
 import { typeConfig, type KnowledgeCardItem } from './model'
 import { aiGenBtnStyle, iconBtnStyle, spinnerStyle } from './styles'
@@ -228,6 +229,12 @@ function KnowledgeCardArticle({
               {card.content}
             </p>
           </div>
+
+          {/* 出处：这张卡片凭哪条划线（source_highlight_id 早就写在库里，以前没露过面） */}
+          <SourceHighlights
+            bookId={card.bookId}
+            highlightIds={card.sourceHighlightId ? [card.sourceHighlightId] : []}
+          />
 
           {/* 解读（AI 生成） */}
           {card.interpretation ? (

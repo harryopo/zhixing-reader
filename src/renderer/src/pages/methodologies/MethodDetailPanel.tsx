@@ -1,6 +1,7 @@
 /** 方法论详情面板（从 Methodologies.tsx 原样搬出，逻辑未改） */
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
+import { SourceHighlights } from '@/components/SourceHighlights'
 import { safeNum, safeStr, formatDateShort } from '../../utils/db-mapper'
 import type { MethodologyItem } from './model'
 import { IconBookOpen } from './icons'
@@ -290,10 +291,30 @@ function MethodDetailPanel({
         </div>
       </div>
 
-      {/* 来源划线 */}
+      {/* 说明（方法论自己的描述）—— 以前它被摆在「来源划线」标题下，名不副实 */}
+      {methodology.description && (
+        <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
+          <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
+            说明
+          </div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.86rem',
+              lineHeight: 1.7,
+              color: 'var(--card-foreground)',
+              textWrap: 'pretty',
+            }}
+          >
+            {safeStr(methodology.description)}
+          </p>
+        </div>
+      )}
+
+      {/* 出处：出自哪本书、哪几条划线 */}
       <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
         <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
-          来源划线
+          出处
         </div>
         <div
           className="md-source"
@@ -328,21 +349,11 @@ function MethodDetailPanel({
               </span>
             )}
           </div>
-          {methodology.description && (
-            <div
-              className="md-source-quote"
-              style={{
-                fontSize: '0.82rem',
-                lineHeight: 1.65,
-                color: 'var(--muted-foreground)',
-                borderLeft: '2px solid var(--border)',
-                paddingLeft: 'calc(var(--spacing) * 3)',
-                textWrap: 'pretty',
-              }}
-            >
-              {safeStr(methodology.description)}
-            </div>
-          )}
+          {/* 真正的来源划线：id 早就存在 source_highlight_ids 里，以前从没露过面 */}
+          <SourceHighlights
+            bookId={methodology.bookId}
+            highlightIds={methodology.sourceHighlightIds ?? []}
+          />
         </div>
       </div>
 
