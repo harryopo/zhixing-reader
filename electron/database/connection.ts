@@ -67,10 +67,26 @@ function markDirty(): void {
   }, SAVE_DELAY);
 }
 
+/**
+ * 取整库字节用于落盘，并把外键开关复原。
+ *
+ * ⚠️ sql.js 的 `export()` 会把这条连接上的 `PRAGMA foreign_keys` **复位成 0**
+ * （2026-09-24 实测：设成 ON → export() → 回读就是 0）。而落盘每次防抖都会 export 一次，
+ * 所以只在 `initializeSchema` 里开一次是不够的 —— 第一次落盘之后，schema 里那些
+ * `ON DELETE CASCADE` 就全悄悄不生效了（表现：删一本书 / 一条划线，子行仍留在库里，
+ * 而且没有任何报错）。导出之后立刻重新打开。
+ * 守卫见 `tests/sqljs-export-keeps-foreign-keys.test.ts`。
+ */
+export function exportDatabaseForPersist(database: Database): Uint8Array {
+  const data = database.export();
+  database.run('PRAGMA foreign_keys = ON;');
+  return data;
+}
+
 function persistToDisk(): void {
   if (!db || !isDirty) return;
   try {
-    const data = db.export();
+    const data = exportDatabaseForPersist(db);
     fs.writeFileSync(getDatabasePath(), Buffer.from(data));
     isDirty = false;
     // 落盘成功：清理重试状态与失败通知标记

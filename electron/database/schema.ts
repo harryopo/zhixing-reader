@@ -12,6 +12,9 @@ import { rowsToObjects } from '../utils/db';
 import { getDatabasePath, getDatabase, setDatabase, saveDatabase, runTransaction } from './connection';
 
 export function initializeSchema(db: import('sql.js').Database): void {
+  // 外键开关：连接一开就先打开，schema 里那些 ON DELETE CASCADE 才有意义。
+  // **这里开一次不够** —— sql.js 的 export() 会把它复位，落盘路径里还得再开一次，
+  // 见 connection.ts 的 exportDatabaseForPersist。
   db.run('PRAGMA foreign_keys = ON;');
 
   db.run(`
