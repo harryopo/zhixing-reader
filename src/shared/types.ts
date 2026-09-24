@@ -381,3 +381,22 @@ export interface KnowledgeCard {
   updatedAt: Date
 }
 
+/**
+ * 可以撤销的删除类型。唯一真值在 electron/services/deleted-archive.ts 的 ARCHIVE_SPECS，
+ * 这里的联合类型和那份白名单由 tests/undo-delete.test.ts 对账钉住。
+ */
+export type UndoableDeleteKind = 'highlight' | 'knowledge_card' | 'methodology' | 'vocabulary'
+
+/** archiveAndDelete 的返回；null 表示那一行本来就不在（没删任何东西，也就没有撤销） */
+export interface ArchiveResult {
+  token: string
+  kind: UndoableDeleteKind
+  /** 被这一刀带走的行数：划线含它的复习卡片与复习记录 */
+  rowCount: number
+}
+
+/** restoreDeleted 的返回；ok=false 表示 token 已经用过或应用重启过（现场只在内存） */
+export type RestoreResult =
+  | { ok: true; kind: UndoableDeleteKind; rowCount: number }
+  | { ok: false; kind: null; rowCount: number }
+

@@ -57,7 +57,6 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     return { id };
   });
   handle(IPC_CHANNELS.METHODOLOGIES.UPDATE, (id: string, methodology: Record<string, unknown>) => methodologiesDb.update(id, methodology));
-  handle(IPC_CHANNELS.METHODOLOGIES.DELETE, (id: string) => methodologiesDb.delete(id));
   handle(IPC_CHANNELS.METHODOLOGIES.SEARCH, (keyword: string) => methodologiesDb.search(keyword));
   handle(IPC_CHANNELS.METHODOLOGIES.EXTRACT, async (bookId: string, bookTitle: string, replace?: boolean) => {
     let highlights = highlightsDb.getByBookId(bookId);
@@ -170,7 +169,6 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     return { id };
   });
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.UPDATE, (id: string, card: Record<string, unknown>) => knowledgeCardsDb.update(id, card));
-  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.DELETE, (id: string) => knowledgeCardsDb.delete(id));
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.SEARCH, (keyword: string) => knowledgeCardsDb.search(keyword));
   // 一次性找回历史卡片的来源划线（内容精确相等才算，不猜）
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.BACKFILL_SOURCE, () => ({

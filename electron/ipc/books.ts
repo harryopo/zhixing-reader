@@ -66,7 +66,6 @@ export function registerBookHandlers(handle: HandleFn): void {
     return created;
   });
   handle(IPC_CHANNELS.HIGHLIGHTS.UPDATE, (id: string, highlight: Record<string, unknown>) => highlightsDb.update(id, highlight));
-  handle(IPC_CHANNELS.HIGHLIGHTS.DELETE, (id: string) => highlightsDb.delete(id));
   handle(IPC_CHANNELS.HIGHLIGHTS.GET_ALL, () => highlightsDb.getAll());
   handle(IPC_CHANNELS.HIGHLIGHTS.SEARCH, (keyword: string) => highlightsDb.search(keyword));
   // 一次性补全历史划线的章节名（见 services/chapter-title-backfill.ts）
@@ -143,7 +142,6 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.CARDS.CREATE, (highlightId: string) => cardsDb.create(highlightId));
   handle(IPC_CHANNELS.CARDS.CREATE_FOR_EXISTING, () => cardsDb.createForExistingHighlights());
   handle(IPC_CHANNELS.CARDS.UPDATE, (card: Record<string, unknown>) => cardsDb.update(card as unknown as Parameters<typeof cardsDb.update>[0]));
-  handle(IPC_CHANNELS.CARDS.DELETE, (id: string) => cardsDb.delete(id));
   handle(IPC_CHANNELS.CARDS.GET_DUE, (limit?: number) => cardsDb.getDueCards(limit, newCardsPerDay()));
   handle(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, (limit?: number) => cardsDb.getDueCardsWithContent(limit, newCardsPerDay()));
   handle(IPC_CHANNELS.CARDS.GET_QUEUE_STATS, () => cardsDb.getDueQueueStats(newCardsPerDay()));

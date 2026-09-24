@@ -139,11 +139,6 @@ export const cardsDb = {
     });
   },
 
-  delete(id: string): void {
-    getDatabase().run('DELETE FROM cards WHERE id = ?', [id]);
-    saveDatabase();
-  },
-
   deleteBatch(ids: string[]): void {
     runTransaction((database) => {
       const stmt = database.prepare('DELETE FROM cards WHERE id = ?');

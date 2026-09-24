@@ -1,4 +1,4 @@
-import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage, BookmarkedMessageRow } from '../shared/types'
+import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind } from '../shared/types'
 
 export interface TokenSummary {
   totalRequests: number
@@ -136,7 +136,6 @@ export interface ElectronAPI {
     getById: (id: string) => Promise<Highlight>
     create: (highlight: Record<string, unknown>) => Promise<Highlight>
     update: (id: string, highlight: Record<string, unknown>) => Promise<Highlight>
-    delete: (id: string) => Promise<void>
     getAll: () => Promise<Highlight[]>
     search: (keyword: string) => Promise<Highlight[]>
     export: () => Promise<{ saved: boolean; count: number; path?: string }>
@@ -146,7 +145,6 @@ export interface ElectronAPI {
     create: (highlightId: string) => Promise<Card>
     createForExisting: () => Promise<{ created: number; skipped: number }>
     update: (card: Record<string, unknown>) => Promise<Card>
-    delete: (id: string) => Promise<void>
     getDue: (limit?: number) => Promise<Card[]>
     getDueWithContent: (limit?: number) => Promise<DueReviewCard[]>
     getByBook: (bookId: string) => Promise<Card[]>
@@ -193,7 +191,6 @@ export interface ElectronAPI {
     /** 加入复习队列：只排队，不提交评分 */
     scheduleForReview: (id: string) => Promise<void>
     updateReviewData: (id: string, reviewData: Record<string, unknown>) => Promise<Record<string, unknown> | null>
-    delete: (id: string) => Promise<void>
     getStats: () => Promise<{ total: number; mastered: number; dueToday: number }>
     search: (keyword: string) => Promise<Record<string, unknown>[]>
     export: (
@@ -302,7 +299,6 @@ export interface ElectronAPI {
     getByBook: (bookId: string) => Promise<unknown[]>
     create: (methodology: Record<string, unknown>) => Promise<unknown>
     update: (id: string, methodology: Record<string, unknown>) => Promise<unknown>
-    delete: (id: string) => Promise<void>
     search: (keyword: string) => Promise<unknown[]>
     /** replace=true 表示"重新提取"：主进程会先清空这本书的旧方法论（替换而不是追加） */
     extract: (bookId: string, bookTitle: string, replace?: boolean) => Promise<unknown[]>
@@ -313,7 +309,6 @@ export interface ElectronAPI {
     getByBook: (bookId: string) => Promise<unknown[]>
     create: (card: Record<string, unknown>) => Promise<unknown>
     update: (id: string, card: Record<string, unknown>) => Promise<unknown>
-    delete: (id: string) => Promise<void>
     search: (keyword: string) => Promise<unknown[]>
     /** 一次性找回历史卡片的来源划线；只按「内容精确相等」匹配，绝不猜测 */
     backfillSource: () => Promise<{ updated: number }>
@@ -340,6 +335,10 @@ export interface ElectronAPI {
     }>
     clearHistory: () => Promise<{ success: boolean }>
     resetDatabase: () => Promise<{ success: boolean }>
+    /** 留现场再删；null = 那一行本来就不在，什么都没删 */
+    archiveDelete: (kind: UndoableDeleteKind, id: string) => Promise<ArchiveResult | null>
+    /** 按 token 撤销一次删除；ok=false 表示现场已失效（撤销过一次 / 应用重启过） */
+    restoreDelete: (token: string) => Promise<RestoreResult>
   }
   update: {
     /** 手动检查更新；supported=false 表示开发环境不可用 */

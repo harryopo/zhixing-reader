@@ -21,6 +21,7 @@ import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 import { safeStr, safeNum, formatDate, mapMethodologies, mapBooks } from '../utils/db-mapper'
+import { deleteWithUndo } from '@/utils/undoable-delete'
 import {
   MASTERY_FILTERS,
   VIEW_TOGGLES,
@@ -238,16 +239,9 @@ export default function Methodologies() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这个方法论吗？')) return
-    try {
-      await window.electronAPI.methodology.delete(id)
-      // 若删除的是当前选中的方法论，清空选中
-      if (selectedMethod?.id === id) {
-        setSelectedMethod(null)
-      }
-      await loadData()
-      toast.success('已删除')
-    } catch (error) {
-      toast.error(`删除失败: ${error instanceof Error ? error.message : String(error)}`)
+    if (await deleteWithUndo({ kind: 'methodology', id, refresh: loadData })) {
+      // 删掉的正是当前选中那条时清空选中；撤销回来后要用户自己再点一次
+      if (selectedMethod?.id === id) setSelectedMethod(null)
     }
   }
 

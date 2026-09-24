@@ -29,6 +29,7 @@ import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState, Metric } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 import { safeStr, mapKnowledgeCards, mapBooks } from '../utils/db-mapper'
+import { deleteWithUndo } from '@/utils/undoable-delete'
 import {
   TABS,
   TYPE_FILTERS,
@@ -249,13 +250,7 @@ export default function KnowledgeCards() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这张知识卡片吗？')) return
-    try {
-      await window.electronAPI.knowledgeCard.delete(id)
-      await loadData()
-      toast.success('已删除')
-    } catch (error) {
-      toast.error(`删除失败: ${error instanceof Error ? error.message : String(error)}`)
-    }
+    await deleteWithUndo({ kind: 'knowledge_card', id, refresh: loadData })
   }
 
   /** 导出当前筛选结果为 JSON（纯前端下载，无后端） */

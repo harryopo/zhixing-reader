@@ -12,7 +12,9 @@ export const IPC_CHANNELS = {
     GET_BY_ID: 'highlights:getById',
     CREATE: 'highlights:create',
     UPDATE: 'highlights:update',
-    DELETE: 'highlights:delete',
+    // 注：划线 / 复习卡片 / 知识卡片 / 方法论 / 生词的 DELETE 通道已一并移除，
+    // 删除只走 SYSTEM.ARCHIVE_DELETE 那一条路 —— 它会先把被删的行（划线含它的
+    // 复习卡片与复习记录）留一份现场，界面才给得出「撤销」。别再单独加回物理删除。
     GET_ALL: 'highlights:getAll',
     SEARCH: 'highlights:search',
     EXPORT: 'highlights:export',
@@ -27,7 +29,6 @@ export const IPC_CHANNELS = {
     // 注：原 UPDATE_APPLICATION_TAG / UPDATE_MASTERY_LEVEL 已于 2026-09-15 移除。
     // 两者在 renderer 中零引用（不可达），且 cards.mastery_level 与"由 FSRS 状态推导的
     // 掌握度"语义重复 —— 掌握度现在统一由 src/shared/fsrs-metrics.ts 计算，不再手写。
-    DELETE: 'cards:delete',
     GET_DUE: 'cards:getDue',
     GET_DUE_WITH_CONTENT: 'cards:getDueWithContent',
     GET_BY_BOOK: 'cards:getByBook',
@@ -150,7 +151,6 @@ export const IPC_CHANNELS = {
     GET_BY_BOOK: 'methodologies:getByBook',
     CREATE: 'methodologies:create',
     UPDATE: 'methodologies:update',
-    DELETE: 'methodologies:delete',
     SEARCH: 'methodologies:search',
     EXTRACT: 'methodologies:extract',
   },
@@ -160,7 +160,6 @@ export const IPC_CHANNELS = {
     GET_BY_BOOK: 'knowledgeCards:getByBook',
     CREATE: 'knowledgeCards:create',
     UPDATE: 'knowledgeCards:update',
-    DELETE: 'knowledgeCards:delete',
     SEARCH: 'knowledgeCards:search',
     DISTILL: 'knowledgeCards:distill',
     CANCEL_DISTILL: 'knowledgeCards:cancelDistill',
@@ -193,7 +192,6 @@ export const IPC_CHANNELS = {
     /** 加入复习队列：只排队，不提交评分（与 updateReviewData 的区别见 DB 层注释） */
     SCHEDULE_FOR_REVIEW: 'vocabulary:scheduleForReview',
     UPDATE_REVIEW_DATA: 'vocabulary:updateReviewData',
-    DELETE: 'vocabulary:delete',
     GET_STATS: 'vocabulary:getStats',
     SEARCH: 'vocabulary:search',
     EXPORT: 'vocabulary:export',
@@ -210,6 +208,10 @@ export const IPC_CHANNELS = {
     // 真实存储用量（数据库文件 / 向量索引 / 日志）：设置页原来显示的是写死的假数字
     GET_STORAGE_USAGE: 'system:getStorageUsage',
     RESET_DATABASE: 'system:resetDatabase',
+    /** 留一份现场再删：返回撤销 token（null = 那行本来就不在，什么都没删） */
+    ARCHIVE_DELETE: 'system:archiveDelete',
+    /** 按 token 把上一次删除的行原样插回去（现场只在内存，应用重启即失效） */
+    RESTORE_DELETE: 'system:restoreDelete',
     // 主→渲染事件：数据库落盘失败（磁盘满/权限/被占用），渲染层据此提示用户，避免静默丢数据
     PERSIST_ERROR: 'system:persistError',
   },

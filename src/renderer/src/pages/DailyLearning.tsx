@@ -30,6 +30,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
+import { deleteWithUndo } from '@/utils/undoable-delete'
 import {
   buildDailyTasks,
   summarizeDailyTasks,
@@ -547,16 +548,17 @@ export default function DailyLearning() {
   }
 
   const handleDeleteVocab = async (wordId: string) => {
-    // 删词不可恢复，先问一句（右键菜单里的"删除"离"复制单词"只有一行距离）
+    // 删词不可恢复一次误点 —— 先问一句（右键菜单里的"删除"离"复制单词"只有一行距离），
+    // 删完留 8 秒撤销
     if (!window.confirm('确定从生词本删除这个词？')) return
-    try {
-      await window.electronAPI.vocabulary.delete(wordId)
-      toast.success('已删除')
-      await loadVocabulary()
-      await loadDueWords()
-    } catch (error) {
-      console.error('删除生词失败:', error)
-    }
+    await deleteWithUndo({
+      kind: 'vocabulary',
+      id: wordId,
+      refresh: async () => {
+        await loadVocabulary()
+        await loadDueWords()
+      },
+    })
   }
 
   // 渲染带悬停功能的英文文本

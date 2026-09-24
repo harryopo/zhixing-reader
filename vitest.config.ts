@@ -91,6 +91,7 @@ export default defineConfig({
         'src/shared/settings-secrets.ts',
         'src/shared/update-notice.ts',
         'electron/services/chapter-title-backfill.ts',
+        'electron/services/deleted-archive.ts',
         'electron/services/reading-time-sync.ts',
         // renderer（colocated __tests__ 已有测试）
         'src/renderer/src/stores/toastStore.ts',

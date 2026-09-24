@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useToastStore, type ToastType } from '../stores/toastStore'
+import { useToastStore, type ToastAction, type ToastType } from '../stores/toastStore'
 
 const typeConfig: Record<ToastType, { icon: string; bgColor: string; borderColor: string; textColor: string; iconColor: string }> = {
   success: {
@@ -39,9 +39,22 @@ const typeConfig: Record<ToastType, { icon: string; bgColor: string; borderColor
   },
 }
 
-function ToastItem({ id, message, type, duration }: { id: string; message: string; type: ToastType; duration: number }) {
+function ToastItem({
+  id,
+  message,
+  type,
+  duration,
+  action,
+}: {
+  id: string
+  message: string
+  type: ToastType
+  duration: number
+  action?: ToastAction
+}) {
   const [visible, setVisible] = useState(false)
   const [progress, setProgress] = useState(100)
+  const [actionUsed, setActionUsed] = useState(false)
   const removeToast = useToastStore((state) => state.removeToast)
   const config = typeConfig[type]
 
@@ -100,6 +113,25 @@ function ToastItem({ id, message, type, duration }: { id: string; message: strin
         {/* 内容 */}
         <div className="flex-1 min-w-0">
           <p className={`text-sm font-medium ${config.textColor}`}>{message}</p>
+          {action && (
+            <button
+              // 连点两次撤销：第二次会把「现场已用过」的错误甩给用户（主进程那边
+              // token 一次一废），所以这里只认第一次
+              disabled={actionUsed}
+              onClick={() => {
+                if (actionUsed) return
+                setActionUsed(true)
+                // 先收起这条再执行：撤销会另出一条结果提示，
+                // 两条叠在一起会让人分不清哪条对应哪次操作
+                setVisible(false)
+                setTimeout(() => removeToast(id), 300)
+                action.onClick()
+              }}
+              className="mt-1.5 text-sm font-semibold text-primary underline underline-offset-2 disabled:opacity-50"
+            >
+              {action.label}
+            </button>
+          )}
         </div>
 
         {/* 关闭按钮 */}
@@ -150,6 +182,7 @@ export default function ToastContainer() {
             message={toast.message}
             type={toast.type}
             duration={toast.duration}
+            action={toast.action}
           />
         </div>
       ))}

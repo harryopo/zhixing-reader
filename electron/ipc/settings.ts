@@ -8,10 +8,12 @@ import * as path from 'path';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { isSecretSetting, secretSetFlagName } from '../../src/shared/settings-secrets';
 import { settingsService } from '../services/settings-service';
+import { archiveAndDelete, restoreDeleted } from '../services/deleted-archive';
 import { forceSaveDatabase, clearConversationsAndMessages, resetDatabase } from '../database';
 import { clearCache as clearWeReadApiCache, setApiKey as setWereadApiKey } from '../weread-api';
 import { refreshWereadAutoSyncTimer } from '../weread-sync-manager';
 import { logger } from '../logger';
+import type { UndoableDeleteKind } from '../../src/shared/types';
 import type { HandleFn } from './types';
 
 /**
@@ -138,4 +140,13 @@ export function registerSettingsHandlers(handle: HandleFn): void {
     }, 500);
     return { success: true };
   });
+
+  // ===== 可撤销删除 =====
+  // 现场只在主进程内存里，所以这两条通道的语义都是「本会话内有效」——
+  // 界面据此把撤销的出口只放在删除后的那条提示上，不另做回收站页面。
+  handle(IPC_CHANNELS.SYSTEM.ARCHIVE_DELETE, (kind: UndoableDeleteKind, id: string) =>
+    archiveAndDelete(kind, id),
+  );
+
+  handle(IPC_CHANNELS.SYSTEM.RESTORE_DELETE, (token: string) => restoreDeleted(token));
 }

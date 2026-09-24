@@ -157,7 +157,6 @@ export function registerArticleHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.VOCABULARY.MARK_AS_MASTERED, (id: string) => vocabularyDb.markAsMastered(id));
   handle(IPC_CHANNELS.VOCABULARY.SCHEDULE_FOR_REVIEW, (id: string) => vocabularyDb.scheduleForReview(id));
   handle(IPC_CHANNELS.VOCABULARY.UPDATE_REVIEW_DATA, (id: string, reviewData: Record<string, unknown>) => vocabularyDb.updateReviewData(id, reviewData as { quality: number; efFactor?: number; intervalDays?: number; repetitionCount?: number; isMastered?: boolean }));
-  handle(IPC_CHANNELS.VOCABULARY.DELETE, (id: string) => vocabularyDb.delete(id));
   handle(IPC_CHANNELS.VOCABULARY.GET_STATS, () => ({
     total: vocabularyDb.count(),
     mastered: vocabularyDb.getMasteredCount(),

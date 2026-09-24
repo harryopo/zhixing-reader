@@ -34,6 +34,7 @@ import {
 } from './vocabulary/controls'
 import { VocabularyDrawer } from './vocabulary/VocabularyDrawer'
 import { ExportModal } from './vocabulary/ExportModal'
+import { deleteWithUndo } from '@/utils/undoable-delete'
 // ===== 主组件 =====
 export default function VocabularyPage() {
   // 列表 + 统计
@@ -200,19 +201,13 @@ export default function VocabularyPage() {
     }
   }
 
-  /** 删除生词 */
+  /** 删除生词：删完留 8 秒撤销（生词带着它的 FSRS 复习状态，误点一次就全没了） */
   const handleDelete = async (id: string, word: string) => {
     if (!window.electronAPI?.vocabulary) return
     if (!window.confirm(`确定要删除 "${word}" 吗？`)) return
-    try {
-      await window.electronAPI.vocabulary.delete(id)
-      toast.success('已删除')
+    if (await deleteWithUndo({ kind: 'vocabulary', id, refresh: loadVocabulary })) {
       setDrawerOpen(false)
       if (selectedId === id) setSelectedId(null)
-      await loadVocabulary()
-    } catch (error) {
-      console.error('删除失败:', error)
-      toast.error('删除失败')
     }
   }
 

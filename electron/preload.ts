@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
+import type { ArchiveResult, RestoreResult, UndoableDeleteKind } from '../src/shared/types';
 
 interface IPCResponse<T> {
   success: boolean;
@@ -102,7 +103,6 @@ const electronAPI = {
     create: (highlight: Record<string, unknown>) => invoke(IPC_CHANNELS.HIGHLIGHTS.CREATE, highlight),
     backfillChapterTitles: (bookId?: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.BACKFILL_CHAPTER_TITLES, bookId),
     update: (id: string, highlight: Record<string, unknown>) => invoke(IPC_CHANNELS.HIGHLIGHTS.UPDATE, id, highlight),
-    delete: (id: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.DELETE, id),
     getAll: () => invoke(IPC_CHANNELS.HIGHLIGHTS.GET_ALL),
     search: (keyword: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.SEARCH, keyword),
     export: () => invoke(IPC_CHANNELS.HIGHLIGHTS.EXPORT),
@@ -113,7 +113,6 @@ const electronAPI = {
     create: (highlightId: string) => invoke(IPC_CHANNELS.CARDS.CREATE, highlightId),
     createForExisting: () => invoke(IPC_CHANNELS.CARDS.CREATE_FOR_EXISTING),
     update: (card: Record<string, unknown>) => invoke(IPC_CHANNELS.CARDS.UPDATE, card),
-    delete: (id: string) => invoke(IPC_CHANNELS.CARDS.DELETE, id),
     getDue: (limit?: number) => invoke(IPC_CHANNELS.CARDS.GET_DUE, limit),
     getDueWithContent: (limit?: number) => invoke(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, limit),
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.CARDS.GET_BY_BOOK, bookId),
@@ -149,7 +148,6 @@ const electronAPI = {
     /** 加入复习队列：只把词排到待复习，不会记一次复习成绩 */
     scheduleForReview: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.SCHEDULE_FOR_REVIEW, id),
     updateReviewData: (id: string, reviewData: Record<string, unknown>) => invoke(IPC_CHANNELS.VOCABULARY.UPDATE_REVIEW_DATA, id, reviewData),
-    delete: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.DELETE, id),
     getStats: () => invoke(IPC_CHANNELS.VOCABULARY.GET_STATS),
     search: (keyword: string) => invoke(IPC_CHANNELS.VOCABULARY.SEARCH, keyword),
     export: (format: 'csv' | 'anki', items: Array<{
@@ -350,7 +348,6 @@ const electronAPI = {
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.METHODOLOGIES.GET_BY_BOOK, bookId),
     create: (methodology: Record<string, unknown>) => invoke(IPC_CHANNELS.METHODOLOGIES.CREATE, methodology),
     update: (id: string, methodology: Record<string, unknown>) => invoke(IPC_CHANNELS.METHODOLOGIES.UPDATE, id, methodology),
-    delete: (id: string) => invoke(IPC_CHANNELS.METHODOLOGIES.DELETE, id),
     search: (keyword: string) => invoke(IPC_CHANNELS.METHODOLOGIES.SEARCH, keyword),
     // replace=true 时主进程会先清空这本书的旧方法论（对应界面上的「重新提取」）
     extract: (bookId: string, bookTitle: string, replace?: boolean) =>
@@ -363,7 +360,6 @@ const electronAPI = {
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_BOOK, bookId),
     create: (card: Record<string, unknown>) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.CREATE, card),
     update: (id: string, card: Record<string, unknown>) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.UPDATE, id, card),
-    delete: (id: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DELETE, id),
     search: (keyword: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.SEARCH, keyword),
     backfillSource: () => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.BACKFILL_SOURCE),
     // replace=true 时主进程会先清空这本书的旧卡片（对应界面上的「重新蒸馏」）
@@ -415,6 +411,12 @@ const electronAPI = {
     getStorageUsage: () => invoke(IPC_CHANNELS.SYSTEM.GET_STORAGE_USAGE),
     clearHistory: () => invoke(IPC_CHANNELS.SYSTEM.CLEAR_HISTORY),
     resetDatabase: () => invoke(IPC_CHANNELS.SYSTEM.RESET_DATABASE),
+    /** 留现场再删：null = 那行本来不在（什么都没删，也就没有撤销） */
+    archiveDelete: (kind: UndoableDeleteKind, id: string) =>
+      invoke<ArchiveResult | null>(IPC_CHANNELS.SYSTEM.ARCHIVE_DELETE, kind, id),
+    /** 按 token 撤销一次删除；ok=false 表示现场已失效 */
+    restoreDelete: (token: string) =>
+      invoke<RestoreResult>(IPC_CHANNELS.SYSTEM.RESTORE_DELETE, token),
   },
 
   update: {

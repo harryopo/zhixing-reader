@@ -27,6 +27,7 @@ import { Loading, EmptyState, Tiny } from '@/components/ui/Feedback'
 import Modal from '@/components/ui/Modal'
 import { toast } from '../stores/toastStore'
 import { importWereadContentForBook, describeImportResult } from '../utils/import-weread-content'
+import { deleteWithUndo } from '../utils/undoable-delete'
 import {
   mapBooks,
   mapHighlights,
@@ -138,17 +139,21 @@ export default function BookDetail() {
     }
   }
 
-  const removeHighlight = async (h: HighlightRow) => {    const cardCount = cards.filter((c) => c.highlightId === h.id).length
+  /**
+   * 删一条划线。确认文案里的复习卡片数用本页算出来的真数；删完留 8 秒撤销。
+   */
+  const removeHighlight = async (h: HighlightRow) => {
+    const cardCount = cards.filter((c) => c.highlightId === h.id).length
     const detail = cardCount > 0 ? `由它生成的 ${cardCount} 张复习卡片会一起删掉` : '它还没有生成复习卡片'
-    if (!window.confirm(`删除这条划线？${detail}，且无法恢复。`)) return
-    try {
-      await window.electronAPI.highlight.delete(h.id)
-      setHighlights((prev) => prev.filter((x) => x.id !== h.id))
-      setCards((prev) => prev.filter((c) => c.highlightId !== h.id))
-      toast.success('已删除这条划线')
-    } catch (err) {
-      toast.error(`删除失败：${(err as Error).message}`)
-    }
+    if (!window.confirm(`删除这条划线？${detail}。`)) return
+    // 不乐观更新：撤销要把行原样插回来，本地筛掉就再也拼不回那张卡片的复习状态了
+    await deleteWithUndo({
+      kind: 'highlight',
+      id: h.id,
+      refresh: async () => {
+        if (id) await loadBookData(id)
+      },
+    })
   }
 
   /**
