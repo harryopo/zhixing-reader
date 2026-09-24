@@ -710,6 +710,36 @@ describe('缓存命中 tokens 记账', () => {
     await extractMethodologies([{ content: '一条划线' }], '无明细这本书')
 
     const row = mockedTokenUsageCreate.mock.calls[0][0]
-    expect(row.cachedTokens).toBeUndefined()
+    // 0 而不是 undefined：没命中就记 0，统计页不必再区分"没测到"与"没命中"
+    expect(row.cachedTokens).toBe(0)
+  })
+
+  it('DeepSeek 的顶层 prompt_cache_hit_tokens 也要记账到', async () => {
+    setAIConfig({
+      provider: 'openai',
+      apiKey: 'sk-test',
+      model: 'deepseek-chat',
+      baseUrl: 'https://api.deepseek.example/v1',
+    })
+    mockedFetchWithRetry.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      body: null,
+      json: async () => ({
+        choices: [
+          {
+            message: { content: JSON.stringify([{ name: '方法', description: 'desc' }]), role: 'assistant' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 1500, completion_tokens: 90, prompt_cache_hit_tokens: 1280 },
+      }),
+      text: async () => '',
+    } as unknown as Response)
+
+    await extractMethodologies([{ content: '一条划线' }], '顶层字段这本书')
+    const row = mockedTokenUsageCreate.mock.calls[0][0]
+    expect(row.cachedTokens).toBe(1280)
   })
 })

@@ -1,3 +1,4 @@
+import { estimateTextTokens } from '../../src/shared/usage-tokens'
 import { sdkStreamChat } from '../ai-sdk-service'
 import { logger } from '../logger'
 import { classifyIntent } from './intent-classifier'
@@ -262,16 +263,14 @@ async function ensureSummaryFresh(sessionId: string): Promise<void> {
   })
 }
 
+/**
+ * 整串消息的 token 估算。
+ *
+ * 原来这里按「中文 1.5 token/字、英文 0.75」估，而 context-manager 按 0.5 估 ——
+ * 两套互相矛盾，差 3 倍。统一走 src/shared/usage-tokens.ts 里按服务商真值校准的那一份。
+ */
 function estimateTokenCount(messages: Array<{ role: string; content: string }>): number {
-  let total = 0
-  for (const m of messages) {
-    // 中文约 1.5 token/字，英文约 0.75 token/字
-    // 简单估算：中文字符数 * 1.5 + 英文字符数 * 0.75
-    const chineseChars = (m.content.match(/[\u4e00-\u9fa3]/g) || []).length
-    const otherChars = m.content.length - chineseChars
-    total += Math.ceil(chineseChars * 1.5 + otherChars * 0.75)
-  }
-  return total
+  return messages.reduce((total, m) => total + estimateTextTokens(m.content), 0)
 }
 
 function extractConceptFromMessage(message: string): string {
@@ -524,7 +523,10 @@ export async function processMessageStream(
   const originalOnComplete = onComplete
   const wrappedOnComplete = (usage?: { promptTokens: number; completionTokens: number; cachedTokens?: number }) => {
     // wire 视图记录本轮实际发送的 user 与 assistant 响应（下一轮原样重发 → 前缀缓存命中）
-    appendWire(context.sessionId, userWire, fullResponse)
+    // 历史里存**用户原话**，不存展开后的那一轮：展开块含本轮检索到的笔记，
+    // 一旦进历史就每轮重发（用户早已看过、且与后续问题无关的片段），
+    // 白花输入 token。这也让会话内与重启重建两条路的历史口径一致。
+    appendWire(context.sessionId, userMessage, fullResponse)
     enforceWireCacheLimit()
 
     const concept = extractConceptFromMessage(userMessage)

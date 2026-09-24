@@ -432,7 +432,12 @@ describe('AI SDK Service — sdkGenerateText', () => {
   it('用量按 feature 落库，带缓存命中数与本次实际模型', async () => {
     mockGenerateText.mockResolvedValue({
       text: 'ok',
-      usage: { inputTokens: 1200, outputTokens: 80, cachedInputTokens: 1024 },
+      // ai@7 的真字段形状（旧的 cachedInputTokens 服务商根本不给，读它会恒为 0）
+      usage: {
+        inputTokens: 1200,
+        outputTokens: 80,
+        inputTokenDetails: { cacheReadTokens: 1024 },
+      },
     })
 
     await sdkGenerateText([{ role: 'user', content: 'Hi' }], { feature: 'generateChapterSummary' })

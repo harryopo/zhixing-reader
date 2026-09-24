@@ -73,6 +73,7 @@ export default defineConfig({
         'src/shared/fsrs-metrics.ts',
         'src/shared/source-anchor.ts',
         'src/shared/study-limits.ts',
+        'src/shared/usage-tokens.ts',
         'src/shared/fsrs-voice.ts',
         'src/shared/weread-content.ts',
         // 以下这批早就有专属测试文件，却没进清单 —— 覆盖率只量了 18 个文件，

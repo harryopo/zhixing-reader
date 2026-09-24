@@ -317,6 +317,44 @@ describe('orchestrator — processMessageStream 编排逻辑', () => {
     expect(capturedMessages[capturedMessages.length - 1].content).toContain('新问题')
   })
 
+  it('下一轮重发的历史里是用户原话，不是上一轮展开后的那一坨', async () => {
+    // 展开块（策略提示 + 本轮检索到的笔记）只属于当轮；一旦进历史就会每轮重发，
+    // 用户为自己早已看过、也跟新问题无关的片段反复付费。
+    clearState('s-wire-plain')
+    const sent: Array<Array<{ role: string; content: string }>> = []
+    mockStreamChat.mockImplementation(
+      async (
+        messages: Array<{ role: string; content: string }>,
+        onChunk: (c: string) => void,
+        onComplete: () => void,
+      ) => {
+        sent.push(messages)
+        onChunk('回答内容')
+        onComplete()
+      },
+    )
+    await processMessageStream(
+      { sessionId: 's-wire-plain', conversationHistory: [] },
+      '第一个问题',
+      () => {},
+      () => {},
+      () => {},
+    )
+    await processMessageStream(
+      { sessionId: 's-wire-plain', conversationHistory: [] },
+      '第二个问题',
+      () => {},
+      () => {},
+      () => {},
+    )
+    const historyUsers = sent[1].filter((m) => m.role === 'user').slice(0, -1)
+    expect(historyUsers.map((m) => m.content)).toEqual(['第一个问题'])
+    // 反证：本轮那条确实还是展开版（说明上面"只剩原话"不是把整轮都删了）
+    const current = sent[1][sent[1].length - 1]
+    expect(current.content).toContain('第二个问题')
+    expect(current.content).toContain('问题：')
+  })
+
   it('对话历史超过 40 条时 wire 视图裁剪到上限', async () => {
     clearState('s1')
     let capturedMessages: Array<{ role: string; content: string }> = []

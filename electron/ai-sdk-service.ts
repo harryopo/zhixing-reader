@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { logger } from './logger';
 import { tokenUsageDb } from './database';
 import { resolveChatTier, type ModelTier } from '../src/shared/model-routing';
+import { cachedTokensFromSdkUsage } from '../src/shared/usage-tokens';
 import { formatSkillNameEnLine } from '../src/shared/skill-name';
 import { buildMessages } from './services/prompt-messages';
 
@@ -337,18 +338,9 @@ export async function sdkStreamChat(
         const usage = await result.usage;
         promptTokens = usage?.inputTokens ?? 0;
         completionTokens = usage?.outputTokens ?? 0;
-        // 缓存命中字段：AI SDK 统一字段为 cachedInputTokens（openai-compatible
-        // 会映射 DeepSeek prompt_cache_hit_tokens / 火山 cached_tokens），
-        // 不同 provider 版本字段可能缺失，逐级兜底读取
-        const usageRecord = usage as unknown as {
-          cachedInputTokens?: number;
-          providerMetadata?: Record<string, { cachedPromptTokens?: number }>;
-        };
-        cachedTokens =
-          usageRecord?.cachedInputTokens ??
-          usageRecord?.providerMetadata?.custom?.cachedPromptTokens ??
-          usageRecord?.providerMetadata?.openai?.cachedPromptTokens ??
-          0;
+        // 缓存命中：ai@7 在 inputTokenDetails.cacheReadTokens（旧的 cachedInputTokens
+        // 与两条 providerMetadata 兜底都是从猜的字段名来的，永远读不到）
+        cachedTokens = cachedTokensFromSdkUsage(usage);
         logger.info('streamText usage', { promptTokens, completionTokens, cachedTokens })
       } catch (e) {
         logger.warn('Failed to get streamText usage', { error: e instanceof Error ? e.message : String(e) })
@@ -403,7 +395,7 @@ export async function sdkGenerateObject<T>(
   });
 
   recordGenerateUsage(
-    result.usage as { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
+    result.usage,
     options?.feature ?? 'generate',
     Date.now() - startedAt,
     modelName,
@@ -571,15 +563,24 @@ export async function translateArticle(
   return { title_zh, summary_zh, content_zh };
 }
 
+/**
+ * 从 AI SDK 的 usage 里取"缓存命中的输入 token"。
+ *
+ * ai@7 的 LanguageModelUsage **没有** cachedInputTokens 这个字段 —— 之前读的是它，
+ * 所以 token_usage.cached_tokens 恒为 0，统计页那句"缓存命中率"从来没真测到过。
+ * 取法集中在 src/shared/usage-tokens.ts（两条通路共用一份判据）。
+ */
+
 /** 非流式补全用量落库（与 recordChatUsage 同机制，feature 区分）：0 用量不记，失败不报错 */
 function recordGenerateUsage(
-  usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
+  usage: unknown,
   feature: string,
   durationMs: number,
   modelUsed?: string,
 ): void {
-  const inputTokens = usage?.inputTokens ?? 0;
-  const outputTokens = usage?.outputTokens ?? 0;
+  const tokens = (usage ?? {}) as { inputTokens?: number; outputTokens?: number };
+  const inputTokens = tokens.inputTokens ?? 0;
+  const outputTokens = tokens.outputTokens ?? 0;
   if (inputTokens + outputTokens <= 0 || !config) return;
   try {
     tokenUsageDb.create({
@@ -588,7 +589,7 @@ function recordGenerateUsage(
       feature,
       inputTokens,
       outputTokens,
-      cachedTokens: Math.min(usage?.cachedInputTokens ?? 0, inputTokens),
+      cachedTokens: Math.min(cachedTokensFromSdkUsage(usage), inputTokens),
       durationMs,
     });
   } catch (err) {
@@ -626,7 +627,7 @@ export async function sdkGenerateText(
   });
 
   recordGenerateUsage(
-    result.usage as { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
+    result.usage,
     options?.feature ?? 'summary',
     Date.now() - startedAt,
     modelName,

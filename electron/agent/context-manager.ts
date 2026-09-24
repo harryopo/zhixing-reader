@@ -3,7 +3,9 @@ import { ContextBuilder, BuildContext, ContextBuildResult } from './context-buil
 
 // 上下文总量限制（token估算）
 const MAX_CONTEXT_TOKENS = 4000
-const CHARS_PER_TOKEN = 2 // 中文约2字符/token
+// token 估算统一走 src/shared/usage-tokens.ts：原来这里按 0.5 token/字估，
+// 而 orchestrator 按 1.5 估，两套互相矛盾（真值实测约 0.62）。
+import { estimateTextTokens, TOKENS_PER_CHAR } from '../../src/shared/usage-tokens'
 
 /**
  * 上下文管理器
@@ -48,13 +50,13 @@ export class ContextManager {
         const buildTime = Date.now() - startTime
         
         // 估算当前builder的token数
-        const builderTokens = Math.ceil(result.content.length / CHARS_PER_TOKEN)
+        const builderTokens = estimateTextTokens(result.content)
         
         // 检查是否超出预算
         if (totalTokens + builderTokens > MAX_CONTEXT_TOKENS && !truncated) {
           // 允许最后一个builder部分截断
           const remainingTokens = MAX_CONTEXT_TOKENS - totalTokens
-          const maxChars = remainingTokens * CHARS_PER_TOKEN
+          const maxChars = Math.floor(remainingTokens / TOKENS_PER_CHAR)
           if (maxChars > 0 && result.content.length > maxChars) {
             result.content = result.content.substring(0, maxChars) + '...(已截断)'
             truncated = true
@@ -67,11 +69,11 @@ export class ContextManager {
         }
         
         results.push({ name: builder.name, result })
-        totalTokens += Math.ceil(result.content.length / CHARS_PER_TOKEN)
+        totalTokens += estimateTextTokens(result.content)
         
         logger.debug(`Context built: ${builder.name}`, {
           length: result.content.length,
-          tokens: Math.ceil(result.content.length / CHARS_PER_TOKEN),
+          tokens: estimateTextTokens(result.content),
           buildTime,
           hasError: !!result.metadata?.error
         })

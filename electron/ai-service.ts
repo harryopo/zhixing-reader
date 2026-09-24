@@ -1,3 +1,4 @@
+import { cachedTokensFromProviderUsage } from '../src/shared/usage-tokens'
 import { logger } from './logger';
 import { tokenUsageDb } from './database';
 import { fetchWithTimeout, fetchWithRetry, RETRY_CONFIGS, HttpAbortError, HttpNetworkError, RetryConfig } from './http-client';
@@ -222,7 +223,10 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
     usage: {
       prompt_tokens: number;
       completion_tokens: number;
+      /** OpenAI 兼容层的嵌套形状 */
       prompt_tokens_details?: { cached_tokens?: number };
+      /** DeepSeek 实际用的顶层形状 */
+      prompt_cache_hit_tokens?: number;
     };
   };
 
@@ -236,7 +240,7 @@ async function callOpenAI(messages: Message[], optsOrTokens?: number | CallOptio
     usage: {
       promptTokens: data.usage.prompt_tokens,
       completionTokens: data.usage.completion_tokens,
-      cachedTokens: data.usage.prompt_tokens_details?.cached_tokens,
+      cachedTokens: cachedTokensFromProviderUsage(data.usage),
     },
     finishReason: choice.finish_reason,
   };
