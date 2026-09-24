@@ -12,6 +12,8 @@ import { ContextManager } from './context-manager'
 import { BuildContext, ContextBuildResult } from './context-builder'
 import type { RagSourceRef } from '../../src/shared/types'
 import { MethodologyContextBuilder } from './builders/methodology-context-builder'
+import { ArticleContextBuilder } from './builders/article-context-builder'
+import { VocabularyContextBuilder } from './builders/vocabulary-context-builder'
 import { KnowledgeCardContextBuilder } from './builders/knowledge-card-context-builder'
 import { MemoryContextBuilder } from './builders/memory-context-builder'
 import { UserProfileContextBuilder } from './builders/user-profile-context-builder'
@@ -108,6 +110,8 @@ function emitRetrieval(
 const contextManager = new ContextManager()
 contextManager.registerBuilder(new BookContextBuilder())
 contextManager.registerBuilder(new MethodologyContextBuilder())
+contextManager.registerBuilder(new ArticleContextBuilder())
+contextManager.registerBuilder(new VocabularyContextBuilder())
 contextManager.registerBuilder(new KnowledgeCardContextBuilder())
 contextManager.registerBuilder(new MemoryContextBuilder())
 contextManager.registerBuilder(new UserProfileContextBuilder())
