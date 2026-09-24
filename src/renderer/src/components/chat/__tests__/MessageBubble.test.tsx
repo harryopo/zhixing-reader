@@ -313,6 +313,55 @@ describe('MessageBubble', () => {
       fireEvent.click(btn) // 收起
       expect(screen.queryByText(/深入理解计算机系统/)).not.toBeInTheDocument()
     })
+
+    /*
+      引用来源不只是"看过这段来自哪本书"——手里有 bookId + highlightId，
+      就该能跳回那条原始划线。这条链路两头都可能断：组件没渲染成可点的、
+      或者点了但没把定位要的信息带出去，所以两头都钉。
+    */
+    describe('来源可点回原文', () => {
+      it('给了回调 → 每条来源是可点的按钮，点击回传这一条的来源', () => {
+        const onOpenSource = vi.fn()
+        render(
+          <MessageBubble
+            role="assistant"
+            content="x"
+            sources={sources}
+            onOpenSource={onOpenSource}
+          />,
+        )
+        fireEvent.click(screen.getByRole('button', { name: /引用来源/ }))
+        const item = screen.getByRole('button', { name: /跳到《深入理解计算机系统》/ })
+        fireEvent.click(item)
+        expect(onOpenSource).toHaveBeenCalledTimes(1)
+        expect(onOpenSource).toHaveBeenCalledWith(expect.objectContaining({ bookId: 'b1', highlightId: 'c1' }))
+      })
+
+      it('没给回调 → 来源保持只读展示，不出现"跳回原文"', () => {
+        render(<MessageBubble role="assistant" content="x" sources={sources} />)
+        fireEvent.click(screen.getByRole('button', { name: /引用来源/ }))
+        expect(screen.queryByRole('button', { name: /跳到《/ })).not.toBeInTheDocument()
+        expect(screen.queryByText(/跳回原文/)).not.toBeInTheDocument()
+        // 反证：这一条确实渲染出来了，只是不可点（否则上面的 not.toBeInTheDocument 是空转）
+        expect(screen.getByText(/深入理解计算机系统/)).toBeInTheDocument()
+      })
+
+      it('历史来源没有 highlightId → 不许做成"点了定位不到"的按钮', () => {
+        const onOpenSource = vi.fn()
+        const legacy = [{ ...sources[0], highlightId: '' }]
+        render(
+          <MessageBubble
+            role="assistant"
+            content="x"
+            sources={legacy}
+            onOpenSource={onOpenSource}
+          />,
+        )
+        fireEvent.click(screen.getByRole('button', { name: /引用来源/ }))
+        expect(screen.queryByRole('button', { name: /跳到《/ })).not.toBeInTheDocument()
+        expect(screen.getByText(/深入理解计算机系统/)).toBeInTheDocument()
+      })
+    })
   })
 
   describe('reasoning 思考过程', () => {

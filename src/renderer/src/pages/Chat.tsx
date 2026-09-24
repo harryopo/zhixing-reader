@@ -15,12 +15,13 @@
  */
 
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { EmptyState } from '@/components/ui/Feedback'
 import MessageBubble, { RAGSource } from '@/components/chat/MessageBubble'
+import { sourceHighlightLink } from '../../../shared/source-anchor'
 import RetrievalPanel from '@/components/chat/RetrievalPanel'
 import SessionDrawer from '@/components/chat/SessionDrawer'
 import BookChip from '@/components/chat/BookChip'
@@ -55,6 +56,7 @@ const QUICK_ACTIONS = [
 // ===== 主组件 =====
 export default function Chat() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const {
     sessions,
     currentSessionId,
@@ -402,6 +404,7 @@ export default function Chat() {
                           : undefined
                       }
                       sources={message.sources as RAGSource[] | undefined}
+                      onOpenSource={(src) => navigate(sourceHighlightLink(src))}
                       liked={message.liked}
                       bookmarked={message.bookmarked}
                       onCopy={() => handleCopyMessage(message.content)}

@@ -1,9 +1,11 @@
-/** 生词详情抽屉（从 VocabularyPage.tsx 原样搬出，逻辑未改） */
-import type { CSSProperties } from 'react'
+/** 生词详情抽屉（例句/复习数据等区块从 VocabularyPage.tsx 搬出，逻辑未改） */
+import { useEffect, useState, type CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import Modal from '@/components/ui/Modal'
 import { describeForgetting } from '../../../../shared/fsrs-voice'
+import { articleDeepLink } from '../../../../shared/source-anchor'
 import { calcMasteryPct, formatDateOnly, masteryStatusColor, masteryStatusLabel, type VocabularyItem } from './model'
 import { sectionLabelStyle } from './styles'
 import { IconButton } from './controls'
@@ -41,6 +43,35 @@ function VocabularyDrawer({
     reps: item.repetition_count ?? item.review_count ?? 0,
     lapses: item.lapses ?? 0,
   })
+
+  /*
+    这个词是在哪篇文章里遇到的：id 从导入时就存在 vocabulary.source_article_id，
+    抽屉里以前从来不显示 —— 记不住一个词往往是因为忘了当时的语境，
+    所以这里既报出篇名，也给一条回到文章的路。
+  */
+  const navigate = useNavigate()
+  const [sourceArticleTitle, setSourceArticleTitle] = useState<string | null>(null)
+  const sourceArticleId = item.source_article_id ?? null
+  useEffect(() => {
+    setSourceArticleTitle(null)
+    if (!sourceArticleId) return
+    let alive = true
+    window.electronAPI.article
+      .getById(sourceArticleId)
+      .then((raw: unknown) => {
+        if (!alive || !raw || typeof raw !== 'object') return
+        const row = raw as Record<string, unknown>
+        const zh = typeof row.title_zh === 'string' ? row.title_zh : ''
+        const en = typeof row.title_en === 'string' ? row.title_en : ''
+        setSourceArticleTitle(zh || en || null)
+      })
+      .catch(() => {
+        if (alive) setSourceArticleTitle(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [sourceArticleId])
 
   // ESC / 遮罩 / 焦点由 ui/Modal 原语负责
   return (
@@ -256,6 +287,35 @@ function VocabularyDrawer({
                     </span>
                   )}
                 </div>
+              </div>
+            </section>
+          )}
+
+          {/* 出处 */}
+          {sourceArticleId && (
+            <section
+              style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
+            >
+              <span style={sectionLabelStyle}>出处</span>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 'calc(var(--spacing) * 3)',
+                }}
+              >
+                <span style={{ fontSize: '0.85rem', color: 'var(--card-foreground)' }}>
+                  {sourceArticleTitle ?? '这篇文章已经不在了'}
+                </span>
+                {sourceArticleTitle && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => navigate(articleDeepLink(sourceArticleId))}
+                  >
+                    <Icon name="arrow-right" size={14} /> 回到文章
+                  </Button>
+                )}
               </div>
             </section>
           )}

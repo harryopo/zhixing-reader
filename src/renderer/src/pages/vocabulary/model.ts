@@ -10,6 +10,8 @@ export interface VocabularyItem {
   example_en?: string
   example_zh?: string
   source?: string
+  /** 这个词是在哪篇文章里遇到的（vocabulary.source_article_id，导入生词时写入） */
+  source_article_id?: string | null
   is_mastered: number
   review_count: number
   last_review_at?: string

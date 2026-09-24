@@ -38,6 +38,7 @@ import {
   type CardRow,
 } from '../utils/db-mapper'
 import { getCardMastery } from '../../../shared/fsrs-metrics'
+import { readHighlightDeepLink, highlightAnchorDomId } from '../../../shared/source-anchor'
 import type { BookSummary, ChapterSummary } from '../../../shared/types'
 
 /** 卡片掌握度等级 → Badge 变体（与复习页保持一致） */
@@ -65,8 +66,10 @@ export default function BookDetail() {
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
   const [summarizing, setSummarizing] = useState(false)
-  // 通知面板的「摘要待更新」直接链到 ?tab=summary，点进来就在页签上，不用自己找
-  const requestedTab = useSearchParams()[0].get('tab')
+  // 通知面板的「摘要待更新」直接链到 ?tab=summary；AI 回答的引用来源链到
+  // ?tab=highlights&highlight=<划线 id>，点进来就落在那条原文上，不用自己翻。
+  const [searchParams] = useSearchParams()
+  const { requestedTab, anchorHighlightId } = readHighlightDeepLink((key) => searchParams.get(key))
   const [activeTab, setActiveTab] = useState<TabKey>(
     requestedTab === 'notes' || requestedTab === 'cards' || requestedTab === 'summary'
       ? requestedTab
@@ -76,6 +79,25 @@ export default function BookDetail() {
   useEffect(() => {
     if (id) loadBookData(id)
   }, [id])
+
+  /*
+    深链定位（?highlight=<划线 id>，由 AI 回答的引用来源跳过来）：
+    划线与笔记同出一张表，落在哪个页签由这条数据本身说了算 —— 写了笔记的
+    归「笔记」页签，所以必须等列表到手后才能定，不能信链接里写的 tab。
+    滚动排在页签定下来之后，否则目标那一行还没挂上 DOM。
+  */
+  useEffect(() => {
+    if (!anchorHighlightId || highlights.length === 0) return
+    const target = highlights.find((h) => h.id === anchorHighlightId)
+    if (target) setActiveTab(target.note ? 'notes' : 'highlights')
+  }, [anchorHighlightId, highlights])
+
+  useEffect(() => {
+    if (!anchorHighlightId) return
+    document
+      .getElementById(highlightAnchorDomId(anchorHighlightId))
+      ?.scrollIntoView({ block: 'center' })
+  }, [anchorHighlightId, activeTab, highlights])
 
   const loadBookData = async (bookId: string) => {
     if (!window.electronAPI?.book || !window.electronAPI?.highlight || !window.electronAPI?.card) {
@@ -498,11 +520,12 @@ export default function BookDetail() {
           {activeTab === 'highlights' && (
             <HighlightList
               items={highlightList}
+              anchorId={anchorHighlightId}
               emptyHint="还没有划线，点击「导入笔记」同步微信读书"
             />
           )}
           {activeTab === 'notes' && (
-            <HighlightList items={noteList} emptyHint="还没有笔记" noteMode />
+            <HighlightList items={noteList} anchorId={anchorHighlightId} emptyHint="还没有笔记" noteMode />
           )}
           {activeTab === 'cards' && (
             <CardList
@@ -603,10 +626,13 @@ function HighlightList({
   items,
   emptyHint,
   noteMode,
+  anchorId,
 }: {
   items: HighlightRow[]
   emptyHint: string
   noteMode?: boolean
+  /** 深链指定的那一条：给它一圈描边，跳过来一眼能看到 */
+  anchorId?: string | null
 }) {
   if (items.length === 0) {
     return (
@@ -622,11 +648,15 @@ function HighlightList({
       {items.map((h) => (
         <div
           key={h.id}
+          id={highlightAnchorDomId(h.id)}
           style={{
             padding: 'calc(var(--spacing) * 4)',
             borderLeft: `3px solid ${noteMode ? 'var(--chart-3)' : 'var(--chart-1)'}`,
             background: 'var(--background)',
             borderRadius: `0 var(--radius) var(--radius) 0`,
+            ...(anchorId && anchorId === h.id
+              ? { outline: '2px solid var(--primary)', outlineOffset: 2 }
+              : null),
           }}
         >
           <p

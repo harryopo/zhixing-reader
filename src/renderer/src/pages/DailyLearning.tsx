@@ -22,7 +22,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { readArticleDeepLink } from '../../../shared/source-anchor'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -59,6 +60,7 @@ const FULL_LIST_LIMIT = 1000
 // ===== 主组件 =====
 export default function DailyLearning() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   // ===== 文章与生词状态（全部保留） =====
   const [articles, setArticles] = useState<Article[]>([])
@@ -124,14 +126,25 @@ export default function DailyLearning() {
       const articleList = raw.map((a) => normalizeArticle(a as Record<string, unknown>))
       if (articleList.length > 0) {
         setArticles(articleList)
-        preloadWordCache(articleList[0])
+        // 生词抽屉里的「回到文章」链到 ?article=<id>：直接落在那篇上，
+        // 而不是把用户丢在列表第一篇。
+        const wantedId = readArticleDeepLink((key) => searchParams.get(key))
+        const wantedIndex = wantedId ? articleList.findIndex((a) => a.id === wantedId) : -1
+        if (wantedIndex >= 0) {
+          setCurrentIndex(wantedIndex)
+          setView('article')
+          preloadWordCache(articleList[wantedIndex])
+        } else {
+          preloadWordCache(articleList[0])
+          if (wantedId) toast.warning('那篇文章不在当前列表里（超出取数范围或已删除）')
+        }
       }
     } catch (error) {
       console.error('加载文章失败:', error)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [searchParams])
 
   const loadVocabulary = useCallback(async () => {
     if (!window.electronAPI?.vocabulary) return

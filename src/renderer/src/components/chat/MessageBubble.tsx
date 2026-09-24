@@ -38,6 +38,11 @@ interface MessageBubbleProps {
   onRegenerate?: () => void
   onToggleLike?: (liked: boolean) => void
   onToggleBookmark?: (bookmarked: boolean) => void
+  /**
+   * 点某条引用来源 → 跳回那本书里的原始划线。
+   * 不传就退回只读展示（引用来源只是一段文字），传了才渲染成按钮。
+   */
+  onOpenSource?: (src: RAGSource) => void
 }
 
 function MessageBubble({
@@ -52,6 +57,7 @@ function MessageBubble({
   onRegenerate,
   onToggleLike,
   onToggleBookmark,
+  onOpenSource,
 }: MessageBubbleProps) {
   const isUser = role === 'user'
 
@@ -162,7 +168,7 @@ function MessageBubble({
 
         {/* RAG 引用（belowMessage 槽位） */}
         {sources && sources.length > 0 && !isStreaming && (
-          <SourceList sources={sources} />
+          <SourceList sources={sources} onOpenSource={onOpenSource} />
         )}
 
         {/* 操作栏 */}
@@ -431,7 +437,13 @@ function ActionButton({
 }
 
 // ===== 子组件：RAG 引用列表 =====
-function SourceList({ sources }: { sources: RAGSource[] }) {
+function SourceList({
+  sources,
+  onOpenSource,
+}: {
+  sources: RAGSource[]
+  onOpenSource?: (src: RAGSource) => void
+}) {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ width: '100%', maxWidth: '90%' }}>
@@ -487,53 +499,92 @@ function SourceList({ sources }: { sources: RAGSource[] }) {
             marginTop: '0.4rem',
           }}
         >
-          {sources.map((src, i) => (
-            <div
-              key={`${src.bookId}-${src.highlightId}-${i}`}
-              style={{
-                padding: '0.5rem 0.7rem',
-                background: 'var(--background)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                fontSize: '0.78rem',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginBottom: '0.2rem',
-                  gap: '0.5rem',
-                }}
-              >
-                <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  📖 {src.bookTitle}
-                </strong>
-                <span style={{ color: 'var(--muted-foreground)', flexShrink: 0 }}>
-                  相关度 {Math.round((src.relevanceScore || 0) * 100)}%
-                </span>
-              </div>
-              {src.chapterTitle && (
-                <div style={{ color: 'var(--muted-foreground)', fontSize: '0.72rem' }}>
-                  {src.chapterTitle}
-                </div>
-              )}
-              {src.content && (
+          {sources.map((src, i) => {
+            const cardStyle = {
+              padding: '0.5rem 0.7rem',
+              background: 'var(--background)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              fontSize: '0.78rem',
+            } as const
+            const head = (
+              <>
                 <div
                   style={{
-                    marginTop: '0.25rem',
-                    color: 'var(--card-foreground)',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: '0.2rem',
+                    gap: '0.5rem',
                   }}
                 >
-                  {src.content}
+                  <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    📖 {src.bookTitle}
+                  </strong>
+                  <span style={{ color: 'var(--muted-foreground)', flexShrink: 0 }}>
+                    相关度 {Math.round((src.relevanceScore || 0) * 100)}%
+                  </span>
                 </div>
-              )}
-            </div>
-          ))}
+                {src.chapterTitle && (
+                  <div style={{ color: 'var(--muted-foreground)', fontSize: '0.72rem' }}>
+                    {src.chapterTitle}
+                  </div>
+                )}
+                {src.content && (
+                  <div
+                    style={{
+                      marginTop: '0.25rem',
+                      color: 'var(--card-foreground)',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {src.content}
+                  </div>
+                )}
+              </>
+            )
+            const key = `${src.bookId}-${src.highlightId}-${i}`
+            // 有 bookId + highlightId 就能跳回原划线；没给回调时保持只读展示。
+            if (!onOpenSource || !src.bookId || !src.highlightId) {
+              return (
+                <div key={key} style={cardStyle}>
+                  {head}
+                </div>
+              )
+            }
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onOpenSource(src)}
+                aria-label={`跳到《${src.bookTitle}》里的这条原文`}
+                style={{
+                  ...cardStyle,
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  color: 'inherit',
+                  font: 'inherit',
+                }}
+              >
+                {head}
+                <span
+                  style={{
+                    display: 'inline-block',
+                    marginTop: '0.3rem',
+                    color: 'var(--primary)',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  跳回原文 →
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
