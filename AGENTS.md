@@ -3,7 +3,7 @@
 > **面向对象**：所有 AI Agent（Claude Code / Cursor / Continue / Trae）
 > **生效日期**：2026-07-20
 > **配套规范**：[CLAUDE.md](CLAUDE.md) + [.learnings/LEARNINGS.md](.learnings/LEARNINGS.md) + [.learnings/PROGRESS.md](.learnings/PROGRESS.md)
-> **最近核验**：2026-09-24（覆盖率批次：**阈值从装饰接成真门禁** —— CI 与 `npm run verify` 都改跑 `npm run test:cov`（原先跑不带覆盖率的 `test`，四个阈值从没把过关），顺带清掉清单里两条静默空匹配的失效路径并补入 10 个已有测试的纯逻辑模块，被统计文件 18 → **45**，聚合 86.2/84.24/84.82/86.2 仍过阈值，Issue #9 关闭；同日更早：质量批次把 **`tests/` 纳入 typecheck 覆盖**（Issue #6 关闭），积压的 61 处类型错误清零、新增覆盖面守卫含反证，`npm run verify` 退 0 = **63 文件 / 1054 用例**；2026-09-23 安全批次 2/2 + 1/2：**密钥原值不再跨进程下发**（渲染层只拿 `wereadApiKeySet` / `llmKeySet` 两个布尔，输入框"留空即不修改"、移除走显式清除，顺带修掉"只改模型不重填 key 就不下发"的断链并砍掉随之变死的 `WEREAD.SET_API_KEY`，通道 164→163）；上一批把 API 密钥**真正**接通系统加密存储（Issue #13 选"接通"），明文历史数据启动时一次性迁移、失败路径绝不丢密钥、可用性由加解密自测判定；同日更早：打包链批次 electron-builder → **26.15.3**、工具链批次 Vitest → **3.2.7**、运行时批次 Electron → **39.8.10**（Issue #11）+ 开发版数据目录时序缺陷修复；再早：GitHub 维护一轮、v1.3.4 出包并发布）
+> **最近核验**：2026-09-24（文档指针批次：**收掉 AGENTS / CLAUDE 里指向不存在文件的 6 处引用**（Issue #7 关闭）—— 15 条规则的正本改为 §5.3 的表、各领域指名由哪份**入库配置**强制，早期那套 spec 四件套清单（从未入库）从 §9.4 删除；扫到 18 处命中但**只删该删的**（写权限 glob、gitignore 边界说明、§十 历史记录三类合法留着）；新增 `tests/doc-pointers.test.ts` 17 条钉住并做过反证；**64 文件 / 1071 用例**，`npm run verify` 退 0。同日更早：覆盖率批次 —— **阈值从装饰接成真门禁**，CI 与 `npm run verify` 都跑 `npm run test:cov`，被统计文件 18 → **45**，聚合 86.2/84.24/84.82/86.2 仍过阈值（Issue #9 关闭）；质量批次 —— **`tests/` 纳入 typecheck 覆盖**，积压的 61 处类型错误清零（Issue #6 关闭）；2026-09-23 安全批次 2/2 + 1/2：**密钥原值不再跨进程下发**（渲染层只拿 `wereadApiKeySet` / `llmKeySet` 两个布尔，输入框"留空即不修改"、移除走显式清除，顺带修掉"只改模型不重填 key 就不下发"的断链并砍掉随之变死的 `WEREAD.SET_API_KEY`，通道 164→163）+ API 密钥**真正**接通系统加密存储（Issue #13 选"接通"）；再早：Electron → **39.8.10**、Vitest → **3.2.7**、electron-builder → **26.15.3**、开发版数据目录时序缺陷修复、GitHub 维护一轮、v1.3.4 出包并发布）（渲染层只拿 `wereadApiKeySet` / `llmKeySet` 两个布尔，输入框"留空即不修改"、移除走显式清除，顺带修掉"只改模型不重填 key 就不下发"的断链并砍掉随之变死的 `WEREAD.SET_API_KEY`，通道 164→163）；上一批把 API 密钥**真正**接通系统加密存储（Issue #13 选"接通"），明文历史数据启动时一次性迁移、失败路径绝不丢密钥、可用性由加解密自测判定；同日更早：打包链批次 electron-builder → **26.15.3**、工具链批次 Vitest → **3.2.7**、运行时批次 Electron → **39.8.10**（Issue #11）+ 开发版数据目录时序缺陷修复；再早：GitHub 维护一轮、v1.3.4 出包并发布）
 
 ---
 
@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（63 文件 / 1054 用例）
+├── tests/                 # Vitest 单元测试（64 文件 / 1071 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（1054 用例；不含覆盖率）
+npm run test             # Vitest（1071 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test:cov+build（推荐；测试那步带覆盖率阈值，与 CI 同口径）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -96,7 +96,7 @@ npm run package:win      # Windows NSIS 安装包
 
 ### 4.1 文件所有权（防冲突）
 
-所有并行 Sub-agent 按下表划分文件所有权（⚠️ `.claude/ownership.yaml` **未落地**，下表为准）：
+所有并行 Sub-agent 按下表划分文件所有权（**下表就是正本**，仓库内没有第二份机器可读的配置文件）：
 
 | Agent | 可写 | 禁止 |
 |-------|------|------|
@@ -120,10 +120,12 @@ npm run package:win      # Windows NSIS 安装包
 ### 4.3 Sub-agent 模板
 
 - **code-reviewer** — 7 维度审查（安全/性能/正确性/可维护性/测试/可访问性/文档）
-  - 提示词模板、审查类目、反馈表达规范（⚠️ `.claude/rules/review-agent.md` **未落地**，7 维清单见第 9.3 节）
+  - 审查类目见本文 **§9.3 七维清单**（那就是正本）；提示词模板与反馈表达规范随任务下发，不落文件
 - **test-writer** — Vitest 用例生成（红绿循环）
 
-> ⚠️ `.claude/` 目录当前**不存在**（`.gitignore` 明确排除 `.claude/`，换机后未恢复）。本节保留约定内容作为协作契约，落地文件待补。
+> 本章是**协作契约**，不是配置说明：仓库内没有任何 Agent 配置文件可读，规则的**可执行真值**在
+> `eslint.config.js`、`tsconfig.json`、`vitest.config.ts`、`.github/workflows/ci.yml` 与下面 §5.3 的表里。
+> `.claude/` 与 `.workbuddy/` 都在 `.gitignore` 里，换机后不会有、也不该去找。
 
 ---
 
@@ -156,7 +158,8 @@ npm run verify
 
 ### 5.3 15 条硬性规则（违反即阻塞）
 
-15 条规则正本（`.learnings/STANDARDS.md`）**未落地**，下表为速查口径：
+**下表就是这 15 条的正本**（仓库内没有第二份文本；过去这里指向过一个从未存在的规范正本文件，
+2026-09-24 收掉 —— 一个"正本"不该有两种口径）：
 
 | 类别 | 规则 |
 |------|------|
@@ -170,11 +173,13 @@ npm run verify
 
 ## 六、领域专属规范
 
-| 领域 | 规则文件 | 重点 |
-|------|---------|------|
-| 代码风格 | `.claude/rules/code-style.md` ⚠️未落地 | TS/React/Electron 细节；以 `eslint.config.js` + `tsconfig.json` 实际配置为准 |
-| 安全 | `.claude/rules/security.md` ⚠️未落地 | R1-R5 + IPC 安全；红线见 CLAUDE.md §2 |
-| Git | `.claude/rules/git.md` ⚠️未落地 | Conventional Commits；✅ husky pre-commit（lint+typecheck+test）+ commit-msg（commitlint config-conventional，header≤120）均 2026-09-18 装妥 |
+每个领域的规则**由谁强制**（刻意不另写一份规范文本 —— 本项目已在版本号、色值、IPC 通道上被"两份口径各自漂移"咬过三次）：
+
+| 领域 | 可执行真值 | 重点 |
+|------|-----------|------|
+| 代码风格 | `eslint.config.js` + 根 `tsconfig.json` | TS/React/Electron 细节全在这两份配置里；`npm run lint` / `npm run typecheck` 是判定手段 |
+| 安全 | `CLAUDE.md` §2 红线 + `SECURITY.md` | R1-R5 + IPC 边界；`contextIsolation: true` / `nodeIntegration: false` / 密钥不出主进程 |
+| Git | `commitlint.config.js` + `.husky/` | Conventional Commits；pre-commit（lint+typecheck+test）与 commit-msg 两道钩子 2026-09-18 装妥 |
 
 ---
 
@@ -245,19 +250,17 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（63 文件 / 1054 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`，门禁跑 `npm run test` |
+| 测试 | 项目已有 Vitest（64 文件 / 1071 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
-| 文档 | spec/tasks/checklist/verify-report 四件套 + 代码内注释 + 规范 commit message |
+| 文档 | 代码内注释 + 规范 commit message + **本文第十节一行批次记录**（早期设想的 spec/tasks/checklist/verify-report 四件套从未落地，实际沉淀位置见 §9.4）|
 
 ### 9.4 相关文件
 
-> ⚠️ 下列 `.trae/specs/` 四件套**当前不存在**（`.trae/` 目录已不在仓库，换机后未恢复）；沉淀有效的部分见 `.learnings/LEARNINGS.md`。
+经验与进度的**唯一**沉淀位置（都是本地文件、`.gitignore` 排除、不入库）：
 
-- spec：`.trae/specs/dead-code-governance/spec.md`（未落地）
-- 任务清单：`.trae/specs/dead-code-governance/tasks.md`（未落地）
-- 验收 checklist：`.trae/specs/dead-code-governance/checklist.md`（未落地）
-- 最终 verify report：`.trae/specs/dead-code-governance/verify-report.md`（未落地）
-- 经验沉淀：`.learnings/LEARNINGS.md` LRN-20260721-006~010 ✅
+- 踩坑与最佳实践：`.learnings/LEARNINGS.md` —— 本轮治理的结论在 LRN-20260721-006~010
+- 路线图与待办：`.learnings/PROGRESS.md`（公开待办以 GitHub Issues 为准，见 §十）
+- 会话交接：`.workbuddy/memory/` 下最新日期文件
 
 ---
 
@@ -265,6 +268,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-09-24（文档指针批次） | **收掉 AGENTS / CLAUDE 里指向不存在文件的引用（Issue #7 做完）** —— ① **扫全量而非只修点名的三条**：`grep -n "\.claude/\|\.trae/"` 两条主文档共 **18 处**命中，但**不能一把删** —— 三类是合法用法必须留着：`infra-agent` 的可写范围 glob `.claude/**`（那是权限声明不是文件指针）、§4.3 结尾与 §2 目录树的裸 `.claude/`（说明它被 gitignore 排除，正是"别去找"的依据）、§十 变更记录里 2026-07-20「加入 .claude/」与 2026-09-11「标注未落地」两行（**append-only 历史，当时的事实不许改**）。真正要收的是 6 处"叫人来读一个不存在的文件"：ownership.yaml、review-agent.md、三份 `rules/*.md`、STANDARDS.md 正本、`.trae/specs/` 四件套 + §十 两行"待补"。② **方向选"收指针"而不是"补正本"**（issue 里推荐的那个）：这些目录全在 `.gitignore` 内，写出来也不入库，公开仓库里留引用就是永久断链；而且**本项目已被"两份口径各自漂移"咬过三次**（版本号 / 色值 / IPC 通道），再手写一份规范文本等于造第四份漂移源。改法是给每个领域指名**谁在强制**：§5.3 的表 = 15 条规则正本，§六 三行 = `eslint.config.js` + `tsconfig.json`（代码风格）、`CLAUDE.md` §2 + `SECURITY.md`（安全）、`commitlint.config.js` + `.husky/`（Git），§9.4 只留真正沉淀经验的地方（`.learnings/LEARNINGS.md` 的 LRN 编号）。③ **新增 `tests/doc-pointers.test.ts` 17 条**：四个死路径在**正文**（第十节之前）零命中；文档新指向的 10 个入库配置必须 `existsSync`。`.learnings/` 与 `.workbuddy/` 是本地文件，**不能断它们存在**（CI 上 fresh clone 就没有），改成断两件事：`.gitignore` 确实排除了它们 + 文档把它们标注成本地文件。④ **反证做过**：往 §六 临时注入一句"详见 `.claude/rules/code-style.md`" ⇒ 守卫立刻判红（错误信息带文件名与死路径），删掉恢复 ⇒ 17 条全绿。⑤ **通用判据试过但放弃**：issue 建议"文档里每个反引号路径都要 `ls` 得到"，实测量出 **34 处误报**（`main.ts` / `db-mapper.ts` 这类简写、`@/` 别名、`get()/getAll()` 这类非路径 token、npm 包名），照它写守卫会得到一条天天误报的测试 —— **判据宁要准不要全**，已记进 issue 评论。⑥ **顺手统一口径**：§9.3 测试行"门禁跑 `npm run test`"改成 `npm run verify`（上一批 CI 已改跑 `test:cov`，别让文档停在旧口径）；§9.3 文档行的"四件套"改为指名真正的沉淀位置；CLAUDE §8 的"规范基础设施 ⚠️"改为 ✅ 并写清"不再另立规范文本"。⑦ **对账**：新增 17 条 ⇒ **64 文件 / 1071 用例**（改前 63 / 1054），`npm run verify` 退 0，文档当前口径五处同步。⑧ **没验的**：❌ 没再让"新人照文档找文件"复现一遍（判据是脚本，不是人）；❌ `docs/` 目录（不入库）里的同类断链没扫。| AI Agent（接手） |
 | 2026-09-24（覆盖率批次） | **把覆盖率阈值从装饰接成真的门禁（Issue #9 做完）** —— ① **根因**：CI 的测试步骤跑的是 `npm run test`（不带 `--coverage`），而阈值写在 `vitest.config.ts` 的 `coverage.thresholds` 里 —— **只有跑带覆盖率的命令才会评估它**。也就是说 lines 83 / branches 80 / functions 75 / statements 83 这四个数从写下起在 CI 上从没把过关，谁忘了在本地手动跑 `npm run test:cov` 就没人知道。② **修法**：CI 测试步骤换成 `npm run test:cov`（阈值不过 ⇒ 流水线红），覆盖率报告 `coverage/index.html` + `coverage-summary.json` 作为 artifact 留 14 天；`npm run verify` 同步换成 `test:cov`，**本地一条命令与 CI 完全同口径**（husky pre-commit 仍跑快的 `npm run test`，没拖慢提交）。③ **清掉两处静默空匹配**：清单里的 `electron/database.ts`（已拆成 `electron/database/` 14 个领域文件）与 `electron/services/http-client.ts`（已移到 `electron/http-client.ts`）**文件根本不在了**，vitest 对不匹配的 glob 不报错 ⇒ 白写两条、还让人以为覆盖了两处。前者改成 `electron/database/*.ts`（`index.ts` 由既有 exclude 挡掉），后者改真路径。④ **顺手把已有测试没进清单的补上**：算了一遍"被测试 import 的源文件"= **62 个**，而清单实际只量到 18 个 ⇒ 补进 10 个有专属测试文件的纯逻辑模块（`retrieval` / `daily-tasks` / `profile-stats` / `chapter-summaries` / `review-export` / `reading-trend` / `update-notice` / `csv` / `model-routing` / `settings-secrets`）。**只有常量与类型声明的不列**（`types.ts` / `ipc-channels.ts` / `external-links.ts`）—— 它们没有分支可盖，列进去等于往分母塞一个 0%。⑤ **实测（每一步都单独跑，不是推的）**：清单 20 条 / 存在 18 → 修正后 35 个文件（聚合 85.25 / 82.09 / 83.56 / 85.25）→ 再补纯逻辑后 **45 个文件、聚合 86.2 / 84.24 / 84.82 / 86.2**，仍全过阈值（余量 lines +3.2、branches +4.24、functions +9.82）。`npm run verify`（新口径）退 0。⑥ **文档口径全改**：AGENTS §2 目录树 / §3 命令 / §5.1 门禁表 / §5.2 CI 步骤、README 概览表与命令段与 CI 说明、CONTRIBUTING、PR 模板 —— 原来都写着"CI 不产生 coverage / 覆盖率是可选的 / 只作用于 25 个文件"，其中 **README 那句"25 个"两头都不对**（清单 20 条、真实存在 18 条）。⑦ **没验的**：❌ CI 上跑 `test:cov` 是否真的绿 **只能等推上去那一次**（本地是同版本同配置的 Windows 实跑，Runner 的 CPU 数不同会让 v8 覆盖率的极少数分支计数有差，历史上没遇到过但没排除）；❌ 阈值**没往上调**（余量 3.2 个百分点摆在那，那是下一个决定，不混在这批）；❌ 剩下 17 个"有测试却没进清单"的文件多为重逻辑（`orchestrator` / `weread-api` / `repositories` / 各 service），列进去会因未测分支拉低聚合 —— 本批刻意不动，欠账记进 #9 的评论。| AI Agent（接手） |
 | 2026-09-24（质量批次） | **`tests/` 纳入 typecheck 覆盖，清零积压的 61 处类型错误（Issue #6 做完）** —— ① **先量再做**：把 `tests/**/*.ts` 加进根 `tsconfig.json` 的 `include`，`npx tsc --noEmit` 报出 **61 处 / 15 个文件**（这些文件此前完全在类型检查之外，只有真跑 vitest 才可能暴露问题，而 vitest 只看运行时、不看类型）。② **判据不是"清零"，是每条分清"测试写错类型"还是"被测代码真有谎"** —— 后者有三处，都改在生产侧：`renderTemplate()` 的实现按"缺值"处理 `null`（第 4 行明写 `value === null`）而签名不含它，于是任何拿数据库行（可空列读出来就是 `null`）的调用方都得绕类型；`AIServiceConfig` 被 `setAIConfig` / `getAIConfig` / `testConnection` 三个导出函数的签名使用却没 `export`（外面根本没法类型化地传参）；三个上下文构建器把 `shouldBuild()` 的接口形参省掉了，测试通过具体类调用时 TS 判"不接受参数"。③ **照出来一件不是缺陷但值得知道的事实**：`book` / `methodology` / `knowledge-card` 三个构建器的 `shouldBuild()` **无条件返回 true**，所以那 5 条用例传的上下文全被忽略。它们是 2026-09-16 那次"默认对话零上下文"修复的回归守卫（钉住不许再退回按 `bookId`/意图 gate），保留原样、只把签名对齐接口。④ **清零手法一律"补类型不动断言"**：`vi.fn(() => [])` 会推成 `never[]` ⇒ 后面 `mockReturnValue(真行数据)` 全判红、`mock.calls[0][1]` 也没人盯，改成显式标注返回类型（与生产签名逐字对齐）；`let capturedError: Error | null = null` + 回调里赋值 ⇒ TS 的 narrowing 停在 `null`，`capturedError?.message` 被判成 `never`（这点单独拿 `.test-tmp` 里的最小复现验过：`let` 形式报错、对象持有形式不报错），改成 `const captured: { error: Error | null }` 而不是加 cast；要比字段的返回值先 `if (n === null) throw` / `expect(x).not.toBeNull()` 再取（**只加检查，不减检查**）。⑤ **顺手收窄一处**：`dueCard(over: Record<string, unknown>)` 改成 `Partial<DueReviewCard>` —— 原来传错卡片字段名不会有任何提示。⑥ **新增 `tests/typecheck-coverage.test.ts` 4 条钉住覆盖面，反证做过**：临时把 `tests/**/*.ts` 从 `include` 删掉 ⇒ 2 条判红；恢复 ⇒ 4 条全绿（否则"守卫常在"不等于"守卫有用"）。⑦ **对账**：`npm run verify` 退 0，**63 文件 / 1054 用例**（改前 62 / 1050，多出的 4 条就是新守卫，一条没少），`tsc --noEmit` 错误数 61 → **0**。⑧ **顺手拆掉自己上一批埋的雷**：`secret-storage.test.ts` 与 `secret-ipc-boundary.test.ts` **共用同一个 `.test-tmp/user-data`**，两边都在 `beforeEach` 里 `rm` `settings.json` 与 `secure/` —— vitest 按文件并行，两个文件互删对方现场就是等着偶发红。改成 `tests/electron-mock-setup.ts` 认 `ZHIXING_TEST_PROFILE`、两个文件各占一个 profile 目录（目录名与该文件的 `DATA_DIR` 由同一个常量派生，不会漂）；两个文件同跑 28 条全绿、全套连跑退 0。⑨ **一条偶发红的取证（不是本批引入）**：pre-commit 那次跑挂的是 `MessageBubble.test.tsx:430` 的 `toHaveTextContent('cellContent')`（该用例依赖 React 对 `<td>` 直接挂在 `<div>` 下的纠错行为，运行时警告本来就写着 "cannot be a child of a &lt;div&gt;"），随后 **4 次全套连跑全部退 0** —— 没复现、也没去动它，归到渲染测试那一摊（#8），别读成本批的回归。⑩ **没验的**：❌ 本次只保证"断言语义一字未动"，**没有逐条复核这些测试断言本身对不对**（覆盖的是编译期，不是正确性）；❌ 测试文件仍不在覆盖率 include 里（那是 #9）；❌ 组件测试（`.tsx`）本来就已在 `src/**/*.tsx` 覆盖内 —— 这点是量过的：61 条错误里没有一条来自 `.tsx`，不是猜的。| AI Agent（接手） |
 | 2026-09-23（安全批次 2/2） | **密钥原值不再跨进程下发：界面只知「配没配」** —— ① **上一条把盘堵住了，这条堵的是进程间那条缝**：`SETTINGS.GET_ALL` 走的是 `settingsService.getAll()`，而它会把**解密后的 key 原值**一起发给渲染层，设置页再回填进输入框 —— 每次打开设置就把刚加密的东西摊开一次（渲染层任意一处 XSS、DevTools、任何后来加的日志都拿得到）。② **口径改成「只传布尔」**：新增 `settingsService.getForRenderer()` —— 密钥字段从对象里删掉，换成 `wereadApiKeySet` / `llmKeySet`（字段名唯一真值在 `secretSetFlagName()`）；`SETTINGS.GET` 问到密钥键名**直接抛错**而不是回 `undefined`，因为回空值会被界面读成"没配"、随手一次保存就把用户的 key 清掉。③ **输入框语义改成"留空即不修改"**，配不上的时候占位文案说清楚（`已保存（留空则不修改）`）；`setSecureKey(key, '')` 变成**显式清除**（密文文件与明文残留一起抹掉），界面旁边给了「清除已保存的 Key」按钮 —— 没有这颗按钮的话"清空输入框"就不再等于删除，用户会失去退出通道。`settings.set(key, 非字符串)` 一律拒绝写入（防一次手滑的 `undefined` 抹掉 key）。④ **顺手修掉一条被暴露出来的真断链**：`ai.setConfig` 过去整个包在 `if (llmKey)` 里 ⇒ **"只改端点或模型、不重填 key"这条最常见的保存路径根本不会把配置下发给 AI 服务，要重启才生效**。现在无条件调用，apiKey 留空时由主进程补回已存的那把（`withStoredApiKey()` 放在 `src/shared/settings-secrets.ts`，判定逻辑可单测）；`weread.test('')` 本来就有 `key || apiKey` 回退，所以测试连接同样能用上已存的 key。⑤ **砍一条随之变死的通道**：`WEREAD.SET_API_KEY`（通道 + handler + preload + `renderer.d.ts`）—— 渲染层唯一的用途就是把 key 再塞一次进主进程内存，而 `SETTINGS.SET` 的 handler 早就在做这件事。通道数 164 → **163**（按 `ipc-channels.ts` 里去重后的字面量数实测，同一套算法喂 `HEAD` 版本得到 164，判据本身验过）。⑥ **实测（15 条新用例，`tests/secret-ipc-boundary.test.ts`）**：直接注册**真实的** `registerSettingsHandlers` 再调 handler，而不是只看源码 —— 存着原值的现场里，交出去的对象 `JSON.stringify` 查不到那串值（**反证**：同一个 `settingsService.getAll()` 查得到，证明"查不到"是边界生效不是没存进去）；未配是 `false` 不是缺字段；非密钥项照常下发（过滤没把设置页掏空）；`GET('wereadApiKey')` 抛错且错误信息里不含原值；空串清除后 `.enc` 与 `get()` 都没了、flag 变 `false`；`undefined`/`null` 抹不掉已存 key；`withStoredApiKey` 三档（空/缺失补、填了不顶、主进程也没有就交回空串）；渲染层源码扫描两处旧读法不许回来（配"扫描看得见真东西"的反证）。**门禁**：`npm run verify` 退 0（**62 文件 / 1050 用例**，eslint 0 error / 176 warning，typecheck 0 错误，三进程 build 成功）。**没验的**：❌ **界面一张没点开过** —— 「清除已保存的 Key」的实际观感、两种占位文案、点清除之后"已连接"徽标是否如期变灰，全都只有代码推理；❌ 装机版没重跑（这批不动打包链）；❌ **`.enc` 解不开时设置页长什么样**没实测：按推理 flag 会是 `false`、界面显示"未连接"、用户重填即覆盖，但这条路径（换机器/重装系统）本机造不出来；❌ "只改模型不下发"那条修复只过了单测与 build，没在真 AI 服务上验证过一次保存后立即生效。| AI Agent（接手） |
@@ -312,6 +316,6 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 2026-07-21 | 死代码治理循环工程收尾 — 新增第九章"死代码治理经验" + 7 个 IPC 通道清单 + 7 维质量评分基准 | dead-code-governance verifier-subagent |
 | 已处理 | husky pre-commit hook 安装（2026-09-18：lint+typecheck+test 三连）| — |
 | 已处理 | commitlint 配置（2026-09-18：config-conventional + commit-msg 钩子，R10 不再靠人工）| — |
-| 待补 | `.claude/rules/*` + `.learnings/STANDARDS.md` 正本（被多处引用但不存在）| — |
-| 待补 | `.trae/specs/dead-code-governance/` 四件套 | — |
+| 已处理 | ~~`.claude/rules/*` + `.learnings/STANDARDS.md` 正本~~ —— 2026-09-24 收掉这些指针：§5.3 表即为 15 条规则正本，§六 改为写"每个领域由哪份配置强制"，不再另立规范文本（Issue #7）| — |
+| 已处理 | ~~`.trae/specs/dead-code-governance/` 四件套~~ —— 2026-09-24 从 §9.4 删除，经验唯一沉淀位置改为 `.learnings/LEARNINGS.md`（Issue #7）| — |
 | 已处理 | `scripts/` 相关 6 个死脚本已从 `package.json` 移除（2026-09-11）| — |

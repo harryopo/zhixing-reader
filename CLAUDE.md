@@ -3,7 +3,7 @@
 > **作用**：Claude Code（Cursor/Trae/Claude Code CLI）启动时自动加载的项目级指令
 > **作用范围**：仅在 Claude 系列 AI 中生效；其他 AI 看 `AGENTS.md`（已存在，更通用）
 > **更新时机**：本文件由团队规范提炼而来；与项目记忆冲突时，以本文件为准
-> **详细规范**：⚠️ `.learnings/STANDARDS.md` 与 `.claude/rules/{code-style,security,git}.md` **均未落地**（不存在），本文与 `eslint.config.js` / `tsconfig.json` / `package.json` 的实际配置为唯一真值
+> **详细规范**：本文与 `eslint.config.js` / `tsconfig.json` / `vitest.config.ts` / `package.json` 的**实际配置就是唯一真值**，仓库内没有第二份规范文本（过去这里指向过的两份本地规范文件从未存在，2026-09-24 已把这些指针收掉 —— 见 AGENTS.md §5.3 / §六）
 > **最近核验**：2026-09-11（对代码实测校准）
 
 ---
@@ -126,9 +126,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 | 温度 | 位置 | 用途 |
 |------|------|------|
 | 🔥 热 | 本对话上下文 | 即时讨论 |
-| 🌡️ 温 | `.learnings/STANDARDS.md` ⚠️未落地 | 速查规范（以 AGENTS.md §5.3 为准）|
-| 🌡️ 温 | `.learnings/ERRORS.md` ⚠️未落地 | 已解决 bug（并入 LEARNINGS.md）|
-| 🌡️ 温 | `.learnings/LEARNINGS.md` | 最佳实践 + 教训 ✅ |
+| 🌡️ 温 | `.learnings/LEARNINGS.md` | 最佳实践 + 教训 + 已解决 bug ✅（规范速查在 AGENTS.md §5.3，不另立文件）|
 | 🌡️ 温 | `.learnings/PROGRESS.md` | 进度跟踪 ✅ |
 | 🌡️ 温 | `.workbuddy/memory/*.md` | 会话交接记录 ✅（⚠️ 本地文件，不入库）|
 | 🧊 冷 | `CLAUDE.md`（本文件） | 每次启动加载 |
@@ -145,6 +143,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 - **git 锚点**：tag 序列 `v1.0.0` → `v1.1.0` → `v1.2.0` → `v1.3.0` → `v1.3.1` → `v1.3.2` → `v1.3.3` → `v1.3.4`（发版即打 tag 并推，Release 三件同传：exe / `.blockmap` / `latest.yml`）
 - **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
+- **门禁基线（2026-09-24 文档指针批次实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / `npm run test:cov` 退 0（**64 文件 / 1071 用例**）✅ / `npm run verify` 退 0 ✅。**Issue #7 关闭：AGENTS / CLAUDE 里 6 处"去读一个不存在的文件"的指针全收掉**（ownership 配置、review-agent 规则、三份 Agent 规则文件、那份从未存在的规范正本、早期 spec 四件套清单、§十两行"待补"）。**扫全量 18 处命中但只删 6 处**：`.claude/**`（infra-agent 可写范围 glob）、裸 `.claude/`（说明被 gitignore 排除 = "别去找"的依据）、§十 两行历史记录（**append-only，当时的事实不许改**）都是合法用法，一把删反而把权限声明和历史改掉。**方向取"收指针"**（写正本没用：这些目录不入库，且本项目已被"两份口径各自漂移"咬过三次）—— §5.3 表 = 15 条规则正本，§六 = 指名每个领域由哪份**入库配置**强制，§9.4 = 只留 `.learnings/LEARNINGS.md`。新增 `tests/doc-pointers.test.ts` 17 条：正文（第十节之前）零死路径 + 文档指向的 10 个入库配置必须存在；`.learnings/` / `.workbuddy/` 不断存在而断"被 gitignore 排除 + 文档标注为本地文件"（CI 上 fresh clone 没有它们，硬断会假红）。**反证做过**：往 §六 临时注入一句指向 Agent 规则文件的死路径 ⇒ 立刻判红，删掉 ⇒ 全绿。**issue 建议的通用判据试过并放弃**：要求"每个反引号路径都 ls 得到"实测 34 处误报（简写 `main.ts`、`@/` 别名、`get()/getAll()`、npm 包名）⇒ **判据宁要准不要全**。顺手把 §9.3 的"门禁跑 `npm run test`"改成 `npm run verify`（上一批 CI 已改跑 `test:cov`）。**未验**：❌ 没让新人真照文档找一遍（判据是脚本不是人）；❌ 不入库的 `docs/` 里同类断链没扫。
 - **门禁基线（2026-09-24 覆盖率批次实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / **`npm run test:cov` 退 0**（45 个文件，聚合 **86.2 / 84.24 / 84.82 / 86.2**，阈值 83/80/75/83）✅ / 三进程 build ✅ / **新口径 `npm run verify`（= lint + typecheck + test:cov + build）退 0** ✅。**CI 的测试步骤从 `npm run test` 换成 `npm run test:cov`** —— 那四个阈值此前在 CI 上**从来没把过关**（不带 `--coverage` 就不会评估阈值），本地不手动跑 `test:cov` 就等于没有这道门。`coverage/index.html` + `coverage-summary.json` 现在作为 artifact 留 14 天；husky pre-commit **仍跑快的 `npm run test`**（不拖慢每次提交）。**清单修掉两处静默空匹配**：`electron/database.ts`（已拆成 `electron/database/`）与 `electron/services/http-client.ts`（已移到 `electron/http-client.ts`）文件早就不在了，vitest 对不匹配的 glob 不报错 ⇒ 白写两条还误导人；另补入 10 个有专属测试却没进清单的纯逻辑模块 ⇒ 被统计文件 **18 → 35 → 45**（分两步各测一次，不是推的）。**只有常量/类型声明的模块刻意不列**（`types.ts` / `ipc-channels.ts` / `external-links.ts`，没有分支可盖，列进去是往分母塞 0%）。文档口径同步：AGENTS §2/§3/§5.1/§5.2、README 概览表+命令段+CI 说明、CONTRIBUTING、PR 模板（README 原来那句"只作用于 25 个文件"**两头都不对**：清单 20 条、真实存在 18 条）。**未验**：❌ CI 上跑 `test:cov` 真绿只能等推上去那一次（本地同版本同配置实跑过；Runner CPU 数不同理论上可能让极少数分支计数有差，未排除）；❌ 阈值**没上调**（余量 3.2pp 是下一个决定）；❌ 还有 17 个"有测试却没进清单"的文件（多为重逻辑：`orchestrator` / `weread-api` / `repositories` / 各 service），列进去会因未测分支拉低聚合，本批刻意不动，欠账记进 #9 评论。
 - **门禁基线（2026-09-24 质量批次实测）**：typecheck 0 错误 ✅（**含 `tests/`**）/ ESLint 0 错误（176 warning）✅ / Vitest **1054 用例 · 63 文件** ✅ / `npm run verify` 退 0 ✅。**Issue #6 关闭：`tests/**/*.ts` 加进根 `tsconfig.json` 的 `include`**，此前 61 处类型错误 / 15 个文件积压在类型检查之外。改法分两栏：**生产侧三处声明与实现不一致**（`renderTemplate` 实现按缺值处理 `null` 但签名不含；`AIServiceConfig` 被三个导出函数签名使用却没 `export`；三个 builder 的 `shouldBuild()` 省掉接口形参）+ **测试侧补类型**（`vi.fn(() => [])` 推成 `never[]` ⇒ 标返回类型；回调里赋值的 `let capturedError: Error | null` 被 TS 的 narrowing 判成 `never` ⇒ 换对象持有 `{ error: null }`，属性 narrowing 会在调用后重置、`let` 不会，这点用最小复现单独验过）。**断言一字未动**：要比可能为 null 的返回值之前，一律先 `if (n === null) throw` / `expect(x).not.toBeNull()`（只加检查不减检查）；`dueCard(over)` 从 `Record<string, unknown>` 收窄成 `Partial<DueReviewCard>`。**顺手照出（不是缺陷）**：`book` / `methodology` / `knowledge-card` 三个 `shouldBuild()` **无条件返回 true**，那 5 条用例传的上下文全被忽略 —— 它们是 09-16 "默认对话零上下文"修复的回归守卫，保留。新增 `tests/typecheck-coverage.test.ts` 4 条**带反证**（临时从 include 删掉 `tests/**/*.ts` ⇒ 2 条判红；恢复 ⇒ 全绿）。**顺手拆掉上一批埋的雷**：两个密钥测试文件共用 `.test-tmp/user-data` 且各自 `rm` `settings.json` + `secure/`，vitest 按文件并行 ⇒ 互删现场；改为 `electron-mock-setup` 认 `ZHIXING_TEST_PROFILE`、两文件各占一个 profile 目录。**一条偶发红取证**：pre-commit 那次挂的是 `MessageBubble.test.tsx:430`（依赖 React 对 `<td>` 挂在 `<div>` 下的纠错行为），随后 4 次全套连跑全部退 0，未复现、未改动，归 #8 渲染测试那一摊。对账：62→**63 文件**、1050→**1054 用例**，多出的 4 条就是新守卫。**未验**：❌ 只保证"测试语义没动"，没逐条复核这些断言本身对不对（编译期≠正确性）；❌ 测试文件仍不在覆盖率 include（#9）；❌ `.tsx` 组件测试本来就在 `src/**/*.tsx` 覆盖内（61 条错误里零命中，量过）。
 - **门禁基线（2026-09-23 安全批次 2/2 实测）**：typecheck 0 错误 ✅ / ESLint 0 错误（176 warning）✅ / Vitest **1050 用例 · 62 文件** ✅ / `npm run verify` 退 0 ✅。**密钥原值不再跨进程下发**：`SETTINGS.GET_ALL` 改走 `settingsService.getForRenderer()`，密钥字段删掉、换成 `wereadApiKeySet` / `llmKeySet` 两个布尔（字段名唯一真值 = `secretSetFlagName()`）；`SETTINGS.GET` 问到密钥键名**抛错**而不是回 `undefined`（回空值会被界面当成"没配"，一次保存就清掉用户的 key）。**输入框语义换成"留空即不修改"**：`setSecureKey(key,'')` = 显式清除（`.enc` 与明文残留一起抹），界面给「清除已保存的 Key」；`set(key, 非字符串)` 拒绝写入。**顺带修掉一条被这套改动照出来的真断链**：`ai.setConfig` 整个包在 `if (llmKey)` 里 ⇒ "只改端点/模型、不重填 key"这条最常见的保存路径**根本不会把配置下发给 AI 服务，要重启才生效**；现在无条件调用，apiKey 留空由主进程用 `withStoredApiKey()`（在 `src/shared/settings-secrets.ts`，可单测）补回已存的那把，`weread.test('')` 本来就有 `key || apiKey` 回退。**通道 164 → 163**：`WEREAD.SET_API_KEY` 随之变死（渲染层唯一用途是再塞一次 key，而 `SETTINGS.SET` handler 早就在做），通道数按 `ipc-channels.ts` 去重字面量实测，同一算法喂 `HEAD` 得 164 以验判据。`tests/secret-ipc-boundary.test.ts` 15 条：注册**真实的** `registerSettingsHandlers` 后直接调 handler，含反证（同一现场 `getAll()` 查得到原值 ⇒ "查不到"是边界生效）。**未验**：❌ 界面一张没点开（清除按钮观感、两种占位文案、清除后徽标变灰）；❌ 装机版没重跑；❌ `.enc` 解不开时设置页的表现只推理过；❌ "改完模型立即生效"没在真 AI 服务上验。
@@ -190,9 +189,9 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 | P1-3 Vite CJS 弃用 | P1 | 迭代中 | ⏸️ |
 | Phase 2 FSRS 升级 | P0 | **已完成**（v1.0.0 已集成 ts-fsrs 5.4.1） | ✅ |
 | Phase 3 ECharts 集成 | P1 | **已完成**（v1.0.0 AdminDashboard 6 图表） | ✅ |
-| **规范基础设施** | **P0** | CI 门禁 ✅ / husky pre-commit ✅ / commitlint ✅（三者 2026-09-18 装妥）；`.claude/rules/` ❌、`.learnings/STANDARDS.md` ❌ 仍未落地 | ⚠️ |
+| **规范基础设施** | **P0** | CI 门禁 ✅ / husky pre-commit ✅ / commitlint ✅（三者 2026-09-18 装妥）/ 覆盖率阈值已接 CI ✅（2026-09-24）/ `tests/` 在 typecheck 内 ✅（2026-09-24）。**规范文本不再另立文件** —— 可执行真值就是那几份配置，文档里指向不存在文件的指针已全清（2026-09-24）| ✅ |
 
 ---
 
-*最后更新：2026-09-23 | v1.3.4 已发布；之后 master 上补了 CI 换行符修复与 GitHub 维护面（issue 模板 / PR 模板 / SECURITY.md）、Electron 39 / Vitest 3 / electron-builder 26 三批依赖升级、密钥落盘加密接通 · 1054 用例 / 63 文件*
+*最后更新：2026-09-23 | v1.3.4 已发布；之后 master 上补了 CI 换行符修复与 GitHub 维护面（issue 模板 / PR 模板 / SECURITY.md）、Electron 39 / Vitest 3 / electron-builder 26 三批依赖升级、密钥落盘加密接通 · 1071 用例 / 64 文件*
 *与 AGENTS.md 不一致时，两者均以上述实测代码配置为准（`package.json` / `eslint.config.js` / `tsconfig.json` / `vitest.config.ts`）*
