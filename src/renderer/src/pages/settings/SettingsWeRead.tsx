@@ -11,7 +11,8 @@
  *      → 立即同步调真实 syncBookshelfToDb（与 Topbar/Bookshelf 共用）
  *   6. useShallow selector 避免无关重渲染
  *
- * 业务逻辑：复用 settingsStore 的 wereadApiKey + testWereadConnection + setWereadAutoSync
+ * 业务逻辑：复用 settingsStore 的 wereadApiKeyInput/wereadApiKeySet + testWereadConnection + setWereadAutoSync
+ * （界面上永远拿不到已保存的 key 原值，留空即"不修改"，移除走 clearWereadApiKey）
  * 书架同步逻辑：复用 utils/sync-bookshelf.ts syncBookshelfToDb
  */
 
@@ -57,7 +58,8 @@ export default function SettingsWeRead() {
   const navigate = useNavigate()
   // 使用 useShallow selector 避免整体订阅导致的无关重渲染
   const {
-    wereadApiKey,
+    wereadApiKeyInput,
+    wereadApiKeySet,
     wereadAutoSync,
     wereadSyncFrequency,
     loading,
@@ -68,13 +70,15 @@ export default function SettingsWeRead() {
     loadSettings,
     saveSettings,
     testWereadConnection,
-    setWereadApiKey,
+    setWereadApiKeyInput,
+    clearWereadApiKey,
     setWereadAutoSync,
     setWereadSyncFrequency,
     clearTestResult,
   } = useSettingsStore(
     useShallow((s) => ({
-      wereadApiKey: s.wereadApiKey,
+      wereadApiKeyInput: s.wereadApiKeyInput,
+      wereadApiKeySet: s.wereadApiKeySet,
       wereadAutoSync: s.wereadAutoSync,
       wereadSyncFrequency: s.wereadSyncFrequency,
       loading: s.loading,
@@ -85,7 +89,8 @@ export default function SettingsWeRead() {
       loadSettings: s.loadSettings,
       saveSettings: s.saveSettings,
       testWereadConnection: s.testWereadConnection,
-      setWereadApiKey: s.setWereadApiKey,
+      setWereadApiKeyInput: s.setWereadApiKeyInput,
+      clearWereadApiKey: s.clearWereadApiKey,
       setWereadAutoSync: s.setWereadAutoSync,
       setWereadSyncFrequency: s.setWereadSyncFrequency,
       clearTestResult: s.clearTestResult,
@@ -141,12 +146,22 @@ export default function SettingsWeRead() {
   }, [clearTestResult, saveSettings])
 
   const handleReset = useCallback(() => {
-    // 「重置」是破坏性操作（清空 API Key），先问一句
-    if (!window.confirm('确定重置微信读书配置？（会清空已填写的 API Key，未保存前不会落库）')) return
-    setWereadApiKey('')
+    // 只清本次输入：已保存的 key 从不下发到渲染层，移除它要走旁边的「清除已保存的 Key」
+    if (!window.confirm('确定重置本页填写的内容？（已保存的 API Key 不会被动）')) return
+    setWereadApiKeyInput('')
     clearTestResult()
     toast.info('已重置为默认值（未保存）')
-  }, [setWereadApiKey, clearTestResult])
+  }, [setWereadApiKeyInput, clearTestResult])
+
+  const handleClearKey = useCallback(async () => {
+    if (!window.confirm('确定清除已保存的微信读书 API Key？清除后需要重新填写才能同步。')) return
+    try {
+      await clearWereadApiKey()
+      toast.success('已清除保存的 API Key')
+    } catch (err) {
+      toast.error(`清除失败: ${(err as Error).message}`)
+    }
+  }, [clearWereadApiKey])
 
   const handleTestConnection = useCallback(async () => {
     clearTestResult()
@@ -154,11 +169,11 @@ export default function SettingsWeRead() {
       toast.error('API 未正确初始化，请重启应用')
       return
     }
-    if (!wereadApiKey) {
+    if (!wereadApiKeyInput && !wereadApiKeySet) {
       toast.warning('请先输入微信读书 API Key')
       return
     }
-    if (!/^[\x20-\x7E]+$/.test(wereadApiKey)) {
+    if (wereadApiKeyInput && !/^[\x20-\x7E]+$/.test(wereadApiKeyInput)) {
       toast.error('API Key 只能包含英文字母、数字和符号')
       return
     }
@@ -170,14 +185,15 @@ export default function SettingsWeRead() {
     } finally {
       toast.remove(testToastId)
     }
-  }, [clearTestResult, wereadApiKey, testWereadConnection])
+  }, [clearTestResult, wereadApiKeyInput, wereadApiKeySet, testWereadConnection])
 
   // 立即同步/重新同步前，先把当前输入的 API Key 落库并应用到主进程内存，
-  // 避免“测试连接成功但未点保存 → 同步读空的模块 Key”断层（主进程 SETTINGS.SET 会同步 setApiKey）
+  // 避免“测试连接成功但未点保存 → 同步读空的模块 Key”断层（主进程 SETTINGS.SET 会同步 setApiKey）。
+  // 输入为空表示沿用已存的 key —— 那份本来就在主进程内存里，不用重发。
   const ensureWereadKeyApplied = useCallback(async () => {
-    if (!wereadApiKey) return
-    await window.electronAPI.settings.set('wereadApiKey', wereadApiKey)
-  }, [wereadApiKey])
+    if (!wereadApiKeyInput) return
+    await window.electronAPI.settings.set('wereadApiKey', wereadApiKeyInput)
+  }, [wereadApiKeyInput])
 
   const handleSyncNow = useCallback(async () => {
     if (syncing) return
@@ -213,7 +229,7 @@ export default function SettingsWeRead() {
   }, [setWereadSyncFrequency])
 
   // ===== 派生状态 =====
-  const isWereadConfigured = wereadApiKey.length > 0
+  const isWereadConfigured = wereadApiKeySet
 
   const navItems = useMemo(
     () =>
@@ -315,10 +331,10 @@ export default function SettingsWeRead() {
                       id="weread-apikey"
                       className="form-input"
                       type={showApiKey ? 'text' : 'password'}
-                      value={wereadApiKey}
-                      onChange={(e) => setWereadApiKey(e.target.value)}
+                      value={wereadApiKeyInput}
+                      onChange={(e) => setWereadApiKeyInput(e.target.value)}
                       onBlur={() => { void ensureWereadKeyApplied() }}
-                      placeholder="wrk-xxxxxxxx"
+                      placeholder={wereadApiKeySet ? '已保存（留空则不修改）' : 'wrk-xxxxxxxx'}
                       style={{ fontFamily: 'var(--font-mono)', paddingRight: 'calc(var(--spacing) * 10)' }}
                       data-dom-id="input-apikey"
                       autoComplete="off"
@@ -338,12 +354,22 @@ export default function SettingsWeRead() {
                   <Button
                     variant="secondary"
                     onClick={handleTestConnection}
-                    disabled={testingWeread || !wereadApiKey}
+                    disabled={testingWeread || (!wereadApiKeySet && !wereadApiKeyInput)}
                     data-dom-id="cta-test-connection"
                   >
                     {testingWeread ? '测试中...' : '测试连接'}
                   </Button>
                 </div>
+                {wereadApiKeySet && (
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: 'calc(var(--spacing) * 2)' }}
+                  >
+                    <Tiny>已保存一把 API Key，原值不在界面上回显</Tiny>
+                    <Button variant="ghost" onClick={() => { void handleClearKey() }} data-dom-id="cta-clear-weread-key">
+                      清除已保存的 Key
+                    </Button>
+                  </div>
+                )}
                 {testResult && testResult.type === 'weread' && (
                   <div className="test-result" role="status" aria-live="polite">
                     <Icon name="check" size={14} aria-hidden="true" />

@@ -187,7 +187,6 @@ const electronAPI = {
   },
 
   weread: {
-    setApiKey: (apiKey: string) => invoke(IPC_CHANNELS.WEREAD.SET_API_KEY, apiKey),
     getBookshelf: () => invoke(IPC_CHANNELS.WEREAD.GET_BOOKSHELF),
     fetchAllContent: (bookId: string) => invoke(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT, bookId),
     fetchRecommendations: () => invoke(IPC_CHANNELS.WEREAD.FETCH_RECOMMENDATIONS),

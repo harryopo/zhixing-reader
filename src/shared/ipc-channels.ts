@@ -61,7 +61,6 @@ export const IPC_CHANNELS = {
     // 用 upsertReadingTime 覆盖写入；累加语义会与它冲突，且该通道从未被调用过。
   },
   WEREAD: {
-    SET_API_KEY: 'weread:setApiKey',
     GET_BOOKSHELF: 'weread:getBookshelf',
     FETCH_ALL_CONTENT: 'weread:fetchAllContent',
     FETCH_ALL_CONTENT_BATCH: 'weread:fetchAllContentBatch',

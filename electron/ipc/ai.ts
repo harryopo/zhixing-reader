@@ -6,11 +6,13 @@
  */
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
+import { withStoredApiKey } from '../../src/shared/settings-secrets';
 import {
   setAIConfig,
   testConnection as testAIConnection,
 } from '../ai-service';
 import { setAIConfig as setAISDKConfig } from '../ai-sdk-service';
+import { settingsService } from '../services/settings-service';
 import { processMessageStream } from '../agent/orchestrator';
 import { getIntentKeywords } from '../agent/intent-classifier';
 import { getIntentStrategyMap } from '../agent/strategy-selector';
@@ -25,12 +27,22 @@ function safeSend(event: Electron.IpcMainInvokeEvent, channel: string, payload: 
   }
 }
 
+/**
+ * 渲染层不再持有密钥原值（`SETTINGS.GET_ALL` 只回「配没配」），所以它提交的配置里
+ * apiKey 可以是空的 —— 空表示"沿用已保存的那把"，由主进程从设置里补上。
+ * 判定规则在 `src/shared/settings-secrets.ts`，这里只负责去设置里取真值。
+ */
+function withStoredKey(config: Record<string, unknown>): Record<string, unknown> {
+  return withStoredApiKey(config, settingsService.get('llmKey'));
+}
+
 export function registerAIHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.AI.SET_CONFIG, (config: Record<string, unknown>) => {
-    setAIConfig(config as unknown as Parameters<typeof setAIConfig>[0]);
-    setAISDKConfig(config as unknown as Parameters<typeof setAISDKConfig>[0]);
+    const resolved = withStoredKey(config);
+    setAIConfig(resolved as unknown as Parameters<typeof setAIConfig>[0]);
+    setAISDKConfig(resolved as unknown as Parameters<typeof setAISDKConfig>[0]);
   });
-  handle(IPC_CHANNELS.AI.TEST, (config: Record<string, unknown>) => testAIConnection(config as unknown as Parameters<typeof testAIConnection>[0]));
+  handle(IPC_CHANNELS.AI.TEST, (config: Record<string, unknown>) => testAIConnection(withStoredKey(config) as unknown as Parameters<typeof testAIConnection>[0]));
 
   ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, async (event, params: {
     sessionId: string

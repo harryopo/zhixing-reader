@@ -73,10 +73,11 @@ export default function Stats() {
     setMode,
   } = useReadingDataStore()
 
-  // 微信读书配置状态：用独立 selector 避免整体订阅 store（Zustand v5 规范）
-  const wereadApiKey = useSettingsStore((s) => s.wereadApiKey)
+  // 微信读书配置状态：用独立 selector 避免整体订阅 store（Zustand v5 规范）。
+  // 读的是「主进程有没有存着 key」—— 密钥原值从 2026-09-23 起不再下发到渲染层。
+  const wereadApiKeySet = useSettingsStore((s) => s.wereadApiKeySet)
   const loadSettings = useSettingsStore((s) => s.loadSettings)
-  const isWereadConfigured = wereadApiKey.length > 0
+  const isWereadConfigured = wereadApiKeySet
 
   const loadData = useCallback(async () => {
     if (!window.electronAPI?.book || !window.electronAPI?.highlight || !window.electronAPI?.card) {
@@ -142,7 +143,7 @@ export default function Stats() {
     loadData()
   }, [loadData])
 
-  // 挂载时加载设置，确保 wereadApiKey 从 DB 同步到 store（Stats 不在设置页加载链路上）
+  // 挂载时加载设置，确保「微信读书配没配」同步到 store（Stats 不在设置页加载链路上）
   useEffect(() => {
     loadSettings()
   }, [loadSettings])

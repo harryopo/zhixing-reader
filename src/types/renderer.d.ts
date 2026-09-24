@@ -228,7 +228,6 @@ export interface ElectronAPI {
     getRange: (startDate: string, endDate: string) => Promise<DailyStatsRow[]>
   }
   weread: {
-    setApiKey: (apiKey: string) => Promise<void>
     getBookshelf: () => Promise<unknown>
     fetchAllContent: (bookId: string) => Promise<unknown>
     fetchRecommendations: () => Promise<RecommendationItem[]>

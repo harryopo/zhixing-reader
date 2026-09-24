@@ -7,9 +7,18 @@ export const DEFAULT_LLM_ENDPOINT = 'https://api.deepseek.com'
 export const DEFAULT_LLM_MODEL = 'deepseek-v4-flash'
 
 interface SettingsState {
-  wereadApiKey: string
+  /**
+   * 微信读书 API Key「本次输入」—— 只装用户在这台界面上刚打出来的字符。
+   *
+   * 已保存的 key **不会下发到渲染层**（`SETTINGS.GET_ALL` 只回 `*Set` 布尔），
+   * 所以输入框是"留空则不修改"的语义；清除要走 `clearWereadApiKey` 显式动作。
+   */
+  wereadApiKeyInput: string
+  /** 主进程里到底有没有存着微信读书 key（界面据此显示"已连接/未连接"） */
+  wereadApiKeySet: boolean
   llmEndpoint: string
-  llmKey: string
+  llmKeyInput: string
+  llmKeySet: boolean
   llmModel: string
   /** 经济档模型（可选）：casual_chat 分流降本；空=功能关闭，全部走主档 */
   llmModelFast: string
@@ -40,9 +49,13 @@ interface SettingsState {
   /** 尝试从微信读书同步头像/昵称到本地设置 */
   syncWeReadUserProfile: () => Promise<{ success: boolean; message: string }>
 
-  setWereadApiKey: (key: string) => void
+  setWereadApiKeyInput: (key: string) => void
+  /** 显式清除已保存的微信读书 key（输入框留空只代表"不修改"） */
+  clearWereadApiKey: () => Promise<void>
   setLlmEndpoint: (endpoint: string) => void
-  setLlmKey: (key: string) => void
+  setLlmKeyInput: (key: string) => void
+  /** 显式清除已保存的 AI key */
+  clearLlmKey: () => Promise<void>
   setLlmModel: (model: string) => void
   setLlmModelFast: (model: string) => void
   /** 切换微信读书自动同步开关并持久化（main 进程会监听 settings.set 自动更新定时器） */
@@ -79,9 +92,11 @@ function parseWeReadSyncFrequency(
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  wereadApiKey: '',
+  wereadApiKeyInput: '',
+  wereadApiKeySet: false,
   llmEndpoint: DEFAULT_LLM_ENDPOINT,
-  llmKey: '',
+  llmKeyInput: '',
+  llmKeySet: false,
   llmModel: DEFAULT_LLM_MODEL,
   llmModelFast: '',
   // 默认 false：用户必须显式开启自动同步，避免无 API Key 时空跑定时器
@@ -107,9 +122,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       const settings = await window.electronAPI.settings.getAll() as Record<string, unknown>
       set({
-        wereadApiKey: (settings.wereadApiKey as string) || '',
+        // 只取「配没配」的布尔：主进程不会把密钥原值发过来，用户正在输入的也不该被刷新冲掉
+        wereadApiKeySet: settings.wereadApiKeySet === true,
+        llmKeySet: settings.llmKeySet === true,
         llmEndpoint: (settings.llmEndpoint as string) || DEFAULT_LLM_ENDPOINT,
-        llmKey: (settings.llmKey as string) || '',
         llmModel: (settings.llmModel as string) || DEFAULT_LLM_MODEL,
         llmModelFast: (settings.llmModelFast as string) || '',
         wereadAutoSync: settings.wereadAutoSync === true,
@@ -131,13 +147,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   saveSettings: async () => {
     set({ saving: true, error: null, saved: false })
     try {
-      const { wereadApiKey, llmEndpoint, llmKey, llmModel, llmModelFast, wereadAutoSync, wereadSyncFrequency, userAvatarUrl, userNickname } = get()
+      const {
+        wereadApiKeyInput, wereadApiKeySet, llmKeyInput, llmKeySet,
+        llmEndpoint, llmModel, llmModelFast,
+        wereadAutoSync, wereadSyncFrequency, userAvatarUrl, userNickname
+      } = get()
+
+      // 输入框留空 = 不动已保存的密钥。渲染层拿不到原值，把空串发过去等于把用户的 key 清掉。
+      const secretWrites: Array<Promise<unknown>> = []
+      if (wereadApiKeyInput) secretWrites.push(window.electronAPI.settings.set('wereadApiKey', wereadApiKeyInput))
+      if (llmKeyInput) secretWrites.push(window.electronAPI.settings.set('llmKey', llmKeyInput))
 
       await Promise.all([
-        window.electronAPI.settings.set('wereadApiKey', wereadApiKey),
+        ...secretWrites,
         window.electronAPI.settings.set('aiProvider', 'custom'),
         window.electronAPI.settings.set('llmEndpoint', llmEndpoint),
-        window.electronAPI.settings.set('llmKey', llmKey),
         window.electronAPI.settings.set('llmModel', llmModel),
         window.electronAPI.settings.set('llmModelFast', llmModelFast),
         // 自动同步开关与频率单独写库：SETTINGS.SET handler 检测到这两个 key 时会触发 main 进程更新定时器
@@ -147,21 +171,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         window.electronAPI.settings.set('userNickname', userNickname)
       ])
 
-      if (llmKey) {
-        await window.electronAPI.ai.setConfig({
-          provider: 'custom',
-          apiKey: llmKey,
-          baseUrl: llmEndpoint || undefined,
-          model: llmModel || undefined,
-          modelFast: llmModelFast.trim() || undefined
-        })
-      }
+      // apiKey 留空由主进程补成已保存的那把（ipc/ai.ts 的 withStoredKey）。
+      // 这一步不再包在 `if (llmKey)` 里：只改端点/模型时也要让它们立刻生效，
+      // 否则配置得重启才落到 AI 服务上。
+      await window.electronAPI.ai.setConfig({
+        provider: 'custom',
+        apiKey: llmKeyInput,
+        baseUrl: llmEndpoint || undefined,
+        model: llmModel || undefined,
+        modelFast: llmModelFast.trim() || undefined
+      })
 
-      if (wereadApiKey) {
-        await window.electronAPI.weread.setApiKey(wereadApiKey)
-      }
-
-      set({ saving: false, saved: true })
+      // 微信读书的内存单例由 SETTINGS.SET handler 顺手应用，不再从渲染层多送一遍原值
+      set({
+        saving: false,
+        saved: true,
+        wereadApiKeyInput: '',
+        llmKeyInput: '',
+        wereadApiKeySet: wereadApiKeyInput ? true : wereadApiKeySet,
+        llmKeySet: llmKeyInput ? true : llmKeySet,
+      })
       setTimeout(() => set({ saved: false }), 3000)
     } catch (error) {
       set({ error: (error as Error).message, saving: false })
@@ -171,8 +200,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   testWereadConnection: async () => {
     set({ testingWeread: true, error: null, testResult: null })
     try {
-      const { wereadApiKey } = get()
-      if (!wereadApiKey) {
+      const { wereadApiKeyInput, wereadApiKeySet } = get()
+      if (!wereadApiKeyInput && !wereadApiKeySet) {
         set({
           testingWeread: false,
           testResult: { type: 'weread', success: false, message: '请先输入微信读书 API Key' }
@@ -180,7 +209,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         return
       }
 
-      const result = await window.electronAPI.weread.test(wereadApiKey)
+      // 输入为空时传空串：weread-api 的 testConnection 会 `key || apiKey` 回退到主进程已存的 key
+      const result = await window.electronAPI.weread.test(wereadApiKeyInput)
       set({
         testingWeread: false,
         testResult: {
@@ -204,8 +234,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   testAIConnection: async () => {
     set({ testingAI: true, error: null, testResult: null })
     try {
-      const { llmEndpoint, llmKey, llmModel } = get()
-      if (!llmKey) {
+      const { llmEndpoint, llmKeyInput, llmKeySet, llmModel } = get()
+      if (!llmKeyInput && !llmKeySet) {
         set({
           testingAI: false,
           testResult: { type: 'ai', success: false, message: '请先输入API Key' }
@@ -213,9 +243,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         return
       }
 
+      // apiKey 为空 ⇒ 主进程用已保存的 key 去测（ipc/ai.ts 的 withStoredKey）
       const result = await window.electronAPI.ai.test({
         provider: 'custom',
-        apiKey: llmKey,
+        apiKey: llmKeyInput,
         baseUrl: llmEndpoint || undefined,
         model: llmModel || undefined
       })
@@ -232,9 +263,37 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  setWereadApiKey: (key: string) => set({ wereadApiKey: key }),
+  setWereadApiKeyInput: (key: string) => set({ wereadApiKeyInput: key }),
+  clearWereadApiKey: async () => {
+    const prev = get().wereadApiKeySet
+    set({ wereadApiKeySet: false, wereadApiKeyInput: '' })
+    try {
+      // 空串在 setSecureKey 里就是显式的"清除"：密文文件与明文残留一起抹掉
+      await window.electronAPI.settings.set('wereadApiKey', '')
+    } catch (error) {
+      set({ wereadApiKeySet: prev, error: (error as Error).message })
+    }
+  },
   setLlmEndpoint: (endpoint: string) => set({ llmEndpoint: endpoint }),
-  setLlmKey: (key: string) => set({ llmKey: key }),
+  setLlmKeyInput: (key: string) => set({ llmKeyInput: key }),
+  clearLlmKey: async () => {
+    const { llmEndpoint, llmModel, llmModelFast, llmKeySet } = get()
+    const prev = llmKeySet
+    set({ llmKeySet: false, llmKeyInput: '' })
+    try {
+      await window.electronAPI.settings.set('llmKey', '')
+      // 顺序要紧：先清设置再推配置，否则 ipc/ai.ts 的 withStoredKey 会把刚清掉的 key 又补回内存
+      await window.electronAPI.ai.setConfig({
+        provider: 'custom',
+        apiKey: '',
+        baseUrl: llmEndpoint || undefined,
+        model: llmModel || undefined,
+        modelFast: llmModelFast.trim() || undefined
+      })
+    } catch (error) {
+      set({ llmKeySet: prev, error: (error as Error).message })
+    }
+  },
   setLlmModel: (model: string) => set({ llmModel: model }),
   setLlmModelFast: (model: string) => set({ llmModelFast: model }),
   setWereadAutoSync: async (enabled: boolean) => {

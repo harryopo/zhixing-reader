@@ -6,6 +6,7 @@ import { shell, app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
+import { isSecretSetting, secretSetFlagName } from '../../src/shared/settings-secrets';
 import { settingsService } from '../services/settings-service';
 import { forceSaveDatabase, clearConversationsAndMessages, resetDatabase } from '../database';
 import { clearCache as clearWeReadApiCache, setApiKey as setWereadApiKey } from '../weread-api';
@@ -22,7 +23,15 @@ import type { HandleFn } from './types';
 const VECTOR_INDEX_DIR = 'vectra-index';
 
 export function registerSettingsHandlers(handle: HandleFn): void {
-  handle(IPC_CHANNELS.SETTINGS.GET, (key: string) => settingsService.get(key));
+  handle(IPC_CHANNELS.SETTINGS.GET, (key: string) => {
+    // 密钥原值不出主进程：界面只该问「配没配」（走 getAll 的 *Set 字段）。
+    // 这里直接抛而不是回 undefined —— 静默回空值会被界面读成"没配"，
+    // 于是有一次手滑的保存就把用户的 key 清掉了。
+    if (isSecretSetting(key)) {
+      throw new Error(`密钥不跨进程下发：请改读 ${secretSetFlagName(key)}`);
+    }
+    return settingsService.get(key);
+  });
   handle(IPC_CHANNELS.SETTINGS.SET, (key: string, value: unknown) => {
     settingsService.set(key, value);
     // 微信读书 API Key 变更时立即应用到 weread-api 内存单例：
@@ -46,7 +55,7 @@ export function registerSettingsHandlers(handle: HandleFn): void {
     }
     return undefined;
   });
-  handle(IPC_CHANNELS.SETTINGS.GET_ALL, () => settingsService.getAll());
+  handle(IPC_CHANNELS.SETTINGS.GET_ALL, () => settingsService.getForRenderer());
 
   handle(IPC_CHANNELS.SYSTEM.FORCE_SAVE_DATABASE, () => {
     forceSaveDatabase();

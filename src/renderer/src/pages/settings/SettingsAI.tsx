@@ -84,7 +84,8 @@ export default function SettingsAI() {
   const navigate = useNavigate()
   const {
     llmEndpoint,
-    llmKey,
+    llmKeyInput,
+    llmKeySet,
     llmModel,
     llmModelFast,
     loading,
@@ -94,7 +95,8 @@ export default function SettingsAI() {
     saveSettings,
     testAIConnection,
     setLlmEndpoint,
-    setLlmKey,
+    setLlmKeyInput,
+    clearLlmKey,
     setLlmModel,
     setLlmModelFast,
   } = useSettingsStore()
@@ -185,7 +187,7 @@ export default function SettingsAI() {
       window.electronAPI.settings.set('ragCollection', collection),
       window.electronAPI.settings.set('embeddingModel', embeddingModel),
     ])
-    // 2. 调 store.saveSettings（含 llmEndpoint/llmKey/llmModel + ai.setConfig + weread.setApiKey）
+    // 2. 调 store.saveSettings（含 llmEndpoint/llmModel + ai.setConfig；输入的 key 也在里面）
     await saveSettings()
   }, [
     maxTokens,
@@ -214,11 +216,11 @@ export default function SettingsAI() {
       toast.error('API 未正确初始化，请重启应用')
       return
     }
-    if (!llmKey) {
+    if (!llmKeyInput && !llmKeySet) {
       toast.warning('请先输入 API Key')
       return
     }
-    if (!/^[\x20-\x7E]+$/.test(llmKey)) {
+    if (llmKeyInput && !/^[\x20-\x7E]+$/.test(llmKeyInput)) {
       toast.error('API Key 只能包含英文字母、数字和符号')
       return
     }
@@ -248,15 +250,16 @@ export default function SettingsAI() {
       setConnStatus('fail')
       toast.error(`测试失败: ${(err as Error).message}`, 4000)
     }
-  }, [llmKey, testAIConnection, persistAll])
+  }, [llmKeyInput, llmKeySet, testAIConnection, persistAll])
 
   // ===== 重置默认 =====
   const handleReset = useCallback(() => {
-    // 破坏性操作先确认；并且**不再清空 API Key** ——
-    // 原来这里 setLlmKey('')，用户重置后随手点「保存配置」就会把已存的 Key 覆盖成空字符串。
+    // 破坏性操作先确认。这里只清**本次输入**：已保存的 key 从来不下发到渲染层，
+    // 想移除它要走旁边的「清除已保存的 Key」。
     if (!window.confirm('确定恢复默认配置？（不会动已保存的 API Key）')) return
     setLlmEndpoint(DEFAULTS.llmEndpoint)
     setLlmModel(DEFAULTS.llmModel)
+    setLlmKeyInput('')
     setMaxTokens(DEFAULTS.llmMaxTokens)
     setTemperature(DEFAULTS.llmTemperature)
     setCollection(DEFAULTS.ragCollection)
@@ -266,9 +269,21 @@ export default function SettingsAI() {
     toast.info('已恢复默认值，请点击「保存配置」生效')
   }, [
     setLlmEndpoint,
-    setLlmKey,
+    setLlmKeyInput,
     setLlmModel,
   ])
+
+  // ===== 清除已保存的 AI Key =====
+  const handleClearKey = useCallback(async () => {
+    if (!window.confirm('确定清除已保存的 API Key？清除后需要重新填写才能使用 AI 功能。')) return
+    try {
+      await clearLlmKey()
+      setConnStatus('idle')
+      toast.success('已清除保存的 API Key')
+    } catch (err) {
+      toast.error(`清除失败: ${(err as Error).message}`)
+    }
+  }, [clearLlmKey])
 
   // ===== 加载自定义模板列表 =====
   const loadCustomTemplates = useCallback(async () => {
@@ -532,9 +547,11 @@ export default function SettingsAI() {
                       className="form-input"
                       id="llm-apikey"
                       type={showApiKey ? 'text' : 'password'}
-                      value={llmKey}
-                      onChange={(e) => setLlmKey(e.target.value)}
-                      placeholder="sk-xxxxxxxx"
+                      value={llmKeyInput}
+                      onChange={(e) => setLlmKeyInput(e.target.value)}
+                      placeholder={llmKeySet ? '已保存（留空则不修改）' : 'sk-xxxxxxxx'}
+                      autoComplete="off"
+                      spellCheck={false}
                       style={{ fontFamily: 'var(--font-mono)', paddingRight: 'calc(var(--spacing) * 10)' }}
                     />
                     <button
@@ -559,6 +576,14 @@ export default function SettingsAI() {
                       )}
                     </button>
                   </div>
+                  {llmKeySet && (
+                    <div className="form-hint" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.4rem' }}>
+                      <span>已保存一把 API Key（原值不回显）</span>
+                      <Button variant="ghost" onClick={() => { void handleClearKey() }} data-dom-id="cta-clear-llm-key">
+                        清除已保存的 Key
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 {!secureStorage && (
                   <div
@@ -566,7 +591,7 @@ export default function SettingsAI() {
                     data-dom-id="hint-plaintext-key"
                     style={{ color: 'var(--state-warning, #d97706)', marginTop: '0.4rem' }}
                   >
-                    本机系统加密不可用，API Key 以**明文**保存在 settings.json 中，请勿把该文件分享给他人。
+                    本机系统加密不可用，API Key 以明文保存在 settings.json 中，请勿把该文件分享给他人。
                   </div>
                 )}
                 {/* 模型 */}

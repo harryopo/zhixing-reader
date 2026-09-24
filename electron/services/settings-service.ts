@@ -2,7 +2,7 @@ import { app, safeStorage } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { logger } from '../logger'
-import { SECRET_SETTING_KEYS, isSecretSetting } from '../../src/shared/settings-secrets'
+import { SECRET_SETTING_KEYS, isSecretSetting, secretSetFlagName } from '../../src/shared/settings-secrets'
 
 class SettingsService {
   private static instance: SettingsService | null = null
@@ -58,7 +58,13 @@ class SettingsService {
    */
   set(key: string, value: unknown): void {
     if (isSecretSetting(key)) {
-      this.setSecureKey(key, typeof value === 'string' ? value : '')
+      // 非字符串一律当调用方写错了处理：清 key 必须显式传空串，
+      // 不能让 `set('llmKey', undefined)` 这种手滑把用户配好的密钥抹掉。
+      if (typeof value !== 'string') {
+        logger.error(`Refused to write non-string value to secret setting: ${key}`)
+        return
+      }
+      this.setSecureKey(key, value)
       return
     }
     this.settings[key] = value
@@ -76,6 +82,21 @@ class SettingsService {
       }
     }
     return all
+  }
+
+  /**
+   * 交出去给渲染层的设置：密钥原值换成「配没配」的布尔。
+   *
+   * `getAll()` 是主进程内部用的（启动时组 AI 配置、同步微信读书都要真值）；
+   * 跨进程这条缝只能走这里 —— 否则落盘加密做了，IPC 又把明文摊开一遍。
+   */
+  getForRenderer(): Record<string, unknown> {
+    const safe: Record<string, unknown> = { ...this.settings }
+    for (const key of SECRET_SETTING_KEYS) {
+      delete safe[key]
+      safe[secretSetFlagName(key)] = (this.readSecret(key) ?? '').length > 0
+    }
+    return safe
   }
 
   /**
@@ -124,6 +145,16 @@ class SettingsService {
   }
 
   setSecureKey(keyName: string, value: string): void {
+    if (value.length === 0) {
+      // 空串是显式的"清除"：密文文件和明文残留一起抹掉，
+      // 否则"清掉密钥"之后旧密文还躺在 secure/ 里、下次启动又被读回来。
+      fs.rmSync(this.encPath(keyName), { force: true })
+      delete this.settings[keyName]
+      this.save()
+      logger.info(`Secure key cleared: ${keyName}`)
+      return
+    }
+
     const writePlaintext = (reason: string): void => {
       this.settings[keyName] = value
       this.save()

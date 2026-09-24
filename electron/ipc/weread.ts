@@ -6,7 +6,6 @@ import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { booksDb } from '../database';
 import { logger } from '../logger';
 import {
-  setApiKey,
   getBookshelf,
   getBookProgress,
   fetchAllContent,
@@ -20,7 +19,6 @@ import {
 import type { HandleFn } from './types';
 
 export function registerWereadHandlers(handle: HandleFn): void {
-  handle(IPC_CHANNELS.WEREAD.SET_API_KEY, (apiKey: string) => setApiKey(apiKey));
   handle(IPC_CHANNELS.WEREAD.GET_BOOKSHELF, () => getBookshelf());
   handle(IPC_CHANNELS.WEREAD.FETCH_ALL_CONTENT, (bookId: string) => fetchAllContent(bookId));
   handle(IPC_CHANNELS.WEREAD.FETCH_RECOMMENDATIONS, () => fetchRecommendations());
