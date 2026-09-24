@@ -126,7 +126,7 @@
 | 层 | 选型 | 版本 | 选型理由 |
 |----|------|------|----------|
 | **桌面壳** | Electron | 35.x | 跨平台桌面开发事实标准 |
-| **构建工具** | electron-vite | 2.x | Vite 5 + HMR，三进程并行开发 |
+| **构建工具** | electron-vite | 5.x | Vite 6 + HMR，三进程并行开发 |
 | **UI 框架** | React | 19.x | Concurrent Mode、Suspense、自动批处理 |
 | **路由** | React Router | 7.x | 嵌套路由 + Data Router |
 | **类型** | TypeScript | 5.6 strict | 53,823 行 strict 模式（v1.3.4 实测）|

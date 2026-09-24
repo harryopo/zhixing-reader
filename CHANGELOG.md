@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 删除 `tokenUsageDb.deleteOlderThan()`：无任何调用方，且是全仓库唯一把值直接拼进 SQL 字面量的地方
 
 ### Changed
+- **构建工具链升级：Vite 5.4 → 6.4.3、electron-vite 2 → 5**（连带 esbuild 0.21.5 → 0.25.12，由 electron-vite 5 自己带）：清掉 4 条依赖告警（vite 3 条 + esbuild 1 条）。应用行为不变 —— 三进程编译、单测与开发模式（端口 5500）都实测过；`@vitejs/plugin-react` 停在 4.x（它的 peer 已覆盖到 vite 7，不需要跟着动）。**注：这一次没能重新出安装包验证** —— 本机 electron-builder 现在连工具链二进制都下载不下来（缓存已空 + 到 GitHub 下载主机不通），已用升级前的依赖树复现同一失败，确认与本次升级无关
 - **文档不再指向不存在的规范文件**：`AGENTS.md` 与 `CLAUDE.md` 里有几处"详见某某规范"的路径从写下那天起就不存在（一份本地规范正本、三份 Agent 规则文件、一套 spec 四件套），文档虽诚实标了 ⚠️，接手的人照样会照着去找。现在明确**正本在哪**：15 条规则以 `AGENTS.md` §5.3 的表为准、代码风格与安全以 `eslint.config.js` / `tsconfig.json` / `SECURITY.md` 为准、提交规范以 `commitlint.config.js` + `.husky/` 为准 —— 不再另立第二份规范文本（本项目已在版本号、色值、IPC 通道上被"两份口径各自漂移"咬过三次）。新增 `tests/doc-pointers.test.ts` 17 条钉住：正文（第十节历史记录除外）不许再出现那四个死路径，且文档新指向的配置文件必须真实存在
 - **打包器 electron-builder 由 25.1.8 升级到 26.15.3**：清掉 10 条依赖告警（`app-builder-lib`、`builder-util-runtime` 各 1 条 high，以及它们带出来的 8 条 `tar`）。换代点逐条对过官方 26.0.0 说明：`win` 的签名配置移到 `win.signtoolOptions`（本项目不签名）、Linux `.desktop` 配置改对象（只打 Windows）、`electronDist` 改为 Hook（未使用）、asar 打包换成官方 `@electron/asar`。重新出包并核过内容完整（`app.asar` 内 12,220 个文件、105 个字体分片、sql.js 的 wasm 仍在 unpack 目录），打包版启动到主窗口、检查更新走完并如实回「已是最新」
 - **测试框架 Vitest 由 2.1.9 升到 3.2.7**（含 `@vitest/coverage-v8`）：清掉那条唯一的 **critical** 依赖告警。刻意停在 3.x —— 4.x 把 vite 变成 peer 且要求 ≥6，会连锁拽着 vite 与 electron-vite 一起跨大版本。顺带去掉一个双口径：`environmentMatchGlobs`（Vitest 3 已标废）与测试文件自己的 `@vitest-environment` 同时在指环境，谁生效说不清；现在统一由每个文件自己声明
