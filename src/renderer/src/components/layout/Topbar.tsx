@@ -22,7 +22,7 @@ import { useNavigate } from 'react-router-dom'
 import Icon, { IconName } from '@/components/ui/Icon'
 import { toast } from '../../stores/toastStore'
 import { mapHighlights } from '../../utils/db-mapper'
-import { syncBookshelfToDb } from '../../utils/sync-bookshelf'
+import { syncBookshelfToDb, describeSyncResult } from '../../utils/sync-bookshelf'
 import { useSettingsStore } from '../../stores/settingsStore'
 import type { PendingSummaryEntry } from '../../../../shared/types'
 import { updateNoticeFrom, type UpdateNotice } from '../../../../shared/update-notice'
@@ -304,14 +304,12 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
       }
 
       toast.remove(syncToastId)
-      toast.success(
-        result.newCount > 0
-          ? `同步完成，共 ${result.total} 本书，新导入 ${result.newCount} 本，更新 ${result.updatedCount} 本`
-          : `书架已是最新，共 ${result.total} 本书`,
-      )
+      const syncMsg = describeSyncResult(result)
+      if (syncMsg.tone === 'warning') toast.warning(syncMsg.text)
+      else toast.success(syncMsg.text)
       localStorage.setItem(
         LAST_SYNC_KEY,
-        JSON.stringify({ at: Date.now(), ok: true, count: result.total }),
+        JSON.stringify({ at: Date.now(), ok: result.failedCount === 0, count: result.total }),
       )
     } catch (error) {
       toast.remove(syncToastId)

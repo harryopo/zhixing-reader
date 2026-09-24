@@ -45,6 +45,13 @@ export interface SyncResult {
   newCount: number
   /** 更新数 */
   updatedCount: number
+  /**
+   * 写库失败的本数。此前没有这个计数：30 本全部写失败，
+   * 界面照样弹「书架已是最新，共 30 本书」—— 失败必须能被调用方看见。
+   */
+  failedCount: number
+  /** 失败的书名（最多留 5 个用于提示，完整列表在日志里） */
+  failedTitles: string[]
 }
 
 /**
@@ -60,7 +67,7 @@ export async function syncBookshelfToDb(
   const wereadBooks = (await window.electronAPI.weread.getBookshelf()) as WereadBook[]
 
   if (!wereadBooks || wereadBooks.length === 0) {
-    return { total: 0, newCount: 0, updatedCount: 0 }
+    return { total: 0, newCount: 0, updatedCount: 0, failedCount: 0, failedTitles: [] }
   }
 
   // Bookshelf 行为：按最近阅读时间倒序后写库；Topbar 行为：保持原顺序
@@ -74,14 +81,17 @@ export async function syncBookshelfToDb(
 
   let newCount = 0
   let updatedCount = 0
+  const failedTitles: string[] = []
   for (const wb of booksToSync) {
     try {
-      const existingBooks = (await window.electronAPI.book.search(wb.title)) as unknown as Book[]
-      const exists = existingBooks.some((b) => b.title === wb.title)
+      // 判重按 bookId（本地 id 就是微信读书的 bookId），不按书名：
+      // 同名两本（不同版本/不同作者）第二本会永远进不来，
+      // 还会把第一本的 author/progress 覆盖掉。
+      const existing = (await window.electronAPI.book.getById(wb.bookId)) as Book | null
       const readTime = wb.readUpdateTime || wb.lastReadTime || 0
       const lastReadTimeStr = readTime > 0 ? new Date(readTime * 1000).toISOString() : null
 
-      if (!exists) {
+      if (!existing) {
         await window.electronAPI.book.create({
           id: wb.bookId,
           title: wb.title,
@@ -100,28 +110,56 @@ export async function syncBookshelfToDb(
         })
         newCount++
       } else {
-        const existing = existingBooks.find((b) => b.title === wb.title)
-        if (existing && existing.id) {
-          await window.electronAPI.book.update(existing.id as string, {
-            author: wb.author || null,
-            cover: wb.cover || null,
-            isbn: wb.isbn || null,
-            publisher: wb.publisher || null,
-            description: wb.intro || null,
-            category: wb.category || null,
-            publish_date: wb.publishTime || null,
-            // 注意：/shelf/sync 不返回 reading_progress，此处**不能**写 0，
-            // 否则每次同步都会抹掉 getBookProgress() 缓存的真实进度
-            last_read_time: lastReadTimeStr,
-            is_finished: wb.finishReading || 0,
-          })
-          updatedCount++
-        }
+        await window.electronAPI.book.update(existing.id as string, {
+          author: wb.author || null,
+          cover: wb.cover || null,
+          isbn: wb.isbn || null,
+          publisher: wb.publisher || null,
+          description: wb.intro || null,
+          category: wb.category || null,
+          publish_date: wb.publishTime || null,
+          // 注意：/shelf/sync 不返回 reading_progress，此处**不能**写 0，
+          // 否则每次同步都会抹掉 getBookProgress() 缓存的真实进度
+          last_read_time: lastReadTimeStr,
+          is_finished: wb.finishReading || 0,
+        })
+        updatedCount++
       }
     } catch (error) {
+      failedTitles.push(wb.title)
       if (onItemError) onItemError(wb.title, error)
     }
   }
 
-  return { total: wereadBooks.length, newCount, updatedCount }
+  return {
+    total: wereadBooks.length,
+    newCount,
+    updatedCount,
+    failedCount: failedTitles.length,
+    failedTitles: failedTitles.slice(0, 5),
+  }
+}
+
+/**
+ * 同步结果 → 一句提示。三处调用方（顶栏 / 书架 / 设置-微信读书）共用一张嘴，
+ * 免得某一份自己拼文案时把 failedCount 漏掉 —— 那是"30 本全失败还说已是最新"的来源。
+ */
+export function describeSyncResult(result: SyncResult): {
+  tone: 'success' | 'warning'
+  text: string
+} {
+  const listed = result.newCount > 0 ? `新导入 ${result.newCount} 本，更新 ${result.updatedCount} 本` : '无新增'
+  if (result.failedCount > 0) {
+    const names = result.failedTitles.length > 0 ? `：${result.failedTitles.join('、')}` : ''
+    return {
+      tone: 'warning',
+      text: `${result.failedCount} 本没写进去（共 ${result.total} 本，${listed}）${names}`,
+    }
+  }
+  return {
+    tone: 'success',
+    text: result.newCount > 0
+      ? `同步完成，共 ${result.total} 本，新导入 ${result.newCount} 本，更新 ${result.updatedCount} 本`
+      : `同步完成，共 ${result.total} 本，无新增`,
+  }
 }

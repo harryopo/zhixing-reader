@@ -43,6 +43,7 @@ export default function Review() {
     previews,
     lastMasteryDelta,
     roundStats,
+    remaining,
     fetchDueCards,
     showAnswerCard,
     rateCard,
@@ -174,9 +175,24 @@ export default function Review() {
         <Card>
           <div style={{ textAlign: 'center', padding: 'calc(var(--spacing) * 8) 0' }}>
             <div style={{ fontSize: '2rem', marginBottom: 'calc(var(--spacing) * 3)' }}>🎉</div>
-            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem' }}>本轮复习完成</h3>
+            {/*
+              一批只取前 100 张，所以"过完这一轮"和"今日复习完了"是两件事。
+              顶栏可能还写着剩 300 张 —— 这里必须跟着队列的真实剩余说，
+              查不到就说查不到，不许替用户宣布做完。
+            */}
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem' }}>
+              {remaining === null
+                ? '这一轮过完了'
+                : remaining > 0
+                  ? `这一轮过完了 · 今日还剩 ${remaining} 张`
+                  : '今日复习完成'}
+            </h3>
             <p style={{ margin: '0 0 calc(var(--spacing) * 5)', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
-              过完 {completed} 张。剩下的交给时间 —— 我会在它们快被忘掉的时候再叫你来。
+              {remaining === null
+                ? `过完 ${completed} 张。今日还剩多少张没查到，下一轮拉取时再核。`
+                : remaining > 0
+                  ? `过完 ${completed} 张，但今天没做完 —— 队列里还剩 ${remaining} 张。接着来，还是留给明天，都由你。`
+                  : `过完 ${completed} 张。剩下的交给时间 —— 我会在它们快被忘掉的时候再叫你来。`}
             </p>
 
             {/*
@@ -208,7 +224,9 @@ export default function Review() {
               </div>
             )}
 
-            <Button variant="primary" onClick={() => fetchDueCards()}>再拉取一轮</Button>
+            <Button variant="primary" onClick={() => fetchDueCards()}>
+              {remaining !== null && remaining > 0 ? '继续下一批' : '再拉取一轮'}
+            </Button>
           </div>
         </Card>
       )}

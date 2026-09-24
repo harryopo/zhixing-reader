@@ -21,7 +21,7 @@ import { toast } from '../stores/toastStore'
 import { importWereadContentForBook, describeImportResult } from '../utils/import-weread-content'
 import { mapBooks, mapHighlights, mapCards, formatTimeAgo } from '../utils/db-mapper'
 import type { BookRow, HighlightRow, CardRow } from '../utils/db-mapper'
-import { syncBookshelfToDb } from '../utils/sync-bookshelf'
+import { syncBookshelfToDb, describeSyncResult } from '../utils/sync-bookshelf'
 import { RecommendationItem } from '../../../shared/types'
 
 // ===== 常量 =====
@@ -241,11 +241,9 @@ export default function Bookshelf() {
 
       await loadData()
       toast.remove(syncToastId)
-      toast.success(
-        result.newCount > 0
-          ? `同步成功！共 ${result.total} 本书籍，新导入 ${result.newCount} 本，更新 ${result.updatedCount} 本`
-          : `书架已是最新，共 ${result.total} 本书籍`,
-      )
+      const syncMsg = describeSyncResult(result)
+      if (syncMsg.tone === 'warning') toast.warning(syncMsg.text)
+      else toast.success(syncMsg.text)
     } catch (error) {
       toast.remove(syncToastId)
       toast.error(`同步失败: ${error instanceof Error ? error.message : String(error)}`)

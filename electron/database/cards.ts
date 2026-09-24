@@ -202,8 +202,13 @@ export const cardsDb = {
 
   /** 已学过且已到期的卡片数（真正的"复习卡"，不含新卡） */
   countDueReviewCards(): number {
+    // 比较口径必须和 getDueCards 一致：cards.due 由 fsrs-engine 写成
+    // toISOString()（含 'T' 与 'Z'），而 datetime('now') 是空格分隔的
+    // "YYYY-MM-DD HH:MM:SS"。两者直接比是字符串比较，'T'(0x54) > ' '(0x20)，
+    // 于是"今天到期"永远不成立 —— 顶栏与统计页的待复习数会整天少算。
     const result = getDatabase().exec(
-      "SELECT COUNT(*) FROM cards WHERE state != 0 AND due <= datetime('now')"
+      'SELECT COUNT(*) FROM cards WHERE state != 0 AND due <= ?',
+      [new Date().toISOString()]
     );
     return result.length > 0 ? (result[0].values[0][0] as number) : 0;
   },
@@ -329,8 +334,8 @@ export const cardsDb = {
   },
 
   getReviewStats(): ReviewStats {
-    const execScalar = (sql: string): number => {
-      const result = getDatabase().exec(sql);
+    const execScalar = (sql: string, params: unknown[] = []): number => {
+      const result = getDatabase().exec(sql, params as never[]);
       return result.length > 0 ? (result[0].values[0][0] as number) : 0;
     };
 
@@ -338,7 +343,11 @@ export const cardsDb = {
     // ⚠️ due 的语义已修正：只统计**已学过且到期**的复习卡。
     // 原先是 "WHERE due <= now"，把所有从未学过的划线也算成"到期"，
     // 让统计页显示 900+ 的待复习量。新卡归入 new 字段，不再混入 due。
-    const due = execScalar("SELECT COUNT(*) FROM cards WHERE state != 0 AND due <= datetime('now')");
+    // 口径与 countDueReviewCards 同一份（走 ? 传 ISO 串，不许再引入 datetime('now')）。
+    const due = execScalar(
+      'SELECT COUNT(*) FROM cards WHERE state != 0 AND due <= ?',
+      [new Date().toISOString()]
+    );
     const newCards = execScalar('SELECT COUNT(*) FROM cards WHERE state = 0');
     const learning = execScalar('SELECT COUNT(*) FROM cards WHERE state = 1 OR state = 3');
     const review = execScalar('SELECT COUNT(*) FROM cards WHERE state = 2');

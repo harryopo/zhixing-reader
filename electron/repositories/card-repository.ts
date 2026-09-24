@@ -233,7 +233,11 @@ export class SqlCardRepository extends BaseRepository<Card> implements ICardRepo
     const total = this.queryScalar('SELECT COUNT(*) FROM cards')
     // due 只算**已学过且到期**的卡，与 database/cards.ts 同一口径：
     // 少了 state != 0 这一条，从未学过的划线会被算成待办（tests/review-stats-type.test.ts 钉住）
-    const due = this.queryScalar("SELECT COUNT(*) FROM cards WHERE state != 0 AND due <= datetime('now')")
+    // 与 cards.ts 同样走 ? 传 ISO 串：cards.due 写成 toISOString()（含 'T'），
+    // 拿 datetime('now')（空格分隔）直接比是字符串比较，今天到期的卡永远不计。
+    const due = this.queryScalar('SELECT COUNT(*) FROM cards WHERE state != 0 AND due <= ?', [
+      new Date().toISOString()
+    ])
     const newCards = this.queryScalar('SELECT COUNT(*) FROM cards WHERE state = 0')
     const learning = this.queryScalar('SELECT COUNT(*) FROM cards WHERE state = 1 OR state = 3')
     const review = this.queryScalar('SELECT COUNT(*) FROM cards WHERE state = 2')

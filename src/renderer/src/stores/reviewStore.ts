@@ -92,10 +92,16 @@ interface ReviewState {
   lastMasteryDelta: MasteryDelta | null
   /** 本轮累计统计 */
   roundStats: RoundStats
+  /**
+   * 今日队列还剩多少张可复习。一批只取前 100 张，过完 100 张不等于"今日复习完了"。
+   * null = 还没查/查失败，界面要显示"—"，不许当成"没有剩余"。
+   */
+  remaining: number | null
   fetchDueCards: () => Promise<void>
   loadPreviews: () => Promise<void>
   showAnswerCard: () => void
   rateCard: (rating: number) => Promise<void>
+  refreshRemaining: () => Promise<void>
 }
 
 export const useReviewStore = create<ReviewState>((set, get) => ({
@@ -108,6 +114,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
   previews: [],
   lastMasteryDelta: null,
   roundStats: { ...EMPTY_ROUND },
+  remaining: null,
 
   fetchDueCards: async () => {
     set({ loading: true, error: null })
@@ -122,6 +129,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
         previews: [],
         lastMasteryDelta: null,
         roundStats: { ...EMPTY_ROUND },
+        remaining: null,
       })
       await get().loadPreviews()
     } catch (error) {
@@ -197,9 +205,29 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
       })
       if (!isCompleted) {
         await get().loadPreviews()
+      } else {
+        // 一批取的是前 100 张。过完 100 张不等于"今日复习完了" ——
+        // 队列里可能还剩几百张，界面上必须如实说还剩多少，否则用户以为清完了。
+        await get().refreshRemaining()
       }
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
+    }
+  },
+
+  /**
+   * 读一次今日队列还剩多少张可复习的卡（复习卡到期数 + 新卡今日配额）。
+   *
+   * 与顶栏那个数是同一个来源（CARDS.GET_QUEUE_STATS.actionable），
+   * 两处必须一致 —— 顶栏说还有 300 张、复习页说"本轮完成"是最难堪的矛盾。
+   */
+  refreshRemaining: async () => {
+    try {
+      const stats = await window.electronAPI.card.getQueueStats()
+      set({ remaining: stats?.actionable ?? null })
+    } catch {
+      // 拿不准就显示"—"（remaining = null），不许把"没查到"当成"没有剩余"
+      set({ remaining: null })
     }
   }
 }))

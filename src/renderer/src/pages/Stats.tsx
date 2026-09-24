@@ -32,7 +32,8 @@ import { toast } from '../stores/toastStore'
 import { mapBooks, mapHighlights, mapCards } from '../utils/db-mapper'
 import { useReadingDataStore, formatReadingTime } from '../stores/readingDataStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { ReadingMode, Book } from '../../../shared/types'
+import { ReadingMode } from '../../../shared/types'
+import { syncBookshelfToDb, describeSyncResult } from '../utils/sync-bookshelf'
 import { READING_TREND_SPECS, recentDayKeys } from '../../../shared/reading-trend'
 import {
   PERIOD_CHIPS,
@@ -162,37 +163,19 @@ export default function Stats() {
     const syncToastId = toast.loading('正在同步微信读书数据...')
 
     try {
-      const wereadBooks = await window.electronAPI.weread.getBookshelf() as Array<{
-        bookId: string
-        title: string
-        author: string
-        cover: string
-        progress: number
-        lastReadTime: number
-      }>
+      // 与顶栏 / 书架 / 设置-微信读书共用同一份同步实现。
+      // 这一页原先自己写了一套，三处都是错的：按书名判重（同名两本互相覆盖）、
+      // 把 /shelf/sync 根本不返回的 progress 当 0 写回（每次同步抹掉真实阅读进度）、
+      // 把秒级的 lastReadTime 交给 new Date(...)（算出来是 1970 年）。
+      const result = await syncBookshelfToDb({
+        onItemError: (title, err) => console.error(`同步书籍失败: ${title}`, err),
+      })
 
-      let updatedCount = 0
-      if (wereadBooks && wereadBooks.length > 0) {
-        for (const wb of wereadBooks) {
-          try {
-            const existing = await window.electronAPI.book.search(wb.title) as unknown as Book[]
-            if (existing && existing.length > 0) {
-              await window.electronAPI.book.update(existing[0].id as string, {
-                reading_progress: wb.progress || 0,
-                last_read_time: wb.lastReadTime ? new Date(wb.lastReadTime).toISOString() : null,
-                cover: wb.cover || (existing[0].cover as string),
-              })
-              updatedCount++
-            }
-          } catch (e) {
-            console.error('更新书籍失败:', wb.title, e)
-          }
-        }
-      }
-
+      const syncMsg = describeSyncResult(result)
       await loadData()
       toast.remove(syncToastId)
-      toast.success(updatedCount > 0 ? `同步完成，更新了 ${updatedCount} 本书` : '数据已是最新')
+      if (syncMsg.tone === 'warning') toast.warning(syncMsg.text)
+      else toast.success(syncMsg.text)
     } catch (error) {
       console.error('同步失败:', error)
       toast.remove(syncToastId)
