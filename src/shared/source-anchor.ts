@@ -42,3 +42,11 @@ export function readArticleDeepLink(get: (key: string) => string | null): string
   const id = get('article')
   return id ? id : null
 }
+
+/**
+ * 一条聊天消息在对话页里的 DOM 锚点 id。
+ * 收藏列表点一条 → 打开那个会话 → 滚到这条消息并描一圈，靠的就是它。
+ */
+export function messageAnchorDomId(messageId: string): string {
+  return `message-${messageId}`
+}

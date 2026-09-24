@@ -21,7 +21,7 @@ import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { EmptyState } from '@/components/ui/Feedback'
 import MessageBubble, { RAGSource } from '@/components/chat/MessageBubble'
-import { sourceHighlightLink } from '../../../shared/source-anchor'
+import { sourceHighlightLink, messageAnchorDomId } from '../../../shared/source-anchor'
 import RetrievalPanel from '@/components/chat/RetrievalPanel'
 import SessionDrawer from '@/components/chat/SessionDrawer'
 import BookChip from '@/components/chat/BookChip'
@@ -69,6 +69,8 @@ export default function Chat() {
     enableReasoning,
     error,
     currentBookId,
+    bookmarkedMessages,
+    loadBookmarked,
     loadSessions,
     createSession,
     switchSession,
@@ -88,6 +90,30 @@ export default function Chat() {
   const [books, setBooks] = useState<BookRow[]>([])
   /** 历史会话抽屉开关（原 240px 常驻左栏已收编为 overlay 抽屉） */
   const [drawerOpen, setDrawerOpen] = useState(false)
+  /**
+   * 从收藏列表点进来时要定位的那条消息；消息到手后滚过去、描一圈再放手。
+   * 找不到（比如那条后来被删了）也放手，不许一直挂着等下一次误触发。
+   */
+  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null)
+  const [anchoredMessageId, setAnchoredMessageId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!pendingAnchor) return
+    const el = document.getElementById(messageAnchorDomId(pendingAnchor))
+    if (el) {
+      el.scrollIntoView({ block: 'center' })
+      setAnchoredMessageId(pendingAnchor)
+      setPendingAnchor(null)
+      return
+    }
+    if (messages.length > 0) setPendingAnchor(null)
+  }, [pendingAnchor, messages])
+
+  useEffect(() => {
+    if (!anchoredMessageId) return
+    const timer = setTimeout(() => setAnchoredMessageId(null), 2400)
+    return () => clearTimeout(timer)
+  }, [anchoredMessageId])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bookIdFromUrlApplied = useRef(false)
@@ -301,7 +327,11 @@ export default function Chat() {
                 aria-label="打开历史对话"
                 aria-expanded={drawerOpen}
                 title="历史对话"
-                onClick={() => setDrawerOpen(true)}
+                onClick={() => {
+                  setDrawerOpen(true)
+                  // 抽屉里的「收藏」页签要用的数据，打开时拉一次（列表很短，不做缓存）
+                  void loadBookmarked()
+                }}
                 style={{
                   width: 30,
                   height: 30,
@@ -392,6 +422,8 @@ export default function Chat() {
                     <Fragment key={msgId || idx}>
                     <MessageBubble
                       key={msgId || idx}
+                      domId={msgId ? messageAnchorDomId(msgId) : undefined}
+                      anchored={!!msgId && msgId === anchoredMessageId}
                       role={message.role}
                       content={message.content}
                       reasoning={
@@ -617,6 +649,11 @@ export default function Chat() {
           setDrawerOpen(false)
         }}
         onDelete={handleDeleteSession}
+        bookmarked={bookmarkedMessages}
+        onOpenBookmark={(conversationId, messageId) => {
+          void switchSession(conversationId)
+          setPendingAnchor(messageId)
+        }}
         onCreate={() => {
           handleNewChat()
           setDrawerOpen(false)

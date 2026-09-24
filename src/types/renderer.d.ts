@@ -1,4 +1,4 @@
-import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage } from '../shared/types'
+import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage, BookmarkedMessageRow } from '../shared/types'
 
 export interface TokenSummary {
   totalRequests: number
@@ -274,6 +274,8 @@ export interface ElectronAPI {
     deleteMessage: (messageId: string) => Promise<void>
     delete: (id: string) => Promise<void>
     search: (keyword: string) => Promise<Conversation[]>
+    /** 跨会话的收藏列表（最新在前）；行形状见 BookmarkedMessageRow 的注释 */
+    getBookmarked: (limit?: number) => Promise<BookmarkedMessageRow[]>
   }
   chat: {
     toggleLike: (messageId: string, liked: boolean) => Promise<void>

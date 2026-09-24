@@ -138,6 +138,25 @@ export const conversationDb = {
     return rowsToObjects(result);
   },
 
+  /**
+   * 跨会话取出被收藏的 AI 回复（最新的在前）。
+   *
+   * 会话标题一起带出来：收藏列表必须说清"这条出自哪次对话"，
+   * 否则用户看到一堆片段还是找不到回去的路。
+   */
+  getBookmarked(limit: number = 200): Record<string, unknown>[] {
+    const result = getDatabase().exec(
+      `SELECT m.id, m.conversation_id, m.content, m.created_at,
+              c.title AS conversation_title
+       FROM chat_messages m
+       JOIN conversations c ON m.conversation_id = c.id
+       WHERE m.bookmarked = 1
+       ORDER BY m.created_at DESC LIMIT ?`,
+      [limit]
+    );
+    return rowsToObjects(result);
+  },
+
   // 点赞：liked 用 INTEGER 0/1 存储（SQLite 无原生 BOOLEAN）
   setLike(messageId: string, liked: boolean): void {
     getDatabase().run(

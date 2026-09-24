@@ -7,6 +7,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import Icon from '@/components/ui/Icon'
 import Modal from '@/components/ui/Modal'
+import type { BookmarkedMessageRow } from '../../../../shared/types'
 
 export interface DrawerSession {
   id: string
@@ -24,6 +25,10 @@ interface SessionDrawerProps {
   onSwitch: (id: string) => void
   onDelete: (id: string) => void
   onCreate: () => void
+  /** 跨会话收藏（由对话页在打开抽屉时拉一次） */
+  bookmarked: BookmarkedMessageRow[]
+  /** 点某条收藏 → 打开它所属的会话并定位到那条消息 */
+  onOpenBookmark: (conversationId: string, messageId: string) => void
 }
 
 // ===== 模块级样式 =====
@@ -230,6 +235,74 @@ function SessionList({ sessions, currentSessionId, onSwitch, onDelete, keyword }
   )
 }
 
+/**
+ * 收藏列表：所有会话里被标过星的 AI 回复，最新在前。
+ *
+ * 每条都要说清"出自哪次对话"并给一条回去的路 —— 只给一段片段，
+ * 用户还是要自己滚回原会话里找，等于没出口。
+ */
+function BookmarkList({ bookmarked, onOpenBookmark, onClose }: {
+  bookmarked: BookmarkedMessageRow[]
+  onOpenBookmark: (conversationId: string, messageId: string) => void
+  onClose: () => void
+}) {
+  if (bookmarked.length === 0) {
+    return (
+      <div
+        style={{
+          padding: '32px 12px',
+          textAlign: 'center',
+          color: 'var(--muted-foreground)',
+          fontSize: '0.82rem',
+        }}
+      >
+        还没有收藏。想留住某条回答，点它下面的星标。
+      </div>
+    )
+  }
+  return (
+    <>
+      {bookmarked.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => {
+            onOpenBookmark(m.conversation_id, m.id)
+            onClose()
+          }}
+          style={{
+            display: 'block',
+            width: '100%',
+            textAlign: 'left',
+            padding: '10px 12px',
+            marginBottom: 6,
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            background: 'var(--background)',
+            color: 'inherit',
+            font: 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          <span
+            style={{
+              display: 'block',
+              fontSize: '0.72rem',
+              color: 'var(--muted-foreground)',
+              marginBottom: 3,
+            }}
+          >
+            {m.conversation_title || '未命名对话'} · {formatRelativeTime(m.created_at)}
+          </span>
+          <span style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
+            {truncate(m.content, 70)}
+          </span>
+        </button>
+      ))}
+    </>
+  )
+}
+
 /** 主组件 ===== */
 export default function SessionDrawer({
   open,
@@ -239,12 +312,18 @@ export default function SessionDrawer({
   onSwitch,
   onDelete,
   onCreate,
+  bookmarked,
+  onOpenBookmark,
 }: SessionDrawerProps) {
   const [keyword, setKeyword] = useState('')
+  const [tab, setTab] = useState<'sessions' | 'bookmarks'>('sessions')
 
-  // 每次打开清空搜索词
+  // 每次打开回到「会话」页签并清空搜索词
   useEffect(() => {
-    if (open) setKeyword('')
+    if (open) {
+      setKeyword('')
+      setTab('sessions')
+    }
   }, [open])
 
   if (!open) return null
@@ -280,20 +359,59 @@ export default function SessionDrawer({
           </button>
         </div>
 
-        <DrawerToolbar
-          keyword={keyword}
-          onKeyword={setKeyword}
-          onCreate={onCreate}
-        />
+        {tab === 'sessions' && (
+          <DrawerToolbar
+            keyword={keyword}
+            onKeyword={setKeyword}
+            onCreate={onCreate}
+          />
+        )}
+
+        <div
+          role="tablist"
+          aria-label="历史对话与收藏"
+          style={{ display: 'flex', gap: 6, padding: '0 16px 10px' }}
+        >
+          {(
+            [
+              { key: 'sessions', label: '会话' },
+              { key: 'bookmarks', label: `收藏${bookmarked.length > 0 ? ` ${bookmarked.length}` : ''}` },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '5px 10px',
+                font: 'inherit',
+                fontSize: '0.76rem',
+                cursor: 'pointer',
+                background: tab === t.key ? 'var(--muted)' : 'transparent',
+                color: tab === t.key ? 'var(--foreground)' : 'var(--muted-foreground)',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 8px', minHeight: 0 }}>
-          <SessionList
-            sessions={sessions}
-            currentSessionId={currentSessionId}
-            onSwitch={onSwitch}
-            onDelete={onDelete}
-            keyword={keyword}
-          />
+          {tab === 'sessions' ? (
+            <SessionList
+              sessions={sessions}
+              currentSessionId={currentSessionId}
+              onSwitch={onSwitch}
+              onDelete={onDelete}
+              keyword={keyword}
+            />
+          ) : (
+            <BookmarkList bookmarked={bookmarked} onOpenBookmark={onOpenBookmark} onClose={onClose} />
+          )}
         </div>
 
         <div

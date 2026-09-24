@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { RagSourceRef } from '../../../shared/types'
+import type { RagSourceRef, BookmarkedMessageRow } from '../../../shared/types'
 
 interface ReasoningBlock {
   /** 思考内容（明文） */
@@ -130,6 +130,14 @@ interface ChatState {
   enableReasoning: boolean
   /** Agent 本轮「调取知识库」检索状态（可视化用），null 表示无 */
   retrieval: RetrievalState | null
+
+  /**
+   * 跨会话的收藏列表（打开抽屉的「收藏」页签时才拉）。
+   * 收藏的星号本来就存在 chat_messages.bookmarked，
+   * 以前只能在原会话里一条条滚回去找 —— 现在给它一个出口。
+   */
+  bookmarkedMessages: BookmarkedMessageRow[]
+  loadBookmarked: () => Promise<void>
 
   loadSessions: () => Promise<void>
   createSession: (bookId?: string) => Promise<void>
@@ -364,6 +372,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     currentBookId: null,
     enableReasoning: false,
     retrieval: null,
+    bookmarkedMessages: [],
 
     loadSessions: async () => {
       try {
@@ -589,6 +598,9 @@ export const useChatStore = create<ChatState>((set, get) => {
       }))
       try {
         await window.electronAPI.chat.toggleBookmark(messageId, bookmarked)
+        // 收藏列表已经拉过的话，取掉的这条要跟着消失（否则列表里留着一条点开没星号的）
+        const hadList = get().bookmarkedMessages.length > 0
+        if (hadList) void get().loadBookmarked()
       } catch (error) {
         set(state => ({
           messages: state.messages.map(m =>
@@ -596,6 +608,15 @@ export const useChatStore = create<ChatState>((set, get) => {
           ),
           error: (error as Error).message,
         }))
+      }
+    },
+
+    loadBookmarked: async () => {
+      try {
+        const rows = await window.electronAPI.conversation.getBookmarked()
+        set({ bookmarkedMessages: Array.isArray(rows) ? rows : [] })
+      } catch (error) {
+        set({ error: (error as Error).message })
       }
     },
   }

@@ -71,6 +71,7 @@ export default defineConfig({
         'electron/services/template-engine.ts',
         // 共享纯逻辑（main + renderer 双端复用）
         'src/shared/fsrs-metrics.ts',
+        'src/shared/source-anchor.ts',
         'src/shared/study-limits.ts',
         'src/shared/fsrs-voice.ts',
         'src/shared/weread-content.ts',

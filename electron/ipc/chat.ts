@@ -16,6 +16,7 @@ export function registerChatHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.CONVERSATIONS.DELETE_MESSAGE, (messageId: string) => conversationDb.deleteMessage(messageId));
   handle(IPC_CHANNELS.CONVERSATIONS.GET_MESSAGES, (conversationId: string) => conversationDb.getMessages(conversationId));
   handle(IPC_CHANNELS.CONVERSATIONS.SEARCH, (keyword: string) => conversationDb.search(keyword));
+  handle(IPC_CHANNELS.CONVERSATIONS.GET_BOOKMARKED, (limit?: number) => conversationDb.getBookmarked(limit));
 
   // 聊天消息点赞 / 收藏（仅 assistant 消息）
   handle(IPC_CHANNELS.CHAT.TOGGLE_LIKE, (messageId: string, liked: boolean) => conversationDb.setLike(messageId, liked));

@@ -43,6 +43,10 @@ interface MessageBubbleProps {
    * 不传就退回只读展示（引用来源只是一段文字），传了才渲染成按钮。
    */
   onOpenSource?: (src: RAGSource) => void
+  /** 这条消息在对话页里的 DOM 锚点 id（收藏列表要滚回它） */
+  domId?: string
+  /** 刚被定位到的那条：描一圈，两秒后由对话页撤掉 */
+  anchored?: boolean
 }
 
 function MessageBubble({
@@ -58,13 +62,20 @@ function MessageBubble({
   onToggleLike,
   onToggleBookmark,
   onOpenSource,
+  domId,
+  anchored,
 }: MessageBubbleProps) {
   const isUser = role === 'user'
+  /** 被定位到的那条描一圈；不改变布局，只加 outline */
+  const anchorRing = anchored
+    ? { outline: '2px solid var(--primary)', outlineOffset: 3 }
+    : null
 
   if (isUser) {
     return (
       <div
         className="msg user"
+        id={domId}
         style={{
           display: 'flex',
           justifyContent: 'flex-end',
@@ -96,10 +107,12 @@ function MessageBubble({
   return (
     <div
       className="msg assistant"
+      id={domId}
       style={{
         display: 'flex',
         gap: 'calc(var(--spacing) * 3)',
         alignItems: 'flex-start',
+        ...anchorRing,
       }}
     >
       {/* AI 头像 */}

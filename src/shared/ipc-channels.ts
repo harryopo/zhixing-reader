@@ -89,6 +89,7 @@ export const IPC_CHANNELS = {
     DELETE_MESSAGE: 'conversations:deleteMessage',
     GET_MESSAGES: 'conversations:getMessages',
     SEARCH: 'conversations:search',
+    GET_BOOKMARKED: 'conversations:getBookmarked',
   },
   CHAT: {
     TOGGLE_LIKE: 'chat:toggleLike',

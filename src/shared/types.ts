@@ -330,6 +330,20 @@ export interface RagSourceRef {
   chapterTitle?: string
 }
 
+/**
+ * 跨会话「收藏」列表的一行，来自 conversationsDb.getBookmarked()。
+ *
+ * 键名与那条 SELECT 的列名一字不差（含下划线），中间不改名 ——
+ * 本项目改过一次名就断过一次链（ReviewStats、RAGSource.chunkId 都栽过）。
+ */
+export interface BookmarkedMessageRow {
+  id: string
+  conversation_id: string
+  content: string
+  created_at: string
+  conversation_title: string
+}
+
 export type CardType = 'concept' | 'methodology' | 'quote'
 
 export interface Methodology {

@@ -318,6 +318,7 @@ const electronAPI = {
     deleteMessage: (messageId: string) => invoke(IPC_CHANNELS.CONVERSATIONS.DELETE_MESSAGE, messageId),
     getMessages: (conversationId: string) => invoke(IPC_CHANNELS.CONVERSATIONS.GET_MESSAGES, conversationId),
     search: (keyword: string) => invoke(IPC_CHANNELS.CONVERSATIONS.SEARCH, keyword),
+    getBookmarked: (limit?: number) => invoke(IPC_CHANNELS.CONVERSATIONS.GET_BOOKMARKED, limit),
   },
 
   // 聊天消息点赞 / 收藏（仅 assistant 消息）
