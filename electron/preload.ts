@@ -212,6 +212,7 @@ const electronAPI = {
     streamChatWithContext: (params: {
       sessionId: string
       bookId?: string
+      methodologyId?: string
       userMessage: string
       conversationHistory: Array<{ role: string; content: string }>
       enableReasoning?: boolean

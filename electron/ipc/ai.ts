@@ -47,6 +47,8 @@ export function registerAIHandlers(handle: HandleFn): void {
   ipcMain.handle(IPC_CHANNELS.AGENT.STREAM_CHAT_WITH_CONTEXT, async (event, params: {
     sessionId: string
     bookId?: string
+    /** 本轮在练习的方法论（由方法论详情页「注入 AI 对话」带入）；练习计数只认它 */
+    methodologyId?: string
     userMessage: string
     conversationHistory: Array<{ role: string; content: string }>
     enableReasoning?: boolean
@@ -54,6 +56,7 @@ export function registerAIHandlers(handle: HandleFn): void {
     logger.info('IPC AGENT.STREAM_CHAT_WITH_CONTEXT received', {
       sessionId: params.sessionId,
       bookId: params.bookId,
+      methodologyId: params.methodologyId,
       userMessageLength: params.userMessage?.length,
       historyLength: params.conversationHistory?.length,
       enableReasoning: params.enableReasoning,
@@ -62,6 +65,7 @@ export function registerAIHandlers(handle: HandleFn): void {
       {
         sessionId: params.sessionId,
         bookId: params.bookId,
+        methodologyId: params.methodologyId,
         conversationHistory: params.conversationHistory ?? [],
       },
       params.userMessage,

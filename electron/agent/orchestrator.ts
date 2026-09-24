@@ -20,6 +20,12 @@ import { BookContextBuilder } from './builders/book-context-builder'
 type AgentContext = {
   sessionId: string
   bookId?: string
+  /**
+   * 本轮在练习哪一条方法论（由方法论详情页「注入 AI 对话」带进来）。
+   * 练习计数只认这个字段 —— 以前是"AI 回答里出现了方法论名字就算练过一次"，
+   * 那是模型的话在给用户记功，界面上的「练过 N 次」溯源不到任何用户动作。
+   */
+  methodologyId?: string
   conversationHistory: Array<{ role: string; content: string }>
 }
 
@@ -329,57 +335,38 @@ function buildDifficultyHint(action: { action: string; reason: string }): string
   }
 }
 
-function updateMethodologyMastery(bookId: string, response: string, isCorrect: boolean): void {
-  try {
-    const methodologies = methodologiesDb.getByBookId(bookId) as Array<{
-      id: string
-      name: string
-      name_en?: string
-      mastery_level?: number
-      practice_count?: number
-    }>
-
-    // 修复：\b 对中文名无效（\b 是字母数字与非字母数字边界），导致中文方法论名
-    // 几乎永远匹配不上、掌握度从不更新。中文无词边界概念，改用：
-    //   - 英文名：\b 词边界（精确，防 FeynmanMethod 误匹配）
-    //   - 中文名：includes 子串匹配 + 最小长度 2 保护（中文方法论名通常 ≥2 字，
-    //     作为完整短语出现即视为命中，子串误匹配风险可接受）
-    const MIN_CN_NAME_LEN = 2
-    for (const m of methodologies) {
-      const isAsciiName = m.name.split('').every((c) => c.charCodeAt(0) <= 127)
-      const namePattern = isAsciiName
-        ? new RegExp(`\\b${escapeRegExp(m.name)}\\b`, 'i')
-        : null
-      const nameEnPattern = m.name_en ? new RegExp(`\\b${escapeRegExp(m.name_en)}\\b`, 'i') : null
-
-      const cnNameHit = !isAsciiName && m.name.length >= MIN_CN_NAME_LEN && response.includes(m.name)
-      const nameInResponse =
-        (namePattern ? namePattern.test(response) : false) ||
-        cnNameHit ||
-        (nameEnPattern ? nameEnPattern.test(response) : false)
-
-      if (nameInResponse) {
-        const currentMastery = Number(m.mastery_level || 0)
-        const currentPractice = Number(m.practice_count || 0)
-        const newMastery = Math.min(100, currentMastery + (isCorrect ? 5 : 2))
-        methodologiesDb.update(m.id, {
-          mastery_level: newMastery,
-          practice_count: currentPractice + 1,
-        })
-        logger.info('Methodology mastery updated', {
-          name: m.name,
-          mastery: `${currentMastery} → ${newMastery}`,
-        })
-      }
-    }
-  } catch (err) {
-    logger.error('Failed to update methodology mastery', err)
+/**
+ * 记一次方法论练习：只在本轮明确带着某条方法论（用户从详情页「注入 AI 对话」进来）时才算。
+ *
+ * 取代原先那套"在 AI 的回答文本里找方法论名字"的写法 —— 它在模型的输出里
+ * 找命中就给用户 practice_count +1、mastery +5/+2。用户什么也没做，只要模型顺嘴提了一句
+ * 「比如番茄工作法」，界面上就多出一次练习 —— 数字溯不到源头，是本项目明确不要的写法。
+ */
+export function recordMethodologyPractice(
+  methodologyId: string,
+  isCorrect: boolean,
+): void {
+  const row = methodologiesDb.getById(methodologyId) as
+    | { id: string; name?: string; mastery_level?: number; practice_count?: number }
+    | undefined
+  if (!row) {
+    // 方法论被删了还在旧会话里练：记不上，但要说清为什么记不上
+    logger.info('Methodology practice skipped: methodology not found', { methodologyId })
+    return
   }
-}
-
-// 辅助函数：转义正则表达式特殊字符
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const currentMastery = Number(row.mastery_level || 0)
+  const currentPractice = Number(row.practice_count || 0)
+  const newMastery = Math.min(100, currentMastery + (isCorrect ? 5 : 2))
+  methodologiesDb.update(methodologyId, {
+    mastery_level: newMastery,
+    practice_count: currentPractice + 1,
+  })
+  logger.info('Methodology practice recorded', {
+    methodologyId,
+    name: row.name,
+    mastery: `${currentMastery} → ${newMastery}`,
+    practice: currentPractice + 1,
+  })
 }
 
 /** 会话状态清理（state-tracker.clearState 的包装，同时清理 wire 历史视图） */
@@ -474,7 +461,21 @@ export async function processMessageStream(
     ? `用户已掌握的概念：${masteredConcepts.join('、')}。可以在此基础上深入或关联。`
     : ''
 
-  const hintBlock = [strategyHint, difficultyHint, masteryContext].filter((s) => s && s.trim()).join('\n')
+  /*
+    练习聚焦：从方法论详情页「注入 AI 对话」进来时，这一轮围着那一条方法论练。
+    和策略提示、难度提示一样放进本轮 user 消息 —— system prompt 必须逐字节静态，
+    前缀缓存才成立。
+  */
+  const practiced = context.methodologyId
+    ? (methodologiesDb.getById(context.methodologyId) as { name?: string } | undefined)
+    : undefined
+  const practiceHint = practiced?.name
+    ? `本轮在练习方法论「${practiced.name}」。请先让用户用自己的话讲清它的步骤与适用时机，再指出具体缺口；不要替用户总结。`
+    : ''
+
+  const hintBlock = [strategyHint, difficultyHint, masteryContext, practiceHint]
+    .filter((s) => s && s.trim())
+    .join('\n')
 
   const notesBlock = combinedContext.trim().length > 0
     ? `我的阅读笔记和相关资料：\n${combinedContext}`
@@ -533,8 +534,9 @@ export async function processMessageStream(
       cachedTokens: usage?.cachedTokens ?? 0,
     })
 
-    if (context.bookId) {
-      updateMethodologyMastery(context.bookId, fullResponse, isCorrect)
+    // 练习计数只认"这一轮带着某条方法论进来练"这个用户动作
+    if (context.methodologyId) {
+      recordMethodologyPractice(context.methodologyId, isCorrect)
     }
 
     try {

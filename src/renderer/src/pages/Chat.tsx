@@ -69,6 +69,8 @@ export default function Chat() {
     enableReasoning,
     error,
     currentBookId,
+    practiceMethodologyId,
+    setPracticeMethodology,
     bookmarkedMessages,
     loadBookmarked,
     loadSessions,
@@ -90,6 +92,8 @@ export default function Chat() {
   const [books, setBooks] = useState<BookRow[]>([])
   /** 历史会话抽屉开关（原 240px 常驻左栏已收编为 overlay 抽屉） */
   const [drawerOpen, setDrawerOpen] = useState(false)
+  /** 练习中的方法论名（id 在 store 里，名称只为把芯片写成人话） */
+  const [practiceName, setPracticeName] = useState<string | null>(null)
   /**
    * 从收藏列表点进来时要定位的那条消息；消息到手后滚过去、描一圈再放手。
    * 找不到（比如那条后来被删了）也放手，不许一直挂着等下一次误触发。
@@ -124,16 +128,29 @@ export default function Chat() {
     loadContextData()
   }, [loadSessions])
 
-  // ===== 从 BookDetail「AI 对话此书」带 bookId 进入：绑定当前书并开新会话 =====
+  // ===== 从 BookDetail「AI 对话此书」/ 方法论详情「注入 AI 对话」带参进入 =====
   useEffect(() => {
     const bookId = searchParams.get('bookId')
-    if (!bookId || bookIdFromUrlApplied.current) return
+    const methodologyId = searchParams.get('methodology')
+    if ((!bookId && !methodologyId) || bookIdFromUrlApplied.current) return
     bookIdFromUrlApplied.current = true
     setCurrentBook(bookId)
-    void createSession(bookId).catch((err) => {
-      console.warn('按书籍创建会话失败:', err)
-    })
-  }, [searchParams, setCurrentBook, createSession])
+    if (methodologyId) {
+      setPracticeMethodology(methodologyId)
+      void window.electronAPI.methodology
+        .getById(methodologyId)
+        .then((raw) => {
+          const row = raw as Record<string, unknown> | null
+          setPracticeName(row && typeof row.name === 'string' ? row.name : null)
+        })
+        .catch(() => setPracticeName(null))
+    }
+    if (bookId) {
+      void createSession(bookId).catch((err) => {
+        console.warn('按书籍创建会话失败:', err)
+      })
+    }
+  }, [searchParams, setCurrentBook, setPracticeMethodology, createSession])
 
   // ===== 自动滚动到底部（只滚对话区，不滚整页） =====
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -381,6 +398,47 @@ export default function Chat() {
                   onSelect={(id) => setCurrentBook(id)}
                   onClear={() => setCurrentBook(null)}
                 />
+                {/*
+                  练习中：从方法论详情页「注入 AI 对话」进来才出现。
+                  它同时是记账的凭据 —— 只有带着这条芯片发出的那一轮，
+                  主进程才给那条方法论记一次练习（以前是 AI 回答里提到名字就算）。
+                */}
+                {practiceMethodologyId && (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      border: '1px solid var(--primary)',
+                      color: 'var(--primary)',
+                      fontSize: '0.76rem',
+                      background: 'color-mix(in srgb, var(--primary) 8%, transparent)',
+                    }}
+                  >
+                    正在练习：{practiceName ?? '（这条方法论已不存在）'}
+                    <button
+                      type="button"
+                      aria-label="退出练习"
+                      onClick={() => {
+                        setPracticeMethodology(null)
+                        setPracticeName(null)
+                      }}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'grid',
+                        placeItems: 'center',
+                      }}
+                    >
+                      <Icon name="close" size={12} />
+                    </button>
+                  </span>
+                )}
                 {/* 这里原来还有一个「＋ 新建会话」，和页头的「新建会话」是同一个函数、同一屏可见。
                     抽屉里也还有一个「新对话」。留页头那一个（最显眼）+ 抽屉里那一个（会话列表旁）。 */}
               </span>

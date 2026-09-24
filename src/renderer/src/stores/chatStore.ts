@@ -126,6 +126,12 @@ interface ChatState {
   reasoningStartTime: number | null
   error: string | null
   currentBookId: string | null
+  /**
+   * 本轮在练习的方法论（从方法论详情页「注入 AI 对话」带进来）。
+   * 只有它非空时，主进程才给那条方法论记一次练习 —— AI 顺嘴提到名字不算。
+   */
+  practiceMethodologyId: string | null
+  setPracticeMethodology: (id: string | null) => void
   /** 深度思考模式开关（开启后下一次 sendMessage 生效） */
   enableReasoning: boolean
   /** Agent 本轮「调取知识库」检索状态（可视化用），null 表示无 */
@@ -343,6 +349,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       await window.electronAPI.ai.streamChatWithContext({
         sessionId: sessionId,
         bookId: currentBookId || undefined,
+        methodologyId: get().practiceMethodologyId || undefined,
         userMessage: userContent,
         conversationHistory,
         enableReasoning,
@@ -370,6 +377,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     reasoningStartTime: null,
     error: null,
     currentBookId: null,
+    practiceMethodologyId: null,
     enableReasoning: false,
     retrieval: null,
     bookmarkedMessages: [],
@@ -560,6 +568,10 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     setCurrentBook: (bookId: string | null) => {
       set({ currentBookId: bookId })
+    },
+
+    setPracticeMethodology: (id: string | null) => {
+      set({ practiceMethodologyId: id })
     },
 
     clearError: () => {

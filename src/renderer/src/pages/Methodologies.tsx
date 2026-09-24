@@ -952,13 +952,13 @@ export default function Methodologies() {
               onInjectChat={() => {
                 const bookId = selectedMethod.bookId
                 const name = selectedMethod.name || '方法论'
-                // 带书上下文进入对话；编排器会自动加载该书方法论
-                if (bookId) {
-                  navigate(`/chat?bookId=${encodeURIComponent(bookId)}`)
-                } else {
-                  navigate('/chat')
-                }
-                toast.success(`已打开对话，可继续讨论「${name}」`)
+                // 带上 methodology 参数：对话页据此亮起「正在练习」芯片，
+                // 主进程只在这一轮真的带着它时才给这条方法论记一次练习。
+                const params = new URLSearchParams()
+                if (bookId) params.set('bookId', bookId)
+                params.set('methodology', selectedMethod.id)
+                navigate(`/chat?${params.toString()}`)
+                toast.success(`已进入练习「${name}」，先用自己的话讲一遍它的步骤`)
               }}
               onExportSkill={() => handleExportSkill(selectedMethod)}
             />

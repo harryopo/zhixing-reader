@@ -26,7 +26,13 @@ const {
   // 签名对齐生产：`methodologiesDb.getByBookId(): Record<string, unknown>[]`、
   // `conversationDb.getHistorySummary(): string | null`。
   // 不写返回类型会被推成 `never[]` / `null`，后面 mockReturnValue 喂真数据全判红。
-  mockMethodologiesDb: { getByBookId: vi.fn((): Record<string, unknown>[] => []), update: vi.fn() },
+  mockMethodologiesDb: {
+    getByBookId: vi.fn((): Record<string, unknown>[] => []),
+    getById: vi.fn((id: string): Record<string, unknown> | undefined =>
+      id === 'm1' ? { id: 'm1', name: '费曼方法', mastery_level: 10, practice_count: 2 } : undefined,
+    ),
+    update: vi.fn(),
+  },
   mockConversationDb: { getHistorySummary: vi.fn((): string | null => null), setHistorySummary: vi.fn() },
   mockSummarize: vi.fn(),
 }))
@@ -231,94 +237,51 @@ describe('orchestrator — processMessageStream 编排逻辑', () => {
     expect(mockExtractMemories).toHaveBeenCalled()
   })
 
-  it('有 bookId 时完成后更新方法论掌握度（英文名 \\b 匹配）', async () => {
-    // 回答里含方法论英文名（\b 词边界匹配 ASCII）
-    mockMethodologiesDb.getByBookId.mockReturnValue([
-      { id: 'm1', name: '费曼方法', name_en: 'Feynman', mastery_level: 10, practice_count: 0 },
-    ])
-    mockStreamChat.mockImplementation(
-      async (_m: unknown, onChunk: (c: string) => void, onComplete: () => void) => {
-        onChunk('用 Feynman 方法来学习')
-        onComplete()
-      },
-    )
+  /*
+    练习记账的判据（2026-09-24 改）：只有"这一轮带着某条方法论进来练"才算练过。
+    以前是在 AI 的回答文本里找方法论名字，命中就 +1 —— 模型顺嘴提一句，
+    界面上用户就"练过一次"，数字溯不到任何用户动作。
+  */
+  it('带 methodologyId 的一轮：查这一条并记一次练习', async () => {
     await processMessageStream(
-      { sessionId: 's1', bookId: 'b1', conversationHistory: [] },
-      '费曼方法怎么用？',
+      { sessionId: 's1', bookId: 'b1', methodologyId: 'm1', conversationHistory: [] },
+      '我来练费曼方法',
       () => {},
       () => {},
       () => {},
     )
-    // 回答里含「Feynman」（name_en，\b 词边界可匹配）应触发 mastery 更新
-    expect(mockMethodologiesDb.update).toHaveBeenCalled()
+    expect(mockMethodologiesDb.getById).toHaveBeenCalledWith('m1')
+    expect(mockMethodologiesDb.update).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({ practice_count: 3 }),
+    )
   })
 
-  it('有 bookId 时完成后更新方法论掌握度（中文名边界匹配）', async () => {
-    // 修复 \b 对中文无效的 bug 后，中文名也应能匹配
+  it('回答里出现方法论名、但这轮没带 methodologyId → 一分都不记', async () => {
     mockMethodologiesDb.getByBookId.mockReturnValue([
-      { id: 'm1', name: '费曼方法', name_en: '', mastery_level: 10, practice_count: 0 },
+      { id: 'm1', name: '费曼方法', name_en: 'Feynman', mastery_level: 10, practice_count: 2 },
     ])
     mockStreamChat.mockImplementation(
       async (_m: unknown, onChunk: (c: string) => void, onComplete: () => void) => {
-        onChunk('我们可以用费曼方法来学习这个概念')
+        onChunk('我们可以用费曼方法（Feynman）来学习这个概念')
         onComplete()
       },
     )
     await processMessageStream(
       { sessionId: 's1', bookId: 'b1', conversationHistory: [] },
-      '费曼方法怎么用？',
-      () => {},
-      () => {},
-      () => {},
-    )
-    expect(mockMethodologiesDb.update).toHaveBeenCalled()
-  })
-
-  it('中文方法名长度<2 时不触发匹配（防单字误匹配）', async () => {
-    // 单字方法论名「法」长度 1 < MIN_CN_NAME_LEN(2)，不触发 includes 匹配
-    mockMethodologiesDb.getByBookId.mockReturnValue([
-      { id: 'm-other', name: '法', name_en: '', mastery_level: 0, practice_count: 0 },
-    ])
-    mockStreamChat.mockImplementation(
-      async (_m: unknown, onChunk: (c: string) => void, onComplete: () => void) => {
-        onChunk('这是一种好方法')
-        onComplete()
-      },
-    )
-    await processMessageStream(
-      { sessionId: 's1', bookId: 'b1', conversationHistory: [] },
-      '问题',
-      () => {},
-      () => {},
-      () => {},
-    )
-    // 单字名不触发，避免单字在大量文本里误匹配
-    expect(mockMethodologiesDb.update).not.toHaveBeenCalled()
-  })
-
-  it('回答不含方法论名时不更新掌握度', async () => {
-    mockMethodologiesDb.getByBookId.mockReturnValue([
-      { id: 'm1', name: '费曼方法', name_en: 'Feynman', mastery_level: 10, practice_count: 0 },
-    ])
-    mockStreamChat.mockImplementation(
-      async (_m: unknown, onChunk: (c: string) => void, onComplete: () => void) => {
-        onChunk('无关回答')
-        onComplete()
-      },
-    )
-    await processMessageStream(
-      { sessionId: 's1', bookId: 'b1', conversationHistory: [] },
-      '问题',
+      '随便问问',
       () => {},
       () => {},
       () => {},
     )
     expect(mockMethodologiesDb.update).not.toHaveBeenCalled()
+    // 反证：这一轮确实跑完了（不是提前 return 才没调用）
+    expect(mockStreamChat).toHaveBeenCalled()
   })
 
-  it('无 bookId 时不查方法论', async () => {
+  it('没带 methodologyId 时不去按书名捞一整本书的方法论', async () => {
     await processMessageStream(
-      { sessionId: 's1', conversationHistory: [] },
+      { sessionId: 's1', bookId: 'b1', conversationHistory: [] },
       '问题',
       () => {},
       () => {},
