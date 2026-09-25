@@ -110,16 +110,50 @@ describe('search:global 通道', () => {
     expect(groupOf(r, 'card')!.hits[0].link).toBe('/knowledge-cards?q=%E5%A4%8D%E5%88%A9')
   })
 
-  it('每类只到自己那条上限，别的类不受影响', () => {
+  it('每类只到自己那条上限，但 matched 报的是库里真命中的条数', () => {
     for (let i = 0; i < 12; i++) {
       highlightsDb.create({ id: `x${i}`, book_id: 'b1', content: `复利第 ${i} 条` })
     }
     const r = searchHandler()('复利')
-    expect(groupOf(r, 'highlight')!.hits).toHaveLength(
-      SEARCH_GROUPS.find((g) => g.kind === 'highlight')!.limit,
-    )
-    expect(groupOf(r, 'card')!.hits).toHaveLength(1)
+    const limit = SEARCH_GROUPS.find((g) => g.kind === 'highlight')!.limit
+    const hl = groupOf(r, 'highlight')!
+    expect(hl.hits).toHaveLength(limit)
+    // 12 条新造的 + 种子那条只有笔记命中的
+    expect(hl.matched).toBe(13)
+    expect(hl.matched).toBeGreaterThan(hl.hits.length)
+    // total 是"列出来的"，matchedTotal 才是"库里的"，两者不许混成一个数
     expect(r.total).toBe(r.groups.reduce((n, g) => n + g.hits.length, 0))
+    expect(r.matchedTotal).toBe(r.groups.reduce((n, g) => n + g.matched, 0))
+    expect(r.matchedTotal).toBeGreaterThan(r.total)
+  })
+
+  it('没被截断时 matched 就等于列出的条数（不会凭空多出数来）', () => {
+    const r = searchHandler()('复利')
+    for (const g of r.groups.filter((x) => x.kind !== 'highlight')) {
+      expect(g.matched).toBe(g.hits.length)
+    }
+  })
+
+  it('划线也认章名与书名：正文与笔记都没有关键词，但章名里有 ⇒ 该找得到', () => {
+    highlightsDb.create({
+      id: 'h3',
+      book_id: 'b1',
+      content: '与关键词无关的正文',
+      note: '',
+      chapter_title: '关于复利的一个章节',
+    })
+    const r = searchHandler()('复利')
+    expect(groupOf(r, 'highlight')!.hits.map((h) => h.id)).toContain('h3')
+    // 片段没有内容可展示时退回章名，不给空片段
+    expect(groupOf(r, 'highlight')!.hits.find((h) => h.id === 'h3')!.snippet).toContain('复利')
+  })
+
+  it('书名命中同理（笔记页那台筛选器也搜书名，两边口径要对得上）', () => {
+    booksDb.create({ id: 'b3', title: '复利简史' })
+    highlightsDb.create({ id: 'h4', book_id: 'b3', content: '一句无关的话' })
+    const r = searchHandler()('复利')
+    const hit = groupOf(r, 'highlight')!.hits.find((h) => h.id === 'h4')
+    expect(hit!.title).toBe('复利简史')
   })
 
   it('关键词里的 % 按字面匹配，不会命中所有行', () => {
@@ -131,7 +165,7 @@ describe('search:global 通道', () => {
   it('空关键词与纯空格都不发查询', () => {
     for (const q of ['', '   ']) {
       const r = searchHandler()(q)
-      expect(r).toEqual({ query: '', groups: [], total: 0 })
+      expect(r).toEqual({ query: '', groups: [], total: 0, matchedTotal: 0 })
     }
   })
 

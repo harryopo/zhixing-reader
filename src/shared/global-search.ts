@@ -46,14 +46,22 @@ export interface SearchGroupResult {
   kind: SearchKind
   label: string
   hits: SearchHit[]
+  /**
+   * 库里一共命中多少条 —— `hits` 只到 `limit`，所以必须另外报。
+   *
+   * 少了这个数，界面上写「划线 8 条」而库里可能命中 214 条，读者以为就这些了。
+   */
+  matched: number
 }
 
 export interface GlobalSearchResult {
   query: string
   /** 只含有命中的类；一类都没有就是空数组 */
   groups: SearchGroupResult[]
-  /** 列出来的条数（受每类上限约束，不是库里的总命中数） */
+  /** 列出来的条数（各类受每类上限约束） */
   total: number
+  /** 库里命中的条数（各类相加，可能远大于 total） */
+  matchedTotal: number
 }
 
 /** 片段里命中词前后各留多少字 */
@@ -150,11 +158,48 @@ function qs(query: string): string {
   return new URLSearchParams({ q: query }).toString()
 }
 
+/** 这一类该怎么写条数：库里命中多少、这里列出多少 */
+export function describeGroupCount(group: SearchGroupResult): string {
+  if (group.matched > group.hits.length) {
+    return `共 ${group.matched} 条 · 列出 ${group.hits.length} 条`
+  }
+  return `${group.hits.length} 条`
+}
+
+/**
+ * "看全部"的出口 —— **只有那一页真能按关键词筛的类才给**。
+ *
+ * 文章那一页没有关键词筛选（只有难度 / 已读 / 收藏），给它一个链接等于给一个
+ * "点了什么也不会变"的按钮，所以宁可不给，条数那句话已经说清了。
+ */
+export function seeAllLink(kind: SearchKind, query: string): string | null {
+  switch (kind) {
+    case 'highlight':
+      return `/notes?${qs(query)}`
+    case 'card':
+      return `/knowledge-cards?${qs(query)}`
+    case 'methodology':
+      return `/methodologies?${qs(query)}`
+    case 'word':
+      return `/vocabulary?${qs(query)}`
+    case 'article':
+      return null
+  }
+}
+
 /** 结果页顶上一句话；一个都没命中时也要说清楚搜的是什么 */
-export function describeSearchOutcome(query: string, total: number): string {
-  if (!query.trim()) return '输入关键词，在你的划线、卡片、方法论、文章与生词里找'
-  if (total === 0) return `没有找到包含「${query.trim()}」的内容`
-  return `找到 ${total} 条与「${query.trim()}」相关的内容`
+export function describeSearchOutcome(
+  query: string,
+  listed: number,
+  matchedTotal: number,
+): string {
+  const q = query.trim()
+  if (!q) return '输入关键词，在你的划线、卡片、方法论、文章与生词里找'
+  if (matchedTotal === 0) return `没有找到包含「${q}」的内容`
+  if (matchedTotal > listed) {
+    return `找到 ${matchedTotal} 条与「${q}」相关的内容，下面列出其中最相关的 ${listed} 条`
+  }
+  return `找到 ${matchedTotal} 条与「${q}」相关的内容`
 }
 
 /** 空搜索框不该发请求 */

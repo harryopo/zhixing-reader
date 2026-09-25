@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -43,12 +43,14 @@ function deriveTitle(content: string): string {
 // ===== 主组件 =====
 export default function Notes() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
   const [books, setBooks] = useState<BookRow[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedBook, setSelectedBook] = useState<string>('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchOpen, setSearchOpen] = useState(false)
+  /** 全局搜索的「看全部」带着同一个关键词进来（?q=），搜索框要展开并填上，别让人以为没筛 */
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '')
+  const [searchOpen, setSearchOpen] = useState(!!(searchParams.get('q') ?? '').trim())
 
   useEffect(() => {
     loadData()

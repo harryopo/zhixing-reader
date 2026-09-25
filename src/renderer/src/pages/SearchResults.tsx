@@ -16,8 +16,10 @@ import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
 import {
+  describeGroupCount,
   describeSearchOutcome,
   isSearchable,
+  seeAllLink,
   splitByMatch,
   type GlobalSearchResult,
   type SearchGroupResult,
@@ -102,6 +104,8 @@ function HitRow({ hit, query }: { hit: SearchHit; query: string }) {
 }
 
 function GroupSection({ group, query }: { group: SearchGroupResult; query: string }) {
+  const navigate = useNavigate()
+  const seeAll = group.matched > group.hits.length ? seeAllLink(group.kind, query) : null
   return (
     <section style={{ marginTop: 'calc(var(--spacing) * 5)' }}>
       <h3
@@ -110,14 +114,20 @@ function GroupSection({ group, query }: { group: SearchGroupResult; query: strin
           fontSize: '0.95rem',
           fontWeight: 600,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'baseline',
           gap: 'calc(var(--spacing) * 2)',
         }}
       >
         {group.label}
+        {/* 「8 条」与「共 214 条」是两件事，只报前者会让人以为就这些 */}
         <span style={{ fontWeight: 400, color: 'var(--muted-foreground)' }}>
-          {group.hits.length} 条
+          {describeGroupCount(group)}
         </span>
+        {seeAll && (
+          <Button variant="ghost" onClick={() => navigate(seeAll)}>
+            看全部
+          </Button>
+        )}
       </h3>
       <Card padding={0} style={{ overflow: 'hidden' }}>
         {group.hits.map((hit) => (
@@ -126,6 +136,56 @@ function GroupSection({ group, query }: { group: SearchGroupResult; query: strin
       </Card>
     </section>
   )
+}
+
+/** hero 以下的那几种状态 —— 拆出来是因为都塞在一个组件里就过了复杂度线 */
+function SearchBody({
+  query,
+  loading,
+  error,
+  result,
+  onRetry,
+}: {
+  query: string
+  loading: boolean
+  error: string | null
+  result: GlobalSearchResult | null
+  onRetry: () => void
+}) {
+  if (!isSearchable(query)) {
+    return (
+      <EmptyState
+        icon={<Icon name="search" size={28} />}
+        title="还没有输入关键词"
+        description="在顶栏的搜索框里输入关键词，会同时找你的划线、知识卡片、方法论、文章与生词。"
+      />
+    )
+  }
+  if (loading) return <Loading hint="正在搜索…" />
+  if (error) {
+    return (
+      <EmptyState
+        icon={<Icon name="alert" size={28} />}
+        title="搜索失败"
+        description={error}
+        action={
+          <Button variant="secondary" onClick={onRetry}>
+            重新搜索
+          </Button>
+        }
+      />
+    )
+  }
+  if (result && result.total === 0) {
+    return (
+      <EmptyState
+        icon={<Icon name="search" size={28} />}
+        title={`没有找到包含「${query}」的内容`}
+        description="划线看正文与笔记，卡片看标题、正文与解读，方法论看名称、说明与步骤，文章看标题与摘要，生词看单词与释义。换个说法再试一次。"
+      />
+    )
+  }
+  return <>{result?.groups.map((group) => <GroupSection key={group.kind} group={group} query={query} />)}</>
 }
 
 export default function SearchResults() {
@@ -161,42 +221,17 @@ export default function SearchResults() {
 
   return (
     <>
-      <PageHero title="搜索" subtitle={describeSearchOutcome(query, result?.total ?? 0)} />
-
-      {!isSearchable(query) && (
-        <EmptyState
-          icon={<Icon name="search" size={28} />}
-          title="还没有输入关键词"
-          description="在顶栏的搜索框里输入关键词，会同时找你的划线、知识卡片、方法论、文章与生词。"
-        />
-      )}
-
-      {loading && <Loading hint="正在搜索…" />}
-
-      {!loading && error && (
-        <EmptyState
-          icon={<Icon name="alert" size={28} />}
-          title="搜索失败"
-          description={error}
-          action={
-            <Button variant="secondary" onClick={() => void run(query)}>
-              重新搜索
-            </Button>
-          }
-        />
-      )}
-
-      {!loading && !error && result && result.total === 0 && (
-        <EmptyState
-          icon={<Icon name="search" size={28} />}
-          title={`没有找到包含「${query}」的内容`}
-          description="划线看正文与笔记，卡片看标题、正文与解读，方法论看名称、说明与步骤，文章看标题与摘要，生词看单词与释义。换个说法再试一次。"
-        />
-      )}
-
-      {!loading && result?.groups.map((group) => (
-        <GroupSection key={group.kind} group={group} query={query} />
-      ))}
+      <PageHero
+        title="搜索"
+        subtitle={describeSearchOutcome(query, result?.total ?? 0, result?.matchedTotal ?? 0)}
+      />
+      <SearchBody
+        query={query}
+        loading={loading}
+        error={error}
+        result={result}
+        onRetry={() => void run(query)}
+      />
     </>
   )
 }

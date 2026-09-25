@@ -44,7 +44,8 @@ export default function VocabularyPage() {
   const [stats, setStats] = useState({ total: 0, mastered: 0, dueToday: 0 })
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<FilterKey>('all')
-  const [searchKeyword, setSearchKeyword] = useState('')
+  /** 搜索框里的词 —— 只在回车或清空时生效（不逐字搜），从全局搜索带 ?q= 进来时先填上 */
+  const [searchKeyword, setSearchKeyword] = useState(searchParams.get('q') ?? '')
 
   // 选中的单词（右侧详情）—— 全局搜索用 ?item= 精确跳到某一个
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('item'))
@@ -71,7 +72,11 @@ export default function VocabularyPage() {
   const [exporting, setExporting] = useState(false)
 
   // ===== 数据加载 =====
-  const loadVocabulary = useCallback(async () => {
+  /**
+   * 关键词由调用方传进来，不在这里读输入框的 state：搜索只在回车与「清空」那两下生效
+   * （逐字搜会每次按键发一条 IPC），而 state 在同一次点击里还没更新完。
+   */
+  const loadVocabulary = useCallback(async (keyword = '') => {
     if (!window.electronAPI?.vocabulary) {
       setLoading(false)
       return
@@ -79,7 +84,10 @@ export default function VocabularyPage() {
     try {
       setLoading(true)
       let result: VocabularyRow[] = []
-      if (activeTab === 'due') {
+      if (keyword.trim()) {
+        // 有关键词时以关键词为准（全局搜索带 ?q= 进来就走这条），否则按页签筛
+        result = mapVocabularies(await window.electronAPI.vocabulary.search(keyword.trim()))
+      } else if (activeTab === 'due') {
         result = mapVocabularies(await window.electronAPI.vocabulary.getDueForReview(200))
       } else if (activeTab === 'mastered') {
         result = mapVocabularies(await window.electronAPI.vocabulary.getAll(200)).filter(
@@ -103,9 +111,10 @@ export default function VocabularyPage() {
     }
   }, [activeTab])
 
+  // 首帧：URL 带着 ?q= 进来（全局搜索的「看全部」）就按关键词搜，否则按页签取列表
   useEffect(() => {
-    loadVocabulary()
-  }, [loadVocabulary])
+    void loadVocabulary(searchParams.get('q') ?? '')
+  }, [loadVocabulary, searchParams])
 
   // 选中单词的派生数据（未选时 fallback 到第一个）
   const selectedItem = useMemo(() => {
@@ -115,19 +124,9 @@ export default function VocabularyPage() {
 
   // ===== 业务逻辑 =====
 
-  /** 搜索 */
+  /** 搜索：关键词由输入框决定（不逐字搜，回车才生效） */
   const handleSearch = async () => {
-    if (!window.electronAPI?.vocabulary) return
-    if (!searchKeyword.trim()) {
-      loadVocabulary()
-      return
-    }
-    try {
-      setVocabulary(mapVocabularies(await window.electronAPI.vocabulary.search(searchKeyword)))
-    } catch (error) {
-      console.error('搜索失败:', error)
-      toast.error('搜索失败')
-    }
+    await loadVocabulary(searchKeyword)
   }
 
   /** 添加生词（通过词典查询） */

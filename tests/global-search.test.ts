@@ -8,10 +8,13 @@ import {
   SEARCH_GROUPS,
   SNIPPET_RADIUS,
   buildHitLink,
+  describeGroupCount,
   describeSearchOutcome,
   isSearchable,
   makeSnippet,
+  seeAllLink,
   toLikePattern,
+  type SearchGroupResult,
 } from '../src/shared/global-search'
 
 const LONG = '前面有一大段无关的话。'.repeat(6) + '复利是时间对决策的回报。' + '后面又是一大段。'.repeat(6)
@@ -108,14 +111,62 @@ describe('点回去的链接', () => {
 
 describe('结果页那句话', () => {
   it('没输入时说该做什么', () => {
-    expect(describeSearchOutcome('', 0)).toContain('输入关键词')
+    expect(describeSearchOutcome('', 0, 0)).toContain('输入关键词')
   })
 
   it('零命中时如实说没找到，且把搜的词带上', () => {
-    expect(describeSearchOutcome('复利', 0)).toBe('没有找到包含「复利」的内容')
+    expect(describeSearchOutcome('复利', 0, 0)).toBe('没有找到包含「复利」的内容')
   })
 
-  it('有命中时报数', () => {
-    expect(describeSearchOutcome('复利', 7)).toBe('找到 7 条与「复利」相关的内容')
+  it('全部列出来时报数，不多说一句', () => {
+    expect(describeSearchOutcome('复利', 7, 7)).toBe('找到 7 条与「复利」相关的内容')
+  })
+
+  it('被上限截断时要说清"列出的是其中几条"（只报列出数会让人以为就这些）', () => {
+    expect(describeSearchOutcome('的', 21, 214)).toBe(
+      '找到 214 条与「的」相关的内容，下面列出其中最相关的 21 条',
+    )
+  })
+
+  it('关键词首尾空白不影响那句话', () => {
+    expect(describeSearchOutcome('  复利  ', 3, 3)).toBe('找到 3 条与「复利」相关的内容')
+  })
+})
+
+describe('每类的条数怎么写', () => {
+  const group = (hits: number, matched: number): SearchGroupResult => ({
+    kind: 'highlight',
+    label: '划线',
+    hits: Array.from({ length: hits }, (_, i) => ({
+      kind: 'highlight' as const,
+      id: `h${i}`,
+      title: '书',
+      meta: '',
+      snippet: '',
+      link: '/notes',
+    })),
+    matched,
+  })
+
+  it('没被截断时只报条数', () => {
+    expect(describeGroupCount(group(3, 3))).toBe('3 条')
+    expect(describeGroupCount(group(0, 0))).toBe('0 条')
+  })
+
+  it('被截断时报"共 N 条 · 列出 M 条"', () => {
+    expect(describeGroupCount(group(8, 214))).toBe('共 214 条 · 列出 8 条')
+  })
+})
+
+describe('看全部的出口', () => {
+  it('那四页真能按关键词筛，才给出口', () => {
+    expect(seeAllLink('highlight', '复利')).toBe('/notes?q=%E5%A4%8D%E5%88%A9')
+    expect(seeAllLink('card', '复利')).toBe('/knowledge-cards?q=%E5%A4%8D%E5%88%A9')
+    expect(seeAllLink('methodology', '复利')).toBe('/methodologies?q=%E5%A4%8D%E5%88%A9')
+    expect(seeAllLink('word', '复利')).toBe('/vocabulary?q=%E5%A4%8D%E5%88%A9')
+  })
+
+  it('文章那一页没有关键词筛选（只有难度 / 已读 / 收藏），不给假按钮', () => {
+    expect(seeAllLink('article', '复利')).toBeNull()
   })
 })
