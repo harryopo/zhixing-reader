@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 import type { ArchiveResult, RestoreResult, UndoableDeleteKind } from '../src/shared/types';
+import type { BackupExport, BackupImportResult } from '../src/shared/backup';
 import type { ReviewSourceKind } from '../src/shared/review-sources';
 
 interface IPCResponse<T> {
@@ -428,9 +429,14 @@ const electronAPI = {
     /** 留现场再删：null = 那行本来不在（什么都没删，也就没有撤销） */
     archiveDelete: (kind: UndoableDeleteKind, id: string) =>
       invoke<ArchiveResult | null>(IPC_CHANNELS.SYSTEM.ARCHIVE_DELETE, kind, id),
-    /** 按 token 撤销一次删除；ok=false 表示现场已失效 */
+    /** 按 token 把上一次删除的行原样插回去；ok=false 表示现场已失效 */
     restoreDelete: (token: string) =>
       invoke<RestoreResult>(IPC_CHANNELS.SYSTEM.RESTORE_DELETE, token),
+    /** 备份：主进程按唯一那份表清单取全（渲染层只管把 payload 落成文件） */
+    exportBackup: () => invoke<BackupExport>(IPC_CHANNELS.SYSTEM.EXPORT_BACKUP),
+    /** 恢复：清空后按同一份清单换回，整批一个事务；失败则什么都没改 */
+    importBackup: (payload: unknown) =>
+      invoke<BackupImportResult>(IPC_CHANNELS.SYSTEM.IMPORT_BACKUP, payload),
   },
 
   update: {

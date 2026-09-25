@@ -81,6 +81,7 @@ export default defineConfig({
         // 只有常量/类型声明的（types.ts / ipc-channels.ts / external-links.ts）不列：
         // 它们没有分支可盖，列进去只会把一个 0% 塞进分母。
         'src/shared/ai-coverage.ts',
+        'src/shared/backup.ts',
         'src/shared/chapter-summaries.ts',
         'src/shared/csv.ts',
         'src/shared/daily-tasks.ts',
@@ -93,6 +94,7 @@ export default defineConfig({
         'src/shared/settings-secrets.ts',
         'src/shared/update-notice.ts',
         'electron/services/chapter-title-backfill.ts',
+        'electron/services/backup.ts',
         'electron/services/deleted-archive.ts',
         'electron/services/reading-time-sync.ts',
         // renderer（colocated __tests__ 已有测试）

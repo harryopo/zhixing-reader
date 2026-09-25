@@ -2,6 +2,7 @@ import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSumm
 import type { ChatMessageRow, ConversationRow } from '../renderer/src/utils/db-mapper'
 import type { DueReviewCardView, ReviewCardFields, ReviewSourceKind } from '../shared/review-sources'
 import type { BookCoverageView, CoveragePlan } from '../shared/ai-coverage'
+import type { BackupExport, BackupImportResult } from '../shared/backup'
 
 export interface TokenSummary {
   totalRequests: number
@@ -350,6 +351,10 @@ export interface ElectronAPI {
     archiveDelete: (kind: UndoableDeleteKind, id: string) => Promise<ArchiveResult | null>
     /** 按 token 撤销一次删除；ok=false 表示现场已失效（撤销过一次 / 应用重启过） */
     restoreDelete: (token: string) => Promise<RestoreResult>
+    /** 备份：表清单在主进程一处，渲染层只把 payload 落成文件 */
+    exportBackup: () => Promise<BackupExport>
+    /** 恢复：整批一个事务，失败则库里什么都没动 */
+    importBackup: (payload: unknown) => Promise<BackupImportResult>
   }
   update: {
     /** 手动检查更新；supported=false 表示开发环境不可用 */

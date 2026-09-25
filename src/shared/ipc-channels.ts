@@ -222,6 +222,10 @@ export const IPC_CHANNELS = {
     ARCHIVE_DELETE: 'system:archiveDelete',
     /** 按 token 把上一次删除的行原样插回去（现场只在内存，应用重启即失效） */
     RESTORE_DELETE: 'system:restoreDelete',
+    /** 备份：按 src/shared/backup.ts 那一份表清单整表取全（含 AI 生成物与生成台账） */
+    EXPORT_BACKUP: 'system:exportBackup',
+    /** 恢复：清空后按同一份清单换回，整个动作在一个事务里，半套不落库 */
+    IMPORT_BACKUP: 'system:importBackup',
     // 主→渲染事件：数据库落盘失败（磁盘满/权限/被占用），渲染层据此提示用户，避免静默丢数据
     PERSIST_ERROR: 'system:persistError',
   },

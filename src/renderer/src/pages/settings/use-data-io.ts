@@ -4,6 +4,7 @@ import { toast } from '@/stores/toastStore'
 import { safeNum } from '@/utils/db-mapper'
 import { downloadBlob, type KpiStats } from './data-utils'
 import { buildReviewCsv } from '../../../../shared/review-export'
+import { describeImportedCounts } from '../../../../shared/backup'
 
 /**
  * 这一坨只碰 IPC、拼装文件和浏览器下载，不碰页面其它状态，所以整块搬走。
@@ -15,41 +16,16 @@ export function useDataIo(setKpiStats: (stats: KpiStats) => void) {
   // ===== 导出全部数据（JSON） =====
   const handleExportAll = useCallback(async () => {
     const api = window.electronAPI
-    if (!api?.book?.getAll || !api?.highlight?.getAll || !api?.card?.getDue) {
+    if (!api?.system?.exportBackup) {
       toast.error('API 未正确初始化，请重启应用')
       return
     }
     const tId = toast.loading('正在导出全部数据...')
     try {
-      const [books, highlights] = await Promise.all([
-        api.book.getAll(),
-        api.highlight.getAll(),
-      ])
-      // 卡片按书聚合（无 getAll 接口，按 books 收集）
-      const cardsPerBook = await Promise.all(
-        (books as Array<{ id: string }>).map((b) =>
-          api.card.getByBook(b.id).catch(() => []),
-        ),
-      )
-      const cards = cardsPerBook.flat()
-      // 2026-09-16：补齐知识卡片 / 方法论 / 生词。
-      // 原来备份里只有 books / highlights / cards（cards 还是 **FSRS 复习卡片**，不是知识卡片），
-      // 而导入时连 cards 都不读 —— 界面写着「完整备份」，恢复后卡片全没。
-      const [knowledgeCards, methodologies, vocabulary] = await Promise.all([
-        api.knowledgeCard?.getAll ? api.knowledgeCard.getAll().catch(() => []) : Promise.resolve([]),
-        api.methodology?.getAll ? api.methodology.getAll().catch(() => []) : Promise.resolve([]),
-        api.vocabulary?.getAll ? api.vocabulary.getAll().catch(() => []) : Promise.resolve([]),
-      ])
-      const payload = {
-        version: '1.1',
-        exportedAt: new Date().toISOString(),
-        books,
-        highlights,
-        cards,
-        knowledgeCards,
-        methodologies,
-        vocabulary,
-      }
+      // 备份里有什么由主进程那份表清单决定（src/shared/backup.ts）——
+      // 以前这里在渲染层拼 payload，AI 生成的摘要与"已处理多少条划线"的台账根本不在里面，
+      // 恢复后按钮变成「重新蒸馏」，等于让同一批划线再花一次钱。
+      const { payload, counts } = await api.system.exportBackup()
       const filename = `zhixing-backup-${new Date().toISOString().split('T')[0]}.json`
       downloadBlob(filename, JSON.stringify(payload, null, 2), 'application/json')
       // 记录导出时间
@@ -61,10 +37,8 @@ export function useDataIo(setKpiStats: (stats: KpiStats) => void) {
         /* 非致命 */
       }
       toast.remove(tId)
-      toast.success(
-        `已导出 ${books.length} 本书 / ${highlights.length} 条划线 / ${cards.length} 张复习卡` +
-          ` / ${knowledgeCards.length} 张知识卡片 / ${methodologies.length} 条方法论 / ${vocabulary.length} 个生词`,
-      )
+      const summary = describeImportedCounts(counts)
+      toast.success(summary ? `已导出 ${summary}` : '已导出备份（当前库里没有数据）')
     } catch (err) {
       toast.remove(tId)
       toast.error(`导出失败: ${(err as Error).message}`)
@@ -141,10 +115,10 @@ export function useDataIo(setKpiStats: (stats: KpiStats) => void) {
     }
   }, [])
 
-  // ===== 导入数据（JSON 文件选择 + 逐条 create） =====
+  // ===== 导入数据（JSON 文件选择 → 主进程按那份清单整批换回） =====
   const handleImportData = useCallback(async () => {
     const api = window.electronAPI
-    if (!api?.book?.create || !api?.highlight?.create) {
+    if (!api?.system?.importBackup) {
       toast.error('API 未正确初始化，请重启应用')
       return
     }
@@ -158,88 +132,35 @@ export function useDataIo(setKpiStats: (stats: KpiStats) => void) {
       const tId = toast.loading(`正在导入 ${file.name}...`)
       try {
         const text = await file.text()
-        const data = JSON.parse(text) as {
-          books?: Array<Record<string, unknown>>
-          highlights?: Array<Record<string, unknown>>
-          /** FSRS 复习卡片（备份里保留但恢复时走"按划线重建"，见下） */
-          cards?: Array<Record<string, unknown>>
-          knowledgeCards?: Array<Record<string, unknown>>
-          methodologies?: Array<Record<string, unknown>>
-          vocabulary?: Array<Record<string, unknown>>
+        // 一次确认：恢复是**整批替换**（不是"缺什么补什么"）。
+        // 旧写法逐条 create + 冲突跳过，于是"恢复了"其实什么都没恢复（同名行全被跳过），
+        // 而复习进度、生成台账这些必须原样回来的东西反而没回来。
+        if (
+          !window.confirm(
+            '恢复会用备份里的内容整体替换当前库里的数据（书、划线、卡片、对话、摘要、生成台账等）。\n\n' +
+              '当前库里没在备份里的内容会消失。建议先导出一份现在的备份。\n\n确定继续？',
+          )
+        ) {
+          toast.remove(tId)
+          return
         }
-        let bookCount = 0
-        let highlightCount = 0
-        // 逐条创建书籍
-        for (const b of data.books ?? []) {
-          try {
-            await api.book.create(b)
-            bookCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-        // 逐条创建划线
-        for (const h of data.highlights ?? []) {
-          try {
-            await api.highlight.create(h)
-            highlightCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-        // 复习卡片：按划线重建（备份里没有复习进度，只能重建为新卡）
-        let cardCount = 0
-        try {
-          const created = (await api.card?.createForExisting?.()) as { created?: number } | undefined
-          cardCount = created?.created ?? 0
-        } catch {
-          /* 非致命 */
-        }
-
-        // 知识卡片 / 方法论 / 生词：逐条 create，冲突记录跳过并计数
-        let kcCount = 0
-        for (const c of data.knowledgeCards ?? []) {
-          try {
-            await api.knowledgeCard?.create?.(c)
-            kcCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-        let methodCount = 0
-        for (const m of data.methodologies ?? []) {
-          try {
-            await api.methodology?.create?.(m)
-            methodCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-        let vocabCount = 0
-        for (const v of data.vocabulary ?? []) {
-          try {
-            await api.vocabulary?.create?.(v)
-            vocabCount++
-          } catch {
-            /* 跳过冲突记录 */
-          }
-        }
-
+        const result = await api.system.importBackup(JSON.parse(text) as unknown)
         toast.remove(tId)
-        const restored = bookCount + highlightCount + cardCount + kcCount + methodCount + vocabCount
-        const summary =
-          `已导入 ${bookCount} 本书 / ${highlightCount} 条划线 / ${cardCount} 张复习卡` +
-          ` / ${kcCount} 张知识卡片 / ${methodCount} 条方法论 / ${vocabCount} 个生词`
-        // 一条都没进来时必须报 warning —— 原来全部失败也会弹「成功」
-        if (restored === 0) {
-          toast.warning(`没有导入任何数据：${summary}`)
+        const summary = describeImportedCounts(result.counts)
+        if (!summary) {
+          toast.warning('这份备份里没有任何数据，库里已按它清空')
         } else {
-          toast.success(summary)
+          toast.success(`已恢复 ${summary}`)
+          if (result.legacy) {
+            toast.warning(
+              '这是旧格式备份：当年的清单里没有复习记录、对话历史、AI 摘要与生成台账，这些没有回来',
+            )
+          }
         }
         // 触发 KPI 刷新
         try {
-          const result = (await api.admin.getStats()) as { stats?: Record<string, unknown> }
-          const s = result.stats ?? {}
+          const kpi = await api.admin.getStats()
+          const s = kpi.stats ?? {}
           setKpiStats({
             totalBooks: safeNum(s.totalBooks),
             totalHighlights: safeNum(s.totalHighlights),

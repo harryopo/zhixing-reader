@@ -9,6 +9,7 @@ import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { isSecretSetting, secretSetFlagName } from '../../src/shared/settings-secrets';
 import { settingsService } from '../services/settings-service';
 import { archiveAndDelete, restoreDeleted } from '../services/deleted-archive';
+import { exportBackup, importBackup } from '../services/backup';
 import { forceSaveDatabase, clearConversationsAndMessages, resetDatabase } from '../database';
 import { clearCache as clearWeReadApiCache, setApiKey as setWereadApiKey } from '../weread-api';
 import { refreshWereadAutoSyncTimer } from '../weread-sync-manager';
@@ -149,4 +150,10 @@ export function registerSettingsHandlers(handle: HandleFn): void {
   );
 
   handle(IPC_CHANNELS.SYSTEM.RESTORE_DELETE, (token: string) => restoreDeleted(token));
+
+  // ===== 备份与恢复 =====
+  // 表清单只有 src/shared/backup.ts 那一份；渲染层负责选文件与下载，取数/落库都在主进程。
+  handle(IPC_CHANNELS.SYSTEM.EXPORT_BACKUP, () => exportBackup());
+
+  handle(IPC_CHANNELS.SYSTEM.IMPORT_BACKUP, (payload: unknown) => importBackup(payload));
 }
