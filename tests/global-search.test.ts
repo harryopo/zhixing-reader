@@ -13,6 +13,7 @@ import {
   isSearchable,
   makeSnippet,
   seeAllLink,
+  splitQueryTerms,
   toLikePattern,
   type SearchGroupResult,
 } from '../src/shared/global-search'
@@ -109,6 +110,21 @@ describe('点回去的链接', () => {
   })
 })
 
+describe('拆词', () => {
+  it('按空格分词，去重，保顺序', () => {
+    expect(splitQueryTerms(' 复利  时间 复利 ')).toEqual(['复利', '时间'])
+  })
+
+  it('全是空白时一个词都没有（不发查询）', () => {
+    expect(splitQueryTerms('   \t \n')).toEqual([])
+    expect(isSearchable('   \t ')).toBe(false)
+  })
+
+  it('英文词按空格分，不会因为大小写被当成两个词去重失败', () => {
+    expect(splitQueryTerms('Alpha alpha')).toEqual(['Alpha', 'alpha'])
+  })
+})
+
 describe('结果页那句话', () => {
   it('没输入时说该做什么', () => {
     expect(describeSearchOutcome('', 0, 0)).toContain('输入关键词')
@@ -122,9 +138,9 @@ describe('结果页那句话', () => {
     expect(describeSearchOutcome('复利', 7, 7)).toBe('找到 7 条与「复利」相关的内容')
   })
 
-  it('被上限截断时要说清"列出的是其中几条"（只报列出数会让人以为就这些）', () => {
+  it('被上限截断时说"列出最近的"，不说"最相关的"（排序就是时间倒序，没有相关度评分）', () => {
     expect(describeSearchOutcome('的', 21, 214)).toBe(
-      '找到 214 条与「的」相关的内容，下面列出其中最相关的 21 条',
+      '找到 214 条与「的」相关的内容，下面列出最近的 21 条',
     )
   })
 

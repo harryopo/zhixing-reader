@@ -156,6 +156,34 @@ describe('search:global 通道', () => {
     expect(hit!.title).toBe('复利简史')
   })
 
+  it('多关键词是 AND：两个词分布在正文与笔记里也算命中，只含一个词的不算', () => {
+    highlightsDb.create({
+      id: 'h-both',
+      book_id: 'b1',
+      content: '复利是时间对决策的回报',
+      note: '这里的“时间”指的是十年而不是一个月',
+    })
+    highlightsDb.create({
+      id: 'h-one',
+      book_id: 'b1',
+      content: '只有复利，没有另一个词',
+    })
+    const r = searchHandler()('复利 时间')
+    const ids = groupOf(r, 'highlight')!.hits.map((h) => h.id)
+    expect(ids).toContain('h-both')
+    expect(ids).not.toContain('h-one')
+    // matched 走的是同一条 WHERE，所以它数的也是"两个词都在"的那批
+    expect(groupOf(r, 'highlight')!.matched).toBe(ids.length)
+  })
+
+  it('重复的词只算一次（否则 LIKE 与 params 会成倍对上却语义错）', () => {
+    const once = searchHandler()('复利')
+    const twice = searchHandler()('复利 复利')
+    expect(twice.groups.map((g) => g.kind + g.hits.length)).toEqual(
+      once.groups.map((g) => g.kind + g.hits.length),
+    )
+  })
+
   it('关键词里的 % 按字面匹配，不会命中所有行', () => {
     const r = searchHandler()('%')
     expect(r.total).toBe(0)

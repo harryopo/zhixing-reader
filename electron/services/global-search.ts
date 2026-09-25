@@ -5,11 +5,12 @@
  * 每类几条"这件事会在界面与数据库两侧各记一份 —— 本项目被这类双口径咬过不止一次。
  * 类名、每类上限、片段截法、链接拼法都在 `src/shared/global-search.ts` 那一份里。
  *
- * 值一律走 `?` 占位符；`%` 与 `_` 在 pattern 里已被转义，所以配套的 `ESCAPE '\'`
- * 一个字都不能少（少了转义就不生效，搜 `100%` 会命中所有行）。
+ * WHERE 由 `likeColumns` × 关键词现拼：词与词之间是 AND，每个词命中任一列即算命中 ——
+ * 与笔记页那台筛选器同一套语义（那边是把四个字段拼成一个字符串再逐词 includes）。
+ * 行查询与 COUNT 共用同一次拼出的 where 与同一批 params，所以"报的数"与"给的行"
+ * 不可能不是同一批；两处 SQL 的 `?` 个数与 params 长度每次核对。
  *
- * 列清单与筛选条件（`from` + `where`）由列出的行与 COUNT 共用一份 —— 分成两份写迟早
- * 漂成"报的数与给的行不是同一批"，那比不报更糟。
+ * 值一律走 `?` 占位符，`%` 与 `_` 已在 pattern 里转义，配套的 `ESCAPE '\'` 不能少。
  */
 import { getDatabase } from '../database/connection';
 import { rowsToObjects } from '../utils/db';
@@ -17,6 +18,7 @@ import {
   SEARCH_GROUPS,
   buildHitLink,
   makeSnippet,
+  splitQueryTerms,
   toLikePattern,
   type GlobalSearchResult,
   type SearchGroupResult,
@@ -33,11 +35,10 @@ interface KindSpec {
   columns: string;
   /** FROM + JOIN，与 where 一起被行查询和 COUNT 查询共用 */
   from: string;
-  /** 筛选条件，LIKE 的个数必须等于 pattern 用几次 */
-  where: string;
+  /** 参与关键词匹配的列：加一列就等于同时扩大行查询与 COUNT，不会两边不一致 */
+  likeColumns: string[];
   /** 列出哪几条：按时间倒序最贴近"我最近划的那句" */
   order: string;
-  patternCount: number;
   /** 命中片段从哪些列里找（按顺序取第一个真含关键词的） */
   textColumns: string[];
   title: (row: Row) => string;
@@ -53,11 +54,10 @@ const SPECS: KindSpec[] = [
     columns: `h.id, h.book_id, h.content, h.note, h.chapter_title, b.title AS book_title`,
     from: `FROM highlights h JOIN books b ON h.book_id = b.id`,
     // 与笔记页那台筛选器搜同样的四个字段（正文 / 笔记 / 章名 / 书名）：
-    // 这里少一列，「共 832 条」点过去就会变成「916 条」，两个数说的是两件事
-    where: `h.content ${LIKE} OR h.note ${LIKE} OR h.chapter_title ${LIKE} OR b.title ${LIKE}`,
+    // 少一列，「共 916 条」点过去就会变成另一个数
+    likeColumns: ['h.content', 'h.note', 'h.chapter_title', 'b.title'],
     order: 'h.created_at DESC',
-    patternCount: 4,
-    textColumns: ['content', 'note', 'chapter_title'],
+    textColumns: ['content', 'note', 'chapter_title', 'book_title'],
     title: (r) => str(r.book_title),
     meta: (r) => str(r.chapter_title),
   },
@@ -65,9 +65,8 @@ const SPECS: KindSpec[] = [
     kind: 'card',
     columns: `k.id, k.book_id, k.title, k.content, k.interpretation, k.type, b.title AS book_title`,
     from: `FROM knowledge_cards k JOIN books b ON k.book_id = b.id`,
-    where: `k.title ${LIKE} OR k.content ${LIKE} OR k.interpretation ${LIKE}`,
+    likeColumns: ['k.title', 'k.content', 'k.interpretation'],
     order: 'k.created_at DESC',
-    patternCount: 3,
     textColumns: ['content', 'interpretation', 'title'],
     title: (r) => str(r.title),
     meta: (r) => str(r.book_title),
@@ -76,9 +75,8 @@ const SPECS: KindSpec[] = [
     kind: 'methodology',
     columns: `m.id, m.book_id, m.name, m.description, m.steps, m.trigger_scenario, b.title AS book_title`,
     from: `FROM methodologies m JOIN books b ON m.book_id = b.id`,
-    where: `m.name ${LIKE} OR m.description ${LIKE} OR m.steps ${LIKE}`,
+    likeColumns: ['m.name', 'm.description', 'm.steps'],
     order: 'm.created_at DESC',
-    patternCount: 3,
     textColumns: ['description', 'steps', 'trigger_scenario', 'name'],
     title: (r) => str(r.name),
     meta: (r) => str(r.book_title),
@@ -87,9 +85,8 @@ const SPECS: KindSpec[] = [
     kind: 'article',
     columns: `id, title_zh, title_en, summary_zh, content_zh, content_en, difficulty, category`,
     from: 'FROM articles',
-    where: `title_zh ${LIKE} OR title_en ${LIKE} OR summary_zh ${LIKE} OR content_zh ${LIKE}`,
+    likeColumns: ['title_zh', 'title_en', 'summary_zh', 'content_zh'],
     order: 'created_at DESC',
-    patternCount: 4,
     textColumns: ['summary_zh', 'content_zh', 'title_zh', 'content_en', 'title_en'],
     title: (r) => str(r.title_zh) || str(r.title_en),
     meta: (r) => [str(r.difficulty), str(r.category)].filter(Boolean).join(' · '),
@@ -98,9 +95,8 @@ const SPECS: KindSpec[] = [
     kind: 'word',
     columns: `id, word, meaning_zh, example_zh, phonetic, cefr_level, part_of_speech`,
     from: 'FROM vocabulary',
-    where: `word ${LIKE} OR meaning_zh ${LIKE}`,
+    likeColumns: ['word', 'meaning_zh'],
     order: 'created_at DESC',
-    patternCount: 2,
     textColumns: ['meaning_zh', 'example_zh', 'word'],
     title: (r) => str(r.word),
     meta: (r) =>
@@ -110,40 +106,65 @@ const SPECS: KindSpec[] = [
   },
 ];
 
-/** LIKE 的个数 == patternCount：多一个少一个都是把某一列漏搜了（或漏传了一个值） */
-function assertLikeCount(spec: KindSpec): void {
-  const needle = LIKE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const likes = (spec.where.match(new RegExp(needle, 'g')) ?? []).length;
-  if (likes !== spec.patternCount) {
-    throw new Error(
-      `${spec.kind} 的筛选条件有 ${likes} 处 LIKE，与 patternCount=${spec.patternCount} 不符`,
-    );
+interface BuiltWhere {
+  sql: string;
+  /** 一个词 × 一列一个值，所以只能是 string；LIMIT 那个数字由调用方另加 */
+  params: string[];
+}
+
+/** 词与词 AND、列与列 OR；params 顺序与 SQL 里的 `?` 一一对应 */
+function buildWhere(spec: KindSpec, terms: string[]): BuiltWhere {
+  const perTerm = spec.likeColumns.map((c) => `${c} ${LIKE}`).join(' OR ');
+  return {
+    sql: terms.map(() => `(${perTerm})`).join(' AND '),
+    params: terms.flatMap((t) => spec.likeColumns.map(() => toLikePattern(t))),
+  };
+}
+
+/**
+ * SQL 里的 `?` 个数必须等于 params 长度。
+ *
+ * 多一个少一个都会静默错位（sqlite 只会抱怨绑定数不对，而"哪一列没参与匹配"看不出来），
+ * 拼法改了这一条仍然兜得住。
+ */
+function assertPlaceholderCount(sql: string, params: Array<string | number>, kind: SearchKind): void {
+  const marks = (sql.match(/\?/g) ?? []).length;
+  if (marks !== params.length) {
+    throw new Error(`${kind} 的查询有 ${marks} 个 ?，但传了 ${params.length} 个值`);
   }
 }
 
-/** 从若干列里挑第一个真含关键词的作为片段来源 */
-function textFor(row: Row, spec: KindSpec, query: string): string {
-  const needle = query.toLowerCase();
+/** 从若干列里挑第一个真含任一关键词的作为片段来源 */
+function textFor(row: Row, spec: KindSpec, terms: string[]): string {
   for (const col of spec.textColumns) {
-    const v = str(row[col]);
-    if (v.toLowerCase().includes(needle)) return v;
+    const v = str(row[col]).toLowerCase();
+    if (terms.some((t) => v.includes(t.toLowerCase()))) return str(row[col]);
   }
   return str(row[spec.textColumns[0]]);
 }
 
-function searchOne(group: SearchGroupSpec, spec: KindSpec, pattern: string, query: string): SearchGroupResult {
-  assertLikeCount(spec);
-  const params = [...Array<string>(spec.patternCount).fill(pattern)];
+/** 每一类都要既有约定（名字与上限）又有查询；配不上就立刻报错，不静默少搜一类 */
+function specFor(kind: SearchKind): KindSpec {
+  const spec = SPECS.find((s) => s.kind === kind);
+  if (!spec) throw new Error(`${kind} 在 SEARCH_GROUPS 里有，但没有对应的查询`);
+  return spec;
+}
+
+function searchOne(
+  group: SearchGroupSpec,
+  spec: KindSpec,
+  where: BuiltWhere,
+  terms: string[],
+): SearchGroupResult {
   const db = getDatabase();
-  // 先数总数再取前几条：两个查询共用同一份 from + where，报的数与给的行必然同批
-  const counted = db.exec(`SELECT COUNT(*) ${spec.from} WHERE ${spec.where}`, params);
+  const selectSql = `SELECT ${spec.columns} ${spec.from} WHERE ${where.sql} ORDER BY ${spec.order} LIMIT ?`;
+  const countSql = `SELECT COUNT(*) ${spec.from} WHERE ${where.sql}`;
+  assertPlaceholderCount(selectSql, [...where.params, group.limit], spec.kind);
+  assertPlaceholderCount(countSql, where.params, spec.kind);
+  // 先数总数再取前几条：两条 SQL 共用同一份 where 与 params，报的数与给的行必然同批
+  const counted = db.exec(countSql, where.params);
   const matched = counted.length > 0 ? Number(counted[0].values[0][0]) : 0;
-  const rows = rowsToObjects(
-    db.exec(`SELECT ${spec.columns} ${spec.from} WHERE ${spec.where} ORDER BY ${spec.order} LIMIT ?`, [
-      ...params,
-      group.limit,
-    ]),
-  );
+  const rows = rowsToObjects(db.exec(selectSql, [...where.params, group.limit]));
   const hits: SearchHit[] = rows.map((row) => {
     const id = str(row.id);
     const bookId = row.book_id === undefined || row.book_id === null ? null : str(row.book_id);
@@ -152,31 +173,25 @@ function searchOne(group: SearchGroupSpec, spec: KindSpec, pattern: string, quer
       id,
       title: spec.title(row) || '（无标题）',
       meta: spec.meta(row),
-      snippet: makeSnippet(textFor(row, spec, query), query),
-      link: buildHitLink({ kind: spec.kind, id, bookId, query }),
+      snippet: makeSnippet(textFor(row, spec, terms), terms[0]),
+      link: buildHitLink({ kind: spec.kind, id, bookId, query: terms.join(' ') }),
     };
   });
   return { kind: spec.kind, label: group.label, hits, matched };
 }
 
 export function globalSearch(query: string): GlobalSearchResult {
+  const terms = splitQueryTerms(query);
   const trimmed = query.trim();
-  if (!trimmed) return { query: '', groups: [], total: 0, matchedTotal: 0 };
-  const pattern = toLikePattern(trimmed);
-  const groups = SEARCH_GROUPS.map((group) => searchOne(group, specFor(group.kind), pattern, trimmed)).filter(
-    (g) => g.hits.length > 0,
-  );
+  if (terms.length === 0) return { query: '', groups: [], total: 0, matchedTotal: 0 };
+  const groups = SEARCH_GROUPS.map((group) => {
+    const spec = specFor(group.kind);
+    return searchOne(group, spec, buildWhere(spec, terms), terms);
+  }).filter((g) => g.hits.length > 0);
   return {
     query: trimmed,
     groups,
     total: groups.reduce((n, g) => n + g.hits.length, 0),
     matchedTotal: groups.reduce((n, g) => n + g.matched, 0),
   };
-}
-
-/** 每一类都要既有约定（名字与上限）又有查询；配不上就立刻报错，不静默少搜一类 */
-function specFor(kind: SearchKind): KindSpec {
-  const spec = SPECS.find((s) => s.kind === kind);
-  if (!spec) throw new Error(`${kind} 在 SEARCH_GROUPS 里有，但没有对应的查询`);
-  return spec;
 }

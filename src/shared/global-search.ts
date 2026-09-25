@@ -187,17 +187,29 @@ export function seeAllLink(kind: SearchKind, query: string): string | null {
   }
 }
 
+/**
+ * 关键词拆词：空格分隔，每个词都要命中（与笔记页那台筛选器同一套口径）。
+ *
+ * 不这么做的话「复利 时间」会被当成一整串连续片段去找 —— 笔记页能出的结果，
+ * 全局搜索反而说没有，同一份数据两种答法。
+ */
+export function splitQueryTerms(query: string): string[] {
+  const seen = new Set<string>()
+  for (const t of query.split(/\s+/)) {
+    const term = t.trim()
+    if (term) seen.add(term)
+  }
+  return [...seen]
+}
+
 /** 结果页顶上一句话；一个都没命中时也要说清楚搜的是什么 */
-export function describeSearchOutcome(
-  query: string,
-  listed: number,
-  matchedTotal: number,
-): string {
+export function describeSearchOutcome(query: string, listed: number, matchedTotal: number): string {
   const q = query.trim()
   if (!q) return '输入关键词，在你的划线、卡片、方法论、文章与生词里找'
   if (matchedTotal === 0) return `没有找到包含「${q}」的内容`
   if (matchedTotal > listed) {
-    return `找到 ${matchedTotal} 条与「${q}」相关的内容，下面列出其中最相关的 ${listed} 条`
+    // 说的是"最近"而不是"最相关"：排序按 created_at 倒序，没有相关度评分
+    return `找到 ${matchedTotal} 条与「${q}」相关的内容，下面列出最近的 ${listed} 条`
   }
   return `找到 ${matchedTotal} 条与「${q}」相关的内容`
 }
