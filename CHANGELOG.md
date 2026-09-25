@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 删除 `tokenUsageDb.deleteOlderThan()`：无任何调用方，且是全仓库唯一把值直接拼进 SQL 字面量的地方
 
 ### Changed
+- **README 与 AGENTS 里的结构数字改成当场算出来的**：表数、通道数、目录文件数、代码规模现在由 `tests/doc-figures.test.ts` 从仓库和真实建出来的库里算出来对账，抄错就判红（这一轮据此更正了五处过期数字）。README 不再逐个文件承诺行数 —— 那种数字每次改代码都会漂，留着就是一份抄不准的账
 - **构建工具链升级：Vite 5.4 → 6.4.3、electron-vite 2 → 5**（连带 esbuild 0.21.5 → 0.25.12，由 electron-vite 5 自己带）：清掉 4 条依赖告警（vite 3 条 + esbuild 1 条）。应用行为不变 —— 三进程编译、单测与开发模式（端口 5500）都实测过；`@vitejs/plugin-react` 停在 4.x（它的 peer 已覆盖到 vite 7，不需要跟着动）
 - **文档不再指向不存在的规范文件**：`AGENTS.md` 与 `CLAUDE.md` 里有几处"详见某某规范"的路径从写下那天起就不存在（一份本地规范正本、三份 Agent 规则文件、一套 spec 四件套），文档虽诚实标了 ⚠️，接手的人照样会照着去找。现在明确**正本在哪**：15 条规则以 `AGENTS.md` §5.3 的表为准、代码风格与安全以 `eslint.config.js` / `tsconfig.json` / `SECURITY.md` 为准、提交规范以 `commitlint.config.js` + `.husky/` 为准 —— 不再另立第二份规范文本（本项目已在版本号、色值、IPC 通道上被"两份口径各自漂移"咬过三次）。新增 `tests/doc-pointers.test.ts` 17 条钉住：正文（第十节历史记录除外）不许再出现那四个死路径，且文档新指向的配置文件必须真实存在
 - **打包器 electron-builder 由 25.1.8 升级到 26.15.3**：清掉 10 条依赖告警（`app-builder-lib`、`builder-util-runtime` 各 1 条 high，以及它们带出来的 8 条 `tar`）。换代点逐条对过官方 26.0.0 说明：`win` 的签名配置移到 `win.signtoolOptions`（本项目不签名）、Linux `.desktop` 配置改对象（只打 Windows）、`electronDist` 改为 Hook（未使用）、asar 打包换成官方 `@electron/asar`。**升级目前只在仓库的依赖声明里，还没有随任何一个已发布安装包出去**：线上 v1.3.4 由 25.1.8 打出，`installer/` 下五个产物同批。升级期间在本地临时目录出过一次包并启动到主窗口，但那份产物不入库、现已不存在，所以这一版没有可复核的出包实测；出包与发版由维护者安排
