@@ -1,6 +1,6 @@
 import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind } from '../shared/types'
 import type { ChatMessageRow, ConversationRow } from '../renderer/src/utils/db-mapper'
-import type { DueReviewCardView, ReviewSourceKind } from '../shared/review-sources'
+import type { DueReviewCardView, ReviewCardFields, ReviewSourceKind } from '../shared/review-sources'
 import type { BookCoverageView, CoveragePlan } from '../shared/ai-coverage'
 
 export interface TokenSummary {
@@ -105,16 +105,22 @@ export interface UpdateActionResult {
 }
 
 export interface ElectronAPI {
+  /**
+   * 书 / 划线 / 方法论 / 知识卡片的读取通道交回的是**数据库那一行**（列名是下划线），
+   * 不是 `Book` / `Highlight` 这些驼峰领域类型 —— 那些是 `utils/db-mapper.ts` 映射**之后**
+   * 的形状。写在这里就是为了让人在页面上直接读 `row.readingProgress` 时编译不过，
+   * 而不是等到界面上摆出一个恒为 0 的数字才发现。
+   */
   book: {
-    getAll: () => Promise<Book[]>
-    getById: (id: string) => Promise<Book>
-    create: (book: Record<string, unknown>) => Promise<Book>
-    update: (id: string, book: Record<string, unknown>) => Promise<Book>
+    getAll: () => Promise<Array<Record<string, unknown>>>
+    getById: (id: string) => Promise<Record<string, unknown> | undefined>
+    create: (book: Record<string, unknown>) => Promise<void>
+    update: (id: string, book: Record<string, unknown>) => Promise<void>
     delete: (id: string) => Promise<void>
-    search: (keyword: string) => Promise<Book[]>
+    search: (keyword: string) => Promise<Array<Record<string, unknown>>>
   }
   highlight: {
-    getByBook: (bookId: string) => Promise<Highlight[]>
+    getByBook: (bookId: string) => Promise<Array<Record<string, unknown>>>
     /** 一次性补全历史划线的章节名；不传 bookId 则处理所有缺章节名的书 */
     backfillChapterTitles: (bookId?: string) => Promise<{
       books: number
@@ -122,11 +128,12 @@ export interface ElectronAPI {
       updated: number
       failedBooks: number
     }>
-    getById: (id: string) => Promise<Highlight>
-    create: (highlight: Record<string, unknown>) => Promise<Highlight>
-    update: (id: string, highlight: Record<string, unknown>) => Promise<Highlight>
-    getAll: () => Promise<Highlight[]>
-    search: (keyword: string) => Promise<Highlight[]>
+    getById: (id: string) => Promise<Record<string, unknown> | undefined>
+    /** 主进程建好划线并顺带建它的复习卡片，返回的是"有没有落库" */
+    create: (highlight: Record<string, unknown>) => Promise<boolean>
+    update: (id: string, highlight: Record<string, unknown>) => Promise<void>
+    getAll: () => Promise<Array<Record<string, unknown>>>
+    search: (keyword: string) => Promise<Array<Record<string, unknown>>>
     export: () => Promise<{ saved: boolean; count: number; path?: string }>
   }
   card: {
@@ -159,6 +166,7 @@ export interface ElectronAPI {
     enrolledSources: (kind: ReviewSourceKind) => Promise<{ ids: string[] }>
   }
   review: {
+    /** reviews 表的那一行；列名钉在 shared/types.ts 的 ReviewRow，导出列清单与它同源 */
     getRecent: (limit?: number) => Promise<ReviewRow[]>
   }
   agent: {
@@ -293,24 +301,24 @@ export interface ElectronAPI {
     clearAll: () => Promise<{ success: boolean }>
   }
   methodology: {
-    getAll: () => Promise<unknown[]>
-    getById: (id: string) => Promise<unknown>
-    getByBook: (bookId: string) => Promise<unknown[]>
-    create: (methodology: Record<string, unknown>) => Promise<unknown>
-    update: (id: string, methodology: Record<string, unknown>) => Promise<unknown>
-    search: (keyword: string) => Promise<unknown[]>
+    getAll: () => Promise<Array<Record<string, unknown>>>
+    getById: (id: string) => Promise<Record<string, unknown> | undefined>
+    getByBook: (bookId: string) => Promise<Array<Record<string, unknown>>>
+    create: (methodology: Record<string, unknown>) => Promise<{ id: string }>
+    update: (id: string, methodology: Record<string, unknown>) => Promise<void>
+    search: (keyword: string) => Promise<Array<Record<string, unknown>>>
     /** replace=true 表示"重新提取"：主进程会先清空这本书的旧方法论（替换而不是追加） */
     extract: (bookId: string, bookTitle: string, replace?: boolean) => Promise<{ methodologies: unknown[]; coverage: CoveragePlan; nothingNew: boolean }>
     /** 每本书的生成进度（分母 = 划线条数，分子 = 批次台账已处理数） */
     coverage: () => Promise<Array<{ bookId: string } & BookCoverageView>>
   }
   knowledgeCard: {
-    getAll: () => Promise<unknown[]>
-    getById: (id: string) => Promise<unknown>
-    getByBook: (bookId: string) => Promise<unknown[]>
-    create: (card: Record<string, unknown>) => Promise<unknown>
-    update: (id: string, card: Record<string, unknown>) => Promise<unknown>
-    search: (keyword: string) => Promise<unknown[]>
+    getAll: () => Promise<Array<Record<string, unknown>>>
+    getById: (id: string) => Promise<Record<string, unknown> | undefined>
+    getByBook: (bookId: string) => Promise<Array<Record<string, unknown>>>
+    create: (card: Record<string, unknown>) => Promise<{ id: string }>
+    update: (id: string, card: Record<string, unknown>) => Promise<void>
+    search: (keyword: string) => Promise<Array<Record<string, unknown>>>
     /** 一次性找回历史卡片的来源划线；只按「内容精确相等」匹配，绝不猜测 */
     backfillSource: () => Promise<{ updated: number }>
     /** replace=true 表示"重新蒸馏"：主进程会先清空这本书的旧卡片（替换而不是追加） */
@@ -357,7 +365,8 @@ export interface ElectronAPI {
     setParameters: (params: Record<string, unknown>) => Promise<void>
     resetParameters: () => Promise<void>
     getParameters: () => Promise<Record<string, unknown>>
-    previewReviewRatings: (card: Record<string, unknown>) => Promise<Array<{
+    /** 把队列里那张卡原样送回主进程预览四种评分的间隔（不落库）；形状见 shared/review-sources */
+    previewReviewRatings: (card: ReviewCardFields) => Promise<Array<{
       rating: number
       due: string
       scheduledDays: number

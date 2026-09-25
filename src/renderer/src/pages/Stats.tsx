@@ -35,6 +35,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { ReadingMode } from '../../../shared/types'
 import { syncBookshelfToDb, describeSyncResult } from '../utils/sync-bookshelf'
 import { READING_TREND_SPECS, recentDayKeys } from '../../../shared/reading-trend'
+import { normalizeDailyStatRow } from '../../../shared/profile-stats'
 import {
   PERIOD_CHIPS,
   formatExportTimestamp,
@@ -87,7 +88,7 @@ export default function Stats() {
       return
     }
     try {
-      const booksRaw = await window.electronAPI.book.getAll() as unknown[]
+      const booksRaw = await window.electronAPI.book.getAll()
       const books = mapBooks(booksRaw)
 
       if (books.length === 0) {
@@ -102,13 +103,13 @@ export default function Stats() {
           let highlightCount = 0
           let cardCount = 0
           try {
-            const hRaw = await window.electronAPI.highlight.getByBook(book.id as string) as unknown[]
+            const hRaw = await window.electronAPI.highlight.getByBook(book.id)
             highlightCount = mapHighlights(hRaw).length
           } catch (_e) {
             // 单本书划线查询失败不阻断整体加载
           }
           try {
-            const cRaw = await window.electronAPI.card.getByBook(book.id as string) as unknown[]
+            const cRaw = await window.electronAPI.card.getByBook(book.id)
             cardCount = mapCards(cRaw).length
           } catch (_e) {
             // 单本书卡片查询失败不阻断整体加载
@@ -243,10 +244,10 @@ export default function Stats() {
         if (isCancelled) return
         const map: Record<string, number> = {}
         for (const row of rows ?? []) {
-          const r = row as unknown as Record<string, unknown>
-          const date = String(r.date ?? '')
-          if (!date) continue
-          map[date] = Number(r.cards_reviewed) || 0
+          // 日期口径与档案页热力图共用 profile-stats 那一份（本地日期串，非法日期整行不要）
+          const day = normalizeDailyStatRow(row)
+          if (!day) continue
+          map[day.date] = day.cardsReviewed
         }
         setHeatmapDaily(map)
       })

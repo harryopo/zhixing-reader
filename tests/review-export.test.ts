@@ -66,7 +66,7 @@ describe('buildReviewCsv — 真实写入的一条记录，六列都得有值', 
     const card = cardsDb.create('h1')
     reviewsDb.create(card.id, Rating.Good)
 
-    const rows = reviewsDb.getRecent(10) as unknown as Array<Record<string, unknown>>
+    const rows = reviewsDb.getRecent(10)
     expect(rows).toHaveLength(1)
 
     const [headerLine, dataLine] = buildReviewCsv(rows).split('\n')

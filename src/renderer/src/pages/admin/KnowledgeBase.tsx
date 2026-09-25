@@ -1,31 +1,12 @@
 import { useState, useEffect, ReactNode } from 'react'
-
-interface Book {
-  id: string
-  title: string
-  author: string
-  cover: string
-  highlight_count: number
-}
-
-interface Highlight {
-  id: string
-  content: string
-  chapter_title: string
-  note: string
-  created_at: string
-}
-
-/** knowledge_cards 的真实列（后台直接吃 SQL 结果，不做 camel 映射） */
-interface KnowledgeCard {
-  id: string
-  type: string
-  title: string
-  content: string
-  interpretation: string | null
-  review_count: number
-  created_at: string
-}
+import {
+  mapBooks,
+  mapHighlights,
+  mapKnowledgeCards,
+  type BookRow,
+  type HighlightRow,
+  type KnowledgeCardRow,
+} from '../../utils/db-mapper'
 
 function highlightText(text: string, query: string): ReactNode {
   if (!query) return text
@@ -44,10 +25,12 @@ function highlightText(text: string, query: string): ReactNode {
 }
 
 export default function KnowledgeBase() {
-  const [books, setBooks] = useState<Book[]>([])
+  const [books, setBooks] = useState<BookRow[]>([])
+  /** `highlight_count` 是这条查询自己 JOIN 出来的列（books 表没有），不进映射器 */
+  const [highlightCounts, setHighlightCounts] = useState<Record<string, number>>({})
   const [selectedBook, setSelectedBook] = useState<string | null>(null)
-  const [highlights, setHighlights] = useState<Highlight[]>([])
-  const [cards, setCards] = useState<KnowledgeCard[]>([])
+  const [highlights, setHighlights] = useState<HighlightRow[]>([])
+  const [cards, setCards] = useState<KnowledgeCardRow[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -58,8 +41,11 @@ export default function KnowledgeBase() {
 
   const loadBooks = async () => {
     try {
-      const result = await window.electronAPI.admin.getBooksWithCounts()
-      setBooks(Array.isArray(result) ? (result as unknown as Book[]) : [])
+      const rows = await window.electronAPI.admin.getBooksWithCounts()
+      setBooks(mapBooks(rows))
+      setHighlightCounts(
+        Object.fromEntries(rows.map((row) => [String(row.id), Number(row.highlight_count) || 0]))
+      )
     } catch (err) {
       console.error('加载书籍失败:', err)
     } finally {
@@ -79,8 +65,8 @@ export default function KnowledgeBase() {
         window.electronAPI.admin.getHighlightsByBook(bookId),
         window.electronAPI.admin.getCardsByBook(bookId),
       ])
-      setHighlights(Array.isArray(hlResult) ? (hlResult as unknown as Highlight[]) : [])
-      setCards(Array.isArray(cardResult) ? (cardResult as unknown as KnowledgeCard[]) : [])
+      setHighlights(mapHighlights(hlResult))
+      setCards(mapKnowledgeCards(cardResult))
     } catch (err) {
       console.error('加载书籍详情失败:', err)
     } finally {
@@ -160,7 +146,7 @@ export default function KnowledgeBase() {
                 </p>
               </div>
               <span className="text-[11px] text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-md font-medium">
-                {book.highlight_count} 条笔记
+                {highlightCounts[book.id] ?? 0} 条笔记
               </span>
               <svg
                 className={`w-4 h-4 text-gray-300 transition-transform ${selectedBook === book.id ? 'rotate-90' : ''}`}
@@ -208,7 +194,7 @@ export default function KnowledgeBase() {
                                 </p>
                               )}
                               <p className="text-[10px] text-gray-300 mt-1">
-                                {hl.chapter_title || ''}
+                                {hl.chapterTitle}
                               </p>
                             </div>
                           ))}

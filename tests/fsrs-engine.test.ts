@@ -7,12 +7,15 @@
 // 早期注释/用例标题写的 "19 元素 / FSRS v5" 已校正；词汇学习改走同一个 ts-fsrs 实例。
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import {
   createCard,
   reviewCard,
   reviewCardBatch,
   previewReviewRatings,
   cardFromDb,
+  cardFromFields,
   cardToRow,
   getParameters,
   setCustomParameters,
@@ -650,6 +653,46 @@ describe('FSRS Engine — ts-fsrs Adapter Integration', () => {
       const again = previews.find((p) => p.rating === Rating.Again)!
       const easy = previews.find((p) => p.rating === Rating.Easy)!
       expect(new Date(easy.due).getTime()).toBeGreaterThanOrEqual(new Date(again.due).getTime())
+    })
+  })
+
+  describe('cardFromFields（界面把队列里那张卡送回预览）', () => {
+    it('逐字段照搬：预览结果与直接调用完全一致', () => {
+      const card = createCard('h_roundtrip')
+      const now = new Date('2026-07-20T00:00:00.000Z')
+      expect(cardFromFields(card)).toEqual(card)
+      expect(previewReviewRatings(cardFromFields(card), now)).toEqual(
+        previewReviewRatings(card, now),
+      )
+    })
+
+    it('没有的两个来源补成 null，而不是留 undefined（`in` 判据会把它当成有值）', () => {
+      const rebuilt = cardFromFields({ ...createCard('h_src'), knowledgeCardId: undefined })
+      expect(rebuilt.knowledgeCardId).toBeNull()
+      expect(rebuilt.methodologyId).toBeNull()
+      expect(rebuilt.highlightId).toBe('h_src')
+    })
+
+    it('反证：每个字段都是真搬过去的，不是拿默认值糊出来的', () => {
+      const fields = { ...createCard('h_drift'), lapses: 7, reps: 3, stability: 12.5, difficulty: 6.1 }
+      const rebuilt = cardFromFields(fields)
+      expect(rebuilt).toMatchObject({ lapses: 7, reps: 3, stability: 12.5, difficulty: 6.1 })
+      // 少搬任何一个字段，这里就会拿到 undefined 而不是上面这些数
+      expect(rebuilt).toEqual(fields)
+    })
+  })
+
+  describe('预览通道不再"两种形状都认"', () => {
+    const SRC = readFileSync(join(__dirname, '..', 'electron', 'ipc', 'fsrs.ts'), 'utf8')
+    /** 靠探测键名来决定输入是蛇形行还是驼峰卡 */
+    const DUAL_SHAPE = /'\w+' in card/
+
+    it('handler 里不再有按键名探形状的分支', () => {
+      expect(DUAL_SHAPE.test(SRC), '渲染层唯一调用方只可能传驼峰卡，蛇形那支从未走到').toBe(false)
+    })
+
+    it('反证：把收口前的写法喂进判据必须命中', () => {
+      expect(DUAL_SHAPE.test("const hasSnake = 'highlight_id' in card")).toBe(true)
     })
   })
 })

@@ -38,7 +38,7 @@ import {
   default_w as TS_FSRS_DEFAULT_W,
   FSRS6_DEFAULT_DECAY,
 } from 'ts-fsrs'
-import type { ReviewSourceRef } from '../src/shared/review-sources'
+import type { ReviewCardFields, ReviewSourceRef } from '../src/shared/review-sources'
 
 /** ts-fsrs 接受的合法权重长度（17 = FSRSv4, 19 = FSRSv5, 21 = FSRS-6.0），其余长度会被库拒绝。 */
 const VALID_WEIGHT_LENGTHS = [17, 19, 21] as const
@@ -305,6 +305,34 @@ function fromFsrsCard(fsrsCard: FsrsCard, original: Card): Card {
 // ============================================================================
 // 对外函数：DB 转换
 // ============================================================================
+
+/**
+ * 复习队列交给界面的那张卡（跨进程驼峰形）转回引擎的 Card。
+ *
+ * 界面把卡原样传回来预览四种评分的间隔，形状由 `src/shared/review-sources.ts` 的
+ * `ReviewCardFields` 定 —— 字段名与这里的 `Card` 一致，`tests/review-queue-contract.test.ts`
+ * 钉着两边不许漂。只有 `state` 在跨进程那份是 `number`（JSON 里没有枚举），所以逐字段
+ * 赋值而不是整个硬转：新增字段时这份会编译不过，逼着两边一起想清楚。
+ */
+export function cardFromFields(fields: ReviewCardFields): Card {
+  return {
+    id: fields.id,
+    highlightId: fields.highlightId,
+    knowledgeCardId: fields.knowledgeCardId ?? null,
+    methodologyId: fields.methodologyId ?? null,
+    bookId: fields.bookId,
+    state: fields.state as CardState,
+    step: fields.step,
+    stability: fields.stability,
+    difficulty: fields.difficulty,
+    due: fields.due,
+    lastReview: fields.lastReview,
+    elapsedDays: fields.elapsedDays,
+    scheduledDays: fields.scheduledDays,
+    reps: fields.reps,
+    lapses: fields.lapses,
+  };
+}
 
 export function cardFromDb(row: Record<string, unknown>): Card {
   return {

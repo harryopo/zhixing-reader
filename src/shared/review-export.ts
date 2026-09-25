@@ -7,12 +7,18 @@
  * 现在表头和取值都从 REVIEW_CSV_COLUMNS 生成，测试拿真实 schema 逐列对账。
  */
 import { csvEscape } from './csv'
+import type { ReviewRow } from './types'
 
 export interface ReviewCsvColumn {
   /** CSV 表头（面向人/分析脚本） */
   header: string
-  /** reviews 表的真实列名（面向数据） */
-  key: string
+  /**
+   * reviews 表的真实列名（面向数据）。
+   *
+   * 类型钉在 `keyof ReviewRow` 上：列名写错不再是"导出出来那一列常年空白"
+   * （2026-09-20 就是那样：五列读的是根本不存在的驼峰字段名），而是编译不过。
+   */
+  key: keyof ReviewRow
 }
 
 export const REVIEW_CSV_COLUMNS: ReviewCsvColumn[] = [
@@ -24,8 +30,13 @@ export const REVIEW_CSV_COLUMNS: ReviewCsvColumn[] = [
   { header: 'review_time', key: 'review_time' },
 ]
 
-/** 行数据来自 reviewsDb.getRecent()，形状就是 reviews 表的列 */
-export function buildReviewCsv(rows: Array<Record<string, unknown>>): string {
+/**
+ * 行数据来自 reviewsDb.getRecent() —— 那就是 reviews 表的一行。
+ * 表头与取值都从上面那份 spec 生成，spec 的 key 又钉在 `ReviewRow` 上，
+ * 所以"列名写错"在两个方向上都会立刻暴露：编译期（key 不在行类型里）
+ * 与测试期（拿真实 schema 逐列对账）。
+ */
+export function buildReviewCsv(rows: ReviewRow[]): string {
   const lines = [REVIEW_CSV_COLUMNS.map((c) => c.header).join(',')]
   for (const row of rows) {
     lines.push(REVIEW_CSV_COLUMNS.map((c) => csvEscape(row[c.key])).join(','))

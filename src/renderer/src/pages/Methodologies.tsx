@@ -90,9 +90,9 @@ export default function Methodologies() {
         window.electronAPI.book.getAll(),
         window.electronAPI.methodology.coverage(),
       ])
-      setMethodologies(mapMethodologies(methodsRaw as unknown[]))
+      setMethodologies(mapMethodologies(methodsRaw))
       setCoverageByBook(Object.fromEntries(coverageRaw.map((c) => [c.bookId, c])))
-      const books = mapBooks(booksRaw as unknown[])
+      const books = mapBooks(booksRaw)
       setBooks(books)
       // 默认提取书籍：第一本
       if (books.length > 0) {

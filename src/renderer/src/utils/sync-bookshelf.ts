@@ -11,8 +11,6 @@
  *   - Bookshelf：调用后自己调 loadData 刷新本地状态
  */
 
-import { Book } from '../../../shared/types'
-
 /** 微信读书 API 返回的书籍字段 */
 interface WereadBook {
   bookId: string
@@ -87,7 +85,7 @@ export async function syncBookshelfToDb(
       // 判重按 bookId（本地 id 就是微信读书的 bookId），不按书名：
       // 同名两本（不同版本/不同作者）第二本会永远进不来，
       // 还会把第一本的 author/progress 覆盖掉。
-      const existing = (await window.electronAPI.book.getById(wb.bookId)) as Book | null
+      const existing = await window.electronAPI.book.getById(wb.bookId)
       const readTime = wb.readUpdateTime || wb.lastReadTime || 0
       const lastReadTimeStr = readTime > 0 ? new Date(readTime * 1000).toISOString() : null
 

@@ -184,7 +184,7 @@ export default function Chat() {
   const loadContextData = async () => {
     if (!window.electronAPI?.book) return
     try {
-      setBooks(mapBooks((await window.electronAPI.book.getAll()) as unknown[]))
+      setBooks(mapBooks(await window.electronAPI.book.getAll()))
     } catch (err) {
       console.warn('加载书籍列表失败:', err)
     }

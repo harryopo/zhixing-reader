@@ -128,7 +128,7 @@ export function useDataIo(setKpiStats: (stats: KpiStats) => void) {
     try {
       // 拉取最近 1000 条复习记录（够分析用）
       // 列清单与取数都走 REVIEW_CSV_COLUMNS，别再手写一遍字段名 —— 曾经写错过 5 列
-      const reviews = (await api.review.getRecent(1000)) as unknown as Array<Record<string, unknown>>
+      const reviews = await api.review.getRecent(1000)
       const csv = buildReviewCsv(reviews)
       const filename = `zhixing-reviews-${new Date().toISOString().split('T')[0]}.csv`
       // 加 BOM 让 Excel 正确识别 UTF-8

@@ -372,3 +372,53 @@ describe('页面不再自己另立行类型', () => {
     expect(cast.test(before[2])).toBe(true)
   })
 })
+
+describe('跨进程交回的行形状（通道声明不许再写驼峰领域类型）', () => {
+  const DTS = readFileSync(join(__dirname, '..', 'src', 'types', 'renderer.d.ts'), 'utf8')
+
+  /** 声明成驼峰领域类型的读取通道 —— 那些是映射器**之后**的形状，跨进程交回的是库里那一行 */
+  const CAMEL_DOMAIN = /Promise<(Book|Highlight)(\[\])?>/
+
+  it('book / highlight 的通道不再声明成 Book / Highlight', () => {
+    expect(DTS.match(new RegExp(CAMEL_DOMAIN.source, 'g')) ?? [], '这些通道交回的是 SELECT * 的行').toEqual([])
+  })
+
+  it('正向往回一条：这些通道声明的就是原始行（负向断言得配"该写的确实写了"）', () => {
+    const raw = DTS.match(/Promise<Array<Record<string, unknown>>>/g) ?? []
+    expect(raw.length, '声明成原始行的通道数').toBeGreaterThanOrEqual(8)
+  })
+
+  it('反证：把收口前的声明喂进判据必须命中', () => {
+    expect(CAMEL_DOMAIN.test('    getAll: () => Promise<Book[]>')).toBe(true)
+    expect(CAMEL_DOMAIN.test('    getById: (id: string) => Promise<Highlight>')).toBe(true)
+    // BookRow / BookSummary / DueReviewCard 这些合法名字不许被误伤
+    expect(CAMEL_DOMAIN.test('  getByBook: (id: string) => Promise<BookRow[]>')).toBe(false)
+    expect(CAMEL_DOMAIN.test('  chapters: () => Promise<BookSummary[]>')).toBe(false)
+  })
+})
+
+describe('映射器不再需要调用方先掰形状', () => {
+  function sources(dir: string): string[] {
+    return readdirSync(dir).flatMap((name) => {
+      const p = join(dir, name)
+      if (statSync(p).isDirectory()) {
+        return name === '__tests__' || name === 'node_modules' ? [] : sources(p)
+      }
+      return /\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name) ? [p] : []
+    })
+  }
+
+  /** `mapXxx(rows as unknown[])`：映射器本来就收 unknown[]，这层硬转是声明在撒谎时留下的疤 */
+  const ARRAY_CAST = / as unknown\[\]/
+
+  it('渲染层没有任何一处还要把行数组硬转成 unknown[]', () => {
+    const offenders = sources(join(__dirname, '..', 'src', 'renderer', 'src')).filter((f) =>
+      ARRAY_CAST.test(readFileSync(f, 'utf8')),
+    )
+    expect(offenders).toEqual([])
+  })
+
+  it('反证：收口前的写法必须被这条扫描抓到', () => {
+    expect(ARRAY_CAST.test('setBooks(mapBooks(booksRaw as unknown[]))')).toBe(true)
+  })
+})

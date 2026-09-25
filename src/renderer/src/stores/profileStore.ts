@@ -154,8 +154,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         window.electronAPI.stats.getRange(start, end),
       ])
 
-      const books = mapBooks(booksRaw as unknown[])
-      const highlights = mapHighlights(highlightsRaw as unknown[])
+      const books = mapBooks(booksRaw)
+      const highlights = mapHighlights(highlightsRaw)
       const totalBooks = books.length
       const finishedBooks = books.filter((b) => b.progress >= 1 || b.isFinished === 1).length
       const totalHighlights = highlights.length

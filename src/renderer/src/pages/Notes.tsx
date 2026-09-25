@@ -64,8 +64,8 @@ export default function Notes() {
         window.electronAPI.highlight.getAll(),
         window.electronAPI.book.getAll(),
       ])
-      setHighlights(mapHighlights(highlightsRaw as unknown[]))
-      setBooks(mapBooks(booksRaw as unknown[]))
+      setHighlights(mapHighlights(highlightsRaw))
+      setBooks(mapBooks(booksRaw))
     } catch (error) {
       console.error('加载数据失败:', error)
       toast.error('加载笔记失败，请稍后重试')

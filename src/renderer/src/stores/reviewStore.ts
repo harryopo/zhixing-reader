@@ -146,7 +146,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
       return
     }
     try {
-      const previews = await window.electronAPI.fsrs.previewReviewRatings(card as unknown as Record<string, unknown>)
+      const previews = await window.electronAPI.fsrs.previewReviewRatings(card)
       set({ previews })
     } catch {
       // 预览失败不影响复习主流程，按钮退化为无间隔标签

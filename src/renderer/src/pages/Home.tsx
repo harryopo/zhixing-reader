@@ -70,15 +70,15 @@ export default function Home() {
         window.electronAPI.card.getDue(50),
         window.electronAPI.card.getQueueStats?.().catch(() => null) ?? Promise.resolve(null),
       ])
-      setBooks(mapBooks(booksRaw as unknown[]))
-      setDueCards(mapCards(cardsRaw as unknown[]))
+      setBooks(mapBooks(booksRaw))
+      setDueCards(mapCards(cardsRaw))
       setQueue(queueRaw ?? null)
 
       // 最新划线/笔记（非致命：接口不可用时保持空列表）
       if (window.electronAPI?.highlight?.getAll) {
         try {
           const highlightsRaw = await window.electronAPI.highlight.getAll()
-          setHighlights(mapHighlights(highlightsRaw as unknown[]))
+          setHighlights(mapHighlights(highlightsRaw))
         } catch (err) {
           console.warn('加载划线数据失败（非致命）:', err)
         }

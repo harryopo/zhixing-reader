@@ -50,9 +50,9 @@ export function SourceHighlights({
         key.split(',').map((id) =>
           window.electronAPI.highlight
             .getById(id)
-            // getById 的声明写的是 Highlight 领域类型，实际交回的是数据库那一行；
-            // 过一层映射器，字段名以 db-mapper 为准，不在组件里自己猜列名。
-            .then((raw) => mapHighlight(raw as unknown as Record<string, unknown>))
+            // 通道交回的是数据库那一行，字段名以 db-mapper 为准，不在组件里自己猜列名；
+            // 划线已被删掉时这里拿到 undefined，按"来源已丢失"计一笔（不硬转成空行）
+            .then((raw) => (raw ? mapHighlight(raw) : null))
             .catch(() => null),
         ),
       )

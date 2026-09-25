@@ -205,16 +205,16 @@ export default function Bookshelf() {
         window.electronAPI.book.getAll(),
         window.electronAPI.highlight.getAll(),
       ])
-      const mappedBooks = sortByReadTime(mapBooks(booksRaw as unknown[]))
+      const mappedBooks = sortByReadTime(mapBooks(booksRaw))
       setBooks(mappedBooks)
-      setHighlights(mapHighlights(highlightsRaw as unknown[]))
+      setHighlights(mapHighlights(highlightsRaw))
 
       // 并行获取每本书的卡片数（限制 100 本）
       const bookIds = mappedBooks.map((b) => b.id).slice(0, 100)
       const cardLists = await Promise.all(
         bookIds.map((id) => window.electronAPI.card.getByBook(id).catch(() => [])),
       )
-      setCards(mapCards(cardLists.flat() as unknown[]))
+      setCards(mapCards(cardLists.flat()))
     } catch (error) {
       console.error('加载数据失败:', error)
       toast.error('加载书架数据失败')

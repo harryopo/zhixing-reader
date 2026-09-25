@@ -108,8 +108,8 @@ export default function KnowledgeCards() {
         window.electronAPI.book.getAll(),
         window.electronAPI.knowledgeCard.coverage(),
       ])
-      setCards(mapKnowledgeCards(cardsRaw as unknown[]))
-      setBooks(mapBooks(booksRaw as unknown[]))
+      setCards(mapKnowledgeCards(cardsRaw))
+      setBooks(mapBooks(booksRaw))
       setCoverageByBook(Object.fromEntries(coverageRaw.map((c) => [c.bookId, c])))
     } catch (error) {
       console.error('加载知识卡片失败:', error)

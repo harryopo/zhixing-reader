@@ -141,7 +141,7 @@ export default function Profile() {
 
       // 3. 类型分布（基于 book.getAll 的 category 字段聚合）
       try {
-        const books = mapBooks((await api.book.getAll()) as unknown[])
+        const books = mapBooks(await api.book.getAll())
         const grouped = new Map<string, number>()
         for (const b of books) {
           const cat = b.category || '其他'

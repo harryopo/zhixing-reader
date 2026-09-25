@@ -8,6 +8,7 @@ import { rowsToObjects } from '../utils/db';
 import { Card, reviewCard, Rating } from '../fsrs-engine';
 import { cardsDb } from './cards';
 import { dailyStatsDb } from './daily-stats';
+import type { ReviewRow } from '../../src/shared/types';
 
 export const reviewsDb = {
   create(cardId: string, rating: Rating): { reviewId: string; card: Card } {
@@ -42,11 +43,23 @@ export const reviewsDb = {
     return rowsToObjects(result);
   },
 
-  getRecent(limit: number = 50): Record<string, unknown>[] {
+  /**
+   * reviews 表的那一行。列名口径只有一份：`src/shared/types.ts` 的 `ReviewRow`
+   * （导出 CSV 的列清单钉在它的键上，见 shared/review-export.ts；那条 spec 又拿
+   * `PRAGMA table_info(reviews)` 对过账 —— 三处同源，改列名不会只改到一半）。
+   */
+  getRecent(limit: number = 50): ReviewRow[] {
     const result = getDatabase().exec(
       'SELECT * FROM reviews ORDER BY review_time DESC LIMIT ?',
       [limit]
     );
-    return rowsToObjects(result);
+    return rowsToObjects(result).map((row) => ({
+      id: row.id as string,
+      card_id: row.card_id as string,
+      rating: row.rating as number,
+      review_time: row.review_time as string,
+      elapsed_days: row.elapsed_days as number,
+      scheduled_days: row.scheduled_days as number,
+    }));
   },
 };

@@ -190,8 +190,8 @@ export default function BookDetail() {
       ])
       const books = mapBooks(bookData ? [bookData] : [])
       setBook(books.length > 0 ? books[0] : null)
-      setHighlights(mapHighlights(highlightsRaw as unknown[]))
-      setCards(mapCards(cardsRaw as unknown[]))
+      setHighlights(mapHighlights(highlightsRaw))
+      setCards(mapCards(cardsRaw))
       const [chapterRows, summaryRow] = await Promise.all([
         window.electronAPI.summary?.chapters(bookId) ?? Promise.resolve([]),
         window.electronAPI.summary?.getByBook(bookId) ?? Promise.resolve(null),

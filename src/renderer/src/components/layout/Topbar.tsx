@@ -224,7 +224,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
       const lastViewAt = Number(localStorage.getItem(LAST_VIEW_NOTES_AT_KEY) || 0)
       // P0-1 修复：highlight.getAll() 返回 snake_case 字段（created_at），
       // 需用 mapHighlights 映射为 camelCase（createdAt）后再过滤,否则 unreadNotes 永远 0
-      const mappedHighlights = mapHighlights(highlights as unknown[])
+      const mappedHighlights = mapHighlights(highlights)
       const unreadNotes = mappedHighlights.filter((h) => {
         const createdAt = h.createdAt as string | undefined
         const t = createdAt ? new Date(createdAt).getTime() : 0
