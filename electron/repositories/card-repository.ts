@@ -21,7 +21,10 @@ export class SqlCardRepository extends BaseRepository<Card> implements ICardRepo
   protected mapToEntity(row: Record<string, unknown>): Card {
     return {
       id: row.id as string,
-      highlightId: row.highlight_id as string,
+      // 划线卡以外还有两种来源，这一列对它们就是 null —— 不许 as string 把"可能没有"读成"一定有"
+      highlightId: (row.highlight_id as string | null) ?? null,
+      knowledgeCardId: (row.knowledge_card_id as string | null) ?? null,
+      methodologyId: (row.methodology_id as string | null) ?? null,
       state: (row.state as number) ?? 0,
       step: (row.step as number) ?? 0,
       stability: (row.stability as number) ?? 0,

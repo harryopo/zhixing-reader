@@ -3,6 +3,8 @@
  * 定义数据库表对应的 TypeScript 接口
  */
 
+import type { Card as FsrsCard } from '../fsrs-engine'
+
 export interface Book {
   id: string
   title: string
@@ -36,19 +38,12 @@ export interface Highlight {
   bookTitle?: string
 }
 
-export interface Card {
-  id: string
-  highlightId: string
-  state: number
-  step: number
-  stability: number
-  difficulty: number
-  due: string
-  lastReview: string | null
-  elapsedDays: number
-  scheduledDays: number
-  reps: number
-  lapses: number
+/**
+ * 复习卡实体。直接继承 fsrs-engine 的 Card —— 这里曾经自己抄了一份字段清单，
+ * 于是 `highlight_id` 变可空那天两处形状就分叉了（ReviewStats 也栽过一次）。
+ * 只补 cards 表里 fsrs 引擎不关心的两列。
+ */
+export interface Card extends FsrsCard {
   applicationTag?: string
   masteryLevel?: number
   createdAt?: string

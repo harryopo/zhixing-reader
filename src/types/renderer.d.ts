@@ -1,4 +1,5 @@
 import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind } from '../shared/types'
+import type { DueReviewCardView } from '../shared/review-sources'
 
 export interface TokenSummary {
   totalRequests: number
@@ -9,26 +10,12 @@ export interface TokenSummary {
   totalCachedTokens: number
 }
 
-/** 到期复习卡片（FSRS 调度字段 + 划线内容） */
-export interface DueReviewCard {
-  id: string
-  highlightId: string
-  state: number
-  step: number
-  stability: number
-  difficulty: number
-  due: string
-  lastReview: string | null
-  elapsedDays: number
-  scheduledDays: number
-  reps: number
-  lapses: number
-  bookId: string
-  bookTitle: string | null
-  chapterTitle: string | null
-  highlightContent: string
-  highlightNote: string | null
-}
+/**
+ * 到期复习卡片：FSRS 状态 + 正/背面文案。
+ * 形状与主进程 `cardsDb.getDueCardsWithContent()` 的返回同源（都在 shared 里那一份），
+ * 这里只起个界面上顺手的名字 —— 以前在两边各写一份字段清单，改一处就静默错位一次。
+ */
+export type DueReviewCard = DueReviewCardView
 
 /**
  * card.review() 的返回值。

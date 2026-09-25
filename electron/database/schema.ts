@@ -54,24 +54,9 @@ export function initializeSchema(db: import('sql.js').Database): void {
     );
   `);
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS cards (
-      id TEXT PRIMARY KEY,
-      highlight_id TEXT NOT NULL,
-      state INTEGER DEFAULT 0,
-      step INTEGER DEFAULT 0,
-      stability REAL DEFAULT 0,
-      difficulty REAL DEFAULT 0,
-      due TEXT NOT NULL,
-      last_review TEXT,
-      elapsed_days INTEGER DEFAULT 0,
-      scheduled_days INTEGER DEFAULT 0,
-      reps INTEGER DEFAULT 0,
-      lapses INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (highlight_id) REFERENCES highlights(id) ON DELETE CASCADE
-    );
-  `);
+  // 复习卡：一份 DDL 同时供"新建库"与"老库重建"用（见下方 cardsTableDdl），
+  // 两处各写一份迟早会漂成两种形状
+  db.run(cardsTableDdl('cards'));
 
   db.run(`
     CREATE TABLE IF NOT EXISTS reviews (
@@ -335,6 +320,7 @@ export function applySchemaAndMigrations(): void {
 
   // 幂等迁移（每次启动都会跑，靠 PRAGMA table_info 判断列是否存在）
   migrateCardsTable();        // cards: application_tag / mastery_level
+  migrateCardsSourceColumns(); // cards: 单一划线来源 → 划线 / 知识卡片 / 方法论三种来源
   migrateBooksTable();        // books: source
   migrateChatMessagesTable(); // chat_messages: liked / bookmarked
   migrateTokenUsageTable();   // token_usage: cached_tokens
@@ -357,6 +343,105 @@ export async function initDatabase(): Promise<void> {
   saveDatabase();
   logger.info(`Database connected: ${dbPath}`);
   logger.info('Database initialized successfully');
+}
+
+/**
+ * 复习卡从「只能挂划线」升级到「划线 / 知识卡片 / 方法论三种来源」。
+ *
+ * 老库的 cards 表里 highlight_id 是 NOT NULL 的，加不了可空的第二来源列，
+ * 只能按 SQLite 的标准做法重建：建新表 → 原样搬行 → 换名。
+ * 迁移过的行仍然是 `highlight_id` 有值、另两列 NULL，与 CHECK 一致。
+ *
+ * 幂等：靠 `knowledge_card_id` 这一列在不在判断，跑第二次直接返回。
+ * 搬哪些列按老表**实际**列名取交集 —— 老库可能停在还没加 application_tag 的版本上，
+ * 写死列名会让那种库在迁移时报 "no such column" 而整表没重建（外键状态还被打断）。
+ */
+function migrateCardsSourceColumns(): void {
+  const database = getDatabase();
+  const oldCols = columnNames('cards');
+  if (oldCols.length === 0 || oldCols.includes('knowledge_card_id')) return;
+
+  const targetCols = [
+    'id', 'highlight_id', 'state', 'step', 'stability', 'difficulty', 'due',
+    'last_review', 'elapsed_days', 'scheduled_days', 'reps', 'lapses',
+    'created_at', 'application_tag', 'mastery_level',
+  ];
+  const carried = targetCols.filter((col) => oldCols.includes(col));
+
+  // 重建期间必须关掉外键：DROP 掉被 reviews 引用的 cards 表会被外键挡住。
+  // ⚠️ 与落盘那处同理 —— 关掉就一定负责开回来（放 finally），否则这条连接
+  // 之后所有级联删除都不生效（sql.js 的 export() 也会复位这个开关）。
+  database.run('PRAGMA foreign_keys = OFF');
+  try {
+    runTransaction(() => {
+      database.run(cardsTableDdl('cards_rebuild'));
+      database.run(
+        `INSERT INTO cards_rebuild (${carried.join(', ')})
+         SELECT ${carried.join(', ')} FROM cards`,
+      );
+      database.run('DROP TABLE cards');
+      database.run('ALTER TABLE cards_rebuild RENAME TO cards');
+    });
+    const broken = database.exec('PRAGMA foreign_key_check(cards)');
+    logger.info('Migration: cards 表已支持划线 / 知识卡片 / 方法论三种来源', {
+      rebuilt: true,
+      carriedColumns: carried.length,
+      // 非空即说明重建后存在指向不存在的父行的卡片，得让人看见
+      danglingReferences: broken.length > 0 ? broken[0].values.length : 0,
+    });
+  } finally {
+    database.run('PRAGMA foreign_keys = ON');
+  }
+}
+
+/**
+ * cards 表的形状。**新建库与老库重建共用这一段**（表名做成参数，避免"两份 DDL 各自漂"）。
+ * 调用方只传两个字面量：'cards' 与 'cards_rebuild'。
+ */
+function cardsTableDdl(tableName: string): string {
+  return `
+    CREATE TABLE IF NOT EXISTS ${tableName} (
+      id TEXT PRIMARY KEY,
+      /*
+       * 复习卡的三种来源各占一个可空外键列，每行必须且只能指向其中一个（见下方 CHECK）。
+       *
+       * 为什么不用「一个 source_id + 一个 source_kind」两列：那种写法两列可以对不上，
+       * 而且 source_id 指不到真实外键 —— 知识卡片被删了，它的复习卡会留在队列里指向一个
+       * 已经不存在的行。本项目刚被"引用悬空"咬过（孤儿行、假字段列名各一次），
+       * 分成三列换来的是：每种来源都有真的 FOREIGN KEY 与 ON DELETE CASCADE。
+       */
+      highlight_id TEXT,
+      knowledge_card_id TEXT,
+      methodology_id TEXT,
+      state INTEGER DEFAULT 0,
+      step INTEGER DEFAULT 0,
+      stability REAL DEFAULT 0,
+      difficulty REAL DEFAULT 0,
+      due TEXT NOT NULL,
+      last_review TEXT,
+      elapsed_days INTEGER DEFAULT 0,
+      scheduled_days INTEGER DEFAULT 0,
+      reps INTEGER DEFAULT 0,
+      lapses INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      application_tag TEXT,
+      mastery_level INTEGER DEFAULT 0,
+      FOREIGN KEY (highlight_id) REFERENCES highlights(id) ON DELETE CASCADE,
+      FOREIGN KEY (knowledge_card_id) REFERENCES knowledge_cards(id) ON DELETE CASCADE,
+      FOREIGN KEY (methodology_id) REFERENCES methodologies(id) ON DELETE CASCADE,
+      CHECK (
+        (CASE WHEN highlight_id IS NOT NULL THEN 1 ELSE 0 END
+         + CASE WHEN knowledge_card_id IS NOT NULL THEN 1 ELSE 0 END
+         + CASE WHEN methodology_id IS NOT NULL THEN 1 ELSE 0 END) = 1
+      )
+    );
+  `;
+}
+
+/** 一张表的列名；表不存在返回空数组 */
+function columnNames(table: string): string[] {
+  const result = getDatabase().exec(`PRAGMA table_info(${table})`);
+  return rowsToObjects(result).map((c: Record<string, unknown>) => c.name as string);
 }
 
 function migrateCardsTable(): void {

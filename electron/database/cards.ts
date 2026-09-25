@@ -1,6 +1,10 @@
 /**
  * database/cards — FSRS 复习卡片表操作
  * 从原 database.ts 拆分而来，逻辑保持不变。
+ *
+ * 一张复习卡有三种来源（划线 / 知识卡片 / 方法论），各占一个可空外键列，
+ * 每行有且只有一个非空（schema 的 CHECK 钉住）。来源的读法、正背面文案的口径
+ * 全在 src/shared/review-sources.ts，这里不重复定义。
  */
 import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
@@ -11,8 +15,100 @@ import {
   computeNewCardAllowance,
   normalizeNewCardsPerDay,
 } from '../../src/shared/study-limits';
+import {
+  REVIEW_SOURCE_COLUMNS,
+  buildReviewCardView,
+  cardSourceOf,
+  formatStepList,
+  type DueReviewCardView,
+  type ReviewSourceRef,
+} from '../../src/shared/review-sources';
+
+/**
+ * 写入 cards 的列清单 —— 只有一份。
+ * 原来 create / createBatch / update / updateBatch 各手写一遍列名与占位符，
+ * 加一列要改四处，漏一处就是"某列静默写不进去"。
+ */
+const CARD_COLUMNS = [
+  'id', 'highlight_id', 'knowledge_card_id', 'methodology_id',
+  'state', 'step', 'stability', 'difficulty', 'due', 'last_review',
+  'elapsed_days', 'scheduled_days', 'reps', 'lapses',
+] as const;
+
+/** UPDATE 不改 id（它是 WHERE 条件） */
+const CARD_UPDATABLE_COLUMNS = CARD_COLUMNS.filter((col) => col !== 'id');
+
+const CARD_INSERT_SQL = `INSERT INTO cards (${CARD_COLUMNS.join(', ')}) VALUES (${CARD_COLUMNS.map(() => '?').join(', ')})`;
+const CARD_UPDATE_SQL = `UPDATE cards SET ${CARD_UPDATABLE_COLUMNS.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`;
+
+function insertValues(card: Card): never[] {
+  const row = cardToRow(card);
+  return CARD_COLUMNS.map((col) => row[col] as never) as never[];
+}
+
+function updateValues(card: Card): never[] {
+  const row = cardToRow(card);
+  return [...CARD_UPDATABLE_COLUMNS.map((col) => row[col] as never), card.id] as never[];
+}
+
+/**
+ * cards 的读取底座：三种来源都能反查出"这张卡属于哪本书"。
+ *
+ * cards 表没有 book_id 这一列，它只能从来源反查（划线 → highlights.book_id、
+ * 知识卡片 → knowledge_cards.book_id、方法论 → methodologies.book_id）。
+ * 所有对外返回 Card 的查询都走这一段 —— 漏掉 book_id 的代价是界面上
+ * 书名恒为「未关联书籍」（2026-09-22 实测过的那条断链），不要再各写一份 SELECT。
+ */
+const CARD_WITH_BOOK_SQL = `
+  SELECT c.*, COALESCE(h.book_id, kc.book_id, m.book_id) AS book_id
+  FROM cards c
+  LEFT JOIN highlights h ON c.highlight_id = h.id
+  LEFT JOIN knowledge_cards kc ON c.knowledge_card_id = kc.id
+  LEFT JOIN methodologies m ON c.methodology_id = m.id
+`;
+
+const CARD_BOOK_FILTER = 'COALESCE(h.book_id, kc.book_id, m.book_id)';
+
+/** JOIN 出来的一行 → 展示视图；查不到来源内容时如实给空文本，不编 */
+function toDueView(card: Card, row: Record<string, unknown>): DueReviewCardView {
+  const source = cardSourceOf(card);
+  const kind = source?.kind ?? 'highlight';
+  const text = (key: string): string => ((row[key] as string | null) ?? '');
+  const view = buildReviewCardView({
+    kind,
+    content:
+      kind === 'knowledge_card' ? text('_kc_content') : kind === 'methodology' ? text('_m_content') : text('_highlight_content'),
+    title: kind === 'knowledge_card' ? text('_kc_title') : kind === 'methodology' ? text('_m_title') : null,
+    extra:
+      kind === 'knowledge_card'
+        ? text('_kc_interpretation')
+        : kind === 'methodology'
+          ? formatStepList(text('_m_steps'))
+          : text('_highlight_note'),
+    context: kind === 'methodology' ? text('_m_trigger') : kind === 'highlight' ? text('_chapter_title') : null,
+    bookTitle: (row._book_title as string | null) ?? null,
+  });
+  return {
+    ...card,
+    ...view,
+    sourceKind: kind,
+    sourceId: source?.id ?? '',
+    bookId: (row._book_id as string) ?? '',
+    bookTitle: (row._book_title as string | null) ?? null,
+  };
+}
 
 export const cardsDb = {
+  /** 按来源查已入队的卡（划线卡沿用旧列名，另两种查各自的列） */
+  findBySource(source: ReviewSourceRef): Card | undefined {
+    const result = getDatabase().exec(
+      `SELECT * FROM cards WHERE ${REVIEW_SOURCE_COLUMNS[source.kind]} = ?`,
+      [source.id]
+    );
+    const rows = rowsToObjects(result);
+    return rows[0] ? cardFromDb(rows[0]) : undefined;
+  },
+
   getByHighlightId(highlightId: string): Record<string, unknown> | undefined {
     const result = getDatabase().exec(
       'SELECT * FROM cards WHERE highlight_id = ?',
@@ -22,119 +118,70 @@ export const cardsDb = {
     return rows[0];
   },
 
-
   getById(id: string): Card | null {
     const result = getDatabase().exec('SELECT * FROM cards WHERE id = ?', [id]);
     const rows = rowsToObjects(result);
     return rows[0] ? cardFromDb(rows[0]) : null;
   },
 
-  create(highlightId: string): Card {
-    const card = createCard(highlightId);
-    const row = cardToRow(card);
-    getDatabase().run(
-      `INSERT INTO cards (id, highlight_id, state, step, stability, difficulty, due, last_review, elapsed_days, scheduled_days, reps, lapses)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        row.id,
-        row.highlight_id,
-        row.state,
-        row.step,
-        row.stability,
-        row.difficulty,
-        row.due,
-        row.last_review,
-        row.elapsed_days,
-        row.scheduled_days,
-        row.reps,
-        row.lapses,
-      ]
-    );
+  /**
+   * 把一条来源放进复习队列。已经在了就返回那张卡本尊（`created: false`），
+   * 不新建第二张 —— 点两次「加入复习」不该多出两张卡、把复习进度拆成两半。
+   */
+  enroll(source: ReviewSourceRef): { card: Card; created: boolean } {
+    const existing = this.findBySource(source);
+    if (existing) return { card: existing, created: false };
+    const card = createCard(source);
+    getDatabase().run(CARD_INSERT_SQL, insertValues(card));
     saveDatabase();
-    return card;
+    return { card, created: true };
+  },
+
+  /** 批量入队（界面上的"把这 N 张都加入复习"）：一个事务，返回各多少 */
+  enrollMany(sources: ReviewSourceRef[]): { created: number; skipped: number } {
+    const pending = sources.filter((source) => !this.findBySource(source));
+    if (pending.length === 0) return { created: 0, skipped: sources.length };
+    runTransaction((database) => {
+      const stmt = database.prepare(CARD_INSERT_SQL);
+      for (const source of pending) {
+        stmt.run(insertValues(createCard(source)));
+      }
+      stmt.free();
+    });
+    return { created: pending.length, skipped: sources.length - pending.length };
+  },
+
+  /** 旧入口：给一条划线建卡（等价于 enroll({kind:'highlight'})，不再重复建） */
+  create(highlightId: string): Card {
+    return this.enroll({ kind: 'highlight', id: highlightId }).card;
   },
 
   createBatch(highlightIds: string[]): Card[] {
+    this.enrollMany(highlightIds.map((id): ReviewSourceRef => ({ kind: 'highlight', id })));
+    return this.findByManySources(highlightIds.map((id): ReviewSourceRef => ({ kind: 'highlight', id })));
+  },
+
+  /** 一批来源各自的卡（没入队的缺席） */
+  findByManySources(sources: ReviewSourceRef[]): Card[] {
     const cards: Card[] = [];
-    runTransaction((database) => {
-      const stmt = database.prepare(
-        `INSERT INTO cards (id, highlight_id, state, step, stability, difficulty, due, last_review, elapsed_days, scheduled_days, reps, lapses)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      );
-
-      for (const highlightId of highlightIds) {
-        const card = createCard(highlightId);
-        const row = cardToRow(card);
-        stmt.run([
-          row.id,
-          row.highlight_id,
-          row.state,
-          row.step,
-          row.stability,
-          row.difficulty,
-          row.due,
-          row.last_review,
-          row.elapsed_days,
-          row.scheduled_days,
-          row.reps,
-          row.lapses,
-        ]);
-        cards.push(card);
-      }
-
-      stmt.free();
-    });
+    for (const source of sources) {
+      const card = this.findBySource(source);
+      if (card) cards.push(card);
+    }
     return cards;
   },
 
   update(card: Card): void {
-    const row = cardToRow(card);
-    getDatabase().run(
-      `UPDATE cards SET state = ?, step = ?, stability = ?, difficulty = ?,
-       due = ?, last_review = ?, elapsed_days = ?, scheduled_days = ?,
-       reps = ?, lapses = ? WHERE id = ?`,
-      [
-        row.state,
-        row.step,
-        row.stability,
-        row.difficulty,
-        row.due,
-        row.last_review,
-        row.elapsed_days,
-        row.scheduled_days,
-        row.reps,
-        row.lapses,
-        row.id,
-      ]
-    );
+    getDatabase().run(CARD_UPDATE_SQL, updateValues(card));
     saveDatabase();
   },
 
   updateBatch(cards: Card[]): void {
     runTransaction((database) => {
-      const stmt = database.prepare(
-        `UPDATE cards SET state = ?, step = ?, stability = ?, difficulty = ?,
-         due = ?, last_review = ?, elapsed_days = ?, scheduled_days = ?,
-         reps = ?, lapses = ? WHERE id = ?`
-      );
-
+      const stmt = database.prepare(CARD_UPDATE_SQL);
       for (const card of cards) {
-        const row = cardToRow(card);
-        stmt.run([
-          row.state,
-          row.step,
-          row.stability,
-          row.difficulty,
-          row.due,
-          row.last_review,
-          row.elapsed_days,
-          row.scheduled_days,
-          row.reps,
-          row.lapses,
-          row.id,
-        ]);
+        stmt.run(updateValues(card));
       }
-
       stmt.free();
     });
   },
@@ -154,6 +201,18 @@ export const cardsDb = {
     saveDatabase();
   },
 
+  /** 来源被删除时收回它的复习卡（知识卡片/方法论没有外键级联可用，见 deleted-archive） */
+  deleteBySource(source: ReviewSourceRef): number {
+    const before = this.findBySource(source);
+    if (!before) return 0;
+    getDatabase().run(
+      `DELETE FROM cards WHERE ${REVIEW_SOURCE_COLUMNS[source.kind]} = ?`,
+      [source.id]
+    );
+    saveDatabase();
+    return 1;
+  },
+
   createForExistingHighlights(): { created: number; skipped: number } {
     const result = getDatabase().exec(`
       SELECT h.id FROM highlights h
@@ -167,8 +226,7 @@ export const cardsDb = {
       return { created: 0, skipped: 0 };
     }
 
-    const cards = this.createBatch(highlightIds);
-    return { created: cards.length, skipped: rows.length - cards.length };
+    return this.enrollMany(highlightIds.map((id): ReviewSourceRef => ({ kind: 'highlight', id })));
   },
 
   /**
@@ -245,15 +303,13 @@ export const cardsDb = {
    * 顺序：**先到期的复习卡，后新卡**——复习卡是时间敏感的（正在遗忘），
    * 新卡早一天晚一天没有区别。
    * 新卡每天最多放 `newCardsPerDay` 张（默认 15），剩余排队等明天。
+   *
+   * 不再 JOIN highlights：三种来源共用这一条查询。指向已删来源的卡由外键级联负责清掉
+   * （见 schema.ts 的三个 ON DELETE CASCADE），所以不需要在这里再挡一层。
    */
   getDueCards(limit: number = 100, newCardsPerDay: unknown = DEFAULT_NEW_CARDS_PER_DAY): Card[] {
     const now = new Date().toISOString();
-    const reviewResult = getDatabase().exec(
-      `SELECT c.*, h.book_id AS book_id
-       FROM cards c JOIN highlights h ON c.highlight_id = h.id
-       WHERE c.state != 0 AND c.due <= ? ORDER BY c.due ASC LIMIT ?`,
-      [now, limit]
-    );
+    const reviewResult = getDatabase().exec(CARD_WITH_BOOK_SQL + ' WHERE state != 0 AND due <= ? ORDER BY due ASC LIMIT ?', [now, limit]);
     const reviewCards = rowsToObjects(reviewResult).map(cardFromDb);
 
     const remaining = limit - reviewCards.length;
@@ -268,9 +324,7 @@ export const cardsDb = {
     if (newTake <= 0) return reviewCards;
 
     const newResult = getDatabase().exec(
-      `SELECT c.*, h.book_id AS book_id
-       FROM cards c JOIN highlights h ON c.highlight_id = h.id
-       WHERE c.state = 0 ORDER BY c.created_at ASC, c.id ASC LIMIT ?`,
+      CARD_WITH_BOOK_SQL + ' WHERE state = 0 ORDER BY created_at ASC, id ASC LIMIT ?',
       [newTake]
     );
     return [...reviewCards, ...rowsToObjects(newResult).map(cardFromDb)];
@@ -278,27 +332,31 @@ export const cardsDb = {
 
   /**
    * 到期卡片（含复习内容）— 供间隔复习页面展示。
-   * JOIN 划线原文 + 笔记 + 章节名 + 书名，FSRS 字段走 cardFromDb 驼峰转换。
+   * 三种来源各自的正文/标题/补充都 JOIN 出来，正背面文案交给 buildReviewCardView。
    */
-  getDueCardsWithContent(limit: number = 100, newCardsPerDay: unknown = DEFAULT_NEW_CARDS_PER_DAY): Array<Card & {
-    bookId: string;
-    bookTitle: string | null;
-    chapterTitle: string | null;
-    highlightContent: string;
-    highlightNote: string | null;
-  }> {
+  getDueCardsWithContent(limit: number = 100, newCardsPerDay: unknown = DEFAULT_NEW_CARDS_PER_DAY): DueReviewCardView[] {
     // 先取 id 队列（复习卡优先，新卡按每日上限放行），再补上展示所需的内容字段
     const queue = this.getDueCards(limit, newCardsPerDay);
     if (queue.length === 0) return [];
 
     const placeholders = queue.map(() => '?').join(',');
     const result = getDatabase().exec(
-      `SELECT c.*, h.book_id AS _book_id, h.content AS _highlight_content,
-              h.note AS _highlight_note, h.chapter_title AS _chapter_title,
-              b.title AS _book_title
+      `SELECT c.*,
+              COALESCE(h.book_id, kc.book_id, m.book_id) AS _book_id,
+              COALESCE(b.title, kb.title, mb.title) AS _book_title,
+              h.content AS _highlight_content, h.note AS _highlight_note,
+              h.chapter_title AS _chapter_title,
+              kc.title AS _kc_title, kc.content AS _kc_content,
+              kc.interpretation AS _kc_interpretation,
+              m.name AS _m_title, m.description AS _m_content,
+              m.steps AS _m_steps, m.trigger_scenario AS _m_trigger
        FROM cards c
-       JOIN highlights h ON c.highlight_id = h.id
-       LEFT JOIN books b ON h.book_id = b.id
+       LEFT JOIN highlights h ON c.highlight_id = h.id
+       LEFT JOIN books b ON b.id = h.book_id
+       LEFT JOIN knowledge_cards kc ON c.knowledge_card_id = kc.id
+       LEFT JOIN books kb ON kb.id = kc.book_id
+       LEFT JOIN methodologies m ON c.methodology_id = m.id
+       LEFT JOIN books mb ON mb.id = m.book_id
        WHERE c.id IN (${placeholders})`,
       queue.map((card) => card.id)
     );
@@ -306,25 +364,23 @@ export const cardsDb = {
     for (const row of rowsToObjects(result)) byId.set(row.id as string, row);
 
     // 按队列顺序输出，保持"复习卡在前、新卡在后"
-    return queue.map((card) => {
-      const row = byId.get(card.id) ?? {};
-      return {
-        ...card,
-        bookId: (row._book_id as string) ?? '',
-        bookTitle: (row._book_title as string) ?? null,
-        chapterTitle: (row._chapter_title as string) ?? null,
-        highlightContent: (row._highlight_content as string) ?? '',
-        highlightNote: (row._highlight_note as string) ?? null,
-      };
-    });
+    return queue.map((card) => toDueView(card, byId.get(card.id) ?? {}));
   },
 
+  /**
+   * 某本书的复习卡。三种来源都能按书查 —— 以前只 JOIN highlights，
+   * 于是知识卡片与方法论的卡在哪本书的详情里恒为 0。
+   */
   getByBookId(bookId: string): Card[] {
-    const result = getDatabase().exec(`
-      SELECT c.*, h.book_id AS book_id FROM cards c
-      JOIN highlights h ON c.highlight_id = h.id
-      WHERE h.book_id = ?
-    `, [bookId]);
+    const result = getDatabase().exec(
+      `SELECT c.*, COALESCE(h.book_id, kc.book_id, m.book_id) AS book_id
+       FROM cards c
+       LEFT JOIN highlights h ON c.highlight_id = h.id
+       LEFT JOIN knowledge_cards kc ON c.knowledge_card_id = kc.id
+       LEFT JOIN methodologies m ON c.methodology_id = m.id
+       WHERE ${CARD_BOOK_FILTER} = ?`,
+      [bookId],
+    );
     return rowsToObjects(result).map(cardFromDb);
   },
 

@@ -11,11 +11,20 @@ import { useReviewStore, type RatingPreview } from '../src/renderer/src/stores/r
 import type { DueReviewCard } from '../src/types/renderer'
 import { getCardMastery } from '../src/shared/fsrs-metrics'
 
-/** 构造一张到期卡片（字段就是 DueReviewCard，写错列名会被类型拦下） */
+/** 构造一张到期卡片（字段就是队列返回的形状，写错字段名会被类型拦下） */
 function dueCard(over: Partial<DueReviewCard> = {}): DueReviewCard {
   return {
     id: 'card_1',
     highlightId: 'hl_1',
+    knowledgeCardId: null,
+    methodologyId: null,
+    sourceKind: 'highlight',
+    sourceId: 'hl_1',
+    label: '划线',
+    front: '这是一条划线原文',
+    back: null,
+    detail: null,
+    sourceLine: '《测试书》 · 第一章',
     state: 2,
     step: 2,
     stability: 46.35,
@@ -28,9 +37,6 @@ function dueCard(over: Partial<DueReviewCard> = {}): DueReviewCard {
     lapses: 0,
     bookId: 'book_1',
     bookTitle: '测试书',
-    chapterTitle: '第一章',
-    highlightContent: '这是一条划线原文',
-    highlightNote: null,
     ...over,
   }
 }

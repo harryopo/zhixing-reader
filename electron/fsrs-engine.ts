@@ -38,6 +38,7 @@ import {
   default_w as TS_FSRS_DEFAULT_W,
   FSRS6_DEFAULT_DECAY,
 } from 'ts-fsrs'
+import type { ReviewSourceRef } from '../src/shared/review-sources'
 
 /** ts-fsrs 接受的合法权重长度（17 = FSRSv4, 19 = FSRSv5, 21 = FSRS-6.0），其余长度会被库拒绝。 */
 const VALID_WEIGHT_LENGTHS = [17, 19, 21] as const
@@ -48,12 +49,21 @@ const VALID_WEIGHT_LENGTHS = [17, 19, 21] as const
 
 export interface Card {
   id: string;
-  highlightId: string;
   /**
-   * 卡片属于哪本书。cards 表没有这一列，它只能从 highlight 反查：
-   * cards.highlight_id → highlights.book_id。读卡片列表时由 SQL JOIN 带出来，
-   * 不带就是 undefined —— 之前首页/书架直接读 card.bookId，于是书名恒为
-   * 「未关联书籍」、每本书的卡片数恒为 0。
+   * 三张来源表各自一个可空字段，一张卡有且只有一个非空（cards 表用 CHECK 钉住）。
+   * 划线卡来自 highlights；知识卡片卡与方法论卡是 AI 生成后由用户「加入复习」进来的。
+   *
+   * 读来源请用 src/shared/review-sources.ts 的 cardSourceOf()，不要自己拼 ?? ——
+   * 那会把"两个来源都有值"这种坏数据悄悄读成第一个。
+   */
+  highlightId: string | null;
+  knowledgeCardId?: string | null;
+  methodologyId?: string | null;
+  /**
+   * 卡片属于哪本书。cards 表没有这一列，它只能从来源反查：
+   * highlights.book_id / knowledge_cards.book_id / methodologies.book_id。
+   * 读卡片列表时由 SQL JOIN 带出来，不带就是 undefined —— 之前首页/书架直接读
+   * card.bookId，于是书名恒为「未关联书籍」、每本书的卡片数恒为 0。
    */
   bookId?: string;
   state: CardState;
@@ -299,7 +309,9 @@ function fromFsrsCard(fsrsCard: FsrsCard, original: Card): Card {
 export function cardFromDb(row: Record<string, unknown>): Card {
   return {
     id: row.id as string,
-    highlightId: row.highlight_id as string,
+    highlightId: (row.highlight_id as string | null) ?? null,
+    knowledgeCardId: (row.knowledge_card_id as string | null) ?? null,
+    methodologyId: (row.methodology_id as string | null) ?? null,
     bookId: (row.book_id ?? row._book_id) as string | undefined,
     state: row.state as CardState,
     step: row.step as number,
@@ -318,6 +330,8 @@ export function cardToRow(card: Card): Record<string, unknown> {
   return {
     id: card.id,
     highlight_id: card.highlightId,
+    knowledge_card_id: card.knowledgeCardId ?? null,
+    methodology_id: card.methodologyId ?? null,
     state: card.state,
     step: card.step,
     stability: card.stability,
@@ -335,11 +349,20 @@ export function cardToRow(card: Card): Record<string, unknown> {
 // 对外函数：卡片创建 + 复习
 // ============================================================================
 
-export function createCard(highlightId: string): Card {
+/**
+ * 建一张复习卡。
+ *
+ * 参数可以是三种来源之一的引用，也可以直接给划线 id 字符串（历史上只有划线一种，
+ * 队列里绝大多数卡至今是划线卡）。两种写法在这里一次归一，别处不再各写一遍判断。
+ */
+export function createCard(source: ReviewSourceRef | string): Card {
+  const ref: ReviewSourceRef = typeof source === 'string' ? { kind: 'highlight', id: source } : source;
   const empty = createEmptyCard();
   return {
     id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-    highlightId,
+    highlightId: ref.kind === 'highlight' ? ref.id : null,
+    knowledgeCardId: ref.kind === 'knowledge_card' ? ref.id : null,
+    methodologyId: ref.kind === 'methodology' ? ref.id : null,
     state: CardState.New,
     step: 0,
     stability: 0,

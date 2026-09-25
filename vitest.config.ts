@@ -87,6 +87,7 @@ export default defineConfig({
         'src/shared/profile-stats.ts',
         'src/shared/reading-trend.ts',
         'src/shared/retrieval.ts',
+        'src/shared/review-sources.ts',
         'src/shared/review-export.ts',
         'src/shared/settings-secrets.ts',
         'src/shared/update-notice.ts',

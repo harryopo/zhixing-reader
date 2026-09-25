@@ -298,7 +298,7 @@ export default function Review() {
             </div>
           </div>
 
-          {/* 卡片正面：划线原文 */}
+          {/* 卡片正面：问的东西（划线问原文，卡片问标题，方法论问"什么时候用"） */}
           <blockquote
             style={{
               margin: 0,
@@ -309,12 +309,16 @@ export default function Review() {
               fontSize: '1.02rem',
               lineHeight: 1.8,
               color: 'var(--foreground)',
+              whiteSpace: 'pre-wrap',
             }}
           >
-            {currentCard.highlightContent}
+            <Badge variant="ok" style={{ display: 'inline-block', marginBottom: 'calc(var(--spacing) * 2)' }}>
+              {currentCard.label}
+            </Badge>
+            <div>{currentCard.front}</div>
           </blockquote>
 
-          {/* 卡片背面：出处 + 笔记 */}
+          {/* 卡片背面：答案 + 出处 */}
           {showAnswer ? (
             <div
               style={{
@@ -327,14 +331,19 @@ export default function Review() {
                 gap: 'calc(var(--spacing) * 2)',
               }}
             >
-              <div style={{ fontSize: '0.88rem', color: 'var(--muted-foreground)' }}>
-                出处：<strong style={{ color: 'var(--foreground)' }}>{currentCard.bookTitle || '未知书籍'}</strong>
-                {currentCard.chapterTitle && <span> · {currentCard.chapterTitle}</span>}
-              </div>
-              {currentCard.highlightNote && (
-                <div style={{ fontSize: '0.9rem', lineHeight: 1.7 }}>
-                  <span style={{ color: 'var(--muted-foreground)' }}>我的笔记：</span>
-                  {currentCard.highlightNote}
+              {currentCard.back && (
+                <div style={{ fontSize: '0.98rem', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                  {currentCard.back}
+                </div>
+              )}
+              {currentCard.detail && (
+                <div style={{ fontSize: '0.9rem', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                  {currentCard.detail}
+                </div>
+              )}
+              {currentCard.sourceLine && (
+                <div style={{ fontSize: '0.88rem', color: 'var(--muted-foreground)' }}>
+                  出处：<strong style={{ color: 'var(--foreground)' }}>{currentCard.sourceLine}</strong>
                 </div>
               )}
               {/* 主文案：一句人话。数字收进下面的「为什么这么说」里 */}
