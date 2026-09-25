@@ -1,4 +1,5 @@
-import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind } from '../shared/types'
+import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind } from '../shared/types'
+import type { ChatMessageRow, ConversationRow } from '../renderer/src/utils/db-mapper'
 import type { DueReviewCardView, ReviewSourceKind } from '../shared/review-sources'
 import type { BookCoverageView, CoveragePlan } from '../shared/ai-coverage'
 
@@ -251,11 +252,12 @@ export interface ElectronAPI {
     onRetrievalStatus?: (callback: (status: RetrievalStatusView) => void) => (() => void)
   }
   conversation: {
-    getAll: () => Promise<Conversation[]>
-    create: (title?: string, bookId?: string) => Promise<Conversation>
-    getById: (id: string) => Promise<Conversation | null>
+    /** 交出去的是**库里的原始行**（`SELECT *`，下划线列名）；界面统一过 mapConversations / mapChatMessages */
+    getAll: () => Promise<ConversationRow[]>
+    create: (title?: string, bookId?: string) => Promise<ConversationRow>
+    getById: (id: string) => Promise<ConversationRow | null>
     update: (id: string, data: Record<string, unknown>) => Promise<void>
-    getMessages: (id: string) => Promise<ChatMessage[]>
+    getMessages: (id: string) => Promise<ChatMessageRow[]>
     addMessage: (
       conversationId: string,
       message: {
@@ -268,7 +270,7 @@ export interface ElectronAPI {
     ) => Promise<string>
     deleteMessage: (messageId: string) => Promise<void>
     delete: (id: string) => Promise<void>
-    search: (keyword: string) => Promise<Conversation[]>
+    search: (keyword: string) => Promise<ConversationRow[]>
     /** 跨会话的收藏列表（最新在前）；行形状见 BookmarkedMessageRow 的注释 */
     getBookmarked: (limit?: number) => Promise<BookmarkedMessageRow[]>
   }

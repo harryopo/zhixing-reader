@@ -25,9 +25,10 @@ import {
   inRange,
   type ActivityDay,
 } from '../src/shared/profile-stats'
+import type { DailyStatsRow } from '../src/shared/types'
 
 /** 数据库真实形状：sql.js rowsToObjects 出来的就是 snake_case */
-function dbRow(over: Record<string, unknown> = {}): Record<string, unknown> {
+function dbRow(over: Partial<DailyStatsRow> = {}): DailyStatsRow {
   return {
     id: 'daily_2026-09-10',
     date: '2026-09-10',
@@ -35,6 +36,7 @@ function dbRow(over: Record<string, unknown> = {}): Record<string, unknown> {
     highlights_added: 0,
     cards_reviewed: 0,
     reading_time: 0,
+    created_at: '2026-09-10 08:00:00',
     ...over,
   }
 }
@@ -64,32 +66,31 @@ describe('normalizeDailyStatRow — 必须读得到数据库的真实列名', ()
     })
   })
 
-  it('camelCase 形状也接得住（历史数据/单测构造）', () => {
-    const n = normalizeDailyStatRow({
-      date: '2026-09-11',
-      readingTime: 18,
-      highlightsCount: 2,
-      reviewsCount: 1,
-      booksRead: 1,
-    })
-    // 合法行不该被判成 null —— 先把它钉死，下面的字段比较才有对象可比
+  it('驼峰拼法不再"两种都认"：读不到的列就是 0，不猜', () => {
+    // 曾经这里写着 `raw.reading_time ?? raw.readingTime ?? raw.readingTimeSeconds`，
+    // 后两种拼法没有任何生产方（getToday/getRange 都是 SELECT *），
+    // 留着只会让人以为线上传过驼峰。真实形状由上一条用例钉住。
+    const n = normalizeDailyStatRow(dbRow({ date: '2026-09-11', reading_time: 0 }))
     if (n === null) throw new Error('合法行被 normalizeDailyStatRow 判成了 null')
-    expect(n.readingTime).toBe(18)
-    expect(n.highlightsAdded).toBe(2)
-    expect(n.cardsReviewed).toBe(1)
-    expect(n.booksRead).toBe(1)
+    expect(n).toEqual({ date: '2026-09-11', readingTime: 0, highlightsAdded: 0, cardsReviewed: 0, booksRead: 0 })
   })
 
   it('缺列/脏值一律归 0，日期非法就返回 null（不产出 NaN 传染界面）', () => {
-    // 这两行的前提是"日期合法 ⇒ 不返回 null"，所以先把 null 断掉再比字段
-    const nullTime = normalizeDailyStatRow({ date: '2026-09-12', reading_time: null })
-    const dirtyTime = normalizeDailyStatRow(dbRow({ reading_time: 'abc' }))
+    // 这两行的前提是"日期合法 ⇒ 不返回 null"，所以先把 null 断掉再比字段。
+    // SQLite 的列类型是建议性的（INTEGER 列里可以躺进 TEXT 或 NULL），
+    // 所以脏值这两处绕一下类型 —— 类型管的是"通道给什么形状"，管不了"库里躺着什么"。
+    const nullTime = normalizeDailyStatRow(
+      dbRow({ date: '2026-09-12', reading_time: null as unknown as number }),
+    )
+    const dirtyTime = normalizeDailyStatRow(
+      dbRow({ reading_time: 'abc' as unknown as number }),
+    )
     expect(nullTime).not.toBeNull()
     expect(dirtyTime).not.toBeNull()
     expect(nullTime!.readingTime).toBe(0)
     expect(dirtyTime!.readingTime).toBe(0)
-    expect(normalizeDailyStatRow({ reading_time: 60 })).toBeNull()
-    expect(normalizeDailyStatRow({ date: 'not-a-date', reading_time: 60 })).toBeNull()
+    expect(normalizeDailyStatRow(dbRow({ date: '' }))).toBeNull()
+    expect(normalizeDailyStatRow(dbRow({ date: 'not-a-date' }))).toBeNull()
   })
 })
 

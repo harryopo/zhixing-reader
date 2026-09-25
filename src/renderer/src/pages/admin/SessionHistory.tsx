@@ -1,25 +1,15 @@
 import { useState, useEffect } from 'react'
-
-interface Session {
-  id: string
-  title: string
-  created_at: string
-  updated_at: string
-  message_count: number
-  book_title?: string
-}
-
-interface Message {
-  id: string
-  role: string
-  content: string
-  created_at: string
-}
+import {
+  mapChatMessages,
+  mapConversations,
+  type ChatMessageView,
+  type ConversationView,
+} from '../../utils/db-mapper'
 
 export default function SessionHistory() {
-  const [sessions, setSessions] = useState<Session[]>([])
+  const [sessions, setSessions] = useState<ConversationView[]>([])
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<ChatMessageView[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [messagesLoading, setMessagesLoading] = useState(false)
@@ -31,7 +21,7 @@ export default function SessionHistory() {
   const loadSessions = async () => {
     try {
       const result = await window.electronAPI.admin.getSessions()
-      setSessions(Array.isArray(result) ? (result as unknown as Session[]) : [])
+      setSessions(mapConversations(result))
     } catch (err) {
       console.error('加载会话失败:', err)
     } finally {
@@ -50,7 +40,7 @@ export default function SessionHistory() {
       const result = await window.electronAPI.admin.getSessionMessages(
         sessionId
       )
-      setMessages(Array.isArray(result) ? (result as unknown as Message[]) : [])
+      setMessages(mapChatMessages(result))
     } catch (err) {
       console.error('加载消息失败:', err)
     } finally {
@@ -109,9 +99,9 @@ export default function SessionHistory() {
                   {session.title}
                 </p>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  {session.book_title ? `${session.book_title} · ` : ''}
-                  {session.message_count} 条消息 ·{' '}
-                  {new Date(session.created_at).toLocaleString('zh-CN')}
+                  {session.bookTitle ? `${session.bookTitle} · ` : ''}
+                  {session.messageCount} 条消息 ·{' '}
+                  {new Date(session.createdAt).toLocaleString('zh-CN')}
                 </p>
               </div>
               <svg
@@ -159,7 +149,7 @@ export default function SessionHistory() {
                                 : 'text-gray-300'
                             }`}
                           >
-                            {new Date(msg.created_at).toLocaleTimeString(
+                            {new Date(msg.createdAt).toLocaleTimeString(
                               'zh-CN'
                             )}
                           </p>

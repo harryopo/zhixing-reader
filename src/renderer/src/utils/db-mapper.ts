@@ -1,3 +1,5 @@
+import type { RagSourceRef } from '../../../shared/types'
+
 export function safeNum(val: unknown, fallback = 0): number {
   if (val === null || val === undefined || val === '') return fallback
   const n = Number(val)
@@ -429,4 +431,127 @@ export function mapArticle(row: Record<string, unknown>): ArticleRow {
 export function mapArticles(rows: unknown[]): ArticleRow[] {
   if (!Array.isArray(rows)) return []
   return rows.map(r => mapArticle(r as Record<string, unknown>))
+}
+
+/**
+ * conversations 表的原始行（`conversationDb.getAll()` 等都是 `SELECT *`）。
+ *
+ * 这里曾同时存在三份"同一个会话行"的声明：`shared/types.ts` 的 `Conversation` 写驼峰
+ * （运行时根本没有那些键，纯撒谎）、chatStore 的 `Session` 写驼峰 + 两种拼法都认、
+ * 后台页的 `Session` 写下划线（唯一对的那份）。收成一份。
+ */
+export interface ConversationRow {
+  id: string
+  title: string
+  book_id: string | null
+  created_at: string
+  updated_at: string
+  message_count: number
+  history_summary: string | null
+  /** 后台的会话列表多带一个 JOIN 出来的书名；常规通道没有这一列 */
+  book_title?: string
+}
+
+export interface ChatMessageRow {
+  id: string
+  conversation_id: string
+  /** schema 上有 CHECK(role IN ('user','assistant','system'))，所以收窄是安全的 */
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  intent: string | null
+  /** JSON 文本列：数组/对象在库里就是字符串 */
+  tools_used: string | null
+  bloom_level: number | null
+  mastery_assessment: string | null
+  sources: string | null
+  liked: number
+  bookmarked: number
+  created_at: string
+}
+
+/** 会话行给界面用的形状：驼峰 + `bookId` 空串表示「未关联书」 */
+export interface ConversationView {
+  id: string
+  title: string
+  bookId: string
+  createdAt: string
+  updatedAt: string
+  messageCount: number
+  /** 后台的会话列表多带一个 JOIN 出来的书名；常规通道就是空串 */
+  bookTitle: string
+}
+
+/** 一条 AI / 用户消息（JSON 文本列已解析成结构） */
+export interface MasteryAssessment {
+  concept: string
+  level: number
+  confidence: number
+}
+
+export interface ChatMessageView {
+  id: string
+  conversationId: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  intent: string
+  toolsUsed: string[]
+  bloomLevel: number
+  masteryAssessment: MasteryAssessment | null
+  sources: RagSourceRef[]
+  liked: boolean
+  bookmarked: boolean
+  createdAt: string
+}
+
+export function mapConversation(row: ConversationRow): ConversationView {
+  return {
+    id: safeStr(row.id),
+    title: safeStr(row.title, '新对话'),
+    // 空串 = 没有关联书籍。原来 chatStore 用 undefined 表示同一件事，
+    // 于是每个消费点都要写 `bookId != null && bookId !== ''` —— 一种意思两种判法。
+    bookId: safeStr(row.book_id),
+    createdAt: safeStr(row.created_at),
+    updatedAt: safeStr(row.updated_at),
+    messageCount: safeNum(row.message_count),
+    bookTitle: safeStr(row.book_title),
+  }
+}
+
+export function mapConversations(rows: unknown[]): ConversationView[] {
+  if (!Array.isArray(rows)) return []
+  return rows.map(r => mapConversation(r as ConversationRow))
+}
+
+/** 容错解析 DB 中的 JSON 对象列：损坏或不是对象时回退 null（不猜、不炸整条会话） */
+export function safeJsonObject<T>(val: unknown): T | null {
+  if (typeof val !== 'string' || !val) return null
+  try {
+    const parsed: unknown = JSON.parse(val)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    return parsed as T
+  } catch {
+    return null
+  }
+}
+
+export function mapChatMessage(row: ChatMessageRow): ChatMessageView {
+  return {
+    id: safeStr(row.id),
+    conversationId: safeStr(row.conversation_id),
+    role: row.role === 'user' || row.role === 'system' ? row.role : 'assistant',
+    content: safeStr(row.content),
+    intent: safeStr(row.intent),
+    toolsUsed: safeStrArray(row.tools_used),
+    bloomLevel: safeNum(row.bloom_level),
+    masteryAssessment: safeJsonObject<MasteryAssessment>(row.mastery_assessment),
+    sources: safeJsonArray(row.sources) as RagSourceRef[],
+    liked: safeBool(row.liked),
+    bookmarked: safeBool(row.bookmarked),
+    createdAt: safeStr(row.created_at),
+  }
+}
+
+export function mapChatMessages(rows: unknown[]): ChatMessageView[] {
+  if (!Array.isArray(rows)) return []
+  return rows.map(r => mapChatMessage(r as ChatMessageRow))
 }

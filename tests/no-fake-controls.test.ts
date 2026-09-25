@@ -99,3 +99,48 @@ describe('统计口径与无写入方的列不许再被当成事实展示', () =
     expect(read(STATS_CHARTS)).toContain('recentDayKeys')
   })
 })
+
+describe('「两种写法都认」的死兜底不许回来（2026-09-25）', () => {
+  // 这些 `snake ?? camel` 里的驼峰那一支从来没有生产方：daily_stats / reviews 都是
+  // `SELECT *`，列名就是下划线。留着它们的实际作用是让人以为线上真传过驼峰，
+  // 于是新代码继续按驼峰写读法 —— 那一天就真的一致不上了。
+  const PROFILE_STATS = 'src/shared/profile-stats.ts'
+  const SCAN = [PROFILE_STATS, STATS_PAGE, DAILY_LEARNING, STATS_CHARTS]
+
+  // 只禁"确实没有任何生产方"的拼法。驼峰本身可以是合法字段名
+  // （ActivityDay.readingTime 就是我们自己算出来的），所以不能一刀切禁 `.readingTime`
+  const DEAD = ['readingTimeSeconds', 'highlightsCount', 'reviewsCount']
+
+  it('四个文件都不许再读那三种不存在的拼法', () => {
+    for (const file of SCAN) {
+      const src = read(file)
+      for (const dead of DEAD) {
+        expect(src, `${file} 又出现了 ${dead}`).not.toContain(dead)
+      }
+    }
+  })
+
+  it('行归一化函数不再"一行读三种拼法"（参数已经是真实行类型）', () => {
+    expect(read(PROFILE_STATS)).not.toMatch(/raw\.\w+ \?\? raw\./)
+  })
+
+  it('shared/types 里那两份与运行时不符的会话行类型不许回来', () => {
+    expect(read('src/shared/types.ts')).not.toMatch(/export interface (Conversation|ChatMessage) \{/)
+    expect(read('src/types/renderer.d.ts')).toContain('ConversationRow')
+  })
+
+  it('反证：判据认得这些写法（把收口前的原文喂进去必须命中）', () => {
+    const before = [
+      'readingTime: num(raw.reading_time ?? raw.readingTime ?? raw.readingTimeSeconds),',
+      'cardsReviewed: Number(row.cards_reviewed ?? row.reviewsCount) || 0,',
+      'export function summarizeReviews(rows: Record<string, unknown>[]): ReviewSummary {',
+      'export interface Conversation {',
+    ]
+    expect(before[0]).toContain('readingTimeSeconds')
+    expect(before[0]).toMatch(/raw\.\w+ \?\? raw\./)
+    expect(before[1]).toContain('reviewsCount')
+    // 收口前 summarizeReviews 的入参是"什么行都接"，所以扫描认得它
+    expect(/rows: Record<string, unknown>\[\]/.test(before[2])).toBe(true)
+    expect(before[3]).toMatch(/export interface (Conversation|ChatMessage) \{/)
+  })
+})

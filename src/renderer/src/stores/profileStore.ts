@@ -163,11 +163,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       // 本项目没有独立的"已掌握"字段，state=2（review 态）即已学过并进入排期
       const masteredCards = cards.review
 
-      const reviewSummary = summarizeReviews(
-        (reviews ?? []) as unknown as Record<string, unknown>[]
-      )
+      const reviewSummary = summarizeReviews(reviews ?? [])
       const dailyRows = (range ?? [])
-        .map((r) => normalizeDailyStatRow(r as unknown as Record<string, unknown>))
+        .map((r) => normalizeDailyStatRow(r))
         .filter((r): r is ActivityDay => r !== null)
       const { current, longest } = computeStreaks(dailyRows, localDateStr(now))
       const stamps = [...books, ...highlights]

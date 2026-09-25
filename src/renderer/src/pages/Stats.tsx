@@ -246,7 +246,7 @@ export default function Stats() {
           const r = row as unknown as Record<string, unknown>
           const date = String(r.date ?? '')
           if (!date) continue
-          map[date] = Number(r.cards_reviewed ?? r.reviewsCount ?? 0)
+          map[date] = Number(r.cards_reviewed) || 0
         }
         setHeatmapDaily(map)
       })

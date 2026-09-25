@@ -25,6 +25,10 @@ import {
   mapMethodology,
   mapArticle,
   mapVocabulary,
+  mapChatMessage,
+  mapConversation,
+  type ChatMessageRow,
+  type ConversationRow,
   type BookRow,
   type HighlightRow,
   type CardRow,
@@ -100,6 +104,10 @@ const kindOf = (tsType: string): string => {
   if (tsType.endsWith('[]')) return 'array'
   if (tsType === 'number') return 'number'
   if (tsType === 'boolean') return 'boolean'
+  // 具名类型（`MasteryAssessment | null`、`HighlightType`…）名字上分不出是对象还是
+  // 字符串联合，一律要求调用方登记，不靠猜
+  if (/\w+\s*\|\s*null$/.test(tsType)) return 'object-or-null'
+  if (/^[A-Z]/.test(tsType)) return 'named'
   return 'string'
 }
 
@@ -132,6 +140,10 @@ const CASES: Array<{
   table: string
   aliases: string[]
   derived?: string[]
+  /** 合法值就是 null 的字段（JSON 文本列认不出来时） */
+  nullableOk?: string[]
+  /** 具名类型但其实是字符串联合（如 `HighlightType`）—— 名字看不出是对象还是字符串，逐条登记 */
+  stringUnions?: string[]
   /** 返回 object：新收的两张表（vocabulary / articles）故意不带索引签名，字段读错就编译不过 */
   mapper: (row: Record<string, unknown>) => object
   fn: string
@@ -150,6 +162,7 @@ const CASES: Array<{
     aliases: [],
     // type 是推导列（库里没有类型列，见 mapHighlight 的注释），下面单独有用例钉它的推导
     derived: ['type'],
+    stringUnions: ['type'],
     mapper: mapHighlight as (row: Record<string, unknown>) => HighlightRow,
     fn: 'mapHighlight',
   },
@@ -164,6 +177,7 @@ const CASES: Array<{
     label: 'KnowledgeCardRow',
     table: 'knowledge_cards',
     aliases: [],
+    stringUnions: ['type'],
     mapper: mapKnowledgeCard as (row: Record<string, unknown>) => KnowledgeCardRow,
     fn: 'mapKnowledgeCard',
   },
@@ -190,6 +204,25 @@ const CASES: Array<{
     mapper: mapArticle,
     fn: 'mapArticle',
   },
+  {
+    // 2026-09-25：conversations 行此前有三份声明（shared/types 的驼峰那份与运行时完全不符）
+    label: 'ConversationView',
+    table: 'conversations',
+    // 后台的会话列表多带一个 JOIN 出来的书名，PRAGMA 里没有这一列
+    aliases: ['book_title'],
+    // 测试自己按 PRAGMA 列名造行（比行类型多几列、少几列都可能），交给映射器前过一次类型
+    mapper: (row) => mapConversation(row as unknown as ConversationRow),
+    fn: 'mapConversation',
+  },
+  {
+    label: 'ChatMessageView',
+    table: 'chat_messages',
+    aliases: [],
+    // JSON 文本列认不出来时就是 null，不该被当成"缺字段"
+    nullableOk: ['masteryAssessment'],
+    mapper: (row) => mapChatMessage(row as unknown as ChatMessageRow),
+    fn: 'mapChatMessage',
+  },
 ]
 
 describe('行类型 ↔ 数据库列 双向对账', () => {
@@ -213,11 +246,16 @@ describe('行类型 ↔ 数据库列 双向对账', () => {
 
       for (const { field, tsType } of declared) {
         expect(mapped[field], `${c.label}.${field} 映射器没有写出`).not.toBeUndefined()
-        expect(mapped[field], `${c.label}.${field} 应为 ${tsType}`).not.toBeNull()
         const kind = kindOf(tsType)
         if (kind === 'array') {
           expect(Array.isArray(mapped[field]), `${c.label}.${field} 应为数组`).toBe(true)
+        } else if (kind === 'named') {
+          expect(c.stringUnions ?? [], `${c.label}.${field} 是具名类型却没登记（是字符串联合还是对象？）`).toContain(field)
+          expect(typeof mapped[field], `${c.label}.${field} 应为字符串`).toBe('string')
+        } else if (kind === 'object-or-null') {
+          expect(c.nullableOk ?? [], `${c.label}.${field} 是「对象 | null」却没登记`).toContain(field)
         } else {
+          expect(mapped[field], `${c.label}.${field} 应为 ${tsType}`).not.toBeNull()
           expect(typeof mapped[field], `${c.label}.${field} 应为 ${kind}`).toBe(kind)
         }
       }

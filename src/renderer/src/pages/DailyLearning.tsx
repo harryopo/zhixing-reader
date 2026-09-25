@@ -52,6 +52,7 @@ import {
   type ArticleRow,
   type VocabularyRow,
 } from '../utils/db-mapper'
+import { mapConversations } from '../utils/db-mapper'
 import { VocabPanel } from './daily-learning/VocabPanel'
 import { ArticleListPanel } from './daily-learning/ArticleListPanel'
 /**
@@ -181,28 +182,18 @@ export default function DailyLearning() {
       console.error('加载卡片队列失败:', error)
     }
     try {
-      const s = await window.electronAPI?.stats?.getToday?.()
-      // 注意：renderer.d.ts 把 DailyStats 声明成驼峰（readingTime/reviewsCount），
-      // 但 dailyStatsDb.getToday() 是 SELECT * —— 运行时拿到的是**下划线**列名。
-      // 全项目都是两种写法都认（见 Stats.tsx / Profile.tsx），这里保持一致。
-      const row = (s ?? {}) as unknown as Record<string, unknown>
+      const row = await window.electronAPI?.stats?.getToday?.()
       setTodayStats({
-        cardsReviewed: Number(row.cards_reviewed ?? row.reviewsCount) || 0,
-        readingSeconds: Number(row.reading_time ?? row.readingTime) || 0,
+        cardsReviewed: Number(row?.cards_reviewed) || 0,
+        readingSeconds: Number(row?.reading_time) || 0,
       })
     } catch (error) {
       console.error('加载今日统计失败:', error)
     }
     try {
       const convs = await window.electronAPI?.conversation?.getAll?.()
-      const list = Array.isArray(convs) ? convs : []
-      setChattedToday(
-        list.some((c) => {
-          const row = c as unknown as Record<string, unknown>
-          const stamp = String(row.updated_at ?? row.updatedAt ?? '')
-          return stamp.slice(0, 10) === todayStr
-        }),
-      )
+      // 会话行统一过映射器；updated_at 只有库里那一种拼法，不存在"两种都认"
+      setChattedToday(mapConversations(convs ?? []).some((c) => c.updatedAt.slice(0, 10) === todayStr))
     } catch (error) {
       console.error('加载对话记录失败:', error)
     }

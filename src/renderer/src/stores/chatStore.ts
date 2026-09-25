@@ -1,5 +1,12 @@
 import { create } from 'zustand'
 import type { RagSourceRef, BookmarkedMessageRow } from '../../../shared/types'
+import {
+  mapChatMessage,
+  mapConversation,
+  mapConversations,
+  type ChatMessageRow,
+  type ConversationView,
+} from '../utils/db-mapper'
 
 interface ReasoningBlock {
   /** 思考内容（明文） */
@@ -31,69 +38,21 @@ interface Message {
   createdAt?: string
 }
 
-interface RawMessage {
-  id?: string
-  role: string
-  content: string
-  intent?: string
-  tools_used?: string | string[]
-  bloom_level?: number
-  mastery_assessment?: string | Record<string, unknown>
-  sources?: string | RagSourceRef[]
-  /** DB 存 INTEGER 0/1 */
-  liked?: number | boolean
-  /** DB 存 INTEGER 0/1 */
-  bookmarked?: number | boolean
-  created_at?: string
-}
-
-/** 容错解析 DB 中的 JSON 文本字段：损坏时回退默认值，不炸整条会话 */
-function safeParse<T>(value: string | undefined | null, fallback: T): T {
-  if (!value) return fallback
-  try {
-    return JSON.parse(value) as T
-  } catch {
-    return fallback
-  }
-}
-
-function mapMessage(raw: RawMessage): Message {
+function mapMessage(raw: ChatMessageRow): Message {
+  // 列的读法与 JSON 文本列的解析都在 utils/db-mapper 的 mapChatMessage 一份里
+  const m = mapChatMessage(raw)
   return {
-    id: raw.id,
-    role: raw.role as Message['role'],
-    content: raw.content,
-    intent: raw.intent,
-    toolsUsed: typeof raw.tools_used === 'string' ? safeParse(raw.tools_used, []) : raw.tools_used,
-    bloomLevel: raw.bloom_level,
-    masteryAssessment: typeof raw.mastery_assessment === 'string'
-      ? safeParse<Message['masteryAssessment']>(raw.mastery_assessment, undefined)
-      : raw.mastery_assessment as Message['masteryAssessment'],
-    sources: typeof raw.sources === 'string' ? safeParse(raw.sources, []) : raw.sources,
-    liked: raw.liked != null ? Boolean(raw.liked) : false,
-    bookmarked: raw.bookmarked != null ? Boolean(raw.bookmarked) : false,
-    createdAt: raw.created_at,
-  }
-}
-
-interface Session {
-  id: string
-  title: string
-  bookId?: string
-  createdAt: string
-  updatedAt: string
-  messageCount: number
-}
-
-/** DB/IPC returns snake_case; UI Session is camelCase */
-function mapSession(raw: Record<string, unknown>): Session {
-  const bookId = raw.book_id ?? raw.bookId
-  return {
-    id: String(raw.id ?? ''),
-    title: String(raw.title ?? '新对话'),
-    bookId: bookId != null && bookId !== '' ? String(bookId) : undefined,
-    createdAt: String(raw.created_at ?? raw.createdAt ?? ''),
-    updatedAt: String(raw.updated_at ?? raw.updatedAt ?? ''),
-    messageCount: Number(raw.message_count ?? raw.messageCount ?? 0),
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    intent: m.intent || undefined,
+    toolsUsed: m.toolsUsed,
+    bloomLevel: m.bloomLevel,
+    masteryAssessment: m.masteryAssessment ?? undefined,
+    sources: m.sources,
+    liked: m.liked,
+    bookmarked: m.bookmarked,
+    createdAt: m.createdAt,
   }
 }
 
@@ -114,7 +73,7 @@ export interface RetrievalSource {
 export type RetrievalState = { stage: 'start' } | { stage: 'done'; sources: RetrievalSource[] }
 
 interface ChatState {
-  sessions: Session[]
+  sessions: ConversationView[]
   currentSessionId: string | null
   messages: Message[]
   loading: boolean
@@ -385,8 +344,8 @@ export const useChatStore = create<ChatState>((set, get) => {
     loadSessions: async () => {
       try {
         if (!window.electronAPI?.conversation) return
-        const raw = await window.electronAPI.conversation.getAll() as unknown as Record<string, unknown>[]
-        set({ sessions: (raw || []).map(mapSession) })
+        const raw = await window.electronAPI.conversation.getAll()
+        set({ sessions: mapConversations(raw) })
       } catch (error) {
         console.error('加载会话列表失败:', error)
       }
@@ -394,8 +353,8 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     createSession: async (bookId?: string) => {
       try {
-        const raw = await window.electronAPI.conversation.create(undefined, bookId) as unknown as Record<string, unknown>
-        const session = mapSession(raw)
+        const raw = await window.electronAPI.conversation.create(undefined, bookId) 
+        const session = mapConversation(raw)
         set(state => ({
           sessions: [session, ...state.sessions],
           currentSessionId: session.id,
@@ -408,7 +367,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     switchSession: async (id: string) => {
       try {
-        const rawMessages = await window.electronAPI.conversation.getMessages(id) as RawMessage[]
+        const rawMessages = await window.electronAPI.conversation.getMessages(id)
         const session = get().sessions.find(s => s.id === id)
         set({
           currentSessionId: id,
@@ -454,8 +413,8 @@ export const useChatStore = create<ChatState>((set, get) => {
 
       if (!sessionId) {
         try {
-          const raw = await window.electronAPI.conversation.create(undefined, currentBookId || undefined) as unknown as Record<string, unknown>
-          const session = mapSession(raw)
+          const raw = await window.electronAPI.conversation.create(undefined, currentBookId || undefined) 
+          const session = mapConversation(raw)
           sessionId = session.id
           set(state => ({
             sessions: [session, ...state.sessions],

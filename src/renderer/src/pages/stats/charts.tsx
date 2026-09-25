@@ -195,7 +195,7 @@ export function WeeklyTrendMini({
     const rows = (data || []).map((row) => {
       const r = (row ?? {}) as Record<string, unknown>
       const date = safeStr(r.date)
-      const seconds = safeNum(r.reading_time ?? r.readingTime)
+      const seconds = safeNum(r.reading_time)
       return { date, seconds, minutes: Math.round(seconds / 60) }
     })
     return rows

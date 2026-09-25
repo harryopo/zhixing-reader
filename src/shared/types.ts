@@ -105,7 +105,8 @@ export interface PendingSummaryEntry {
 /**
  * daily_stats 表的一行原样。
  * sql.js 的 `SELECT *` 交出来就是列名（下划线），界面别直接读 ——
- * 先过 `profile-stats.normalizeDailyStatRow`，它同时兼容历史 camelCase 写法。
+ * 先过 `profile-stats.normalizeDailyStatRow`。驼峰那一类拼法不存在生产方，
+ * 不要再往归一化函数里加"两种都认"的兜底。
  */
 export interface DailyStatsRow {
   id: string
@@ -274,32 +275,6 @@ export interface RecommendationItem {
   category: string
   rating?: number
   reason: string
-}
-
-export interface Conversation {
-  id: string
-  title: string
-  bookId?: string
-  createdAt: string
-  updatedAt: string
-  messageCount: number
-}
-
-export interface ChatMessage {
-  id: string
-  conversationId: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  intent?: string
-  toolsUsed?: string[]
-  bloomLevel?: number
-  masteryAssessment?: {
-    concept: string
-    level: number
-    confidence: number
-  }
-  sources?: RagSourceRef[]
-  createdAt: string
 }
 
 /**

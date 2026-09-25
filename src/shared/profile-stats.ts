@@ -7,6 +7,8 @@
  * 界面只许消费这里的返回值，不要就地再算一次。
  */
 
+import type { DailyStatsRow, ReviewRow } from './types'
+
 /** daily_stats 一行归一化后的样子（秒 / 条 / 张 / 本） */
 export interface ActivityDay {
   date: string
@@ -22,18 +24,22 @@ function num(value: unknown): number {
 }
 
 /**
- * sql.js 的 rowsToObjects 交出来的是数据库列名（snake_case），
- * 历史数据与单测里也见过 camelCase，两种都接住，别默认只有一种。
+ * daily_stats 的行 → 界面用的形状。
+ *
+ * 参数就是 `DailyStatsRow`（库里的真实列名）。这里曾经一行读三种拼法
+ * （下划线 + 两种驼峰别名），而驼峰那两种**没有任何生产方** ——
+ * getToday/getRange 都是 `SELECT *`，列名不会自己变成驼峰。
+ * 留着它们只会让人以为线上传过驼峰，于是新代码接着按驼峰写。
  */
-export function normalizeDailyStatRow(raw: Record<string, unknown>): ActivityDay | null {
+export function normalizeDailyStatRow(raw: DailyStatsRow): ActivityDay | null {
   const date = typeof raw.date === 'string' ? raw.date.slice(0, 10) : ''
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
   return {
     date,
-    readingTime: num(raw.reading_time ?? raw.readingTime ?? raw.readingTimeSeconds),
-    highlightsAdded: num(raw.highlights_added ?? raw.highlightsAdded ?? raw.highlightsCount),
-    cardsReviewed: num(raw.cards_reviewed ?? raw.cardsReviewed ?? raw.reviewsCount),
-    booksRead: num(raw.books_read ?? raw.booksRead),
+    readingTime: num(raw.reading_time),
+    highlightsAdded: num(raw.highlights_added),
+    cardsReviewed: num(raw.cards_reviewed),
+    booksRead: num(raw.books_read),
   }
 }
 
@@ -186,13 +192,13 @@ export interface ReviewSummary {
   lastAt: string | null
 }
 
-export function summarizeReviews(rows: Record<string, unknown>[]): ReviewSummary {
+/** reviews 表的真实列名就是 card_id / review_time（这张表没有 created_at） */
+export function summarizeReviews(rows: ReviewRow[]): ReviewSummary {
   const cards = new Set<string>()
   let lastAt: string | null = null
   for (const r of rows) {
-    const cardId = r.card_id ?? r.cardId
-    if (typeof cardId === 'string' && cardId) cards.add(cardId)
-    const at = r.review_time ?? r.reviewTime ?? r.created_at
+    if (r.card_id) cards.add(r.card_id)
+    const at = r.review_time
     if (typeof at === 'string' && at > (lastAt ?? '')) lastAt = at
   }
   return { times: rows.length, cardsCovered: cards.size, lastAt }
