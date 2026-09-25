@@ -4,6 +4,7 @@
  */
 import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
+import { assertRealColumns } from './updatable-columns';
 
 export const knowledgeCardsDb = {
   create(card: Record<string, unknown>): void {
@@ -96,7 +97,9 @@ export const knowledgeCardsDb = {
       masteryLevel: 'mastery_level',
     };
     const updatableKeys = Object.keys(card).filter(k => k !== 'id');
-    const setClauses = updatableKeys.map(k => `${fieldMap[k] ?? k} = ?`).join(', ');
+    const columns = assertRealColumns('knowledge_cards', updatableKeys.map(k => fieldMap[k] ?? k));
+    if (columns.length === 0) return;
+    const setClauses = columns.map((c) => `${c} = ?`).join(', ');
     const values = updatableKeys.map(k => {
       const val = card[k];
       if (Array.isArray(val)) return JSON.stringify(val);

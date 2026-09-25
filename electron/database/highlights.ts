@@ -8,6 +8,7 @@ import { rowsToObjects } from '../utils/db';
 import { logger } from '../logger';
 import { cardsDb } from './cards';
 import { UNGROUPED_CHAPTER } from '../../src/shared/chapter-summaries';
+import { assertRealColumns } from './updatable-columns';
 
 /**
  * 进程内的写计数器：每次增删改都 +1。
@@ -142,7 +143,11 @@ export const highlightsDb = {
 
   update(id: string, highlight: Record<string, unknown>): void {
     writeRevision++;
-    const updatableKeys = Object.keys(highlight).filter(k => k !== 'id');
+    const updatableKeys = assertRealColumns(
+      'highlights',
+      Object.keys(highlight).filter(k => k !== 'id')
+    );
+    if (updatableKeys.length === 0) return;
     const setClauses = updatableKeys.map(k => `${k} = ?`).join(', ');
     const values = updatableKeys.map(k => highlight[k]);
     getDatabase().run(

@@ -4,6 +4,7 @@
  */
 import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
+import { assertRealColumns } from './updatable-columns';
 
 export const methodologiesDb = {
   create(methodology: Record<string, unknown>): void {
@@ -77,7 +78,11 @@ export const methodologiesDb = {
   },
 
   update(id: string, methodology: Record<string, unknown>): void {
-    const updatableKeys = Object.keys(methodology).filter(k => k !== 'id');
+    const updatableKeys = assertRealColumns(
+      'methodologies',
+      Object.keys(methodology).filter(k => k !== 'id')
+    );
+    if (updatableKeys.length === 0) return;
     const setClauses = updatableKeys.map(k => `${k} = ?`).join(', ');
     const values = updatableKeys.map(k => {
       const val = methodology[k];

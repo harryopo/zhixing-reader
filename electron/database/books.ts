@@ -4,6 +4,7 @@
  */
 import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
+import { assertRealColumns } from './updatable-columns';
 
 export const booksDb = {
   getAll(): Record<string, unknown>[] {
@@ -70,7 +71,11 @@ export const booksDb = {
   },
 
   update(id: string, book: Record<string, unknown>): void {
-    const updatableKeys = Object.keys(book).filter(k => k !== 'id');
+    const updatableKeys = assertRealColumns(
+      'books',
+      Object.keys(book).filter((k) => k !== 'id')
+    );
+    if (updatableKeys.length === 0) return;
     const setClauses = updatableKeys.map(k => `${k} = ?`).join(', ');
     const values = updatableKeys.map(k => book[k]);
     getDatabase().run(
