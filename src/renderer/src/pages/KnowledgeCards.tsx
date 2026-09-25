@@ -31,6 +31,7 @@ import { toast } from '../stores/toastStore'
 import { safeStr, mapKnowledgeCards, mapBooks } from '../utils/db-mapper'
 import { deleteWithUndo } from '@/utils/undoable-delete'
 import { useReviewEnrollment } from '@/utils/use-review-enrollment'
+import { coverageNotice } from '../../../shared/ai-coverage'
 import {
   TABS,
   TYPE_FILTERS,
@@ -200,9 +201,13 @@ export default function KnowledgeCards() {
 
     try {
       // replace=true：主进程会先清空这本书的旧卡片（界面上的「重新蒸馏」）
-      await window.electronAPI.knowledgeCard.distill(bookId, safeStr(book.title), existing > 0)
+      const { coverage } = await window.electronAPI.knowledgeCard.distill(bookId, safeStr(book.title), existing > 0)
       toast.remove(loadingId)
-      toast.success(existing > 0 ? `重新蒸馏完成，已替换原有 ${existing} 张卡片` : '知识卡片蒸馏完成')
+      const done = existing > 0 ? `重新蒸馏完成，已替换原有 ${existing} 张卡片` : '知识卡片蒸馏完成'
+      // 一次最多喂 60 条划线（src/shared/ai-coverage.ts 的上限）；被挡在外面的必须说出来，
+      // 否则用户会以为这些卡片代表了整本书
+      const notice = coverageNotice(coverage, '划线')
+      toast.success(notice ? `${done} · ${notice}` : done, notice ? 9000 : undefined)
       // distill 的 Promise 在卡片蒸馏并落库完成后才 resolve，直接清进度 + 刷新即可：
       // 进度浮层已由 finally 的 distillingBookId=null 关闭，800ms 魔法延时只会让列表晚刷新
       setDistillProgress(null)

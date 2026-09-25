@@ -10,6 +10,7 @@ import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { knowledgeCardService } from '../services/knowledge-card-service';
 import { fetchAllContent } from '../weread-api';
 import { resolveWereadContent } from '../../src/shared/weread-content';
+import { planAiCoverage } from '../../src/shared/ai-coverage';
 import { extractMethodologies } from '../ai-service';
 import { generateCardInterpretation, generateCardApplication, generateSkill } from '../ai-sdk-service';
 import type { HandleFn } from './types';
@@ -129,6 +130,7 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
       chapterTitle: h.chapter_title ? String(h.chapter_title) : undefined,
     }));
     const methodologies = await extractMethodologies(mappedHighlights, bookTitle);
+    const coverage = planAiCoverage('methodologies', mappedHighlights.length);
 
     // 「重新提取」= 替换：AI 成功了才删旧数据，避免把用户已有方法论弄没
     if (replace === true) {
@@ -157,7 +159,8 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
       });
       results.push({ id, ...m });
     }
-    return results;
+    // 覆盖数与 extractMethodologies 内部的截断用同一份上限，不另算一套口径
+    return { methodologies: results, coverage };
   });
 
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_ALL, () => knowledgeCardsDb.getAll());

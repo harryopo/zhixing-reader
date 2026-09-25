@@ -1,5 +1,6 @@
 import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind } from '../shared/types'
 import type { DueReviewCardView, ReviewSourceKind } from '../shared/review-sources'
+import type { CoveragePlan } from '../shared/ai-coverage'
 
 export interface TokenSummary {
   totalRequests: number
@@ -297,7 +298,7 @@ export interface ElectronAPI {
     update: (id: string, methodology: Record<string, unknown>) => Promise<unknown>
     search: (keyword: string) => Promise<unknown[]>
     /** replace=true 表示"重新提取"：主进程会先清空这本书的旧方法论（替换而不是追加） */
-    extract: (bookId: string, bookTitle: string, replace?: boolean) => Promise<unknown[]>
+    extract: (bookId: string, bookTitle: string, replace?: boolean) => Promise<{ methodologies: unknown[]; coverage: CoveragePlan }>
   }
   knowledgeCard: {
     getAll: () => Promise<unknown[]>
@@ -309,7 +310,7 @@ export interface ElectronAPI {
     /** 一次性找回历史卡片的来源划线；只按「内容精确相等」匹配，绝不猜测 */
     backfillSource: () => Promise<{ updated: number }>
     /** replace=true 表示"重新蒸馏"：主进程会先清空这本书的旧卡片（替换而不是追加） */
-    distill: (bookId: string, bookTitle: string, replace?: boolean) => Promise<unknown[]>
+    distill: (bookId: string, bookTitle: string, replace?: boolean) => Promise<{ cards: unknown[]; coverage: CoveragePlan }>
     cancelDistill: (bookId: string) => Promise<{ success: boolean }>
     generateInterpretation: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) => Promise<{ text: string }>
     generateApplication: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) => Promise<{ text: string }>

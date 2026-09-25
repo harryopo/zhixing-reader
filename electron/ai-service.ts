@@ -1,4 +1,5 @@
 import { cachedTokensFromProviderUsage } from '../src/shared/usage-tokens'
+import { takeWithinLimit } from '../src/shared/ai-coverage'
 import { logger } from './logger';
 import { tokenUsageDb } from './database';
 import { fetchWithTimeout, fetchWithRetry, RETRY_CONFIGS, HttpAbortError, HttpNetworkError, RetryConfig } from './http-client';
@@ -620,7 +621,7 @@ export async function extractMethodologies(
     throw new Error('No highlights provided for methodology extraction')
   }
 
-  const limitedHighlights = highlights.length > 50 ? highlights.slice(0, 50) : highlights
+  const { selected: limitedHighlights } = takeWithinLimit('methodologies', highlights)
 
   const highlightTexts = limitedHighlights.map((h, i) =>
     `[${i + 1}] ${h.chapterTitle ? `(${h.chapterTitle}) ` : ''}${h.content}${h.note ? `\n笔记: ${h.note}` : ''}`
@@ -676,7 +677,7 @@ export async function extractMethodologies(
         .filter((id): id is string => Boolean(id)),
     }))
 
-    logger.info(`Extracted ${validMethods.length} methodologies from ${highlights.length} highlights`)
+    logger.info(`Extracted ${validMethods.length} methodologies from ${limitedHighlights.length}/${highlights.length} highlights`)
     return validMethods
   } catch (error) {
     logger.error('Failed to extract methodologies', error)
@@ -729,7 +730,6 @@ export interface DistillOptions {
 }
 
 const DEFAULT_DISTILL_BATCH_SIZE = 20
-const DISTILL_MAX_HIGHLIGHTS = 60
 
 function formatAbortErrorMessage(err: unknown): string {
   if (err instanceof HttpAbortError) {
@@ -782,10 +782,8 @@ export async function distillKnowledgeCards(
   }
 
   const { signal, onProgress, batchSize = DEFAULT_DISTILL_BATCH_SIZE } = options
-  const limitedHighlights = highlights.length > DISTILL_MAX_HIGHLIGHTS
-    ? highlights.slice(0, DISTILL_MAX_HIGHLIGHTS)
-    : highlights
-  const truncated = limitedHighlights.length < highlights.length
+  const { selected: limitedHighlights, plan } = takeWithinLimit('knowledgeCards', highlights)
+  const truncated = plan.partial
 
   onProgress?.({ stage: 'fetch', current: 0, total: limitedHighlights.length, message: '准备蒸馏...' })
 
@@ -824,7 +822,7 @@ export async function distillKnowledgeCards(
   }
 
   if (truncated) {
-    logger.warn(`Highlights truncated from ${highlights.length} to ${DISTILL_MAX_HIGHLIGHTS}`)
+    logger.warn(`Highlights truncated from ${highlights.length} to ${plan.covered} (limit ${plan.limit})`)
   }
 
   onProgress?.({ stage: 'save', current: limitedHighlights.length, total: limitedHighlights.length, message: '蒸馏完成' })

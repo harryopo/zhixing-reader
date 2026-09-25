@@ -4,6 +4,7 @@ import { fetchAllContent } from '../weread-api'
 import { distillKnowledgeCards, DistillOptions, DistilledKnowledgeCard } from '../ai-service'
 import { logger } from '../logger'
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels'
+import { CoveragePlan, coverageNotice, planAiCoverage } from '../../src/shared/ai-coverage'
 
 export interface DistillTaskProgress {
   bookId: string
@@ -159,7 +160,7 @@ class KnowledgeCardService {
     bookId: string,
     bookTitle: string,
     options: { force?: boolean; replace?: boolean } = {}
-  ): Promise<Array<{ id: string } & DistilledKnowledgeCard>> {
+  ): Promise<{ cards: Array<{ id: string } & DistilledKnowledgeCard>; coverage: CoveragePlan }> {
     if (this.activeTasks.has(bookId)) {
       throw new Error(`该书正在蒸馏中，请等待完成或先取消`)
     }
@@ -193,6 +194,10 @@ class KnowledgeCardService {
         note: h.note ? String(h.note) : undefined,
         chapterTitle: h.chapter_title ? String(h.chapter_title) : undefined,
       }))
+
+      // 本次真正喂给 AI 了多少条划线 —— 与 distillKnowledgeCards 内部截断用的是同一份
+      // 上限（src/shared/ai-coverage.ts），所以这里算出来的数就是实际发生的数。
+      const coverage = planAiCoverage('knowledgeCards', mappedHighlights.length)
 
       const distillOpts: DistillOptions = {
         signal: controller.signal,
@@ -250,16 +255,17 @@ class KnowledgeCardService {
         results.push({ id, ...c })
       }
 
+      const notice = coverageNotice(coverage, '划线')
       this.emitProgress({
         bookId,
         bookTitle,
         stage: 'done',
         current: results.length,
         total: results.length,
-        message: `蒸馏完成，共生成 ${results.length} 张知识卡片`,
+        message: `蒸馏完成，共生成 ${results.length} 张知识卡片${notice ? ` · ${notice}` : ''}`,
       })
 
-      return results
+      return { cards: results, coverage }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       this.emitProgress({

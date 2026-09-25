@@ -5,6 +5,7 @@
 // mock 依赖（database/weread-api/ai-service/BrowserWindow/logger），验证状态机。
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { AI_INPUT_LIMITS, coverageNotice } from '../src/shared/ai-coverage'
 
 // ===== vi.hoisted mock =====
 const { mockGetByBookId, mockKnowledgeCreate, mockFetchAllContent, mockDistill } = vi.hoisted(() => ({
@@ -152,8 +153,30 @@ describe('knowledge-card-service — distillBook 流程', () => {
     const result = await knowledgeCardService.distillBook('b1', '书名')
     expect(mockFetchAllContent).not.toHaveBeenCalled()
     expect(mockDistill).toHaveBeenCalled()
-    expect(result).toHaveLength(1)
-    expect(result[0].title).toBe('概念A')
+    expect(result.cards).toHaveLength(1)
+    expect(result.cards[0].title).toBe('概念A')
+    expect(result.coverage).toMatchObject({ total: 2, covered: 2, skipped: 0, partial: false })
+  })
+
+  it('划线超过单次上限时，返回的覆盖数如实反映被挡在外面的条数', async () => {
+    const many = Array.from({ length: AI_INPUT_LIMITS.knowledgeCards + 40 }, (_, i) => ({
+      content: `划线${i}`,
+      chapter_title: '第1章',
+    }))
+    mockGetByBookId.mockReturnValue(many)
+    mockDistill.mockResolvedValue([{ type: 'concept', title: '概念A', content: '内容A', tags: [] }])
+
+    const { coverage } = await knowledgeCardService.distillBook('b-over', '长书')
+    expect(coverage).toEqual({
+      task: 'knowledgeCards',
+      total: 100,
+      limit: AI_INPUT_LIMITS.knowledgeCards,
+      covered: AI_INPUT_LIMITS.knowledgeCards,
+      skipped: 100 - AI_INPUT_LIMITS.knowledgeCards,
+      partial: true,
+    })
+    // 界面文案由同一份 plan 派生，不在渲染层重算
+    expect(coverageNotice(coverage, '划线')).toContain('本次只覆盖 60/100 条划线')
   })
 
   it('无笔记时自动从 WeRead 导入再蒸馏', async () => {
@@ -167,7 +190,7 @@ describe('knowledge-card-service — distillBook 流程', () => {
     const result = await knowledgeCardService.distillBook('b-no-notes', '无笔记书')
     expect(mockFetchAllContent).toHaveBeenCalledWith('b-no-notes')
     expect(mockDistill).toHaveBeenCalled()
-    expect(result[0].title).toBe('金句')
+    expect(result.cards[0].title).toBe('金句')
   })
 
   it('force=true 且无笔记时抛「没有笔记」错误', async () => {

@@ -23,6 +23,7 @@ import { toast } from '../stores/toastStore'
 import { safeStr, safeNum, formatDate, mapMethodologies, mapBooks } from '../utils/db-mapper'
 import { deleteWithUndo } from '@/utils/undoable-delete'
 import { useReviewEnrollment } from '@/utils/use-review-enrollment'
+import { coverageNotice } from '../../../shared/ai-coverage'
 import {
   MASTERY_FILTERS,
   VIEW_TOGGLES,
@@ -197,12 +198,13 @@ export default function Methodologies() {
     const toastId = toast.loading(`正在从《${safeStr(book.title)}》提取方法论，请耐心等待...`)
     try {
       // replace=true：主进程会先清空这本书的旧方法论（界面上的「重新提取」）
-      await window.electronAPI.methodology.extract(bookId, safeStr(book.title), existing > 0)
+      const { coverage } = await window.electronAPI.methodology.extract(bookId, safeStr(book.title), existing > 0)
       await loadData()
       toast.remove(toastId)
-      toast.success(
-        existing > 0 ? `重新提取完成，已替换原有 ${existing} 条方法论` : '方法论提取完成，已自动注入智能体',
-      )
+      const done = existing > 0 ? `重新提取完成，已替换原有 ${existing} 条方法论` : '方法论提取完成，已自动注入智能体'
+      // 一次最多喂 50 条划线（src/shared/ai-coverage.ts 的上限），没处理的部分要如实说出
+      const notice = coverageNotice(coverage, '划线')
+      toast.success(notice ? `${done} · ${notice}` : done, notice ? 9000 : undefined)
     } catch (error) {
       toast.remove(toastId)
       const errorMsg = error instanceof Error ? error.message : String(error)
