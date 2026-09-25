@@ -109,11 +109,10 @@ export default function Profile() {
       const api = window.electronAPI
       if (!api) return
 
-      // 1. 生词总数
+      // 1. 生词总数（handler 返回的就是 { total, mastered, dueToday }，类型也是这么声明的）
       try {
         const vocabStats = await api.vocabulary.getStats()
-        const row = vocabStats as unknown as Record<string, unknown>
-        setVocabCount(safeNum(row.total ?? row.totalCount ?? row.count ?? 0))
+        setVocabCount(safeNum(vocabStats.total))
       } catch {
         /* 非致命：保持默认 0 */
       }

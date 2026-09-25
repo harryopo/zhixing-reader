@@ -9,6 +9,15 @@ export function safeStr(val: unknown, fallback = ''): string {
   return String(val)
 }
 
+/**
+ * 库里的布尔列是 INTEGER 0/1（sql.js 读出来就是数字）。
+ * 在边界处掰成真正的 boolean，别让类型说一套、值做一套。
+ */
+export function safeBool(val: unknown): boolean {
+  if (typeof val === 'boolean') return val
+  return Number(val) === 1
+}
+
 /** 容错解析 DB 中的 JSON 数组字段（tags / steps）：损坏或非数组时回退空数组 */
 export function safeJsonArray(val: unknown): unknown[] {
   if (Array.isArray(val)) return val
@@ -303,4 +312,121 @@ export function mapMethodology(row: Record<string, unknown>): MethodologyRow {
 export function mapMethodologies(rows: unknown[]): MethodologyRow[] {
   if (!Array.isArray(rows)) return []
   return rows.map(r => mapMethodology(r as Record<string, unknown>))
+}
+
+/**
+ * 生词与文章的行类型。字段名**保持库里的下划线列名**，与上面那套驼峰不同 ——
+ * 不是偷懒：这两张表的列名已经是界面契约（六个文件在读 meaning_zh / title_en /
+ * is_mastered），改驼峰只为好看要动一整片读取点。
+ *
+ * 这一层真正的价值是**类型不再撒谎**：
+ * `is_mastered` / `is_read` / `is_favorite` 在库里是 INTEGER 0/1，到这里是 boolean。
+ * （踩过：`is_read` 类型写 boolean 而值是数字 0，React 把 0 当文本渲染出来，
+ * 任务标题前凭空多出一个「0」。）
+ */
+export interface VocabularyRow {
+  id: string
+  word: string
+  phonetic: string
+  part_of_speech: string
+  meaning_zh: string
+  example_en: string
+  example_zh: string
+  cefr_level: string
+  /** 遇到这个词的那篇文章（导入生词时写入；没有则空串，不是 undefined） */
+  source_article_id: string
+  source: string
+  is_mastered: boolean
+  review_count: number
+  last_review_at: string
+  next_review_at: string
+  ef_factor: number
+  interval_days: number
+  repetition_count: number
+  familiarity_level: number
+  learning_stage: number
+  /** FSRS-6.0 记忆状态（2026-09-15 起有列；掌握度由它推导） */
+  stability: number
+  difficulty: number
+  lapses: number
+  created_at: string
+}
+
+export interface ArticleRow {
+  id: string
+  title_en: string
+  title_zh: string
+  content_en: string
+  content_zh: string
+  summary_zh: string
+  source: string
+  source_url: string
+  source_website: string
+  category: string
+  difficulty: string
+  is_read: boolean
+  is_favorite: boolean
+  /** 读完这篇实际记了几分钟（来自微信读书/手动标记，不是估算） */
+  read_time: number
+  created_at: string
+  published_at: string
+}
+
+export function mapVocabulary(row: Record<string, unknown>): VocabularyRow {
+  return {
+    id: safeStr(row.id),
+    word: safeStr(row.word),
+    phonetic: safeStr(row.phonetic),
+    part_of_speech: safeStr(row.part_of_speech),
+    meaning_zh: safeStr(row.meaning_zh),
+    example_en: safeStr(row.example_en),
+    example_zh: safeStr(row.example_zh),
+    cefr_level: safeStr(row.cefr_level),
+    source_article_id: safeStr(row.source_article_id),
+    source: safeStr(row.source),
+    is_mastered: safeBool(row.is_mastered),
+    review_count: safeNum(row.review_count),
+    last_review_at: safeStr(row.last_review_at),
+    next_review_at: safeStr(row.next_review_at),
+    ef_factor: safeNum(row.ef_factor, 2.5),
+    interval_days: safeNum(row.interval_days),
+    repetition_count: safeNum(row.repetition_count),
+    familiarity_level: safeNum(row.familiarity_level),
+    learning_stage: safeNum(row.learning_stage),
+    stability: safeNum(row.stability),
+    difficulty: safeNum(row.difficulty),
+    lapses: safeNum(row.lapses),
+    created_at: safeStr(row.created_at),
+  }
+}
+
+export function mapVocabularies(rows: unknown[]): VocabularyRow[] {
+  if (!Array.isArray(rows)) return []
+  return rows.map(r => mapVocabulary(r as Record<string, unknown>))
+}
+
+export function mapArticle(row: Record<string, unknown>): ArticleRow {
+  return {
+    id: safeStr(row.id),
+    title_en: safeStr(row.title_en, '无标题'),
+    title_zh: safeStr(row.title_zh),
+    content_en: safeStr(row.content_en),
+    content_zh: safeStr(row.content_zh),
+    summary_zh: safeStr(row.summary_zh),
+    source: safeStr(row.source),
+    source_url: safeStr(row.source_url),
+    source_website: safeStr(row.source_website),
+    category: safeStr(row.category),
+    difficulty: safeStr(row.difficulty),
+    is_read: safeBool(row.is_read),
+    is_favorite: safeBool(row.is_favorite),
+    read_time: safeNum(row.read_time),
+    created_at: safeStr(row.created_at),
+    published_at: safeStr(row.published_at),
+  }
+}
+
+export function mapArticles(rows: unknown[]): ArticleRow[] {
+  if (!Array.isArray(rows)) return []
+  return rows.map(r => mapArticle(r as Record<string, unknown>))
 }

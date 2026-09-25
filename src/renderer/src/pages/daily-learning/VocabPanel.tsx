@@ -1,16 +1,17 @@
 /** 生词面板（从 DailyLearning.tsx 原样搬出，逻辑未改） */
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
-import { STAGE_LABELS, type Vocabulary } from './constants'
+import { STAGE_LABELS } from './constants'
+import type { VocabularyRow } from '../../utils/db-mapper'
 import { formatRelativeTime } from './format'
 
 interface VocabPanelProps {
-  vocabulary: Vocabulary[]
-  dueWords: Vocabulary[]
+  vocabulary: VocabularyRow[]
+  dueWords: VocabularyRow[]
   vocabTab: 'all' | 'review'
-  reviewingWord: Vocabulary | null
+  reviewingWord: VocabularyRow | null
   setVocabTab: (tab: 'all' | 'review') => void
-  setReviewingWord: (word: Vocabulary | null) => void
+  setReviewingWord: (word: VocabularyRow | null) => void
   onClose: () => void
   /** rating 为 ts-fsrs Rating：1=Again / 2=Hard / 3=Good / 4=Easy */
   onReviewWord: (wordId: string, rating: number) => void

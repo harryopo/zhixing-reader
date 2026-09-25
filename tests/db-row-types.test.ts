@@ -23,11 +23,15 @@ import {
   mapCard,
   mapKnowledgeCard,
   mapMethodology,
+  mapArticle,
+  mapVocabulary,
   type BookRow,
   type HighlightRow,
   type CardRow,
   type KnowledgeCardRow,
   type MethodologyRow,
+  type ArticleRow,
+  type VocabularyRow,
 } from '../src/renderer/src/utils/db-mapper'
 
 const MAPPER_SRC = readFileSync('src/renderer/src/utils/db-mapper.ts', 'utf8')
@@ -72,9 +76,13 @@ const NUM_COLS = new Set([
   'practice_count',
 ])
 
+/** 库里是 INTEGER 0/1、界面上应当是 boolean 的列（踩过：数字 0 被 React 当文本画出来） */
+const BOOL_COLS = new Set(['is_read', 'is_favorite', 'is_mastered'])
+
 /** 给每一列一个「类型对得上」的假值：日期列要能被 safeDate 解析，数字列给数字 */
 function valueFor(col: string): unknown {
   if (col === 'type') return 'concept'
+  if (BOOL_COLS.has(col)) return 1
   if (DATE_COLS.test(col)) return '2026-09-01 08:00:00'
   if (JSON_COLS.has(col)) return '["甲","乙"]'
   if (NUM_COLS.has(col)) return 1
@@ -91,6 +99,7 @@ function columnsOf(table: string): string[] {
 const kindOf = (tsType: string): string => {
   if (tsType.endsWith('[]')) return 'array'
   if (tsType === 'number') return 'number'
+  if (tsType === 'boolean') return 'boolean'
   return 'string'
 }
 
@@ -123,7 +132,8 @@ const CASES: Array<{
   table: string
   aliases: string[]
   derived?: string[]
-  mapper: (row: Record<string, unknown>) => Record<string, unknown>
+  /** 返回 object：新收的两张表（vocabulary / articles）故意不带索引签名，字段读错就编译不过 */
+  mapper: (row: Record<string, unknown>) => object
   fn: string
 }> = [
   {
@@ -164,6 +174,22 @@ const CASES: Array<{
     mapper: mapMethodology as (row: Record<string, unknown>) => MethodologyRow,
     fn: 'mapMethodology',
   },
+  {
+    // 2026-09-25（Issue #3）：这两张表以前**完全没有**映射层，页面各自 `as unknown as`
+    // 硬转自己声明的行类型（生词三份、文章两份），列名对不对没人管
+    label: 'VocabularyRow',
+    table: 'vocabulary',
+    aliases: [],
+    mapper: mapVocabulary,
+    fn: 'mapVocabulary',
+  },
+  {
+    label: 'ArticleRow',
+    table: 'articles',
+    aliases: [],
+    mapper: mapArticle,
+    fn: 'mapArticle',
+  },
 ]
 
 describe('行类型 ↔ 数据库列 双向对账', () => {
@@ -181,7 +207,7 @@ describe('行类型 ↔ 数据库列 双向对账', () => {
       const row: Record<string, unknown> = {}
       for (const col of cols) row[col] = valueFor(col)
 
-      const mapped = c.mapper(row)
+      const mapped = c.mapper(row) as Record<string, unknown>
       const declared = declaredFields(c.label)
       expect(declared.length, `${c.label} 一个字段都没声明`).toBeGreaterThan(0)
 
@@ -242,6 +268,21 @@ describe('行类型 ↔ 数据库列 双向对账', () => {
     const mapped = mapCard({ id: 'c1', highlight_id: 'h1', reps: 3, due: '2026-09-01 08:00:00' })
     expect(mapped.reps).toBe(3)
   })
+
+  it('0/1 列在边界处就是 boolean，不会再出现「渲染出一个 0」那种事', () => {
+    expect(mapArticle({ id: 'a1', is_read: 0, is_favorite: 1 }).is_read).toBe(false)
+    expect(mapArticle({ id: 'a1', is_read: 0, is_favorite: 1 }).is_favorite).toBe(true)
+    expect(mapVocabulary({ id: 'w1', is_mastered: 0 }).is_mastered).toBe(false)
+    expect(mapVocabulary({ id: 'w1', is_mastered: 1 }).is_mastered).toBe(true)
+    // 缺列时给默认值而不是 undefined：页面 `if (a.is_read)` 不会因为字段没定义而静默走偏
+    expect(mapArticle({}).is_read).toBe(false)
+    expect(mapVocabulary({}).meaning_zh).toBe('')
+  })
+
+  it('生词的 ef_factor 缺列时回退 2.5（库里 DEFAULT 2.5，两份口径会算出不同的调度）', () => {
+    expect(mapVocabulary({}).ef_factor).toBe(2.5)
+    expect(mapVocabulary({ ef_factor: 3.1 }).ef_factor).toBe(3.1)
+  })
 })
 
 describe('页面不再自己另立行类型', () => {
@@ -258,17 +299,38 @@ describe('页面不再自己另立行类型', () => {
 
   const RENDERER = join(__dirname, '..', 'src', 'renderer', 'src')
 
-  it('渲染层没有任何一处重新声明 BookRow / HighlightRow / CardRow', () => {
+  it('渲染层没有任何一处重新声明这些行类型', () => {
     const offenders = sources(RENDERER)
       .filter((f) => !f.endsWith('db-mapper.ts'))
-      .filter((f) => /interface (BookRow|HighlightRow|CardRow)\b/.test(readFileSync(f, 'utf8')))
+      .filter((f) =>
+        // Article / Vocabulary 这两份是 2026-09-25（Issue #3）收掉的：
+        // 同一个 vocabulary 行此前有三份声明（页面各写各的，is_mastered 一份写 number 一份写 boolean）
+        /interface (BookRow|HighlightRow|CardRow|KnowledgeCardRow|MethodologyRow|Article|ArticleRow|Vocabulary|VocabularyRow|VocabularyItem)\s*[{<]/.test(
+          readFileSync(f, 'utf8'),
+        ),
+      )
     expect(offenders).toEqual([])
   })
 
-  it('没有任何一处把 IPC 行硬转成页面自己的 BookRow/HighlightRow/CardRow', () => {
+  it('没有任何一处把 IPC 行硬转成页面自己的行类型', () => {
     const offenders = sources(RENDERER).filter((f) =>
-      /as unknown as (BookRow|HighlightRow|CardRow)\[?\]?\b/.test(readFileSync(f, 'utf8'))
+      /as unknown as (BookRow|HighlightRow|CardRow|KnowledgeCardRow|MethodologyRow|Article|ArticleRow|Vocabulary|VocabularyRow|VocabularyItem)\[?\]?\b/.test(
+        readFileSync(f, 'utf8'),
+      ),
     )
     expect(offenders).toEqual([])
+  })
+
+  it('反证：扫描真的看得见这类写法（把收口前的原文喂进去必须命中）', () => {
+    const before = [
+      "export interface VocabularyItem {\n  id: string\n}",
+      'setVocabulary(data as unknown as VocabularyItem[])',
+      'setArticles(raw as unknown as Article[])',
+    ]
+    const decl = /interface (BookRow|HighlightRow|CardRow|KnowledgeCardRow|MethodologyRow|Article|ArticleRow|Vocabulary|VocabularyRow|VocabularyItem)\s*[{<]/
+    const cast = /as unknown as (BookRow|HighlightRow|CardRow|KnowledgeCardRow|MethodologyRow|Article|ArticleRow|Vocabulary|VocabularyRow|VocabularyItem)\[?\]?\b/
+    expect(decl.test(before[0])).toBe(true)
+    expect(cast.test(before[1])).toBe(true)
+    expect(cast.test(before[2])).toBe(true)
   })
 })

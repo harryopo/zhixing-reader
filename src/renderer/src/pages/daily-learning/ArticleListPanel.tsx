@@ -2,11 +2,12 @@
 import { useEffect, useRef } from 'react'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
-import { DIFFICULTY_LABELS, type Article, type DifficultyFilter } from './constants'
+import { DIFFICULTY_LABELS, type DifficultyFilter } from './constants'
+import type { ArticleRow } from '../../utils/db-mapper'
 
 interface ArticleListPanelProps {
   /** 已经过筛选的清单（不是全量） */
-  articles: Article[]
+  articles: ArticleRow[]
   currentArticleId: string
   onSelect: (articleId: string) => void
   onClose: () => void

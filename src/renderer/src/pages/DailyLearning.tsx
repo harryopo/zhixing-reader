@@ -42,13 +42,16 @@ import {
   DIFFICULTY_LABELS,
   STATUS_LABELS,
   TASK_TAG_STYLES,
-  type Article,
   type CardQueue,
   type DifficultyFilter,
   type StatusFilter,
-  type Vocabulary,
 } from './daily-learning/constants'
-import { normalizeArticle } from './daily-learning/format'
+import {
+  mapArticles,
+  mapVocabularies,
+  type ArticleRow,
+  type VocabularyRow,
+} from '../utils/db-mapper'
 import { VocabPanel } from './daily-learning/VocabPanel'
 import { ArticleListPanel } from './daily-learning/ArticleListPanel'
 /**
@@ -64,24 +67,24 @@ export default function DailyLearning() {
   const [searchParams] = useSearchParams()
 
   // ===== 文章与生词状态（全部保留） =====
-  const [articles, setArticles] = useState<Article[]>([])
+  const [articles, setArticles] = useState<ArticleRow[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [visibleTranslations, setVisibleTranslations] = useState<Set<number>>(new Set())
   const [hoveredWord, setHoveredWord] = useState<string | null>(null)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const [tooltipContent, setTooltipContent] = useState<Record<string, unknown> | null>(null)
-  const [vocabulary, setVocabulary] = useState<Vocabulary[]>([])
+  const [vocabulary, setVocabulary] = useState<VocabularyRow[]>([])
   const [showVocabPanel, setShowVocabPanel] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; word: string } | null>(null)
   const [showGuide, setShowGuide] = useState(false)
 
   // 复习相关状态
   const [vocabTab, setVocabTab] = useState<'all' | 'review'>('all')
-  const [reviewingWord, setReviewingWord] = useState<Vocabulary | null>(null)
+  const [reviewingWord, setReviewingWord] = useState<VocabularyRow | null>(null)
   /** 复习评分提交中：防止连点对同一个词提交两次 */
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
-  const [dueWords, setDueWords] = useState<Vocabulary[]>([])
+  const [dueWords, setDueWords] = useState<VocabularyRow[]>([])
 
   // 筛选状态
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all')
@@ -121,10 +124,8 @@ export default function DailyLearning() {
     }
     try {
       setLoading(true)
-      const data = await window.electronAPI.article.getAll(FULL_LIST_LIMIT)
-      const raw = Array.isArray(data) ? data : []
-      // 在边界处把 0/1 掰成真 boolean（见 normalizeArticle 的注释）
-      const articleList = raw.map((a) => normalizeArticle(a as Record<string, unknown>))
+      // 行类型与 0/1 → boolean 都收在 utils/db-mapper 那一份映射器里
+      const articleList = mapArticles(await window.electronAPI.article.getAll(FULL_LIST_LIMIT))
       if (articleList.length > 0) {
         setArticles(articleList)
         // 生词抽屉里的「回到文章」链到 ?article=<id>：直接落在那篇上，
@@ -150,9 +151,7 @@ export default function DailyLearning() {
   const loadVocabulary = useCallback(async () => {
     if (!window.electronAPI?.vocabulary) return
     try {
-      const data = await window.electronAPI.vocabulary.getAll(FULL_LIST_LIMIT)
-      const vocabList = Array.isArray(data) ? data : []
-      setVocabulary(vocabList as unknown as Vocabulary[])
+      setVocabulary(mapVocabularies(await window.electronAPI.vocabulary.getAll(FULL_LIST_LIMIT)))
     } catch (error) {
       console.error('加载生词本失败:', error)
     }
@@ -161,9 +160,7 @@ export default function DailyLearning() {
   const loadDueWords = useCallback(async () => {
     if (!window.electronAPI?.vocabulary) return
     try {
-      const data = await window.electronAPI.vocabulary.getDueForReview()
-      const words = Array.isArray(data) ? data : []
-      setDueWords(words as unknown as Vocabulary[])
+      setDueWords(mapVocabularies(await window.electronAPI.vocabulary.getDueForReview()))
     } catch (error) {
       console.error('加载待复习单词失败:', error)
     }
@@ -247,7 +244,7 @@ export default function DailyLearning() {
   }, [loadArticles])
 
   // 预加载文章单词到缓存（只缓存词典有收录的单词，上限200）
-  const preloadWordCache = useCallback(async (article: Article) => {
+  const preloadWordCache = useCallback(async (article: ArticleRow) => {
     const words = article.content_en.match(/\b[a-zA-Z]{3,}\b/g) || []
     const uniqueWords = [...new Set(words.map(w => w.toLowerCase()))]
     if (uniqueWords.length === 0) return

@@ -18,12 +18,12 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
+import { mapVocabularies, type VocabularyRow } from '../utils/db-mapper'
 
 import {
   getMasteryKind,
   ReviewRating,
   type FilterKey,
-  type VocabularyItem,
 } from './vocabulary/model'
 import { eyebrowStyle } from './vocabulary/styles'
 import {
@@ -38,7 +38,7 @@ import { deleteWithUndo } from '@/utils/undoable-delete'
 // ===== 主组件 =====
 export default function VocabularyPage() {
   // 列表 + 统计
-  const [vocabulary, setVocabulary] = useState<VocabularyItem[]>([])
+  const [vocabulary, setVocabulary] = useState<VocabularyRow[]>([])
   const [stats, setStats] = useState({ total: 0, mastered: 0, dueToday: 0 })
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<FilterKey>('all')
@@ -56,13 +56,13 @@ export default function VocabularyPage() {
   /** 评分提交中：防止连点导致同一个词被评两次、并跳过一个词 */
   const [submitting, setSubmitting] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
-  const [reviewList, setReviewList] = useState<VocabularyItem[]>([])
+  const [reviewList, setReviewList] = useState<VocabularyRow[]>([])
   const [reviewStats, setReviewStats] = useState({ correct: 0, total: 0 })
 
   // 导出 Modal
   const [exportModalOpen, setExportModalOpen] = useState(false)
   /** 导出清单：打开导出时一次性取「全部生词」，与当前筛选无关 */
-  const [exportItems, setExportItems] = useState<VocabularyItem[]>([])
+  const [exportItems, setExportItems] = useState<VocabularyRow[]>([])
   /** 批量导入中：防止连点并行跑两遍 */
   const [importing, setImporting] = useState(false)
   const [exportFormat, setExportFormat] = useState<'csv' | 'anki'>('csv')
@@ -76,19 +76,19 @@ export default function VocabularyPage() {
     }
     try {
       setLoading(true)
-      let result: unknown[] = []
+      let result: VocabularyRow[] = []
       if (activeTab === 'due') {
-        result = await window.electronAPI.vocabulary.getDueForReview(200)
+        result = mapVocabularies(await window.electronAPI.vocabulary.getDueForReview(200))
       } else if (activeTab === 'mastered') {
-        const all = await window.electronAPI.vocabulary.getAll(200)
-        result = (all as unknown as VocabularyItem[]).filter((v) => v.is_mastered === 1)
+        result = mapVocabularies(await window.electronAPI.vocabulary.getAll(200)).filter(
+          (v) => v.is_mastered,
+        )
       } else if (activeTab === 'unmastered') {
-        result = await window.electronAPI.vocabulary.getUnmastered(200)
+        result = mapVocabularies(await window.electronAPI.vocabulary.getUnmastered(200))
       } else {
-        result = await window.electronAPI.vocabulary.getAll(200)
+        result = mapVocabularies(await window.electronAPI.vocabulary.getAll(200))
       }
-      const data = Array.isArray(result) ? result : []
-      setVocabulary(data as unknown as VocabularyItem[])
+      setVocabulary(result)
 
       // 加载统计
       const statsResult = await window.electronAPI.vocabulary.getStats()
@@ -121,9 +121,7 @@ export default function VocabularyPage() {
       return
     }
     try {
-      const result = await window.electronAPI.vocabulary.search(searchKeyword)
-      const data = Array.isArray(result) ? result : []
-      setVocabulary(data as unknown as VocabularyItem[])
+      setVocabulary(mapVocabularies(await window.electronAPI.vocabulary.search(searchKeyword)))
     } catch (error) {
       console.error('搜索失败:', error)
       toast.error('搜索失败')
@@ -255,7 +253,7 @@ export default function VocabularyPage() {
     if (!window.electronAPI?.vocabulary) return
     try {
       setExporting(true)
-      const all = (await window.electronAPI.vocabulary.getAll(1000)) as unknown as VocabularyItem[]
+      const all = mapVocabularies(await window.electronAPI.vocabulary.getAll(1000))
       if (all.length === 0) {
         toast.info('生词本还是空的')
         return
@@ -327,13 +325,12 @@ export default function VocabularyPage() {
   const startReview = async () => {
     if (!window.electronAPI?.vocabulary) return
     try {
-      const result = await window.electronAPI.vocabulary.getDueForReview(50)
-      const data = Array.isArray(result) ? result : []
+      const data = mapVocabularies(await window.electronAPI.vocabulary.getDueForReview(50))
       if (data.length === 0) {
         toast.info('没有待复习的单词')
         return
       }
-      setReviewList(data as unknown as VocabularyItem[])
+      setReviewList(data)
       setCurrentReviewIndex(0)
       setShowAnswer(false)
       setReviewStats({ correct: 0, total: 0 })

@@ -6,12 +6,13 @@ import Icon from '@/components/ui/Icon'
 import Modal from '@/components/ui/Modal'
 import { describeForgetting } from '../../../../shared/fsrs-voice'
 import { articleDeepLink } from '../../../../shared/source-anchor'
-import { calcMasteryPct, formatDateOnly, masteryStatusColor, masteryStatusLabel, type VocabularyItem } from './model'
+import { calcMasteryPct, formatDateOnly, masteryStatusColor, masteryStatusLabel } from './model'
+import type { VocabularyRow } from '../../utils/db-mapper'
 import { sectionLabelStyle } from './styles'
 import { IconButton } from './controls'
 
 interface VocabularyDrawerProps {
-  item: VocabularyItem
+  item: VocabularyRow
   onClose: () => void
   onPronounce: (word: string) => void
   onAddReview: (id: string) => void

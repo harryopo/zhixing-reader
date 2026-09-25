@@ -1,32 +1,6 @@
 /** 生词本的类型、筛选表与掌握度算法（从 VocabularyPage.tsx 原样搬出，逻辑未改） */
 import { getCardMastery } from '../../../../shared/fsrs-metrics'
-
-export interface VocabularyItem {
-  id: string
-  word: string
-  phonetic?: string
-  part_of_speech?: string
-  meaning_zh: string
-  example_en?: string
-  example_zh?: string
-  source?: string
-  /** 这个词是在哪篇文章里遇到的（vocabulary.source_article_id，导入生词时写入） */
-  source_article_id?: string | null
-  is_mastered: number
-  review_count: number
-  last_review_at?: string
-  next_review_at?: string
-  ef_factor?: number
-  interval_days?: number
-  repetition_count?: number
-  familiarity_level?: number
-  learning_stage?: number
-  created_at: string
-  /** FSRS-6.0 记忆状态（2026-09-15 新增列；掌握度由此推导，不再依赖 familiarity_level） */
-  stability?: number
-  difficulty?: number
-  lapses?: number
-}
+import type { VocabularyRow } from '../../utils/db-mapper'
 
 /**
  * 评分档位 —— **直接就是 ts-fsrs 的 Rating 枚举值**，不做任何再映射。
@@ -58,8 +32,8 @@ export type MasteryKind = 'pending' | 'mastered' | 'new'
 // ===== 工具函数 =====
 
 /** 根据单词状态推导 mastery 类型 */
-export function getMasteryKind(item: VocabularyItem): MasteryKind {
-  if (item.is_mastered === 1) return 'mastered'
+export function getMasteryKind(item: VocabularyRow): MasteryKind {
+  if (item.is_mastered) return 'mastered'
   if ((item.learning_stage ?? 0) === 0 && (item.review_count ?? 0) === 0) return 'new'
   return 'pending'
 }
@@ -101,8 +75,8 @@ export function formatDateOnly(val?: string): string {
  * `is_mastered` 仍是用户通过「标记已掌握」显式给出的最高优先级覆盖：
  * 用户说自己会了，就按会了展示，并从待复习队列中移除。
  */
-export function calcMasteryPct(item: VocabularyItem): number {
-  if (item.is_mastered === 1) return 100
+export function calcMasteryPct(item: VocabularyRow): number {
+  if (item.is_mastered) return 100
   return getCardMastery({
     stability: item.stability ?? 0,
     difficulty: item.difficulty ?? 0,

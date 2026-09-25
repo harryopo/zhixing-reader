@@ -1,39 +1,5 @@
-/** 每日学习页的类型与常量表（从 DailyLearning.tsx 原样搬出，逻辑未改） */
+/** 每日学习页的常量表与筛选类型（文章 / 生词的行类型在 utils/db-mapper，一份） */
 import type { DailyTaskTag, DailyTaskQueue } from '../../../../shared/daily-tasks'
-
-export interface Article {
-  id: string
-  title_en: string
-  title_zh?: string
-  content_en: string
-  content_zh?: string
-  summary_zh?: string
-  source: string
-  source_url?: string
-  source_website?: string
-  category: string
-  difficulty: string
-  vocabulary_json?: string
-  is_read: boolean
-  is_favorite: boolean
-  created_at: string
-}
-
-export interface Vocabulary {
-  id: string
-  word: string
-  phonetic?: string
-  part_of_speech?: string
-  meaning_zh: string
-  example_en?: string
-  example_zh?: string
-  cefr_level?: string
-  is_mastered: boolean
-  learning_stage?: number
-  next_review_at?: string
-  /** 上一次复习的**真实时间戳**（用于判断"今天学过没有"） */
-  last_review_at?: string
-}
 
 export type DifficultyFilter = 'all' | 'cet4' | 'cet6' | 'graduate'
 export type StatusFilter = 'all' | 'unread' | 'read' | 'favorite'
