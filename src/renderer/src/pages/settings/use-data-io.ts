@@ -1,16 +1,15 @@
 /** 数据导入导出（JSON / Markdown / CSV）——从 SettingsData.tsx 整块拆出，逐行未改 */
 import { useCallback, useState } from 'react'
 import { toast } from '@/stores/toastStore'
-import { safeNum } from '@/utils/db-mapper'
-import { downloadBlob, type KpiStats } from './data-utils'
+import { downloadBlob } from './data-utils'
 import { buildReviewCsv } from '../../../../shared/review-export'
 import { describeImportedCounts } from '../../../../shared/backup'
 
 /**
  * 这一坨只碰 IPC、拼装文件和浏览器下载，不碰页面其它状态，所以整块搬走。
- * setKpiStats 由页面传进来：导入完要用主进程返回的真实计数刷新看板。
+ * 恢复备份之后是整页重新加载（数据被整批换掉），所以这里不需要反过来通知页面刷状态。
  */
-export function useDataIo(setKpiStats: (stats: KpiStats) => void) {
+export function useDataIo() {
   const [lastExportAt, setLastExportAt] = useState<string>('')
 
   // ===== 导出全部数据（JSON） =====
@@ -157,18 +156,11 @@ export function useDataIo(setKpiStats: (stats: KpiStats) => void) {
             )
           }
         }
-        // 触发 KPI 刷新
-        try {
-          const kpi = await api.admin.getStats()
-          const s = kpi.stats ?? {}
-          setKpiStats({
-            totalBooks: safeNum(s.totalBooks),
-            totalHighlights: safeNum(s.totalHighlights),
-            totalCards: safeNum(s.totalCards),
-          })
-        } catch {
-          /* 非致命 */
-        }
+        // 整批替换之后，界面上每个 store 里挂着的都是**旧库**的数据。
+        // 逐个 store 通知刷新等于再埋一处"忘了通知的那个页面显示旧数字"，
+        // 所以直接把界面重新加载一遍 —— 所有列表重新从库里读一次。
+        // 放在报数之后：先让用户看见恢复了什么，再换页面。
+        window.setTimeout(() => window.location.reload(), 1500)
       } catch (err) {
         toast.remove(tId)
         toast.error(`导入失败: ${(err as Error).message}`)

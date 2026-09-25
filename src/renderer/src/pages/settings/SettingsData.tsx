@@ -69,7 +69,7 @@ export default function SettingsData() {
     handleImportData,
     lastExportAt,
     setLastExportAt,
-  } = useDataIo(setKpiStats)
+  } = useDataIo()
 
   // 首次进入就量一次真实存储用量（不点「刷新用量」也该看到数字）
   useEffect(() => {

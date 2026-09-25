@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon, { IconName } from '@/components/ui/Icon'
 import { toast } from '../../stores/toastStore'
+import { describeBackupReminder } from '../../../../shared/backup-reminder'
 import { mapHighlights } from '../../utils/db-mapper'
 import { syncBookshelfToDb, describeSyncResult } from '../../utils/sync-bookshelf'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -138,6 +139,8 @@ interface NotifData {
   lastSyncCount: number | null
   /** 章节摘要欠更新的书（纯本地算出来的，不点就不花 AI 钱） */
   pendingSummaries: PendingSummaryEntry[]
+  /** 上次导出备份的时间（设置里的原值；没导出过是 null） */
+  lastExportAt: string | null
 }
 
 export default function Topbar({ onToggleSidebar }: TopbarProps) {
@@ -157,6 +160,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     lastSyncOk: null,
     lastSyncCount: null,
     pendingSummaries: [],
+    lastExportAt: null,
   })
 
   /** 通知按钮容器 ref，用于面板外点击关闭 */
@@ -213,12 +217,17 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
   /** 拉取通知数据：未读笔记 + 今日复习 + 摘要待更新 + 同步状态 */
   const refreshNotifData = useCallback(async () => {
     try {
-      const [highlights, queue, pendingSummaries] = await Promise.all([
+      const [highlights, queue, pendingSummaries, lastExportRaw] = await Promise.all([
         window.electronAPI.highlight.getAll().catch(() => []),
         // 取队列计数而不是拉一列表再 .length —— getDue(100) 最多只能报 100 张，
         // 逾期卡片堆到几百张时，通知会一直显示「100 张待复习」，数字是假的
         window.electronAPI.card.getQueueStats?.().catch(() => null) ?? Promise.resolve(null),
         window.electronAPI.summary?.pending().catch(() => []) ?? Promise.resolve([]),
+        // 上次导出备份的时间存在设置里（由导出那一步写入）；读不到就当从没备份过
+        window.electronAPI.settings
+          ?.get('lastDataExportAt')
+          .then((v) => (typeof v === 'string' ? v : null))
+          .catch(() => null),
       ])
 
       const lastViewAt = Number(localStorage.getItem(LAST_VIEW_NOTES_AT_KEY) || 0)
@@ -257,6 +266,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
         lastSyncOk,
         lastSyncCount,
         pendingSummaries,
+        lastExportAt: lastExportRaw ?? null,
       })
     } catch {
       // 静默失败，不打扰用户
@@ -722,6 +732,42 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                       </button>
                     ))}
                   </div>
+                )}
+
+                {/* 备份提醒：数据只在这台电脑上，没备份过 / 太久没备份就说一句。
+                    不挂红点也不弹窗 —— 一行字，出口在「设置 → 数据」。 */}
+                {describeBackupReminder(notif.lastExportAt).text && (
+                  <button
+                    type="button"
+                    title="到「设置 → 数据」导出或恢复备份"
+                    onClick={() => {
+                      setNotifyOpen(false)
+                      navigate('/settings/data')
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'calc(var(--spacing) * 3)',
+                      width: '100%',
+                      padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--foreground)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--muted)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                  >
+                    <span style={{ flex: 1, minWidth: 0, fontSize: '0.85rem' }}>
+                      {describeBackupReminder(notif.lastExportAt).text}
+                    </span>
+                    <Icon name="chevron-right" size={16} />
+                  </button>
                 )}
 
                 {/* 有新版本：只报不催 —— 下载与安装都留在「设置 → 关于」里由用户点 */}

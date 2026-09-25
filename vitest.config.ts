@@ -82,6 +82,7 @@ export default defineConfig({
         // 它们没有分支可盖，列进去只会把一个 0% 塞进分母。
         'src/shared/ai-coverage.ts',
         'src/shared/backup.ts',
+        'src/shared/backup-reminder.ts',
         'src/shared/chapter-summaries.ts',
         'src/shared/csv.ts',
         'src/shared/daily-tasks.ts',
@@ -99,6 +100,7 @@ export default defineConfig({
         'electron/services/reading-time-sync.ts',
         // renderer（colocated __tests__ 已有测试）
         'src/renderer/src/stores/toastStore.ts',
+        'src/renderer/src/pages/settings/use-data-io.ts',
         'src/renderer/src/stores/reviewStore.ts',
         'src/renderer/src/components/chat/MessageBubble.tsx',
         'src/renderer/src/admin-charts.tsx',
