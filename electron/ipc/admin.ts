@@ -31,6 +31,12 @@ export function registerAdminHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.ADMIN.GET_SESSION_MESSAGES, (sessionId: string) => {
     return admin.getAdminSessionMessages(sessionId)
   })
+  /**
+   * 提示词中心要的列表（内置模板 + 用户改过的覆盖）。
+   * 这条注册一直没写：preload 暴露了 `admin.getPrompts()`、页面也在调，主进程没人接
+   * ⇒ 后台一进「提示词」就是一条 reject。`tests/ipc-channel-wiring.test.ts` 现在钉住了这个形状。
+   */
+  handle(IPC_CHANNELS.ADMIN.GET_PROMPTS, () => admin.getAllAdminPrompts())
   handle(IPC_CHANNELS.ADMIN.SAVE_PROMPT, (id: string, template: string) => {
     return admin.saveAdminPrompt(id, template)
   })

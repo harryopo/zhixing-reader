@@ -52,14 +52,6 @@ function toSafeFileName(name: string): string {
 export function registerKnowledgeHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.METHODOLOGIES.GET_ALL, () => methodologiesDb.getAll());
   handle(IPC_CHANNELS.METHODOLOGIES.GET_BY_ID, (id: string) => methodologiesDb.getById(id));
-  handle(IPC_CHANNELS.METHODOLOGIES.GET_BY_BOOK, (bookId: string) => methodologiesDb.getByBookId(bookId));
-  handle(IPC_CHANNELS.METHODOLOGIES.CREATE, (methodology: Record<string, unknown>) => {
-    const id = (methodology.id as string) || `meth_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    methodologiesDb.create({ ...methodology, id });
-    return { id };
-  });
-  handle(IPC_CHANNELS.METHODOLOGIES.UPDATE, (id: string, methodology: Record<string, unknown>) => methodologiesDb.update(id, methodology));
-  handle(IPC_CHANNELS.METHODOLOGIES.SEARCH, (keyword: string) => methodologiesDb.search(keyword));
   handle(IPC_CHANNELS.METHODOLOGIES.EXTRACT, async (bookId: string, bookTitle: string, replace?: boolean) => {
     let highlights = highlightsDb.getByBookId(bookId);
 
@@ -211,15 +203,7 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.COVERAGE, () => buildCoverage('knowledgeCards'));
 
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_ALL, () => knowledgeCardsDb.getAll());
-  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_ID, (id: string) => knowledgeCardsDb.getById(id));
-  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_BOOK, (bookId: string) => knowledgeCardsDb.getByBookId(bookId));
-  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.CREATE, (card: Record<string, unknown>) => {
-    const id = (card.id as string) || `kc_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    knowledgeCardsDb.create({ ...card, id });
-    return { id };
-  });
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.UPDATE, (id: string, card: Record<string, unknown>) => knowledgeCardsDb.update(id, card));
-  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.SEARCH, (keyword: string) => knowledgeCardsDb.search(keyword));
   // 一次性找回历史卡片的来源划线（内容精确相等才算，不猜）
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.BACKFILL_SOURCE, () => ({
     updated: knowledgeCardsDb.backfillSourceHighlights(),
@@ -240,14 +224,6 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     return { text };
   });
 
-  handle(IPC_CHANNELS.SKILL.GENERATE, async (methodologyId: string, bookTitle: string, _author?: string) => {
-    const methodology = methodologiesDb.getById(methodologyId);
-    if (!methodology) {
-      throw new Error('方法论不存在');
-    }
-    const skillContent = await generateSkill(toSkillPayload(methodology, bookTitle));
-    return { content: skillContent };
-  });
 
   // 生成 Skill 并弹保存对话框写盘（方法论详情页「导出为 Skill」）
   handle(IPC_CHANNELS.SKILL.EXPORT_FILE, async (methodologyId: string, bookTitle: string) => {

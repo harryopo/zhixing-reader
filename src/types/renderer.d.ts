@@ -134,14 +134,9 @@ export interface ElectronAPI {
     create: (highlight: Record<string, unknown>) => Promise<boolean>
     update: (id: string, highlight: Record<string, unknown>) => Promise<void>
     getAll: () => Promise<Array<Record<string, unknown>>>
-    search: (keyword: string) => Promise<Array<Record<string, unknown>>>
     export: () => Promise<{ saved: boolean; count: number; path?: string }>
   }
   card: {
-    getById: (id: string) => Promise<Card>
-    create: (highlightId: string) => Promise<Card>
-    createForExisting: () => Promise<{ created: number; skipped: number }>
-    update: (card: Record<string, unknown>) => Promise<Card>
     getDue: (limit?: number) => Promise<Card[]>
     getDueWithContent: (limit?: number) => Promise<DueReviewCard[]>
     getByBook: (bookId: string) => Promise<Card[]>
@@ -179,20 +174,15 @@ export interface ElectronAPI {
   article: {
     getAll: (limit?: number) => Promise<Record<string, unknown>[]>
     getById: (id: string) => Promise<Record<string, unknown> | undefined>
-    create: (article: Record<string, unknown>) => Promise<boolean>
     markAsRead: (id: string) => Promise<void>
     toggleFavorite: (id: string) => Promise<boolean>
-    delete: (id: string) => Promise<void>
-    getStats: () => Promise<{ total: number; today: number }>
     fetchRss: () => Promise<Record<string, unknown>[]>
     translate: (id: string) => Promise<{ title_zh: string; summary_zh: string; content_zh: string }>
   }
   vocabulary: {
     getAll: (limit?: number) => Promise<Record<string, unknown>[]>
-    getById: (id: string) => Promise<Record<string, unknown> | undefined>
     getUnmastered: (limit?: number) => Promise<Record<string, unknown>[]>
     getDueForReview: (limit?: number) => Promise<Record<string, unknown>[]>
-    create: (vocab: Record<string, unknown>) => Promise<Record<string, unknown> | null>
     createFromLookup: (word: string, source?: string) => Promise<Record<string, unknown> | null>
     markAsMastered: (id: string) => Promise<void>
     /** 加入复习队列：只排队，不提交评分 */
@@ -218,8 +208,6 @@ export interface ElectronAPI {
   }
   summary: {
     getByBook: (bookId: string) => Promise<BookSummary | null>
-    create: (bookId: string, summary: string, keyPoints?: string) => Promise<void>
-    delete: (bookId: string) => Promise<void>
     /** 层级摘要 L1：每章一条，sourceCount = 该摘要基于多少条划线 */
     chapters: (bookId: string) => Promise<ChapterSummary[]>
     /** 生成/增量补齐 L1+L2；一次调用会打若干次 AI，界面必须防连点 */
@@ -264,8 +252,6 @@ export interface ElectronAPI {
     /** 交出去的是**库里的原始行**（`SELECT *`，下划线列名）；界面统一过 mapConversations / mapChatMessages */
     getAll: () => Promise<ConversationRow[]>
     create: (title?: string, bookId?: string) => Promise<ConversationRow>
-    getById: (id: string) => Promise<ConversationRow | null>
-    update: (id: string, data: Record<string, unknown>) => Promise<void>
     getMessages: (id: string) => Promise<ChatMessageRow[]>
     addMessage: (
       conversationId: string,
@@ -279,7 +265,6 @@ export interface ElectronAPI {
     ) => Promise<string>
     deleteMessage: (messageId: string) => Promise<void>
     delete: (id: string) => Promise<void>
-    search: (keyword: string) => Promise<ConversationRow[]>
     /** 跨会话的收藏列表（最新在前）；行形状见 BookmarkedMessageRow 的注释 */
     getBookmarked: (limit?: number) => Promise<BookmarkedMessageRow[]>
   }
@@ -293,7 +278,6 @@ export interface ElectronAPI {
     getAll: () => Promise<Record<string, unknown>>
   }
   tokenUsage: {
-    getRecent: (limit?: number) => Promise<TokenRecord[]>
     getByDateRange: (startDate: string, endDate: string) => Promise<TokenRecord[]>
     getStatsByProvider: () => Promise<ProviderStats[]>
     getStatsByFeature: () => Promise<FeatureStats[]>
@@ -304,10 +288,6 @@ export interface ElectronAPI {
   methodology: {
     getAll: () => Promise<Array<Record<string, unknown>>>
     getById: (id: string) => Promise<Record<string, unknown> | undefined>
-    getByBook: (bookId: string) => Promise<Array<Record<string, unknown>>>
-    create: (methodology: Record<string, unknown>) => Promise<{ id: string }>
-    update: (id: string, methodology: Record<string, unknown>) => Promise<void>
-    search: (keyword: string) => Promise<Array<Record<string, unknown>>>
     /** replace=true 表示"重新提取"：主进程会先清空这本书的旧方法论（替换而不是追加） */
     extract: (bookId: string, bookTitle: string, replace?: boolean) => Promise<{ methodologies: unknown[]; coverage: CoveragePlan; nothingNew: boolean }>
     /** 每本书的生成进度（分母 = 划线条数，分子 = 批次台账已处理数） */
@@ -315,11 +295,7 @@ export interface ElectronAPI {
   }
   knowledgeCard: {
     getAll: () => Promise<Array<Record<string, unknown>>>
-    getById: (id: string) => Promise<Record<string, unknown> | undefined>
-    getByBook: (bookId: string) => Promise<Array<Record<string, unknown>>>
-    create: (card: Record<string, unknown>) => Promise<{ id: string }>
     update: (id: string, card: Record<string, unknown>) => Promise<void>
-    search: (keyword: string) => Promise<Array<Record<string, unknown>>>
     /** 一次性找回历史卡片的来源划线；只按「内容精确相等」匹配，绝不猜测 */
     backfillSource: () => Promise<{ updated: number }>
     /** replace=true 表示"重新蒸馏"：主进程会先清空这本书的旧卡片（替换而不是追加） */
@@ -332,7 +308,6 @@ export interface ElectronAPI {
     onDistillProgress?: (callback: (progress: { bookId: string; current: number; total: number; stage: string }) => void) => (() => void)
   }
   skill: {
-    generate: (methodologyId: string, bookTitle: string, author?: string) => Promise<unknown>
     exportFile: (methodologyId: string, bookTitle: string) => Promise<{ saved: boolean; path?: string }>
   }
   system: {

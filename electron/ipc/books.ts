@@ -72,7 +72,6 @@ export function registerBookHandlers(handle: HandleFn): void {
   });
   handle(IPC_CHANNELS.HIGHLIGHTS.UPDATE, (id: string, highlight: Record<string, unknown>) => highlightsDb.update(id, highlight));
   handle(IPC_CHANNELS.HIGHLIGHTS.GET_ALL, () => highlightsDb.getAll());
-  handle(IPC_CHANNELS.HIGHLIGHTS.SEARCH, (keyword: string) => highlightsDb.search(keyword));
   // 一次性补全历史划线的章节名（见 services/chapter-title-backfill.ts）
   handle(IPC_CHANNELS.HIGHLIGHTS.BACKFILL_CHAPTER_TITLES, (bookId?: string) =>
     backfillChapterTitles(bookId));
@@ -143,10 +142,6 @@ export function registerBookHandlers(handle: HandleFn): void {
     return { saved: true, count: rawHighlights.length, path: result.filePath };
   });
 
-  handle(IPC_CHANNELS.CARDS.GET_BY_ID, (id: string) => cardsDb.getById(id));
-  handle(IPC_CHANNELS.CARDS.CREATE, (highlightId: string) => cardsDb.create(highlightId));
-  handle(IPC_CHANNELS.CARDS.CREATE_FOR_EXISTING, () => cardsDb.createForExistingHighlights());
-  handle(IPC_CHANNELS.CARDS.UPDATE, (card: Record<string, unknown>) => cardsDb.update(card as unknown as Parameters<typeof cardsDb.update>[0]));
   handle(IPC_CHANNELS.CARDS.GET_DUE, (limit?: number) => cardsDb.getDueCards(limit, newCardsPerDay()));
   handle(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, (limit?: number) => cardsDb.getDueCardsWithContent(limit, newCardsPerDay()));
   handle(IPC_CHANNELS.CARDS.GET_QUEUE_STATS, () => cardsDb.getDueQueueStats(newCardsPerDay()));
@@ -187,10 +182,6 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.REVIEWS.GET_RECENT, (limit?: number) => reviewsDb.getRecent(limit));
 
   handle(IPC_CHANNELS.SUMMARIES.GET_BY_BOOK, (bookId: string) => bookSummariesDb.getByBookId(bookId));
-  handle(IPC_CHANNELS.SUMMARIES.CREATE, (bookId: string, summary: string, keyPoints?: string) =>
-    bookSummariesDb.create(bookId, summary, keyPoints)
-  );
-  handle(IPC_CHANNELS.SUMMARIES.DELETE, (bookId: string) => bookSummariesDb.delete(bookId));
 
   handle(IPC_CHANNELS.SUMMARIES.GET_CHAPTERS, (bookId: string) => chapterSummariesDb.getByBookId(bookId));
   handle(IPC_CHANNELS.SUMMARIES.GENERATE, (bookId: string) => generateBookSummaries(bookId));

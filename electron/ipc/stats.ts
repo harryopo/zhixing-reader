@@ -19,9 +19,6 @@ export function registerStatsHandlers(handle: HandleFn): void {
     dailyStatsDb.incrementCardsReviewed(count)
   );
 
-  handle(IPC_CHANNELS.TOKEN_USAGE.GET_RECENT, (limit?: number) => {
-    return tokenUsageDb.getRecent(limit);
-  });
 
   handle(IPC_CHANNELS.TOKEN_USAGE.GET_BY_DATE_RANGE, (startDate: string, endDate: string) => {
     return tokenUsageDb.getByDateRange(startDate, endDate);

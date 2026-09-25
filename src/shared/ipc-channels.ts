@@ -16,16 +16,11 @@ export const IPC_CHANNELS = {
     // 删除只走 SYSTEM.ARCHIVE_DELETE 那一条路 —— 它会先把被删的行（划线含它的
     // 复习卡片与复习记录）留一份现场，界面才给得出「撤销」。别再单独加回物理删除。
     GET_ALL: 'highlights:getAll',
-    SEARCH: 'highlights:search',
     EXPORT: 'highlights:export',
     /** 一次性补全历史划线的章节名（2026-09-16：实测 934 条全空） */
     BACKFILL_CHAPTER_TITLES: 'highlights:backfillChapterTitles',
   },
   CARDS: {
-    GET_BY_ID: 'cards:getById',
-    CREATE: 'cards:create',
-    CREATE_FOR_EXISTING: 'cards:createForExisting',
-    UPDATE: 'cards:update',
     // 注：原 UPDATE_APPLICATION_TAG / UPDATE_MASTERY_LEVEL 已于 2026-09-15 移除。
     // 两者在 renderer 中零引用（不可达），且 cards.mastery_level 与"由 FSRS 状态推导的
     // 掌握度"语义重复 —— 掌握度现在统一由 src/shared/fsrs-metrics.ts 计算，不再手写。
@@ -48,8 +43,6 @@ export const IPC_CHANNELS = {
   },
   SUMMARIES: {
     GET_BY_BOOK: 'summaries:getByBook',
-    CREATE: 'summaries:create',
-    DELETE: 'summaries:delete',
     /** 层级摘要 L1 列表（一章一条，含基于多少条划线） */
     GET_CHAPTERS: 'summaries:getChapters',
     /** 生成/增量补齐层级摘要（L1 章节 + L2 全书），烧 AI，前端要防连点 */
@@ -89,13 +82,10 @@ export const IPC_CHANNELS = {
   CONVERSATIONS: {
     CREATE: 'conversations:create',
     GET_ALL: 'conversations:getAll',
-    GET_BY_ID: 'conversations:getById',
-    UPDATE: 'conversations:update',
     DELETE: 'conversations:delete',
     ADD_MESSAGE: 'conversations:addMessage',
     DELETE_MESSAGE: 'conversations:deleteMessage',
     GET_MESSAGES: 'conversations:getMessages',
-    SEARCH: 'conversations:search',
     GET_BOOKMARKED: 'conversations:getBookmarked',
   },
   CHAT: {
@@ -143,7 +133,6 @@ export const IPC_CHANNELS = {
     GET_ALL: 'settings:getAll',
   },
   TOKEN_USAGE: {
-    GET_RECENT: 'tokenUsage:getRecent',
     GET_BY_DATE_RANGE: 'tokenUsage:getByDateRange',
     GET_STATS_BY_PROVIDER: 'tokenUsage:getStatsByProvider',
     GET_STATS_BY_FEATURE: 'tokenUsage:getStatsByFeature',
@@ -154,21 +143,13 @@ export const IPC_CHANNELS = {
   METHODOLOGIES: {
     GET_ALL: 'methodologies:getAll',
     GET_BY_ID: 'methodologies:getById',
-    GET_BY_BOOK: 'methodologies:getByBook',
-    CREATE: 'methodologies:create',
-    UPDATE: 'methodologies:update',
-    SEARCH: 'methodologies:search',
     EXTRACT: 'methodologies:extract',
     /** 每本书的方法论生成进度（已处理 / 共多少条划线），列表页一次取全 */
     COVERAGE: 'methodologies:coverage',
   },
   KNOWLEDGE_CARDS: {
     GET_ALL: 'knowledgeCards:getAll',
-    GET_BY_ID: 'knowledgeCards:getById',
-    GET_BY_BOOK: 'knowledgeCards:getByBook',
-    CREATE: 'knowledgeCards:create',
     UPDATE: 'knowledgeCards:update',
-    SEARCH: 'knowledgeCards:search',
     DISTILL: 'knowledgeCards:distill',
     CANCEL_DISTILL: 'knowledgeCards:cancelDistill',
     // 知识卡片蒸馏进度事件（主进程 -> 渲染进程）
@@ -183,20 +164,15 @@ export const IPC_CHANNELS = {
   ARTICLES: {
     GET_ALL: 'articles:getAll',
     GET_BY_ID: 'articles:getById',
-    CREATE: 'articles:create',
     MARK_AS_READ: 'articles:markAsRead',
     TOGGLE_FAVORITE: 'articles:toggleFavorite',
-    DELETE: 'articles:delete',
-    GET_STATS: 'articles:getStats',
     FETCH_RSS: 'articles:fetchRss',
     TRANSLATE: 'articles:translate',
   },
   VOCABULARY: {
     GET_ALL: 'vocabulary:getAll',
-    GET_BY_ID: 'vocabulary:getById',
     GET_UNMASTERED: 'vocabulary:getUnmastered',
     GET_DUE_FOR_REVIEW: 'vocabulary:getDueForReview',
-    CREATE: 'vocabulary:create',
     CREATE_FROM_LOOKUP: 'vocabulary:createFromLookup',
     MARK_AS_MASTERED: 'vocabulary:markAsMastered',
     /** 加入复习队列：只排队，不提交评分（与 updateReviewData 的区别见 DB 层注释） */
@@ -248,7 +224,6 @@ export const IPC_CHANNELS = {
     PREVIEW_REVIEW_RATINGS: 'fsrs:previewReviewRatings',
   },
   SKILL: {
-    GENERATE: 'skill:generate',
     // 生成 + 弹保存对话框写盘（方法论详情页「导出为 Skill」）
     EXPORT_FILE: 'skill:exportFile',
   },

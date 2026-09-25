@@ -111,7 +111,9 @@ describe('cards:enroll / cards:unenroll / cards:enrolledSources', () => {
     getDatabase().run(
       "INSERT INTO highlights (id, book_id, content) VALUES ('h1', 'b1', '一条划线')",
     )
-    handlers.get(IPC_CHANNELS.CARDS.CREATE)?.('h1')
+    // 直接走数据层建划线卡（`cards:create` 那条通道已删 —— 渲染层零消费者，
+    // 建卡的实际入口是 `card.enroll`，这里要验的正是两者的幂等一致性）
+    cardsDb.create('h1')
     const again = handlers.get(IPC_CHANNELS.CARDS.ENROLL)?.('highlight', ['h1']) as {
       created: number
       skipped: number

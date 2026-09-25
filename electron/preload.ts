@@ -106,15 +106,10 @@ const electronAPI = {
     backfillChapterTitles: (bookId?: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.BACKFILL_CHAPTER_TITLES, bookId),
     update: (id: string, highlight: Record<string, unknown>) => invoke(IPC_CHANNELS.HIGHLIGHTS.UPDATE, id, highlight),
     getAll: () => invoke(IPC_CHANNELS.HIGHLIGHTS.GET_ALL),
-    search: (keyword: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.SEARCH, keyword),
     export: () => invoke(IPC_CHANNELS.HIGHLIGHTS.EXPORT),
   },
 
   card: {
-    getById: (id: string) => invoke(IPC_CHANNELS.CARDS.GET_BY_ID, id),
-    create: (highlightId: string) => invoke(IPC_CHANNELS.CARDS.CREATE, highlightId),
-    createForExisting: () => invoke(IPC_CHANNELS.CARDS.CREATE_FOR_EXISTING),
-    update: (card: Record<string, unknown>) => invoke(IPC_CHANNELS.CARDS.UPDATE, card),
     getDue: (limit?: number) => invoke(IPC_CHANNELS.CARDS.GET_DUE, limit),
     getDueWithContent: (limit?: number) => invoke(IPC_CHANNELS.CARDS.GET_DUE_WITH_CONTENT, limit),
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.CARDS.GET_BY_BOOK, bookId),
@@ -139,21 +134,16 @@ const electronAPI = {
   article: {
     getAll: (limit?: number) => invoke(IPC_CHANNELS.ARTICLES.GET_ALL, limit),
     getById: (id: string) => invoke(IPC_CHANNELS.ARTICLES.GET_BY_ID, id),
-    create: (article: Record<string, unknown>) => invoke(IPC_CHANNELS.ARTICLES.CREATE, article),
     markAsRead: (id: string) => invoke(IPC_CHANNELS.ARTICLES.MARK_AS_READ, id),
     toggleFavorite: (id: string) => invoke(IPC_CHANNELS.ARTICLES.TOGGLE_FAVORITE, id),
-    delete: (id: string) => invoke(IPC_CHANNELS.ARTICLES.DELETE, id),
-    getStats: () => invoke(IPC_CHANNELS.ARTICLES.GET_STATS),
     fetchRss: () => invoke(IPC_CHANNELS.ARTICLES.FETCH_RSS),
     translate: (id: string) => invoke(IPC_CHANNELS.ARTICLES.TRANSLATE, id),
   },
 
   vocabulary: {
     getAll: (limit?: number) => invoke(IPC_CHANNELS.VOCABULARY.GET_ALL, limit),
-    getById: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.GET_BY_ID, id),
     getUnmastered: (limit?: number) => invoke(IPC_CHANNELS.VOCABULARY.GET_UNMASTERED, limit),
     getDueForReview: (limit?: number) => invoke(IPC_CHANNELS.VOCABULARY.GET_DUE_FOR_REVIEW, limit),
-    create: (vocab: Record<string, unknown>) => invoke(IPC_CHANNELS.VOCABULARY.CREATE, vocab),
     createFromLookup: (word: string, source?: string) => invoke(IPC_CHANNELS.VOCABULARY.CREATE_FROM_LOOKUP, word, source),
     markAsMastered: (id: string) => invoke(IPC_CHANNELS.VOCABULARY.MARK_AS_MASTERED, id),
     /** 加入复习队列：只把词排到待复习，不会记一次复习成绩 */
@@ -178,9 +168,6 @@ const electronAPI = {
 
   summary: {
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.SUMMARIES.GET_BY_BOOK, bookId),
-    create: (bookId: string, summary: string, keyPoints?: string) =>
-      invoke(IPC_CHANNELS.SUMMARIES.CREATE, bookId, summary, keyPoints),
-    delete: (bookId: string) => invoke(IPC_CHANNELS.SUMMARIES.DELETE, bookId),
     /** 层级摘要 L1：每章一条（含该章基于多少条划线） */
     chapters: (bookId: string) => invoke(IPC_CHANNELS.SUMMARIES.GET_CHAPTERS, bookId),
     /** 生成/增量补齐层级摘要，返回 {generated, skipped, failed, bookSummary} */
@@ -321,13 +308,10 @@ const electronAPI = {
   conversation: {
     create: (title?: string, bookId?: string) => invoke(IPC_CHANNELS.CONVERSATIONS.CREATE, title, bookId),
     getAll: () => invoke(IPC_CHANNELS.CONVERSATIONS.GET_ALL),
-    getById: (id: string) => invoke(IPC_CHANNELS.CONVERSATIONS.GET_BY_ID, id),
-    update: (id: string, data: Record<string, unknown>) => invoke(IPC_CHANNELS.CONVERSATIONS.UPDATE, id, data),
     delete: (id: string) => invoke(IPC_CHANNELS.CONVERSATIONS.DELETE, id),
     addMessage: (conversationId: string, message: Record<string, unknown>) => invoke(IPC_CHANNELS.CONVERSATIONS.ADD_MESSAGE, conversationId, message),
     deleteMessage: (messageId: string) => invoke(IPC_CHANNELS.CONVERSATIONS.DELETE_MESSAGE, messageId),
     getMessages: (conversationId: string) => invoke(IPC_CHANNELS.CONVERSATIONS.GET_MESSAGES, conversationId),
-    search: (keyword: string) => invoke(IPC_CHANNELS.CONVERSATIONS.SEARCH, keyword),
     getBookmarked: (limit?: number) => invoke(IPC_CHANNELS.CONVERSATIONS.GET_BOOKMARKED, limit),
   },
 
@@ -344,7 +328,6 @@ const electronAPI = {
   },
 
   tokenUsage: {
-    getRecent: (limit?: number) => invoke(IPC_CHANNELS.TOKEN_USAGE.GET_RECENT, limit),
     getByDateRange: (startDate: string, endDate: string) => invoke(IPC_CHANNELS.TOKEN_USAGE.GET_BY_DATE_RANGE, startDate, endDate),
     getStatsByProvider: () => invoke(IPC_CHANNELS.TOKEN_USAGE.GET_STATS_BY_PROVIDER),
     getStatsByFeature: () => invoke(IPC_CHANNELS.TOKEN_USAGE.GET_STATS_BY_FEATURE),
@@ -356,10 +339,6 @@ const electronAPI = {
   methodology: {
     getAll: () => invoke(IPC_CHANNELS.METHODOLOGIES.GET_ALL),
     getById: (id: string) => invoke(IPC_CHANNELS.METHODOLOGIES.GET_BY_ID, id),
-    getByBook: (bookId: string) => invoke(IPC_CHANNELS.METHODOLOGIES.GET_BY_BOOK, bookId),
-    create: (methodology: Record<string, unknown>) => invoke(IPC_CHANNELS.METHODOLOGIES.CREATE, methodology),
-    update: (id: string, methodology: Record<string, unknown>) => invoke(IPC_CHANNELS.METHODOLOGIES.UPDATE, id, methodology),
-    search: (keyword: string) => invoke(IPC_CHANNELS.METHODOLOGIES.SEARCH, keyword),
     // replace=true 时主进程会先清空这本书的旧方法论（对应界面上的「重新提取」）
     extract: (bookId: string, bookTitle: string, replace?: boolean) =>
       invoke(IPC_CHANNELS.METHODOLOGIES.EXTRACT, bookId, bookTitle, replace),
@@ -369,11 +348,7 @@ const electronAPI = {
 
   knowledgeCard: {
     getAll: () => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_ALL),
-    getById: (id: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_ID, id),
-    getByBook: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_BOOK, bookId),
-    create: (card: Record<string, unknown>) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.CREATE, card),
     update: (id: string, card: Record<string, unknown>) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.UPDATE, id, card),
-    search: (keyword: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.SEARCH, keyword),
     backfillSource: () => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.BACKFILL_SOURCE),
     // replace=true 时主进程会先清空这本书的旧卡片（对应界面上的「重新蒸馏」）
     distill: (bookId: string, bookTitle: string, replace?: boolean) =>
@@ -412,8 +387,6 @@ const electronAPI = {
   },
 
   skill: {
-    generate: (methodologyId: string, bookTitle: string, author?: string) =>
-      invoke(IPC_CHANNELS.SKILL.GENERATE, methodologyId, bookTitle, author),
     exportFile: (methodologyId: string, bookTitle: string) =>
       invoke(IPC_CHANNELS.SKILL.EXPORT_FILE, methodologyId, bookTitle),
   },

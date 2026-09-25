@@ -15,14 +15,8 @@ import type { HandleFn } from './types';
 export function registerArticleHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.ARTICLES.GET_ALL, (limit?: number) => articlesDb.getAll(limit));
   handle(IPC_CHANNELS.ARTICLES.GET_BY_ID, (id: string) => articlesDb.getById(id));
-  handle(IPC_CHANNELS.ARTICLES.CREATE, (article: Parameters<typeof articlesDb.create>[0]) => articlesDb.create(article));
   handle(IPC_CHANNELS.ARTICLES.MARK_AS_READ, (id: string) => articlesDb.markAsRead(id));
   handle(IPC_CHANNELS.ARTICLES.TOGGLE_FAVORITE, (id: string) => articlesDb.toggleFavorite(id));
-  handle(IPC_CHANNELS.ARTICLES.DELETE, (id: string) => articlesDb.delete(id));
-  handle(IPC_CHANNELS.ARTICLES.GET_STATS, () => ({
-    total: articlesDb.count(),
-    today: articlesDb.getTodayCount(),
-  }));
   handle(IPC_CHANNELS.ARTICLES.FETCH_RSS, async () => {
     logger.info('Starting RSS fetch...');
     const rssArticles = await fetchAllRssSources();
@@ -128,10 +122,8 @@ export function registerArticleHandlers(handle: HandleFn): void {
   });
   // 生词本
   handle(IPC_CHANNELS.VOCABULARY.GET_ALL, (limit?: number) => vocabularyDb.getAll(limit));
-  handle(IPC_CHANNELS.VOCABULARY.GET_BY_ID, (id: string) => vocabularyDb.getById(id));
   handle(IPC_CHANNELS.VOCABULARY.GET_UNMASTERED, (limit?: number) => vocabularyDb.getUnmastered(limit));
   handle(IPC_CHANNELS.VOCABULARY.GET_DUE_FOR_REVIEW, (limit?: number) => vocabularyDb.getDueForReview(limit));
-  handle(IPC_CHANNELS.VOCABULARY.CREATE, (vocab: Parameters<typeof vocabularyDb.create>[0]) => vocabularyDb.create(vocab));
   handle(IPC_CHANNELS.VOCABULARY.CREATE_FROM_LOOKUP, (word: string, source?: string) => {
     // 先查词典获取翻译
     const dictEntry = dictionaryService.lookup(word);
