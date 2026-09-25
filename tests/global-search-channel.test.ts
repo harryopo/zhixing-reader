@@ -35,6 +35,13 @@ function groupOf(result: GlobalSearchResult, kind: string) {
   return result.groups.find((g) => g.kind === kind)
 }
 
+/**
+ * 直接改 created_at —— "谁最近"是排序用例的前提，而 create 走的是库默认值（同一秒插进来的分不出先后）。
+ */
+function setCreatedAt(id: string, at: string): void {
+  getDatabase().run('UPDATE highlights SET created_at = ? WHERE id = ?', [at, id])
+}
+
 beforeEach(async () => {
   await setupTestDatabase()
   booksDb.create({ id: 'b1', title: '思考，快与慢' })
@@ -182,6 +189,28 @@ describe('search:global 通道', () => {
     expect(twice.groups.map((g) => g.kind + g.hits.length)).toEqual(
       once.groups.map((g) => g.kind + g.hits.length),
     )
+  })
+
+  it('最相关的那条排在最前，不再是谁最近谁在前', () => {
+    // 故意让"最新的一条"是相关度最低的那条：按时间排它会赢，按相关度排它该沉底
+    highlightsDb.create({ id: 'h-dense', book_id: 'b1', content: '复利、复利、复利、复利、复利，还有复利' })
+    highlightsDb.create({ id: 'h-latest', book_id: 'b1', content: '今天读到这里，顺手划了一句复利' })
+    setCreatedAt('h-dense', '2020-01-01 08:00:00')
+    setCreatedAt('h-latest', '2026-01-01 08:00:00')
+    const hl = groupOf(searchHandler()('复利'), 'highlight')!
+    expect(hl.hits[0].id).toBe('h-dense')
+    // 库里命中的还是三条（种子那条只有笔记命中）：换了排序不影响报数
+    expect(hl.matched).toBe(3)
+  })
+
+  it('相关度相同的两条按时间倒序 —— 同分不引入第三种名次', () => {
+    // 两条各命中一次、等长 ⇒ 分数必然相同
+    highlightsDb.create({ id: 'tie-old', book_id: 'b1', content: '复利与甲乙丙' })
+    highlightsDb.create({ id: 'tie-new', book_id: 'b1', content: '复利与丙乙甲' })
+    setCreatedAt('tie-old', '2020-01-01 08:00:00')
+    setCreatedAt('tie-new', '2026-01-01 08:00:00')
+    const ids = groupOf(searchHandler()('复利'), 'highlight')!.hits.map((h) => h.id)
+    expect(ids.slice(0, 2)).toEqual(['tie-new', 'tie-old'])
   })
 
   it('关键词里的 % 按字面匹配，不会命中所有行', () => {

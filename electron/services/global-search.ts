@@ -7,8 +7,11 @@
  *
  * WHERE 由 `likeColumns` × 关键词现拼：词与词之间是 AND，每个词命中任一列即算命中 ——
  * 与笔记页那台筛选器同一套语义（那边是把四个字段拼成一个字符串再逐词 includes）。
- * 行查询与 COUNT 共用同一次拼出的 where 与同一批 params，所以"报的数"与"给的行"
- * 不可能不是同一批；两处 SQL 的 `?` 个数与 params 长度每次核对。
+ * 命中的行一次取完（不带 LIMIT），条数就是这一批的长度，相关度排序与"库里多少条"
+ * 因此天然是同一批数据，不存在"报的数与给的行不是同一批"这种坏法。
+ *
+ * 排序用的是 `relevanceScore`：命中次数（封顶）+ 标题加权 + 长度密度，
+ * 与 LIKE 同一个"命中"关系（都按字面词数）；同分保持时间倒序。
  *
  * 值一律走 `?` 占位符，`%` 与 `_` 已在 pattern 里转义，配套的 `ESCAPE '\'` 不能少。
  */
@@ -18,6 +21,7 @@ import {
   SEARCH_GROUPS,
   buildHitLink,
   makeSnippet,
+  relevanceScore,
   splitQueryTerms,
   toLikePattern,
   type GlobalSearchResult,
@@ -35,11 +39,11 @@ interface KindSpec {
   columns: string;
   /** FROM + JOIN，与 where 一起被行查询和 COUNT 查询共用 */
   from: string;
-  /** 参与关键词匹配的列：加一列就等于同时扩大行查询与 COUNT，不会两边不一致 */
+  /** 参与关键词匹配的列：行查询与条数出自同一次拼装，加一列两边一起变 */
   likeColumns: string[];
-  /** 列出哪几条：按时间倒序最贴近"我最近划的那句" */
+  /** 列出哪几条：SQL 的时间倒序现在是同分时的名次，主名次由相关度定 */
   order: string;
-  /** 命中片段从哪些列里找（按顺序取第一个真含关键词的） */
+  /** 命中片段从哪些列里找（按顺序取第一个真含关键词的），相关度也按这几列拼 */
   textColumns: string[];
   title: (row: Row) => string;
   meta: (row: Row) => string;
@@ -108,7 +112,7 @@ const SPECS: KindSpec[] = [
 
 interface BuiltWhere {
   sql: string;
-  /** 一个词 × 一列一个值，所以只能是 string；LIMIT 那个数字由调用方另加 */
+  /** 一个词 × 一列一个值，所以只能是 string */
   params: string[];
 }
 
@@ -143,6 +147,20 @@ function textFor(row: Row, spec: KindSpec, terms: string[]): string {
   return str(row[spec.textColumns[0]]);
 }
 
+/**
+ * 打分的两个输入：正文取那几列拼起来，标题取界面已经摆在最前面的两个字段。
+ *
+ * 章名与书名会同时出现在两边（它们本来就是 `textColumns` 的一部分）——
+ * 重复计入的方向是对的：命中标题本来就该更靠前，不再另配一份列清单，少一处会漂的地方。
+ */
+function scoreText(row: Row, spec: KindSpec): string {
+  return spec.textColumns.map((col) => str(row[col])).join(' ');
+}
+
+function scoreTitle(row: Row, spec: KindSpec): string {
+  return `${spec.title(row)} ${spec.meta(row)}`;
+}
+
 /** 每一类都要既有约定（名字与上限）又有查询；配不上就立刻报错，不静默少搜一类 */
 function specFor(kind: SearchKind): KindSpec {
   const spec = SPECS.find((s) => s.kind === kind);
@@ -157,15 +175,16 @@ function searchOne(
   terms: string[],
 ): SearchGroupResult {
   const db = getDatabase();
-  const selectSql = `SELECT ${spec.columns} ${spec.from} WHERE ${where.sql} ORDER BY ${spec.order} LIMIT ?`;
-  const countSql = `SELECT COUNT(*) ${spec.from} WHERE ${where.sql}`;
-  assertPlaceholderCount(selectSql, [...where.params, group.limit], spec.kind);
-  assertPlaceholderCount(countSql, where.params, spec.kind);
-  // 先数总数再取前几条：两条 SQL 共用同一份 where 与 params，报的数与给的行必然同批
-  const counted = db.exec(countSql, where.params);
-  const matched = counted.length > 0 ? Number(counted[0].values[0][0]) : 0;
-  const rows = rowsToObjects(db.exec(selectSql, [...where.params, group.limit]));
-  const hits: SearchHit[] = rows.map((row) => {
+  // 一次把命中的行取完（不带 LIMIT）：条数就是这一批的长度，报的数与排出来的行天然是同一批。
+  // SQL 的时间倒序留作同分时的名次 —— JS 这一排是稳定排序，不会把它打乱。
+  const selectSql = `SELECT ${spec.columns} ${spec.from} WHERE ${where.sql} ORDER BY ${spec.order}`;
+  assertPlaceholderCount(selectSql, where.params, spec.kind);
+  const rows = rowsToObjects(db.exec(selectSql, where.params));
+  const ranked = rows
+    .map((row) => ({ row, score: relevanceScore(terms, scoreText(row, spec), scoreTitle(row, spec)) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, group.limit);
+  const hits: SearchHit[] = ranked.map(({ row }) => {
     const id = str(row.id);
     const bookId = row.book_id === undefined || row.book_id === null ? null : str(row.book_id);
     return {
@@ -177,7 +196,7 @@ function searchOne(
       link: buildHitLink({ kind: spec.kind, id, bookId, query: terms.join(' ') }),
     };
   });
-  return { kind: spec.kind, label: group.label, hits, matched };
+  return { kind: spec.kind, label: group.label, hits, matched: rows.length };
 }
 
 export function globalSearch(query: string): GlobalSearchResult {

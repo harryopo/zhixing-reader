@@ -12,6 +12,7 @@ import {
   describeSearchOutcome,
   isSearchable,
   makeSnippet,
+  relevanceScore,
   seeAllLink,
   splitQueryTerms,
   toLikePattern,
@@ -138,9 +139,9 @@ describe('结果页那句话', () => {
     expect(describeSearchOutcome('复利', 7, 7)).toBe('找到 7 条与「复利」相关的内容')
   })
 
-  it('被上限截断时说"列出最近的"，不说"最相关的"（排序就是时间倒序，没有相关度评分）', () => {
+  it('被上限截断时说"列出最相关的"，并给出条数', () => {
     expect(describeSearchOutcome('的', 21, 214)).toBe(
-      '找到 214 条与「的」相关的内容，下面列出最近的 21 条',
+      '找到 214 条与「的」相关的内容，下面列出最相关的 21 条',
     )
   })
 
@@ -171,6 +172,51 @@ describe('每类的条数怎么写', () => {
 
   it('被截断时报"共 N 条 · 列出 M 条"', () => {
     expect(describeGroupCount(group(8, 214))).toBe('共 214 条 · 列出 8 条')
+  })
+})
+
+describe('相关度打分', () => {
+  it('命中次数多的更靠前', () => {
+    expect(relevanceScore(['复利'], '复利、复利、还是复利', '')).toBeGreaterThan(
+      relevanceScore(['复利'], '这里只提了一次复利', ''),
+    )
+  })
+
+  it('标题里就有这个词的更靠前（标题在讲什么，比正文顺带提一句强）', () => {
+    expect(relevanceScore(['复利'], '一段无关紧要的正文，末尾提到复利', '复利思维')).toBeGreaterThan(
+      relevanceScore(['复利'], '一段无关紧要的正文，末尾提到复利', ''),
+    )
+  })
+
+  it('同样一次命中，短的那条更相关（长文里提一次不说明它在讲这个）', () => {
+    expect(relevanceScore(['复利'], '复利是回报的延迟兑现', '')).toBeGreaterThan(
+      relevanceScore(['复利'], `复利。${'中间一大段别的话。'.repeat(20)}`, ''),
+    )
+  })
+
+  it('堆砌有封顶：同样长的文本里，同一个词出现 20 次不比出现 6 次更相关', () => {
+    // 凑成等长，免得长度归一化混进来（那条另有专门的用例）
+    const padded = (n: number) => '复利'.repeat(n) + '·'.repeat(40 - n * 2)
+    expect(relevanceScore(['复利'], padded(6), '')).toBe(relevanceScore(['复利'], padded(20), ''))
+  })
+
+  it('英文大小写不敏感（同一篇文档换个写法不该换个名次）', () => {
+    expect(relevanceScore(['compound'], 'Compound and compound', '')).toBe(
+      relevanceScore(['compound'], 'compound and Compound', ''),
+    )
+  })
+
+  it('多个词各自计分：两个词都命中的，胜过只把一个词堆得多的', () => {
+    const both = relevanceScore(['复利', '时间'], '复利与时间的关系', '复利、时间')
+    const skewed = relevanceScore(['复利', '时间'], '复利复利复利复利复利复利，时间', '')
+    expect(both).toBeGreaterThan(skewed)
+  })
+
+  it('只要 LIKE 命中了就一定有正分 —— 「列出最相关的」这句话不能对着 0 分说', () => {
+    // 单字关键词是这套打分的边界：bigram 检索在那儿会全 0，这里按字面词数命中
+    expect(relevanceScore(['的'], '这句话里有的一个字', '')).toBeGreaterThan(0)
+    expect(relevanceScore(['复利'], '完全没有那个词的一段话', '')).toBe(0)
+    expect(relevanceScore([], '任何文本', '任何标题')).toBe(0)
   })
 })
 
