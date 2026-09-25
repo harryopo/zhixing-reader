@@ -3,6 +3,7 @@ import type { ChatMessageRow, ConversationRow } from '../renderer/src/utils/db-m
 import type { DueReviewCardView, ReviewCardFields, ReviewSourceKind } from '../shared/review-sources'
 import type { BookCoverageView, CoveragePlan } from '../shared/ai-coverage'
 import type { BackupExport, BackupImportResult } from '../shared/backup'
+import type { GlobalSearchResult } from '../shared/global-search'
 
 export interface TokenSummary {
   totalRequests: number
@@ -330,6 +331,10 @@ export interface ElectronAPI {
     exportBackup: () => Promise<BackupExport>
     /** 恢复：整批一个事务，失败则库里什么都没动 */
     importBackup: (payload: unknown) => Promise<BackupImportResult>
+  }
+  /** 跨内容的全局搜索：五类一次查完，按类分组（每类上限在 src/shared/global-search.ts） */
+  search: {
+    global: (query: string) => Promise<GlobalSearchResult>
   }
   update: {
     /** 手动检查更新；supported=false 表示开发环境不可用 */

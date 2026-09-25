@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
@@ -107,8 +107,6 @@ function coverColor(index: number): string {
 // ===== 主组件 =====
 export default function Bookshelf() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const urlQuery = searchParams.get('q') ?? ''
 
   const [books, setBooks] = useState<BookRow[]>([])
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
@@ -124,17 +122,7 @@ export default function Bookshelf() {
   // 筛选与排序
   const [filter, setFilter] = useState<FilterKey>('all')
   const [sort, setSort] = useState<SortKey>('recent')
-  const [query, setQuery] = useState(urlQuery)
-
-  /**
-   * 顶栏搜索框是 navigate('/bookshelf?q=xx')。
-   * 如果用户**已经**在书架页，跳同一个路由不会重新挂载组件，
-   * useState 的初值也只取一次 —— 于是搜了等于没搜（列表没反应）。
-   * 所以这里要跟着 URL 参数同步。
-   */
-  useEffect(() => {
-    setQuery(urlQuery)
-  }, [urlQuery])
+  const [query, setQuery] = useState('')
 
   /** 已发起过进度补拉的书籍 id（防止重复请求与状态回环） */
   const progressTriedRef = useRef<Set<string>>(new Set())

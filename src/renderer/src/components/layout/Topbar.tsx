@@ -291,7 +291,8 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
     e.preventDefault()
     const q = searchQuery.trim()
     if (!q) return
-    navigate(`/bookshelf?q=${encodeURIComponent(q)}`)
+    // 搜的是全部本地内容（划线 / 卡片 / 方法论 / 文章 / 生词），不只是书名
+    navigate(`/search?q=${encodeURIComponent(q)}`)
   }
 
   /** 刷新按钮：调用微信读书 API 拉取书架并写库（真实同步） */

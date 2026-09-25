@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 import type { ArchiveResult, RestoreResult, UndoableDeleteKind } from '../src/shared/types';
 import type { BackupExport, BackupImportResult } from '../src/shared/backup';
+import type { GlobalSearchResult } from '../src/shared/global-search';
 import type { ReviewSourceKind } from '../src/shared/review-sources';
 
 interface IPCResponse<T> {
@@ -410,6 +411,11 @@ const electronAPI = {
     /** 恢复：清空后按同一份清单换回，整批一个事务；失败则什么都没改 */
     importBackup: (payload: unknown) =>
       invoke<BackupImportResult>(IPC_CHANNELS.SYSTEM.IMPORT_BACKUP, payload),
+  },
+
+  search: {
+    /** 一次查完划线 / 知识卡片 / 方法论 / 文章 / 生词，按类分组返回（每类有上限） */
+    global: (query: string) => invoke<GlobalSearchResult>(IPC_CHANNELS.SEARCH.GLOBAL, query),
   },
 
   update: {

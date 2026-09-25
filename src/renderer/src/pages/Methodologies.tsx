@@ -14,7 +14,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
@@ -52,7 +52,9 @@ export default function Methodologies() {
   const [methodologies, setMethodologies] = useState<MethodologyItem[]>([])
   const [books, setBooks] = useState<BookInfo[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchParams] = useSearchParams()
+  /** 全局搜索结果页跳回来时带着同一个关键词（?q=），否则点进去是整页方法论 */
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '')
   const [selectedBook, setSelectedBook] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('card')
@@ -90,7 +92,8 @@ export default function Methodologies() {
         window.electronAPI.book.getAll(),
         window.electronAPI.methodology.coverage(),
       ])
-      setMethodologies(mapMethodologies(methodsRaw))
+      setMethodologies(mapMethodologies(methodsRaw)
+)
       setCoverageByBook(Object.fromEntries(coverageRaw.map((c) => [c.bookId, c])))
       const books = mapBooks(booksRaw)
       setBooks(books)

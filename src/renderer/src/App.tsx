@@ -7,6 +7,7 @@ import Home from './pages/Home'
 import Bookshelf from './pages/Bookshelf'
 import BookDetail from './pages/BookDetail'
 import Notes from './pages/Notes'
+import SearchResults from './pages/SearchResults'
 import Chat from './pages/Chat'
 import Stats from './pages/Stats'
 import TokenUsage from './pages/TokenUsage'
@@ -70,6 +71,7 @@ function App() {
               <Route path="/bookshelf" element={<Bookshelf />} />
               <Route path="/bookshelf/:id" element={<BookDetail />} />
               <Route path="/notes" element={<Notes />} />
+              <Route path="/search" element={<SearchResults />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/stats" element={<Stats />} />
               <Route path="/token-usage" element={<TokenUsage />} />

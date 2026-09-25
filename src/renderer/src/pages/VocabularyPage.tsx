@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -37,6 +38,7 @@ import { ExportModal } from './vocabulary/ExportModal'
 import { deleteWithUndo } from '@/utils/undoable-delete'
 // ===== 主组件 =====
 export default function VocabularyPage() {
+  const [searchParams] = useSearchParams()
   // 列表 + 统计
   const [vocabulary, setVocabulary] = useState<VocabularyRow[]>([])
   const [stats, setStats] = useState({ total: 0, mastered: 0, dueToday: 0 })
@@ -44,8 +46,8 @@ export default function VocabularyPage() {
   const [activeTab, setActiveTab] = useState<FilterKey>('all')
   const [searchKeyword, setSearchKeyword] = useState('')
 
-  // 选中的单词（右侧详情）
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // 选中的单词（右侧详情）—— 全局搜索用 ?item= 精确跳到某一个
+  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('item'))
 
   // 抽屉
   const [drawerOpen, setDrawerOpen] = useState(false)

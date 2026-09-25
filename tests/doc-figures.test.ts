@@ -80,6 +80,26 @@ function walkTests(dir: string): string[] {
   return out
 }
 
+const PAGES_DIR = join('src', 'renderer', 'src', 'pages')
+
+/** 顶层页面文件数（子目录里的是拆出去的部件，不算路由入口） */
+export function realPageCount(): number {
+  return readdirSync(join(ROOT, PAGES_DIR)).filter((f) => f.endsWith('.tsx')).length
+}
+
+/** App.tsx 里声明的路由数 */
+export function realRouteCount(): number {
+  const app = readFileSync(join(ROOT, PAGES_DIR, '..', 'App.tsx'), 'utf8')
+  return (app.match(/<Route path=/g) ?? []).length
+}
+
+/** README 第三节那张功能表实际列了几个模块 */
+export function realModuleCount(): number {
+  const readme = read('README.md')
+  const section = readme.split(/^## 三、/m)[1]?.split(/^## /m)[0] ?? ''
+  return (section.match(/^\| \d+ \|/gm) ?? []).length
+}
+
 /** vitest 会收集到的测试文件数：`tests/` 与渲染层就近的 `__tests__/` 都算 */
 export function realTestFileCount(): number {
   return walkTests('tests').length + walkTests(join('src', 'renderer')).length
@@ -156,6 +176,24 @@ export const RULES: Rule[] = [
     file: 'README.md',
     pattern: /共 \*\*(\d+) 条通道\*\*/,
     actual: realChannelCount,
+  },
+  {
+    where: 'README 第三节 · 功能模块数',
+    file: 'README.md',
+    pattern: /## 三、(\d+) 大功能模块/,
+    actual: realModuleCount,
+  },
+  {
+    where: 'README 第八节 · 页面文件数',
+    file: 'README.md',
+    pattern: /pages\/\s+# (\d+) 个页面文件/,
+    actual: realPageCount,
+  },
+  {
+    where: 'README 第八节 · 路由数',
+    file: 'README.md',
+    pattern: /pages\/\s+# \d+ 个页面文件 \/ (\d+) 条路由/,
+    actual: realRouteCount,
   },
   {
     where: 'README 第八节 · ipc 目录',

@@ -186,6 +186,13 @@ export const IPC_CHANNELS = {
     LOOKUP: 'dictionary:lookup',
     LOOKUP_BATCH: 'dictionary:lookupBatch',
   },
+  SEARCH: {
+    /**
+     * 一次查完划线 / 知识卡片 / 方法论 / 文章 / 生词五类。
+     * 类名与每类上限只在 `src/shared/global-search.ts` 那一份里。
+     */
+    GLOBAL: 'search:global',
+  },
   SYSTEM: {
     FORCE_SAVE_DATABASE: 'system:forceSaveDatabase',
     CLEAR_CACHE: 'system:clearCache',

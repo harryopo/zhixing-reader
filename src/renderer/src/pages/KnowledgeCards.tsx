@@ -66,7 +66,7 @@ export default function KnowledgeCards() {
   const [cards, setCards] = useState<KnowledgeCardItem[]>([])
   const [books, setBooks] = useState<BookRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '')
   const [selectedBook, setSelectedBook] = useState(() => searchParams.get('bookId') ?? '')
   const [selectedType, setSelectedType] = useState<FilterType>('all')
   const [selectedTag, setSelectedTag] = useState('')
