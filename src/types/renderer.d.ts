@@ -1,5 +1,5 @@
 import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, Conversation, ChatMessage, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind } from '../shared/types'
-import type { DueReviewCardView } from '../shared/review-sources'
+import type { DueReviewCardView, ReviewSourceKind } from '../shared/review-sources'
 
 export interface TokenSummary {
   totalRequests: number
@@ -146,6 +146,15 @@ export interface ElectronAPI {
       actionable: number
     }>
     review: (id: string, quality: number) => Promise<ReviewResult>
+    /** 放进复习队列（单条与批量同一条通道）；已在队列里的不新建第二张，actionable 是新的队列量 */
+    enroll: (
+      kind: ReviewSourceKind,
+      ids: string[],
+    ) => Promise<{ created: number; skipped: number; actionable: number }>
+    /** 移出队列：只撤掉复习卡，卡片 / 方法论本身留着 */
+    unenroll: (kind: ReviewSourceKind, id: string) => Promise<{ removed: boolean }>
+    /** 这一类来源里已经入队的 id，界面用它标「已在复习队列」 */
+    enrolledSources: (kind: ReviewSourceKind) => Promise<{ ids: string[] }>
   }
   review: {
     getRecent: (limit?: number) => Promise<ReviewRow[]>

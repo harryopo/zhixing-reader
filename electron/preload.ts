@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 import type { ArchiveResult, RestoreResult, UndoableDeleteKind } from '../src/shared/types';
+import type { ReviewSourceKind } from '../src/shared/review-sources';
 
 interface IPCResponse<T> {
   success: boolean;
@@ -118,6 +119,15 @@ const electronAPI = {
     getByBook: (bookId: string) => invoke(IPC_CHANNELS.CARDS.GET_BY_BOOK, bookId),
     getStats: () => invoke(IPC_CHANNELS.CARDS.GET_STATS),
     getQueueStats: () => invoke(IPC_CHANNELS.CARDS.GET_QUEUE_STATS),
+    /** 把一张知识卡片/方法论放进复习队列（已在队列里的原样返回，不新建第二张） */
+    enroll: (kind: ReviewSourceKind, id: string) =>
+      invoke<{ created: boolean; actionable: number }>(IPC_CHANNELS.CARDS.ENROLL, kind, id),
+    /** 移出队列：只撤掉复习卡，卡片/方法论本身留着 */
+    unenroll: (kind: ReviewSourceKind, id: string) =>
+      invoke<{ removed: boolean }>(IPC_CHANNELS.CARDS.UNENROLL, kind, id),
+    /** 这一类来源里已经入队的 id，界面用它标「已在复习队列」 */
+    enrolledSources: (kind: ReviewSourceKind) =>
+      invoke<{ ids: string[] }>(IPC_CHANNELS.CARDS.ENROLLED_SOURCES, kind),
     review: (id: string, quality: number) => invoke(IPC_CHANNELS.REVIEWS.CREATE, id, quality),
   },
 

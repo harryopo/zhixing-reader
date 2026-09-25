@@ -12,6 +12,9 @@ interface KnowledgeCardArticleProps {
   onFlip: () => void
   onClose: () => void
   onDelete: () => void
+  /** 这张卡是否已在复习队列里（来自 card.enrolledSources，不是本地猜测） */
+  enrolled: boolean
+  onToggleReview: () => void
   onGenerateInterpretation: () => void
   onGenerateApplication: () => void
   getBookTitle: (bookId: string) => string
@@ -24,6 +27,8 @@ function KnowledgeCardArticle({
   onFlip,
   onClose,
   onDelete,
+  enrolled,
+  onToggleReview,
   onGenerateInterpretation,
   onGenerateApplication,
   getBookTitle,
@@ -144,6 +149,20 @@ function KnowledgeCardArticle({
               {timeLabel}
             </span>
             <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
+              <button
+                type="button"
+                aria-label={enrolled ? '移出复习队列' : '加入复习队列'}
+                aria-pressed={enrolled}
+                title={enrolled ? '已在复习队列 · 点击移出' : '加入复习队列，之后按遗忘曲线来问你'}
+                data-dom-id={`card-${card.id}-review`}
+                style={iconBtnStyle(enrolled)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleReview()
+                }}
+              >
+                <Icon name="review" size={14} />
+              </button>
               <button
                 type="button"
                 aria-label="删除"

@@ -22,6 +22,7 @@ import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 import { safeStr, safeNum, formatDate, mapMethodologies, mapBooks } from '../utils/db-mapper'
 import { deleteWithUndo } from '@/utils/undoable-delete'
+import { useReviewEnrollment } from '@/utils/use-review-enrollment'
 import {
   MASTERY_FILTERS,
   VIEW_TOGGLES,
@@ -237,12 +238,30 @@ export default function Methodologies() {
     }
   }
 
+  // 复习队列里的方法论 id 由主进程说了算，界面只读不算
+  const review = useReviewEnrollment('methodology')
+
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这个方法论吗？')) return
-    if (await deleteWithUndo({ kind: 'methodology', id, refresh: loadData })) {
+    // 删一条方法论会连着它的复习卡一起走（外键级联），所以删完两边名单都要重读
+    if (
+      await deleteWithUndo({
+        kind: 'methodology',
+        id,
+        refresh: async () => {
+          await loadData()
+          await review.refresh()
+        },
+      })
+    ) {
       // 删掉的正是当前选中那条时清空选中；撤销回来后要用户自己再点一次
       if (selectedMethod?.id === id) setSelectedMethod(null)
     }
+  }
+
+  const toggleReview = async (id: string) => {
+    if (review.isEnrolled(id)) await review.unenroll(id)
+    else await review.enrollMany([id])
   }
 
   if (loading) {
@@ -261,6 +280,14 @@ export default function Methodologies() {
             data-dom-id="cta-extract"
           >
             <IconAI size={15} /> AI提取方法论
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => void review.enrollMany(methodologies.map((m) => m.id))}
+            disabled={methodologies.length === 0 || review.loading}
+            data-dom-id="cta-enroll-review"
+          >
+            <Icon name="review" size={15} /> 把 {String(methodologies.length)} 条加入复习
           </Button>
           {/* 「开始练习」已删除：它跳的是知识卡片页，而那一页没有任何练习功能，
               全项目也没有练习页。真正的"练习"是让 AI 用上这条方法论 ——
@@ -943,6 +970,8 @@ export default function Methodologies() {
               bookTitle={getBookTitle(selectedMethod.bookId)}
               onClose={() => setSelectedMethod(null)}
               onDelete={() => handleDelete(selectedMethod.id)}
+              enrolled={review.isEnrolled(selectedMethod.id)}
+              onToggleReview={() => void toggleReview(selectedMethod.id)}
               onInjectChat={() => {
                 const bookId = selectedMethod.bookId
                 const name = selectedMethod.name || '方法论'

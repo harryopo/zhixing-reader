@@ -30,6 +30,7 @@ import { Loading, EmptyState, Metric } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 import { safeStr, mapKnowledgeCards, mapBooks } from '../utils/db-mapper'
 import { deleteWithUndo } from '@/utils/undoable-delete'
+import { useReviewEnrollment } from '@/utils/use-review-enrollment'
 import {
   TABS,
   TYPE_FILTERS,
@@ -248,9 +249,26 @@ export default function KnowledgeCards() {
     }
   }
 
+
+  // 复习队列里的卡片 id 由主进程说了算，界面只读不算
+  const review = useReviewEnrollment('knowledge_card')
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这张知识卡片吗？')) return
-    await deleteWithUndo({ kind: 'knowledge_card', id, refresh: loadData })
+    // 删一张卡片会连着它的复习卡一起走（外键级联），所以删完两边的名单都要重读
+    await deleteWithUndo({
+      kind: 'knowledge_card',
+      id,
+      refresh: async () => {
+        await loadData()
+        await review.refresh()
+      },
+    })
+  }
+
+  /** 加入 / 移出复习队列：一个按钮两态，移出只撤队列里的卡，卡片本身留着 */
+  const toggleReview = async (id: string) => {
+    if (review.isEnrolled(id)) await review.unenroll(id)
+    else await review.enrollMany([id])
   }
 
   /** 导出当前筛选结果为 JSON（纯前端下载，无后端） */
@@ -493,6 +511,16 @@ export default function KnowledgeCards() {
                 tab 芯片里的「蒸馏中心」是同一个动作，而且它自己不生成任何东西
                 （真正的生成按钮在蒸馏中心里，要选一本书）。
                 同一个"去蒸馏中心"留一个入口就够了。 */}
+            {/* 批量入口只做一个动作：把当前筛选出来的卡片全放进复习队列。
+                已经在了不会重复建卡，所以重复点安全，也不需要用"今天做不做完"来劝退。 */}
+            <Button
+              variant="ghost"
+              onClick={() => void review.enrollMany(filteredCards.map((c) => c.id))}
+              disabled={filteredCards.length === 0 || review.loading}
+              data-dom-id="cta-enroll-review"
+            >
+              <Icon name="review" size={16} /> 把 {String(filteredCards.length)} 张加入复习
+            </Button>
             <Button
               variant="ghost"
               onClick={handleExportCards}
@@ -827,6 +855,17 @@ export default function KnowledgeCards() {
                     <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)' }}>
                       <button
                         type="button"
+                        aria-label={review.isEnrolled(card.id) ? '移出复习队列' : '加入复习队列'}
+                        aria-pressed={review.isEnrolled(card.id)}
+                        title={review.isEnrolled(card.id) ? '已在复习队列 · 点击移出' : '加入复习队列'}
+                        data-dom-id={`card-${card.id}-review-list`}
+                        style={iconBtnStyle(review.isEnrolled(card.id))}
+                        onClick={() => void toggleReview(card.id)}
+                      >
+                        <Icon name="review" size={14} />
+                      </button>
+                      <button
+                        type="button"
                         aria-label="删除"
                         data-dom-id={`card-${card.id}-delete-list`}
                         style={iconBtnStyle(false)}
@@ -854,6 +893,8 @@ export default function KnowledgeCards() {
                     onFlip={() => setFlippedId(flippedId === card.id ? null : card.id)}
                     onClose={() => setFlippedId(null)}
                     onDelete={() => handleDelete(card.id)}
+                    enrolled={review.isEnrolled(card.id)}
+                    onToggleReview={() => void toggleReview(card.id)}
                     onGenerateInterpretation={() => handleGenerateInterpretation(card)}
                     onGenerateApplication={() => handleGenerateApplication(card)}
                     getBookTitle={getBookTitle}

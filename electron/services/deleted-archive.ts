@@ -44,60 +44,68 @@ function selectAll(sql: string, params: unknown[] = []): Row[] {
 }
 
 /**
- * 每种可撤销删除：怎么把现场捞出来 + 怎么删。
- * 删除复用 database 层的方法，避免绕开它们的落盘与写计数。
+ * 每种可撤销删除：被删的主表 + 会因外键级联一起消失的复习卡（以及卡的复习记录）。
+ * 删除本身复用 database 层的方法，避免绕开它们的落盘与写计数。
  */
-const ARCHIVE_SPECS: Record<
-  UndoableDeleteKind,
-  { capture: (id: string) => CapturedTables[]; remove: (id: string) => void }
-> = {
+interface ArchiveSpec {
+  /** 被删那一行所在的表 */
+  mainTable: string
+  remove: (id: string) => void
+  /** cards 表上指向主表的列；没有这一项就说明这类删除不带复习卡 */
+  cardsColumn?: string
+}
+
+const ARCHIVE_SPECS: Record<UndoableDeleteKind, ArchiveSpec> = {
   highlight: {
-    // 现场按查询一张张捞（划线 → cards → reviews），**不按外键级联捞**：
-    // schema 里这三层都声明了 ON DELETE CASCADE，测试也绿，但 2026-09-24 在跑着的
-    // 开发版上实测：删一本书、删一条划线之后，子表行仍然留在库里（外键没起作用）。
-    // 所以这里以「查出来的子行」为准 —— 撤销回来的东西才和当初被带走的一致。
-    // 删除侧不再依赖级联这件事单独跟（否则每次删除都在库里留孤儿行）。
-    capture: (id) => {
-      const highlights = selectAll('SELECT * FROM highlights WHERE id = ?', [id]);
-      const cards = selectAll('SELECT * FROM cards WHERE highlight_id = ?', [id]);
-      const tables: CapturedTables[] = [
-        { table: 'highlights', rows: highlights },
-        { table: 'cards', rows: cards },
-      ];
-      if (cards.length > 0) {
-        const cardIds = cards.map((c) => String(c.id));
-        const placeholders = cardIds.map(() => '?').join(', ');
-        tables.push({
-          table: 'reviews',
-          rows: selectAll(
-            `SELECT * FROM reviews WHERE card_id IN (${placeholders})`,
-            cardIds,
-          ),
-        });
-      }
-      return tables;
-    },
+    mainTable: 'highlights',
+    cardsColumn: 'highlight_id',
     remove: (id) => highlightsDb.delete(id),
   },
   knowledge_card: {
-    capture: (id) => [
-      { table: 'knowledge_cards', rows: selectAll('SELECT * FROM knowledge_cards WHERE id = ?', [id]) },
-    ],
+    mainTable: 'knowledge_cards',
+    cardsColumn: 'knowledge_card_id',
     remove: (id) => knowledgeCardsDb.delete(id),
   },
   methodology: {
-    capture: (id) => [
-      { table: 'methodologies', rows: selectAll('SELECT * FROM methodologies WHERE id = ?', [id]) },
-    ],
+    mainTable: 'methodologies',
+    cardsColumn: 'methodology_id',
     remove: (id) => methodologiesDb.delete(id),
   },
   vocabulary: {
-    capture: (id) => [
-      { table: 'vocabulary', rows: selectAll('SELECT * FROM vocabulary WHERE id = ?', [id]) },
-    ],
+    mainTable: 'vocabulary',
     remove: (id) => vocabularyDb.delete(id),
   },
 };
+
+/**
+ * 捞现场：主表一行 + 它的复习卡 + 这些卡的复习记录，父行在前，插回时外键才不挡。
+ *
+ * 为什么按查询一张张捞、而不是"信任级联就不用留子行"：schema 里那些
+ * ON DELETE CASCADE 在应用运行期一度是不生效的（2026-09-24 实测，根因见
+ * connection.ts 的 exportDatabaseForPersist）。现场以查出来的子行为准，
+ * 撤销回来的东西才和当初被带走的一致。
+ */
+function captureSnapshot(spec: ArchiveSpec, id: string): CapturedTables[] {
+  const tables: CapturedTables[] = [
+    {
+      table: spec.mainTable,
+      rows: selectAll(`SELECT * FROM ${spec.mainTable} WHERE id = ?`, [id]),
+    },
+  ];
+  if (!spec.cardsColumn) return tables;
+
+  const cards = selectAll(`SELECT * FROM cards WHERE ${spec.cardsColumn} = ?`, [id]);
+  tables.push({ table: 'cards', rows: cards });
+  if (cards.length === 0) return tables;
+
+  const cardIds = cards.map((c) => String(c.id));
+  const placeholders = cardIds.map(() => '?').join(', ');
+  tables.push({
+    table: 'reviews',
+    rows: selectAll(`SELECT * FROM reviews WHERE card_id IN (${placeholders})`, cardIds),
+  });
+  return tables;
+}
 
 const archives = new Map<string, { kind: UndoableDeleteKind; tables: CapturedTables[] }>();
 
@@ -125,7 +133,7 @@ export function archiveAndDelete(kind: UndoableDeleteKind, id: string): ArchiveR
   if (!spec) throw new Error(`不支持撤销的删除类型：${String(kind)}`);
   if (typeof id !== 'string' || id === '') throw new Error('缺少要删除的记录 id');
 
-  const tables = spec.capture(id).filter((t) => t.rows.length > 0);
+  const tables = captureSnapshot(spec, id).filter((t) => t.rows.length > 0);
   const rowCount = tables.reduce((sum, t) => sum + t.rows.length, 0);
   if (rowCount === 0) return null;
 

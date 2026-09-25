@@ -10,6 +10,11 @@ import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { settingsService } from '../services/settings-service';
 import { backfillChapterTitles } from '../services/chapter-title-backfill';
 import { findPendingSummaries, generateBookSummaries } from '../services/chapter-summary-service';
+import {
+  isReviewSourceKind,
+  type ReviewSourceKind,
+  type ReviewSourceRef,
+} from '../../src/shared/review-sources';
 import { DEFAULT_NEW_CARDS_PER_DAY } from '../../src/shared/study-limits';
 import type { HandleFn } from './types';
 
@@ -147,6 +152,36 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.CARDS.GET_QUEUE_STATS, () => cardsDb.getDueQueueStats(newCardsPerDay()));
   handle(IPC_CHANNELS.CARDS.GET_BY_BOOK, (bookId: string) => cardsDb.getByBookId(bookId));
   handle(IPC_CHANNELS.CARDS.GET_STATS, () => cardsDb.getReviewStats());
+
+  // ===== 加入 / 移出复习队列（划线以外的两种来源由界面主动入队）=====
+  // kind 与 ids 都来自渲染层，先过白名单再进数据库：不在名单里的类型直接拒，
+  // 而不是让它变成一个查不到东西的列名。
+  const requireKind = (kind: unknown): ReviewSourceKind => {
+    if (!isReviewSourceKind(kind)) throw new Error(`不支持放进复习队列的来源类型：${String(kind)}`);
+    return kind;
+  };
+
+  // 单条与批量走同一条通道：ids 就是长度为 1 的数组，省一次往返也省一条通道
+  handle(IPC_CHANNELS.CARDS.ENROLL, (kind: unknown, ids: unknown) => {
+    const sourceKind = requireKind(kind);
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string' || id === '')) {
+      throw new Error('要加入复习队列的 id 不合法');
+    }
+    const result = cardsDb.enrollMany(
+      (ids as string[]).map((id): ReviewSourceRef => ({ kind: sourceKind, id })),
+    );
+    return { ...result, actionable: cardsDb.getDueQueueStats(newCardsPerDay()).actionable };
+  });
+
+  handle(IPC_CHANNELS.CARDS.UNENROLL, (kind: unknown, id: unknown) => {
+    const source = { kind: requireKind(kind), id: String(id) };
+    return { removed: cardsDb.unenroll(source) };
+  });
+
+  handle(IPC_CHANNELS.CARDS.ENROLLED_SOURCES, (kind: unknown) => {
+    if (!isReviewSourceKind(kind)) return { ids: [] as string[] };
+    return { ids: cardsDb.enrolledIds(kind) };
+  });
 
   handle(IPC_CHANNELS.REVIEWS.CREATE, (cardId: string, rating: Parameters<typeof reviewsDb.create>[1]) => reviewsDb.create(cardId, rating));
   handle(IPC_CHANNELS.REVIEWS.GET_RECENT, (limit?: number) => reviewsDb.getRecent(limit));

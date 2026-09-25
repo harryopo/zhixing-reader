@@ -145,6 +145,26 @@ describe('删除的现场与撤销', () => {
     expect(countOf('cards', '1=1')).toBe(2)
   })
 
+  it('删掉已入队的知识卡片：现场含它的复习卡与复习记录，撤销后三者一起回来', () => {
+    const id = seedKnowledgeCard()
+    const enrolled = cardsDb.enroll({ kind: 'knowledge_card', id })
+    const reviewId = reviewsDb.create(enrolled.card.id, Rating.Good).reviewId
+
+    const archived = archiveAndDelete('knowledge_card', id)
+    expect(archived?.rowCount).toBe(3)
+    expect(countOf('knowledge_cards', 'id = ?', [id])).toBe(0)
+    expect(countOf('cards', 'id = ?', [enrolled.card.id])).toBe(0)
+    expect(countOf('reviews', 'id = ?', [reviewId])).toBe(0)
+
+    const restored = restoreDeleted(archived?.token ?? '')
+    expect(restored).toEqual({ ok: true, kind: 'knowledge_card', rowCount: 3 })
+    expect(countOf('knowledge_cards', 'id = ?', [id])).toBe(1)
+    expect(countOf('cards', 'id = ?', [enrolled.card.id])).toBe(1)
+    expect(countOf('reviews', 'id = ?', [reviewId])).toBe(1)
+    // 复习进度没被清零：撤销回来的还是原来那张卡的状态
+    expect(rowOf('cards', enrolled.card.id)?.reps).toBe(1)
+  })
+
   it('白名单以外的类型直接抛错，且那一行还在', () => {
     expect(() => archiveAndDelete('book' as UndoableDeleteKind, 'b1')).toThrow(
       '不支持撤销的删除类型',

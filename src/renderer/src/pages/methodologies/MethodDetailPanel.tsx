@@ -13,6 +13,9 @@ interface MethodDetailPanelProps {
   bookTitle: string
   onClose: () => void
   onDelete: () => void
+  /** 这条方法论是否已在复习队列里（名单来自主进程，不是本地猜测） */
+  enrolled: boolean
+  onToggleReview: () => void
   onInjectChat: () => void
   onExportSkill: () => void
 }
@@ -23,6 +26,8 @@ function MethodDetailPanel({
   bookTitle,
   onClose,
   onDelete,
+  enrolled,
+  onToggleReview,
   onInjectChat,
   onExportSkill,
 }: MethodDetailPanelProps) {
@@ -374,6 +379,14 @@ function MethodDetailPanel({
         </Button>
         <Button variant="ghost" onClick={onExportSkill} data-dom-id="cta-export-skill">
           <Icon name="file" size={15} /> 导出为 Skill
+        </Button>
+        <Button
+          variant={enrolled ? 'primary' : 'ghost'}
+          onClick={onToggleReview}
+          data-dom-id="cta-review-queue"
+          title={enrolled ? '点击移出复习队列（方法论本身留着）' : '之后按遗忘曲线来问你这条'}
+        >
+          <Icon name="review" size={15} /> {enrolled ? '已在复习队列' : '加入复习队列'}
         </Button>
         <Button
           variant="ghost"

@@ -21,6 +21,7 @@ import {
   cardSourceOf,
   formatStepList,
   type DueReviewCardView,
+  type ReviewSourceKind,
   type ReviewSourceRef,
 } from '../../src/shared/review-sources';
 
@@ -149,6 +150,22 @@ export const cardsDb = {
       stmt.free();
     });
     return { created: pending.length, skipped: sources.length - pending.length };
+  },
+
+  /** 某一类来源里已经入队的 id（界面的「已在复习队列」标记就来自这里，不做本地猜测） */
+  enrolledIds(kind: ReviewSourceKind): string[] {
+    const column = REVIEW_SOURCE_COLUMNS[kind];
+    const result = getDatabase().exec(
+      `SELECT ${column} AS source_id FROM cards WHERE ${column} IS NOT NULL`,
+    );
+    return rowsToObjects(result)
+      .map((row) => row.source_id as string)
+      .filter((id) => Boolean(id));
+  },
+
+  /** 移出队列：删掉这张来源对应的复习卡，来源本身留着 */
+  unenroll(source: ReviewSourceRef): boolean {
+    return this.deleteBySource(source) > 0;
   },
 
   /** 旧入口：给一条划线建卡（等价于 enroll({kind:'highlight'})，不再重复建） */

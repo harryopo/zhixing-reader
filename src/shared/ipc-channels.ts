@@ -35,6 +35,12 @@ export const IPC_CHANNELS = {
     GET_STATS: 'cards:getStats',
     /** 今日队列构成：复习卡 / 新卡额度，避免界面把 900+ 张划线显示成"你欠的复习" */
     GET_QUEUE_STATS: 'cards:getQueueStats',
+    /** 把知识卡片 / 方法论放进复习队列（已入队的原样返回，不新建第二张） */
+    ENROLL: 'cards:enroll',
+    /** 移出队列：只删这张复习卡，来源本身（卡片/方法论）留着 */
+    UNENROLL: 'cards:unenroll',
+    /** 某一类来源里已经入队的那些 id，界面据此标「已在复习队列」 */
+    ENROLLED_SOURCES: 'cards:enrolledSources',
   },
   REVIEWS: {
     CREATE: 'reviews:create',
