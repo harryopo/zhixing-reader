@@ -34,6 +34,16 @@ export const highlightsDb = {
     return rows[0];
   },
 
+  /** 每本书的划线条数（AI 生成进度按书显示，一次查询取全，不逐本查） */
+  getCountsByBook(): Record<string, number> {
+    const result = getDatabase().exec('SELECT book_id, COUNT(*) FROM highlights GROUP BY book_id');
+    const counts: Record<string, number> = {};
+    if (result.length > 0) {
+      for (const [bookId, count] of result[0].values) counts[String(bookId)] = Number(count);
+    }
+    return counts;
+  },
+
   exists(bookId: string, content: string): boolean {
     const result = getDatabase().exec(
       'SELECT 1 FROM highlights WHERE book_id = ? AND content = ? LIMIT 1',

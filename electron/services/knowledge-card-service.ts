@@ -1,10 +1,10 @@
 import { BrowserWindow } from 'electron'
-import { knowledgeCardsDb, highlightsDb } from '../database'
+import { knowledgeCardsDb, highlightsDb, aiBatchesDb } from '../database'
 import { fetchAllContent } from '../weread-api'
 import { distillKnowledgeCards, DistillOptions, DistilledKnowledgeCard } from '../ai-service'
 import { logger } from '../logger'
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels'
-import { CoveragePlan, coverageNotice, planAiCoverage } from '../../src/shared/ai-coverage'
+import { CoveragePlan, coverageNotice, pickUnprocessed } from '../../src/shared/ai-coverage'
 
 export interface DistillTaskProgress {
   bookId: string
@@ -160,7 +160,12 @@ class KnowledgeCardService {
     bookId: string,
     bookTitle: string,
     options: { force?: boolean; replace?: boolean } = {}
-  ): Promise<{ cards: Array<{ id: string } & DistilledKnowledgeCard>; coverage: CoveragePlan }> {
+  ): Promise<{
+    cards: Array<{ id: string } & DistilledKnowledgeCard>
+    coverage: CoveragePlan
+    /** true = 整本书的划线都生成过了，这一次一个 AI 请求都没发 */
+    nothingNew: boolean
+  }> {
     if (this.activeTasks.has(bookId)) {
       throw new Error(`该书正在蒸馏中，请等待完成或先取消`)
     }
@@ -195,9 +200,35 @@ class KnowledgeCardService {
         chapterTitle: h.chapter_title ? String(h.chapter_title) : undefined,
       }))
 
-      // 本次真正喂给 AI 了多少条划线 —— 与 distillKnowledgeCards 内部截断用的是同一份
-      // 上限（src/shared/ai-coverage.ts），所以这里算出来的数就是实际发生的数。
-      const coverage = planAiCoverage('knowledgeCards', mappedHighlights.length)
+      // 分批续跑：这次只喂「台账里没记过的」那批划线。
+      // 判定只看批次台账（ai_generation_batches），不看卡片上的来源 ——
+      // 每张卡最多标 1 条来源，用它当进度会把大量已处理的算成没处理，下一批再花钱喂一遍。
+      // 两种情况从头再来：replace（用户明说重来）、这本书已经没有卡片（旧台账作废）。
+      const existingItems = knowledgeCardsDb.getCountsByBook()[bookId] ?? 0
+      const fromScratch = options.replace === true || existingItems === 0
+      if (existingItems === 0) aiBatchesDb.clear(bookId, 'knowledgeCards')
+      const processedIds = fromScratch
+        ? new Set<string>()
+        : new Set(aiBatchesDb.getProcessedIds(bookId, 'knowledgeCards'))
+      const { selected, plan: coverage } = pickUnprocessed(
+        'knowledgeCards',
+        mappedHighlights,
+        processedIds,
+        (h) => h.id,
+      )
+
+      if (selected.length === 0) {
+        // 整本书都生成过了 —— 一次 AI 都不调（不花钱），界面如实说明
+        this.emitProgress({
+          bookId,
+          bookTitle,
+          stage: 'done',
+          current: 0,
+          total: 0,
+          message: `《${bookTitle}》的 ${mappedHighlights.length} 条划线都已生成过卡片`,
+        })
+        return { cards: [], coverage, nothingNew: true }
+      }
 
       const distillOpts: DistillOptions = {
         signal: controller.signal,
@@ -214,7 +245,7 @@ class KnowledgeCardService {
         },
       }
 
-      const cards = await distillKnowledgeCards(mappedHighlights, bookTitle, distillOpts)
+      const cards = await distillKnowledgeCards(selected, bookTitle, distillOpts)
 
       this.emitProgress({
         bookId,
@@ -230,6 +261,8 @@ class KnowledgeCardService {
       // 界面上必须先向用户确认（旧卡片上的解读/应用/掌握度会一起消失）。
       if (options.replace) {
         const removed = knowledgeCardsDb.deleteByBookId(bookId)
+        // 台账一起归零：卡都清光了，进度不能还记着"前面处理过"
+        aiBatchesDb.clear(bookId, 'knowledgeCards')
         logger.info(`重新蒸馏：已清除旧卡片 ${removed} 张`, { bookId, bookTitle })
       }
 
@@ -255,6 +288,13 @@ class KnowledgeCardService {
         results.push({ id, ...c })
       }
 
+      // 卡片落库成功了才记台账 —— 半途失败时这批仍算"没处理过"，下次点还能补上
+      aiBatchesDb.record(
+        bookId,
+        'knowledgeCards',
+        selected.map((h) => h.id).filter((id): id is string => Boolean(id)),
+      )
+
       const notice = coverageNotice(coverage, '划线')
       this.emitProgress({
         bookId,
@@ -265,7 +305,7 @@ class KnowledgeCardService {
         message: `蒸馏完成，共生成 ${results.length} 张知识卡片${notice ? ` · ${notice}` : ''}`,
       })
 
-      return { cards: results, coverage }
+      return { cards: results, coverage, nothingNew: false }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       this.emitProgress({

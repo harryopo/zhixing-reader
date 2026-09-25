@@ -31,7 +31,13 @@ import { toast } from '../stores/toastStore'
 import { safeStr, mapKnowledgeCards, mapBooks } from '../utils/db-mapper'
 import { deleteWithUndo } from '@/utils/undoable-delete'
 import { useReviewEnrollment } from '@/utils/use-review-enrollment'
-import { coverageNotice } from '../../../shared/ai-coverage'
+import {
+  BookCoverageView,
+  coverageNotice,
+  describeBookCoverage,
+  generateButtonLabel,
+  resolveGenerateAction,
+} from '../../../shared/ai-coverage'
 import {
   TABS,
   TYPE_FILTERS,
@@ -69,6 +75,8 @@ export default function KnowledgeCards() {
   const [flippedId, setFlippedId] = useState<string | null>(null)
   const [generatingMap, setGeneratingMap] = useState<Record<string, 'interpretation' | 'application' | null>>({})
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  /** 每本书的蒸馏进度（来自批次台账，不是卡片上标的来源条数） */
+  const [coverageByBook, setCoverageByBook] = useState<Record<string, BookCoverageView>>({})
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -95,12 +103,14 @@ export default function KnowledgeCards() {
       return
     }
     try {
-      const [cardsRaw, booksRaw] = await Promise.all([
+      const [cardsRaw, booksRaw, coverageRaw] = await Promise.all([
         window.electronAPI.knowledgeCard.getAll(),
         window.electronAPI.book.getAll(),
+        window.electronAPI.knowledgeCard.coverage(),
       ])
       setCards(mapKnowledgeCards(cardsRaw as unknown[]))
       setBooks(mapBooks(booksRaw as unknown[]))
+      setCoverageByBook(Object.fromEntries(coverageRaw.map((c) => [c.bookId, c])))
     } catch (error) {
       console.error('加载知识卡片失败:', error)
       toast.error('加载知识卡片失败')
@@ -168,6 +178,13 @@ export default function KnowledgeCards() {
     return result
   }, [cards, selectedBook, selectedType, selectedTag, searchQuery, getBookTitle])
 
+  /**
+   * 这本书的按钮该说什么、点下去是"接着补剩下那批"还是"从头再来"。
+   * 判定只有一份（src/shared/ai-coverage.ts），主进程走的是同一条规则。
+   */
+  const generatePlan = (bookId: string, existing: number) =>
+    resolveGenerateAction(coverageByBook[bookId] ?? describeBookCoverage(0, 0, 0), existing)
+
   const handleDistill = async (bookId: string) => {
     const book = books.find((b) => b.id === bookId)
     if (!book) return
@@ -177,12 +194,18 @@ export default function KnowledgeCards() {
       return
     }
 
-    // 这本已经有卡片了 → 点的是「重新蒸馏」，语义是**替换**。
-    // 旧卡片上的解读、应用、掌握度会一起消失，必须先问清楚。
+    // 还剩多少条没生成过，决定这一颗按钮是「继续」还是「从头再来」——
+    // 进度看批次台账，不看卡片上标的来源（每张卡最多标 1 条，用它当进度会算少）。
+    const view = coverageByBook[bookId]
     const existing = cards.filter((c) => c.bookId === bookId).length
-    if (existing > 0) {
+    const { action: mode } = generatePlan(bookId, existing)
+    const isRedo = mode === 'replace'
+    if (isRedo) {
+      const progressKnown = (view?.processed ?? 0) > 0
       const ok = window.confirm(
-        `《${safeStr(book.title)}》已有 ${existing} 张卡片。\n\n重新蒸馏会先清空它们再重新生成（解读、应用、掌握度都会丢失），确定继续？`,
+        progressKnown
+          ? `《${safeStr(book.title)}》的 ${view?.total ?? 0} 条划线都已生成过卡片（现有 ${existing} 张）。\n\n重新蒸馏会先清空它们再从头再来（解读、应用、掌握度都会丢失），确定继续？`
+          : `《${safeStr(book.title)}》已有 ${existing} 张卡片，但那批进度无从追溯（生成台账是后加的）。\n\n重新蒸馏会先清空它们再从头再来（解读、应用、掌握度都会丢失），确定继续？`,
       )
       if (!ok) return
     }
@@ -200,11 +223,21 @@ export default function KnowledgeCards() {
     const loadingId = toast.loading(`正在从《${safeStr(book.title)}》蒸馏知识卡片，请耐心等待...`)
 
     try {
-      // replace=true：主进程会先清空这本书的旧卡片（界面上的「重新蒸馏」）
-      const { coverage } = await window.electronAPI.knowledgeCard.distill(bookId, safeStr(book.title), existing > 0)
+      // isRedo=true 才会走到"清空重来"；其余情况主进程只喂台账里没记过的那批
+      const { coverage, nothingNew } = await window.electronAPI.knowledgeCard.distill(
+        bookId,
+        safeStr(book.title),
+        isRedo,
+      )
       toast.remove(loadingId)
-      const done = existing > 0 ? `重新蒸馏完成，已替换原有 ${existing} 张卡片` : '知识卡片蒸馏完成'
-      // 一次最多喂 60 条划线（src/shared/ai-coverage.ts 的上限）；被挡在外面的必须说出来，
+      const done = nothingNew
+        ? `《${safeStr(book.title)}》的划线都已生成过卡片，这次没有新的内容`
+        : isRedo
+          ? `重新蒸馏完成，已替换原有 ${existing} 张卡片`
+          : existing > 0
+            ? `已接着生成下一批（此前已有 ${existing} 张）`
+            : '知识卡片蒸馏完成'
+      // 一次最多喂 60 条划线（src/shared/ai-coverage.ts 的上限）；没处理完的必须说出来，
       // 否则用户会以为这些卡片代表了整本书
       const notice = coverageNotice(coverage, '划线')
       toast.success(notice ? `${done} · ${notice}` : done, notice ? 9000 : undefined)
@@ -927,6 +960,7 @@ export default function KnowledgeCards() {
                   const bookId = String(book.id)
                   const isCurrentDistilling = distillingBookId === bookId
                   const cardCount = cards.filter((c) => c.bookId === bookId).length
+                  const plan = generatePlan(bookId, cardCount)
                   return (
                     <div
                       key={bookId}
@@ -1009,6 +1043,10 @@ export default function KnowledgeCards() {
                             }}
                           >
                             {cardCount > 0 ? `已有 ${cardCount} 张卡片` : '暂无卡片'}
+                            {/* 没有可追溯进度时不摆"已处理 0/N"：那串 0 会被读成"这本书白做了" */}
+                            {cardCount > 0 && plan.view.processed > 0
+                              ? ` · 已处理 ${plan.view.processed}/${plan.view.total} 条划线`
+                              : ''}
                           </p>
                         </div>
                       </div>
@@ -1066,7 +1104,13 @@ export default function KnowledgeCards() {
                             e.currentTarget.style.borderColor = 'var(--primary)'
                           }}
                         >
-                          {distillingBookId ? '等待中...' : cardCount > 0 ? '重新蒸馏' : '开始蒸馏'}
+                          {distillingBookId
+                            ? '等待中...'
+                            : generateButtonLabel(plan.action, plan.view, {
+                                start: '开始蒸馏',
+                                continue: '继续',
+                                redo: '重新蒸馏',
+                              })}
                         </button>
                       )}
                       {renderDistillProgress(bookId)}

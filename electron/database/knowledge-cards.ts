@@ -42,6 +42,16 @@ export const knowledgeCardsDb = {
     return rowsToObjects(result);
   },
 
+  /** 每本书有多少张知识卡片（判"成品是否还在"用；成品清空后台账进度就该作废） */
+  getCountsByBook(): Record<string, number> {
+    const result = getDatabase().exec('SELECT book_id, COUNT(*) FROM knowledge_cards GROUP BY book_id');
+    const counts: Record<string, number> = {};
+    if (result.length > 0) {
+      for (const [bookId, count] of result[0].values) counts[String(bookId)] = Number(count);
+    }
+    return counts;
+  },
+
   /**
    * 删除某本书的全部知识卡片，返回删除条数（单事务，符合 B12）。
    *

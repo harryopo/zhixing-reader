@@ -43,6 +43,16 @@ export const methodologiesDb = {
     return rowsToObjects(result);
   },
 
+  /** 每本书有多少条方法论（判"成品是否还在"用；成品清空后台账进度就该作废） */
+  getCountsByBook(): Record<string, number> {
+    const result = getDatabase().exec('SELECT book_id, COUNT(*) FROM methodologies GROUP BY book_id');
+    const counts: Record<string, number> = {};
+    if (result.length > 0) {
+      for (const [bookId, count] of result[0].values) counts[String(bookId)] = Number(count);
+    }
+    return counts;
+  },
+
   /**
    * 删除某本书的全部方法论，返回删除条数（单事务，符合 B12）。
    * 用途同 knowledge-cards.deleteByBookId：让"重新提取"真的是替换而不是追加。

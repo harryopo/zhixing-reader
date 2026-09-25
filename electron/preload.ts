@@ -362,6 +362,8 @@ const electronAPI = {
     // replace=true 时主进程会先清空这本书的旧方法论（对应界面上的「重新提取」）
     extract: (bookId: string, bookTitle: string, replace?: boolean) =>
       invoke(IPC_CHANNELS.METHODOLOGIES.EXTRACT, bookId, bookTitle, replace),
+    // 每本书的生成进度（已处理 / 共多少条划线），列表页一次取全
+    coverage: () => invoke(IPC_CHANNELS.METHODOLOGIES.COVERAGE),
   },
 
   knowledgeCard: {
@@ -375,6 +377,8 @@ const electronAPI = {
     // replace=true 时主进程会先清空这本书的旧卡片（对应界面上的「重新蒸馏」）
     distill: (bookId: string, bookTitle: string, replace?: boolean) =>
       invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.DISTILL, bookId, bookTitle, replace),
+    // 每本书的蒸馏进度（已处理 / 共多少条划线），蒸馏中心一次取全
+    coverage: () => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.COVERAGE),
     cancelDistill: (bookId: string) => invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.CANCEL_DISTILL, bookId),
     generateInterpretation: (bookTitle: string, cardTitle: string, cardContent: string, cardType: string) =>
       invoke(IPC_CHANNELS.KNOWLEDGE_CARDS.GENERATE_INTERPRETATION, bookTitle, cardTitle, cardContent, cardType),

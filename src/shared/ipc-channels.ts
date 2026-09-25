@@ -159,6 +159,8 @@ export const IPC_CHANNELS = {
     UPDATE: 'methodologies:update',
     SEARCH: 'methodologies:search',
     EXTRACT: 'methodologies:extract',
+    /** 每本书的方法论生成进度（已处理 / 共多少条划线），列表页一次取全 */
+    COVERAGE: 'methodologies:coverage',
   },
   KNOWLEDGE_CARDS: {
     GET_ALL: 'knowledgeCards:getAll',
@@ -175,6 +177,8 @@ export const IPC_CHANNELS = {
     GENERATE_APPLICATION: 'knowledgeCards:generateApplication',
     /** 一次性找回历史卡片的来源划线（2026-09-16：实测 90 张来源全空） */
     BACKFILL_SOURCE: 'knowledgeCards:backfillSource',
+    /** 每本书的知识卡片生成进度（已处理 / 共多少条划线），列表页一次取全 */
+    COVERAGE: 'knowledgeCards:coverage',
   },
   ARTICLES: {
     GET_ALL: 'articles:getAll',

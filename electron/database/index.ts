@@ -48,4 +48,5 @@ export { articlesDb } from './articles';
 export { vocabularyDb } from './vocabulary';
 export { methodologiesDb } from './methodologies';
 export { knowledgeCardsDb } from './knowledge-cards';
+export { aiBatchesDb } from './ai-batches';
 export { memoriesDb } from './memories';

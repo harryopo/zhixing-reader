@@ -282,6 +282,26 @@ export function initializeSchema(db: import('sql.js').Database): void {
     );
   `);
 
+  /**
+   * AI 生成批次台账（第 17 张表）。
+   *
+   * 为什么需要它：知识卡片与方法论只能一次喂进有限条划线（见 src/shared/ai-coverage.ts），
+   * 要"分批续跑覆盖整本书"就必须知道**哪些划线已经喂过**。卡片与方法论各自的来源划线字段
+   * 担不起这个职责 —— 每张卡只标 1 条来源、每条方法论最多标 3 条，一批 20 条划线可能只留下
+   * 5 个标记，剩下的会被当成"没处理过"再喂一遍（重复生成、重复花钱）。
+   * 台账记的是**整批**的 id 集合，与模型引用几条无关，所以数得准。
+   */
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_generation_batches (
+      id TEXT PRIMARY KEY,
+      book_id TEXT NOT NULL,
+      feature TEXT NOT NULL CHECK(feature IN ('knowledgeCards', 'methodologies')),
+      highlight_ids TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+    );
+  `);
+
   db.run('CREATE INDEX IF NOT EXISTS idx_highlights_book_id ON highlights(book_id);');
   db.run('CREATE INDEX IF NOT EXISTS idx_cards_highlight_id ON cards(highlight_id);');
   db.run('CREATE INDEX IF NOT EXISTS idx_cards_due ON cards(due);');
@@ -300,6 +320,9 @@ export function initializeSchema(db: import('sql.js').Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_vocabulary_mastered ON vocabulary(is_mastered);');
   db.run('CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);');
   db.run('CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC);');
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_ai_batches_book_feature ON ai_generation_batches(book_id, feature);',
+  );
 }
 
 /**
@@ -617,6 +640,7 @@ export function resetDatabase(): void {
       'articles',
       'vocabulary',
       'memories',
+      'ai_generation_batches',
       'books',
     ];
     runTransaction((db) => {

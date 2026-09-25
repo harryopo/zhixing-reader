@@ -8,20 +8,44 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { AI_INPUT_LIMITS, coverageNotice } from '../src/shared/ai-coverage'
 
 // ===== vi.hoisted mock =====
-const { mockGetByBookId, mockKnowledgeCreate, mockFetchAllContent, mockDistill } = vi.hoisted(() => ({
+const {
+  mockGetByBookId,
+  mockKnowledgeCreate,
+  mockFetchAllContent,
+  mockDistill,
+  mockProcessedIds,
+  mockRecordBatch,
+  mockClearBatches,
+  mockCardCounts,
+} = vi.hoisted(() => ({
   // 显式标注返回类型：`vi.fn(() => [])` 会被推成 `never[]`，之后 mockReturnValue 喂真行数据全判红
   // （生产签名是 `highlightsDb.getByBookId(): Record<string, unknown>[]`）
   mockGetByBookId: vi.fn((): Record<string, unknown>[] => []),
   mockKnowledgeCreate: vi.fn(),
   mockFetchAllContent: vi.fn(),
   mockDistill: vi.fn(),
+  mockProcessedIds: vi.fn((): string[] => []),
+  mockRecordBatch: vi.fn(),
+  mockClearBatches: vi.fn((): number => 0),
+  // 每本书的成品数：测试里按用例改写（默认空 = 这本书一张卡片都没有）
+  mockCardCounts: vi.fn((): Record<string, number> => ({})),
 }))
 
 vi.mock('../electron/database', () => ({
-  knowledgeCardsDb: { create: mockKnowledgeCreate },
+  knowledgeCardsDb: {
+    create: mockKnowledgeCreate,
+    deleteByBookId: vi.fn(() => 0),
+    getCountsByBook: mockCardCounts,
+  },
   highlightsDb: {
     getByBookId: mockGetByBookId,
     create: vi.fn(),
+  },
+  aiBatchesDb: {
+    getProcessedIds: mockProcessedIds,
+    record: mockRecordBatch,
+    clear: mockClearBatches,
+    getProcessedCounts: vi.fn(() => ({})),
   },
 }))
 
@@ -140,6 +164,11 @@ describe('knowledge-card-service — distillBook 流程', () => {
     mockDistill.mockReset()
     mockKnowledgeCreate.mockReset()
     mockFetchAllContent.mockReset()
+    // mockReset 会连实现一起清掉，不补回来 getProcessedIds 会返回 undefined
+    mockProcessedIds.mockReset().mockReturnValue([])
+    mockRecordBatch.mockReset()
+    mockClearBatches.mockReset().mockReturnValue(0)
+    mockCardCounts.mockReset().mockReturnValue({})
   })
 
   it('有笔记时直接蒸馏，不调 WeRead 导入', async () => {
@@ -170,13 +199,14 @@ describe('knowledge-card-service — distillBook 流程', () => {
     expect(coverage).toEqual({
       task: 'knowledgeCards',
       total: 100,
+      alreadyProcessed: 0,
       limit: AI_INPUT_LIMITS.knowledgeCards,
       covered: AI_INPUT_LIMITS.knowledgeCards,
       skipped: 100 - AI_INPUT_LIMITS.knowledgeCards,
       partial: true,
     })
     // 界面文案由同一份 plan 派生，不在渲染层重算
-    expect(coverageNotice(coverage, '划线')).toContain('本次只覆盖 60/100 条划线')
+    expect(coverageNotice(coverage, '划线')).toBe('本次处理 60/100 条划线，还剩 40 条')
   })
 
   it('无笔记时自动从 WeRead 导入再蒸馏', async () => {
@@ -216,6 +246,81 @@ describe('knowledge-card-service — distillBook 流程', () => {
     ])
     await knowledgeCardService.distillBook('b-save', '书名')
     expect(mockKnowledgeCreate).toHaveBeenCalledTimes(2)
+  })
+
+  it('分批续跑：台账记过的不再喂给 AI，这一批取的是没记过的', async () => {
+    const rows = Array.from({ length: 70 }, (_, i) => ({ id: `h${i}`, content: `划线${i}`, chapter_title: '章' }))
+    mockGetByBookId.mockReturnValue(rows)
+    mockCardCounts.mockReturnValue({ 'b-next': 5 })
+    mockProcessedIds.mockReturnValue(rows.slice(0, 60).map((r) => r.id))
+    mockDistill.mockResolvedValue([{ type: 'concept', title: 'A', content: '内容A', tags: [] }])
+
+    const { coverage } = await knowledgeCardService.distillBook('b-next', '书名')
+
+    const fed = mockDistill.mock.calls[0][0] as Array<{ content: string }>
+    expect(fed).toHaveLength(10)
+    expect(fed[0].content).toBe('划线60')
+    expect(coverage).toMatchObject({ total: 70, alreadyProcessed: 60, covered: 10, skipped: 0, partial: false })
+  })
+
+  it('整本书都生成过了：一次 AI 都不调，nothingNew 为真', async () => {
+    const rows = [{ id: 'h1', content: '划线1' }, { id: 'h2', content: '划线2' }]
+    mockGetByBookId.mockReturnValue(rows)
+    mockCardCounts.mockReturnValue({ 'b-done': 3 })
+    mockProcessedIds.mockReturnValue(['h1', 'h2'])
+
+    const result = await knowledgeCardService.distillBook('b-done', '书名')
+
+    expect(mockDistill).not.toHaveBeenCalled()
+    expect(mockKnowledgeCreate).not.toHaveBeenCalled()
+    expect(result.cards).toEqual([])
+    expect(result.nothingNew).toBe(true)
+    expect(result.coverage).toMatchObject({ covered: 0, skipped: 0, partial: false, alreadyProcessed: 2 })
+  })
+
+  it('成功落库后把这一批记进台账（记了下次才不会重复花钱）', async () => {
+    mockGetByBookId.mockReturnValue([{ id: 'h1', content: '划线1' }, { id: 'h2', content: '划线2' }])
+    mockDistill.mockResolvedValue([{ type: 'concept', title: 'A', content: '内容A', tags: [] }])
+
+    await knowledgeCardService.distillBook('b-ledger', '书名')
+
+    expect(mockRecordBatch).toHaveBeenCalledWith('b-ledger', 'knowledgeCards', ['h1', 'h2'])
+  })
+
+  it('AI 失败时不记台账 —— 半途失败的那批下次还能补上', async () => {
+    mockGetByBookId.mockReturnValue([{ id: 'h1', content: '划线1' }])
+    mockDistill.mockRejectedValue(new Error('AI 炸了'))
+
+    await expect(knowledgeCardService.distillBook('b-fail', '书名')).rejects.toThrow(/AI 炸了/)
+    expect(mockRecordBatch).not.toHaveBeenCalled()
+  })
+
+  it('重新蒸馏：无视台账从头再来，并把台账一起归零', async () => {
+    mockGetByBookId.mockReturnValue([{ id: 'h1', content: '划线1' }, { id: 'h2', content: '划线2' }])
+    mockCardCounts.mockReturnValue({ 'b-redo': 2 })
+    mockProcessedIds.mockReturnValue(['h1', 'h2'])
+    mockDistill.mockResolvedValue([{ type: 'concept', title: 'A', content: '内容A', tags: [] }])
+
+    const { coverage } = await knowledgeCardService.distillBook('b-redo', '书名', { replace: true })
+
+    expect(mockProcessedIds).not.toHaveBeenCalled()
+    expect(mockDistill).toHaveBeenCalledTimes(1)
+    expect(coverage).toMatchObject({ alreadyProcessed: 0, covered: 2 })
+    expect(mockClearBatches).toHaveBeenCalledWith('b-redo', 'knowledgeCards')
+  })
+
+  it('卡片全删过了：台账作废并从头喂，否则那批划线永远补不回来', async () => {
+    const rows = [{ id: 'h1', content: '划线1' }, { id: 'h2', content: '划线2' }]
+    mockGetByBookId.mockReturnValue(rows)
+    mockCardCounts.mockReturnValue({})                  // 一张卡都不剩
+    mockProcessedIds.mockReturnValue(['h1', 'h2'])      // 台账却声称都处理过
+    mockDistill.mockResolvedValue([{ type: 'concept', title: 'A', content: '内容A', tags: [] }])
+
+    const { coverage } = await knowledgeCardService.distillBook('b-void', '书名')
+
+    expect(mockClearBatches).toHaveBeenCalledWith('b-void', 'knowledgeCards')
+    expect(mockDistill.mock.calls[0][0]).toHaveLength(2)
+    expect(coverage).toMatchObject({ alreadyProcessed: 0, covered: 2, partial: false })
   })
 
   it('distill 抛错时任务从 activeTasks 清除（finally）', async () => {

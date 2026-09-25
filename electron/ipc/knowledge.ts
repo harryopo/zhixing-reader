@@ -4,13 +4,14 @@
  */
 import * as fs from 'fs';
 import { dialog, BrowserWindow } from 'electron';
-import { methodologiesDb, knowledgeCardsDb, highlightsDb } from '../database';
+import { methodologiesDb, knowledgeCardsDb, highlightsDb, aiBatchesDb } from '../database';
 import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { knowledgeCardService } from '../services/knowledge-card-service';
 import { fetchAllContent } from '../weread-api';
 import { resolveWereadContent } from '../../src/shared/weread-content';
-import { planAiCoverage } from '../../src/shared/ai-coverage';
+import { describeBookCoverage, pickUnprocessed } from '../../src/shared/ai-coverage';
+import type { AiCoverageTask } from '../../src/shared/ai-coverage';
 import { extractMethodologies } from '../ai-service';
 import { generateCardInterpretation, generateCardApplication, generateSkill } from '../ai-sdk-service';
 import type { HandleFn } from './types';
@@ -129,12 +130,33 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
       note: h.note ? String(h.note) : undefined,
       chapterTitle: h.chapter_title ? String(h.chapter_title) : undefined,
     }));
-    const methodologies = await extractMethodologies(mappedHighlights, bookTitle);
-    const coverage = planAiCoverage('methodologies', mappedHighlights.length);
+    // 分批续跑：只喂台账里没记过的那批。
+    // 两种情况从头再来：replace（用户明说重来）、这本书已经没有任何成品（旧台账作废）。
+    const existingItems = methodologiesDb.getCountsByBook()[bookId] ?? 0;
+    const fromScratch = replace === true || existingItems === 0;
+    if (existingItems === 0) aiBatchesDb.clear(bookId, 'methodologies');
+    const processedIds = fromScratch
+      ? new Set<string>()
+      : new Set(aiBatchesDb.getProcessedIds(bookId, 'methodologies'));
+    const { selected, plan: coverage } = pickUnprocessed(
+      'methodologies',
+      mappedHighlights,
+      processedIds,
+      (h) => h.id,
+    );
+
+    if (selected.length === 0) {
+      // 整本书都提取过了：一次 AI 都不发
+      return { methodologies: [], coverage, nothingNew: true };
+    }
+
+    const methodologies = await extractMethodologies(selected, bookTitle);
 
     // 「重新提取」= 替换：AI 成功了才删旧数据，避免把用户已有方法论弄没
     if (replace === true) {
       const removed = methodologiesDb.deleteByBookId(bookId);
+      // 成品清空了，旧台账同时作废，否则两边对不上
+      aiBatchesDb.clear(bookId, 'methodologies');
       logger.info(`重新提取：已清除旧方法论 ${removed} 条`, { bookId, bookTitle });
     }
 
@@ -159,9 +181,34 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
       });
       results.push({ id, ...m });
     }
-    // 覆盖数与 extractMethodologies 内部的截断用同一份上限，不另算一套口径
-    return { methodologies: results, coverage };
+    // 方法论落库成功了才记台账 —— 半途失败时这批仍算"没处理过"，下次点还能补上
+    aiBatchesDb.record(
+      bookId,
+      'methodologies',
+      selected.map((h) => h.id).filter((id): id is string => Boolean(id)),
+    );
+    return { methodologies: results, coverage, nothingNew: false };
   });
+
+  /**
+   * 每本书的 AI 生成进度：分母是这本书的划线总数，分子是批次台账里记下的已处理数。
+   * 一次查询取全（不按书循环查），列表页拿到的是「还能再生成多少条」。
+   */
+  function buildCoverage(feature: AiCoverageTask) {
+    const totals = highlightsDb.getCountsByBook();
+    const ledger = aiBatchesDb.getProcessedCounts(feature);
+    const items =
+      feature === 'knowledgeCards'
+        ? knowledgeCardsDb.getCountsByBook()
+        : methodologiesDb.getCountsByBook();
+    return Object.entries(totals).map(([bookId, total]) => ({
+      bookId,
+      ...describeBookCoverage(total, ledger[bookId] ?? 0, items[bookId] ?? 0),
+    }));
+  }
+
+  handle(IPC_CHANNELS.METHODOLOGIES.COVERAGE, () => buildCoverage('methodologies'));
+  handle(IPC_CHANNELS.KNOWLEDGE_CARDS.COVERAGE, () => buildCoverage('knowledgeCards'));
 
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_ALL, () => knowledgeCardsDb.getAll());
   handle(IPC_CHANNELS.KNOWLEDGE_CARDS.GET_BY_ID, (id: string) => knowledgeCardsDb.getById(id));

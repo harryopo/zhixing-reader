@@ -23,7 +23,13 @@ import { toast } from '../stores/toastStore'
 import { safeStr, safeNum, formatDate, mapMethodologies, mapBooks } from '../utils/db-mapper'
 import { deleteWithUndo } from '@/utils/undoable-delete'
 import { useReviewEnrollment } from '@/utils/use-review-enrollment'
-import { coverageNotice } from '../../../shared/ai-coverage'
+import {
+  BookCoverageView,
+  coverageNotice,
+  describeBookCoverage,
+  generateButtonLabel,
+  resolveGenerateAction,
+} from '../../../shared/ai-coverage'
 import {
   MASTERY_FILTERS,
   VIEW_TOGGLES,
@@ -52,6 +58,8 @@ export default function Methodologies() {
   const [viewMode, setViewMode] = useState<ViewMode>('card')
   const [masteryFilter, setMasteryFilter] = useState<MasteryFilter>('all')
   const [extractingBookId, setExtractingBookId] = useState<string | null>(null)
+  /** 每本书的提取进度（来自批次台账，不是方法论上标的来源条数） */
+  const [coverageByBook, setCoverageByBook] = useState<Record<string, BookCoverageView>>({})
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<MethodologyItem | null>(null)
   const [showExtractPanel, setShowExtractPanel] = useState(true)
@@ -77,11 +85,13 @@ export default function Methodologies() {
       return
     }
     try {
-      const [methodsRaw, booksRaw] = await Promise.all([
+      const [methodsRaw, booksRaw, coverageRaw] = await Promise.all([
         window.electronAPI.methodology.getAll(),
         window.electronAPI.book.getAll(),
+        window.electronAPI.methodology.coverage(),
       ])
       setMethodologies(mapMethodologies(methodsRaw as unknown[]))
+      setCoverageByBook(Object.fromEntries(coverageRaw.map((c) => [c.bookId, c])))
       const books = mapBooks(booksRaw as unknown[])
       setBooks(books)
       // 默认提取书籍：第一本
@@ -181,15 +191,32 @@ export default function Methodologies() {
     return { all: methodologies.length, todo, mastered }
   }, [methodologies])
 
+  /**
+   * 这本书的按钮该说什么、点下去是"接着补剩下那批"还是"从头再来"。
+   * 判定与主进程共用 src/shared/ai-coverage.ts 那一份。
+   */
+  const generatePlan = (bookId: string, existing: number) =>
+    resolveGenerateAction(coverageByBook[bookId] ?? describeBookCoverage(0, 0, 0), existing)
+
+  /** 提取面板当前选中那本书的按钮语义（面板与按书分组用的是同一条规则） */
+  const extractPlan = extractBook
+    ? generatePlan(extractBook, methodologies.filter((m) => m.bookId === extractBook).length)
+    : null
+
   const handleExtract = async (bookId: string) => {
     const book = books.find((b) => b.id === bookId)
     if (!book) return
 
-    // 这本已经提取过了 → 点的是「重新提取」，语义是**替换**（旧方法论会被清空）
+    // 还剩多少条没提取过，决定这一颗按钮是「继续」还是「从头再来」
+    const view = coverageByBook[bookId]
     const existing = methodologies.filter((m) => m.bookId === bookId).length
-    if (existing > 0) {
+    const isRedo = generatePlan(bookId, existing).action === 'replace'
+    if (isRedo) {
+      const progressKnown = (view?.processed ?? 0) > 0
       const ok = window.confirm(
-        `《${safeStr(book.title)}》已有 ${existing} 条方法论。\n\n重新提取会先清空它们再重新生成，确定继续？`,
+        progressKnown
+          ? `《${safeStr(book.title)}》的 ${view?.total ?? 0} 条划线都已提取过（现有 ${existing} 条方法论）。\n\n重新提取会先清空它们再从头再来，确定继续？`
+          : `《${safeStr(book.title)}》已有 ${existing} 条方法论，但那批进度无从追溯（生成台账是后加的）。\n\n重新提取会先清空它们再从头再来，确定继续？`,
       )
       if (!ok) return
     }
@@ -197,12 +224,22 @@ export default function Methodologies() {
     setExtractingBookId(bookId)
     const toastId = toast.loading(`正在从《${safeStr(book.title)}》提取方法论，请耐心等待...`)
     try {
-      // replace=true：主进程会先清空这本书的旧方法论（界面上的「重新提取」）
-      const { coverage } = await window.electronAPI.methodology.extract(bookId, safeStr(book.title), existing > 0)
+      // isRedo=true 才会走到"清空重来"；其余情况主进程只喂台账里没记过的那批
+      const { coverage, nothingNew } = await window.electronAPI.methodology.extract(
+        bookId,
+        safeStr(book.title),
+        isRedo,
+      )
       await loadData()
       toast.remove(toastId)
-      const done = existing > 0 ? `重新提取完成，已替换原有 ${existing} 条方法论` : '方法论提取完成，已自动注入智能体'
-      // 一次最多喂 50 条划线（src/shared/ai-coverage.ts 的上限），没处理的部分要如实说出
+      const done = nothingNew
+        ? `《${safeStr(book.title)}》的划线都已提取过了，这次没有新的内容`
+        : isRedo
+          ? `重新提取完成，已替换原有 ${existing} 条方法论`
+          : existing > 0
+            ? `已接着提取下一批（此前已有 ${existing} 条）`
+            : '方法论提取完成，已自动注入智能体'
+      // 一次最多喂 50 条划线（src/shared/ai-coverage.ts 的上限），没处理完的部分要如实说出
       const notice = coverageNotice(coverage, '划线')
       toast.success(notice ? `${done} · ${notice}` : done, notice ? 9000 : undefined)
     } catch (error) {
@@ -445,10 +482,25 @@ export default function Methodologies() {
                   </>
                 ) : (
                   <>
-                    <IconWand size={15} /> 开始提取
+                    <IconWand size={15} />
+                    {extractPlan
+                      ? generateButtonLabel(extractPlan.action, extractPlan.view, {
+                          start: '开始提取',
+                          continue: '继续',
+                          redo: '重新提取',
+                        })
+                      : '开始提取'}
                   </>
                 )}
               </Button>
+              {extractPlan && extractPlan.view.processed > 0 && (
+                <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
+                  已处理 {extractPlan.view.processed}/{extractPlan.view.total} 条划线
+                  {extractPlan.view.remaining > 0
+                    ? ` · 还剩 ${extractPlan.view.remaining} 条`
+                    : ' · 整本都已提取'}
+                </span>
+              )}
             </div>
           </div>
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -710,6 +762,7 @@ export default function Methodologies() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 5)' }}>
               {Array.from(methodologiesByBook.entries()).map(([bookId, methods]) => {
                 const book = getBookInfo(bookId)
+                const plan = generatePlan(bookId, methods.length)
                 return (
                   <div
                     key={bookId}
@@ -746,7 +799,13 @@ export default function Methodologies() {
                       </div>
                       <Button variant="ghost" onClick={() => handleExtract(bookId)} disabled={extractingBookId === bookId}>
                         <Icon name="refresh" size={14} />
-                        {extractingBookId === bookId ? '提取中...' : '重新提取'}
+                        {extractingBookId === bookId
+                          ? '提取中...'
+                          : generateButtonLabel(plan.action, plan.view, {
+                              start: '提取',
+                              continue: '继续',
+                              redo: '重新提取',
+                            })}
                       </Button>
                     </div>
                     <div style={{ padding: 'calc(var(--spacing) * 4)', display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
