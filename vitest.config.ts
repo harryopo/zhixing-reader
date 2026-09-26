@@ -109,6 +109,21 @@ export default defineConfig({
         'src/renderer/src/stores/reviewStore.ts',
         'src/renderer/src/components/chat/MessageBubble.tsx',
         'src/renderer/src/admin-charts.tsx',
+        // ===== 2026-09-26 覆盖率清单对账 =====
+        // 之前这批文件"有测试却没进清单"（Issue #9 留下的欠账）。判据不是"挑好看的"，
+        // 而是当场量：33 个候选全部接进清单跑一遍，**三个维度都过门禁阈值的才留下**，
+        // 过不了的按数字记进 Issue #9 评论（见 tests/coverage-list.test.ts 的反向守卫）。
+        // 数字（lines / branches / funcs）：
+        'electron/agent/context-manager.ts',          // 100 / 100 / 100
+        'electron/agent/history-summarizer.ts',       // 100 / 88.88 / 100
+        'electron/agent/orchestrator.ts',             // 91.84 / 80.8 / 100
+        'electron/services/prompt-storage.ts',        // 98.06 / 95.08 / 100
+        'electron/services/settings-service.ts',      // 93.54 / 94.33 / 94.11
+        'electron/services/chapter-summary-service.ts', // 94.84 / 87.09 / 100
+        'electron/services/startup-repair.ts',        // 88.46 / 86.95 / 100
+        'src/renderer/src/echarts-theme-tailwind.ts', // 100 / 100 / 100
+        'src/renderer/src/components/ui/Modal.tsx',   // 97.18 / 85.71 / 100
+        'src/renderer/src/components/chat/RetrievalPanel.tsx', // 100 / 91.66 / 100
       ],
       exclude: [
         '**/*.test.ts',
