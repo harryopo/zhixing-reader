@@ -111,7 +111,12 @@ export default function SettingsWeRead() {
   useEffect(() => {
     if (testResult && testResult.type === 'weread') {
       if (testResult.success) {
-        toast.success('连接成功！微信读书 API 可用', 3000)
+        toast.success(
+          testResult.firstBookTitle
+            ? `连接成功！已拉到《${testResult.firstBookTitle}》`
+            : '连接成功！微信读书 API 可用',
+          3000
+        )
       } else {
         toast.error(testResult.message)
       }

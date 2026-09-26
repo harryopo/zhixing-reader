@@ -20,12 +20,12 @@ const ROOT = process.cwd()
 
 /** 欠账登记：文件 → 2026-09-26 实测的 lines / branches / funcs（不是估计，是量出来的） */
 const DEBT: Record<string, string> = {
-  'electron/weread-api.ts': '2.25 / 100 / 0',
   'electron/weread-sync-manager.ts': '17.96 / 44.44 / 36.36',
   'electron/admin.ts': '24.59 / 100 / 5',
   'electron/agent/builders/user-profile-context-builder.ts': '36.36 / 50 / 100',
   'electron/ipc/settings.ts': '38.18 / 100 / 100',
   'electron/ipc/books.ts': '44.96 / 93.75 / 100',
+  'src/renderer/src/stores/settingsStore.ts': '21.42 / 40 / 5',
   'src/renderer/src/stores/chatStore.ts': '47.55 / 58.53 / 23.8',
   'electron/ipc/knowledge.ts': '50.76 / 79.31 / 50',
   'electron/services/knowledge-card-service.ts': '69.34 / 81.81 / 76.92',

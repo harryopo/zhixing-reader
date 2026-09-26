@@ -31,6 +31,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // 一批守卫测试是"扫全仓库源码"的（db-method-consumers / coverage-list / doc-figures /
+    // ipc-channel-wiring），默认 5 秒上限在并行负载下会被踩穿 —— 实测同一份代码
+    // 单跑全绿、整套跑时 db-method-consumers 报 `Test timed out in 5000ms`。
+    // 抬到 20 秒只放宽墙钟，不动任何断言（判据该红的还是红）。
+    testTimeout: 20000,
     // 需要 DOM 的测试在自己文件首行写 `// @vitest-environment happy-dom`。
     // 原先这里用 environmentMatchGlobs 统一指环境，Vitest 3 已把它标废（4 会删），
     // 而且它和文件头的 docblock 谁生效说不清 —— admin-charts 就同时被 glob 指到
@@ -124,6 +129,8 @@ export default defineConfig({
         'src/renderer/src/echarts-theme-tailwind.ts', // 100 / 100 / 100
         'src/renderer/src/components/ui/Modal.tsx',   // 97.18 / 85.71 / 100
         'src/renderer/src/components/chat/RetrievalPanel.tsx', // 100 / 91.66 / 100
+        // 2026-09-26 补了网络层测试（tests/weread-api-network.test.ts）后重新量的
+        'electron/weread-api.ts',
       ],
       exclude: [
         '**/*.test.ts',

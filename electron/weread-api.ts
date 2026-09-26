@@ -191,6 +191,20 @@ export function initFromSettings(settings: Record<string, unknown>): void {
   }
 }
 
+/**
+ * 认证类错误：重试不会把它变成有效。
+ *
+ * 以前这条判断写的是"错误 message 里有没有 401 / 403 字样"—— HTTP 状态那条恰好带字样所以没事，
+ * 而 errcode 分支的 message 是服务端的中文 errmsg（例：「key 已失效」），于是判定落空，
+ * 一个失效的 key 会被白白重试三次。改成一个类型，谁都不许再靠文案猜。
+ */
+class NonRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NonRetryableError';
+  }
+}
+
 async function gatewayRequest<T>(request: GatewayRequest, useCache: boolean = true): Promise<T> {
   if (!apiKey) {
     throw new Error('请先设置微信读书 API Key');
@@ -233,7 +247,7 @@ async function gatewayRequest<T>(request: GatewayRequest, useCache: boolean = tr
         const error = new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
         
         if (response.status === 401 || response.status === 403) {
-          throw error;
+          throw new NonRetryableError(error.message);
         }
         
         if (attempt < MAX_RETRIES) {
@@ -252,7 +266,7 @@ async function gatewayRequest<T>(request: GatewayRequest, useCache: boolean = tr
         const error = new Error(data.errmsg || `API错误: ${data.errcode}`);
         
         if (data.errcode === 401 || data.errcode === 403) {
-          throw error;
+          throw new NonRetryableError(error.message);
         }
         
         if (attempt < MAX_RETRIES) {
@@ -275,7 +289,11 @@ async function gatewayRequest<T>(request: GatewayRequest, useCache: boolean = tr
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       
-      if (attempt < MAX_RETRIES && !lastError.message.includes('401') && !lastError.message.includes('403')) {
+      if (error instanceof NonRetryableError) {
+        break;
+      }
+
+      if (attempt < MAX_RETRIES) {
         logger.warn(`Request failed, retrying in ${RETRY_DELAY}ms...`, { error: lastError.message });
         await sleep(RETRY_DELAY * attempt);
         continue;
@@ -667,7 +685,15 @@ export async function testConnection(key: string): Promise<TestConnectionResult>
     }
 
     logger.info('WeRead test connection successful');
-    return { success: true, message: '连接成功' };
+    // 界面那句"真的拉到了一本书"靠的就是这里 —— /shelf/sync 已经返回在 data.books 里，
+    // 不带回去的话 firstBookTitle 这个字段永远是空的（声明了却没人产出）
+    const firstBook = Array.isArray(data.books) ? data.books[0] : undefined;
+    const firstBookTitle = firstBook?.title?.trim();
+    return {
+      success: true,
+      message: '连接成功',
+      firstBookTitle: firstBookTitle || undefined,
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('WeRead test connection failed', error);
