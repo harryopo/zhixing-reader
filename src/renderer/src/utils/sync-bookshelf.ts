@@ -11,23 +11,10 @@
  *   - Bookshelf：调用后自己调 loadData 刷新本地状态
  */
 
-/** 微信读书 API 返回的书籍字段 */
-interface WereadBook {
-  bookId: string
-  title: string
-  author?: string
-  cover?: string
-  isbn?: string
-  publisher?: string
-  intro?: string
-  publishTime?: string
-  category?: string
-  progress?: number
-  totalChapter?: number
-  lastReadTime?: number
-  readUpdateTime?: number
-  finishReading?: number
-}
+import { planBookSync, type WereadBookLike } from '../../../shared/weread-book-sync'
+
+/** 微信读书 API 返回的书籍字段 —— 就是同步计划要读的那几个字段（唯一声明在共享层） */
+type WereadBook = WereadBookLike
 
 export interface SyncBookshelfOptions {
   /** 是否按最近阅读时间排序后再写库（Bookshelf 用 true,Topbar 用 false） */
@@ -82,45 +69,15 @@ export async function syncBookshelfToDb(
   const failedTitles: string[] = []
   for (const wb of booksToSync) {
     try {
-      // 判重按 bookId（本地 id 就是微信读书的 bookId），不按书名：
-      // 同名两本（不同版本/不同作者）第二本会永远进不来，
-      // 还会把第一本的 author/progress 覆盖掉。
+      // 判重按 bookId、更新时不许带上进度列 —— 这两条与主进程后台自动同步
+      // 共用一份计划（src/shared/weread-book-sync.ts），不再各写一遍各漂一次的。
       const existing = await window.electronAPI.book.getById(wb.bookId)
-      const readTime = wb.readUpdateTime || wb.lastReadTime || 0
-      const lastReadTimeStr = readTime > 0 ? new Date(readTime * 1000).toISOString() : null
-
-      if (!existing) {
-        await window.electronAPI.book.create({
-          id: wb.bookId,
-          title: wb.title,
-          author: wb.author,
-          cover: wb.cover,
-          isbn: wb.isbn,
-          publisher: wb.publisher,
-          description: wb.intro || '',
-          category: wb.category || '',
-          publish_date: wb.publishTime || '',
-          reading_progress: wb.progress || 0,
-          total_chapter: wb.totalChapter || 0,
-          last_read_time: lastReadTimeStr,
-          is_finished: wb.finishReading || 0,
-          source: 'weread',
-        })
+      const plan = planBookSync(wb, existing)
+      if (plan.action === 'create') {
+        await window.electronAPI.book.create(plan.fields)
         newCount++
       } else {
-        await window.electronAPI.book.update(existing.id as string, {
-          author: wb.author || null,
-          cover: wb.cover || null,
-          isbn: wb.isbn || null,
-          publisher: wb.publisher || null,
-          description: wb.intro || null,
-          category: wb.category || null,
-          publish_date: wb.publishTime || null,
-          // 注意：/shelf/sync 不返回 reading_progress，此处**不能**写 0，
-          // 否则每次同步都会抹掉 getBookProgress() 缓存的真实进度
-          last_read_time: lastReadTimeStr,
-          is_finished: wb.finishReading || 0,
-        })
+        await window.electronAPI.book.update(plan.id, plan.fields)
         updatedCount++
       }
     } catch (error) {

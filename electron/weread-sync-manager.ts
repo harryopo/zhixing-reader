@@ -16,6 +16,10 @@
  *   - 基于下一次执行时间调度，避免长时间占用内存跑倒计时
  *   - 未配置 wereadApiKey 时拒绝启动，避免空跑报错刷屏
  *   - 每小时兜底检查一次，防止系统时间调整或错过执行
+ *   - 写库的判重与字段映射**不在这里再写一份**，与手动同步共用
+ *     `src/shared/weread-book-sync.ts` 的计划（两份实现漂开过：这里曾按书名判重、
+ *     并在更新时把 progress 写成 0，抹掉按本查回来的真实进度）
+ *   - 一次尝试之后没有留下成功记录 ⇒ 下一次按小时退避，不许 delay 算成 0 空转
  */
 
 import { BrowserWindow } from 'electron';
@@ -24,6 +28,7 @@ import { booksDb } from './database';
 import { logger } from './logger';
 import { settingsService } from './services/settings-service';
 import { syncReadingTimeToLocal } from './services/reading-time-sync';
+import { planBookSync } from '../src/shared/weread-book-sync';
 import { IPC_CHANNELS } from '../src/shared/ipc-channels';
 
 export type WeReadSyncFrequency = '1d' | '3d' | '7d';
@@ -62,9 +67,17 @@ const FREQUENCY_KEY = 'wereadSyncFrequency';
 
 let wereadAutoSyncTimer: NodeJS.Timeout | null = null;
 let wereadHourlyCheckTimer: NodeJS.Timeout | null = null;
+/**
+ * 本进程内最近一次自动同步的开始时刻（不论成败）。
+ * 只在没有成功记录时用来退避：`wereadLastSyncAt` 只有同步真的跑完才写，
+ * 光靠它排下一次，一次失败的 key 会把 delay 算成 0 ⇒ 排程链立刻重来，
+ * 变成"不停地打微信读书接口 + 渲染层不停地弹自动同步失败"的空转循环。
+ */
+let lastAttemptAt = 0;
 
 /** 后台同步：拉书架 → 写本地 books 表 */
 async function syncWereadBookshelfBackground(): Promise<void> {
+  lastAttemptAt = Date.now();
   if (!getApiKey()) {
     logger.warn('WeRead auto-sync skipped: API Key missing');
     return;
@@ -78,63 +91,43 @@ async function syncWereadBookshelfBackground(): Promise<void> {
 
     let newCount = 0;
     let updatedCount = 0;
+    let failedCount = 0;
     for (const wb of wereadBooks) {
       try {
-        // booksDb.search 按 title 模糊匹配，这里精确比对 title 判重
-        const existing = booksDb.search(wb.title);
-        const exists = existing.some((b) => b.title === wb.title);
-        const readTime = wb.readUpdateTime || wb.lastReadTime || 0;
-        const lastReadTimeStr = readTime > 0 ? new Date(readTime * 1000).toISOString() : null;
-
-        if (!exists) {
-          booksDb.create({
-            id: wb.bookId,
-            title: wb.title,
-            author: wb.author,
-            cover: wb.cover,
-            isbn: wb.isbn,
-            publisher: wb.publisher,
-            publish_date: wb.publishTime || null,
-            description: wb.intro || null,
-            category: wb.category || null,
-            reading_progress: wb.progress || 0,
-            total_chapter: wb.totalChapter || 0,
-            last_read_time: lastReadTimeStr,
-            is_finished: wb.finishReading || 0,
-          });
+        // 判重与字段映射与手动同步共用一份计划（src/shared/weread-book-sync.ts）
+        const plan = planBookSync(wb, booksDb.getById(wb.bookId));
+        if (plan.action === 'create') {
+          booksDb.create(plan.fields);
           newCount++;
         } else {
-          const match = existing.find((b) => b.title === wb.title);
-          if (match && match.id) {
-            try {
-              booksDb.update(match.id as string, {
-                author: wb.author || null,
-                cover: wb.cover || null,
-                isbn: wb.isbn || null,
-                publisher: wb.publisher || null,
-                publish_date: wb.publishTime || null,
-                description: wb.intro || null,
-                category: wb.category || null,
-                reading_progress: wb.progress || 0,
-                last_read_time: lastReadTimeStr,
-                is_finished: wb.finishReading || 0,
-              });
-              updatedCount++;
-            } catch (e) {
-              logger.warn(`WeRead auto-sync: update failed for "${wb.title}"`, { error: String(e) });
-            }
-          }
+          booksDb.update(plan.id, plan.fields);
+          updatedCount++;
         }
       } catch (e) {
+        failedCount++;
         logger.warn(`WeRead auto-sync: sync book failed for "${wb.title}"`, { error: String(e) });
       }
+    }
+
+    // 一本书都没写进去，就不许报"同步完成"—— 全失败时报 ok:true 是"假成功"
+    //（手动同步那条 2026-09-20 已改成如实报失败数，这里同一口径）。
+    if (failedCount === wereadBooks.length) {
+      logger.error(`WeRead auto-sync failed: all ${wereadBooks.length} books could not be written`);
+      emitAutoSyncStatus({
+        ok: false,
+        at: Date.now(),
+        error: `书架上 ${wereadBooks.length} 本书全部写入失败（本地数据库可能被占用）`,
+      });
+      return;
     }
 
     // 顺带刷新本地阅读时长（每天一次，只有 1 次额外请求）。
     // 阅读时长的真值来源是微信读书，本地 daily_stats 只是它的缓存。
     await syncReadingTimeToLocal();
 
-    logger.info(`WeRead auto-sync done: total=${wereadBooks.length} new=${newCount} updated=${updatedCount}`);
+    logger.info(
+      `WeRead auto-sync done: total=${wereadBooks.length} new=${newCount} updated=${updatedCount} failed=${failedCount}`,
+    );
     settingsService.set(SYNC_AT_KEY, Date.now());
     emitAutoSyncStatus({ ok: true, at: Date.now(), total: wereadBooks.length, newCount, updatedCount });
   } catch (error) {
@@ -175,11 +168,15 @@ function getNextSyncTimeMs(): number {
     : 0;
 
   const now = Date.now();
-  if (!lastSyncAt || lastSyncAt > now + frequencyMs) {
-    // 无记录或系统时间被调到未来，下次从当前时间开始
-    return now;
-  }
-  return lastSyncAt + frequencyMs;
+  // 有成功记录且没被调到未来 → 按频率排；否则（首次 / 时间异常）先试一次。
+  const base = lastSyncAt && lastSyncAt <= now + frequencyMs
+    ? lastSyncAt + frequencyMs
+    : now;
+
+  // 再压一道退避下限：本进程刚试过而没留下成功记录时（key 失效、网络不通、书架为空），
+  // base 可能一直落在过去 ⇒ delay 恒为 0 ⇒ 排程链自己转成"立刻再打一次接口"的空转循环，
+  // 渲染层跟着被刷屏弹「自动同步失败」。按小时退避，与每小时的兜底检查同一个节律。
+  return Math.max(base, lastAttemptAt + HOURLY_CHECK_MS);
 }
 
 /** 调度下一次同步 */
@@ -206,19 +203,13 @@ function scheduleNextSync(): void {
   logger.info(`WeRead auto-sync scheduled: frequency=${freq}, nextAt=${new Date(nextTime).toISOString()}, delayMs=${delay}`);
 }
 
-/** 轻量兜底：每小时检查一次是否已到期 */
+/**
+ * 轻量兜底：每小时检查一次是否已到期。
+ * 只由 `applyWereadAutoSyncSettings` 调用，且调用前那里已经清过旧定时器、
+ * 也已经验过"开关开着 + 有 key" —— 这里不再重复那两道检查
+ * （`scheduleNextSync` 的同类检查不能删：失败重试那条路会绕过 apply 直接回来排程）。
+ */
 function startHourlyCheck(): void {
-  if (wereadHourlyCheckTimer) {
-    clearInterval(wereadHourlyCheckTimer);
-    wereadHourlyCheckTimer = null;
-  }
-
-  const settings = settingsService.getAll();
-  const enabled = settings.wereadAutoSync === true;
-  if (!enabled || !getApiKey()) {
-    return;
-  }
-
   wereadHourlyCheckTimer = setInterval(() => {
     const nextTime = getNextSyncTimeMs();
     if (Date.now() >= nextTime) {

@@ -131,6 +131,11 @@ export default defineConfig({
         'src/renderer/src/components/chat/RetrievalPanel.tsx', // 100 / 91.66 / 100
         // 2026-09-26 补了网络层测试（tests/weread-api-network.test.ts）后重新量的
         'electron/weread-api.ts',
+        // 2026-09-26 后台自动同步：原来那份测试的 vi.mock 路径写错了（相对测试文件解析 ⇒
+        // 指向 tests/ 下不存在的文件，mock 静默失效），整份都是 not.toThrow()。
+        // 重写成真行为测试（tests/weread-sync-manager.test.ts）+ 抽出共享计划后的量法。
+        'electron/weread-sync-manager.ts', // 100 / 98.3 / 100
+        'src/shared/weread-book-sync.ts',  // 100 / 100 / 100
       ],
       exclude: [
         '**/*.test.ts',
