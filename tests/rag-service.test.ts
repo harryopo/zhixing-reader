@@ -8,8 +8,6 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
-import { initRepositoryFactory } from '../electron/repositories'
-import { getDatabase } from '../electron/database/connection'
 import { booksDb, highlightsDb } from '../electron/database'
 import { retrieveHighlights, invalidateRetrievalIndex } from '../electron/services/rag-service'
 
@@ -24,7 +22,6 @@ function seed() {
 describe('retrieveHighlights - 索引适配层', () => {
   beforeEach(async () => {
     await setupTestDatabase()
-    initRepositoryFactory(getDatabase)
     invalidateRetrievalIndex()
     seed()
   })

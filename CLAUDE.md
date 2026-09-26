@@ -20,7 +20,7 @@
 |------|------|
 | 改 Electron 主进程 | `electron/main.ts` + `electron/database/index.ts` + `src/shared/ipc-channels.ts` |
 | 改 IPC 通道 | `src/shared/ipc-channels.ts` + `electron/ipc/index.ts` + `electron/ipc/types.ts` + `electron/preload.ts` |
-| 改数据库 schema | `electron/database/schema.ts` + `electron/database/connection.ts` + `electron/repositories/` + `electron/utils/db.ts` |
+| 改数据库 schema | `electron/database/schema.ts` + `electron/database/connection.ts` + `electron/utils/db.ts` |
 | 改 AI 提示词 | `electron/services/prompt-registry.ts` + `prompt-storage.ts` |
 | 改智能体编排 | `electron/agent/orchestrator.ts` + `system-prompt.ts` + `context-builder.ts` |
 | 改 React 页面 | `src/renderer/src/App.tsx`（路由）+ 对应 `pages/` 目录 |
@@ -143,6 +143,7 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 - **git 锚点**：tag 序列 `v1.0.0` → `v1.1.0` → `v1.2.0` → `v1.3.0` → `v1.3.1` → `v1.3.2` → `v1.3.3` → `v1.3.4`（发版即打 tag 并推，Release 三件同传：exe / `.blockmap` / `latest.yml`）
 - **未处理项追踪**：以本文件 §9 表为准（原 `docs/项目自检_优化方案_2026-07-20.md` 已不在仓库）；Token 优化调研见 `docs/research/token-optimization-plan.md`（**Step 1-3 已落地**，Step 4 核查为已实现，Step 5-6 待做）
 - **主方向**：修复使用 bug、假数据/死代码治理、落地未完成功能、技术债消化
+- **门禁基线（2026-09-26 数据访问层复扫实测）**：typecheck 0 错误 ✅ / ESLint 0 error（180 warning）✅ / **90 文件 · 1346 用例** ✅ / `npm run verify` 退 0（覆盖率 **89.95 / 85.26 / 93.64 / 89.95**，被统计文件 59 → 60）✅。`electron/repositories/` 那套第二数据访问层整层撤掉（11 个文件 1559 行，全批净 −1347）：它只服务 5 个方法、且与 `electron/database/` 读写同一批表，09-22 就因"同一个统计两份实现、`due` 口径不同"漂过一次；`main.ts` 里那段初始化注释还写着"09-16 之前从没调用过工厂，`getRepositories()` 恒抛 ⇒ RAG 回退与画像 6 处调用全部静默失败"。检索与画像改走 database 读口，**画像"按 created_at 采样会话"这件事明写在服务里**（`conversationDb.getAll()` 排的是 updated_at）。判据两处：「第二套数据访问层不许回来」+ 新增 `tests/user-profile-service-real-db.test.ts` 5 条**真库对账**（既有那份是 mock 数据库，证不了真实那一行的形状）；采样序那条做过变异（排序键换成 updated_at ⇒ 立刻红 `expected 'concise' to be 'detailed'`）。`sql-column-whitelist` 的 `base-repository.ts` 豁免随之删除。装机版没跑过这批；一次真实 AI 对话没跑（花钱未批），所以"画像/检索真的进了提示词"只有集成测试级证据。
 - **门禁基线（2026-09-25 搜索与筛选器对齐实测）**：typecheck 0 错误 ✅ / ESLint 0 error（183 warning）✅ / **89 文件 · 1340 用例** ✅ / `npm run verify` 退 0（覆盖率 **89.86 / 85.15 / 93.45 / 89.86**，被统计文件 59）✅。全局搜索（SQL LIKE）与各页那台筛选器（本地 includes）三处字段清单漂了没人发现：搜索不搜卡片「应用」与书名、方法论页不搜 steps、生词本那条 SQL 不分词也不转义 `%`。判据不比对清单而**比结果集合**（`tests/search-filter-parity.test.ts`：同一关键词下搜索报的条数与 id 必须落进页面自己筛出的集合），分词与字段清单收进 `src/shared/page-filter.ts`；卡片/方法论的搜索链接从 `?q=` 变成 `?q=&item=`，落地直接翻开那一张。**造数据踩到一条**：中文"正文里没有锚点"这种负向用例本身就把关键词包住了，四条全绿是假的，换 ASCII 生造词才红。真机：时间 ⇒ 搜索 12 / 页面「把 12 张加入复习」12、带 item 落地 291 字（背面）vs 137 字（正面）；的 ⇒ 方法论详情开的是点进去那条。装机版没跑过这批。
 - **门禁基线（2026-09-25 数据库守卫实测）**：typecheck 0 错误 ✅ / ESLint 0 error（183 warning）✅ / **88 文件 · 1333 用例** ✅ / `npm run verify` 退 0（覆盖率 **89.74 / 85.12 / 93.19 / 89.74**，被统计文件 58）✅。上一提交列的"还有 20 个零调用方法"清完，实删 23 个（守卫一轮一轮把失去调用方的下一层报出来：`cards.createBatch` ← `highlights.createBatch`、`cards.getByState` ← `getNewCards`、`cards.findByManySources` ← `createBatch`），`electron/database/` +2 −267。新增 `tests/db-method-consumers.test.ts` 5 条：**数据库模块导出的每个方法都必须有人调用**，没有豁免名单；反证含"造一个孤儿必须报、跨行链式算调用、`count` 不许被 `countByBookId` 冒充、不许从 db 对象解构方法"。删掉 5 条"给已死方法写的测试"，4 条断言换读法、期望一字未改。装机版没跑过这批（纯内部收口，判据只有 typecheck + 用例这一层）。
 - **门禁基线（2026-09-25 数据库层复扫实测）**：typecheck 0 错误 ✅ / ESLint 0 error（184 warning）✅ / **87 文件 · 1333 用例** ✅ / `npm run verify` 退 0（覆盖率 **88.93 / 85.11 / 91.07 / 88.93**，被统计文件 58）✅。上一批留下的下半件事做完：12 个界面已无消费者的数据库函数删掉（`electron/database/` −103 行），10 处测试断言改走活口、期望一字未改，`bookSummariesDb.delete` 那条改成断言"删一本书带走它的摘要"（外键级联），`sql-column-whitelist` 的豁免清单同步少一条。**判据**：删完跑 typecheck，生产侧零报错即证明没人调用（跨行链式调用也照样解析）—— 清点脚本那侧的坑记一条：把空白全删掉再匹配会让 `returntokenUsageDb.count(` 丢词边界，把在用的函数误判成零调用。清单里 `vocabularyDb.getById` 是上一批记错的（被本模块自己调用三次），留着。**同一把尺扫出还有 20 个方法零生产调用**，列进下一批并补永久守卫。装机版没跑过这批（纯内部收口）。
@@ -214,5 +215,5 @@ Step 7  在 .learnings/ 记录踩坑（如有）
 
 ---
 
-*最后更新：2026-09-25 | v1.3.4 已发布；之后 master 上补了 CI 换行符修复与 GitHub 维护面、四批工具链升级、密钥落盘加密与跨进程收口、功能深化一批（引用回原文 / 出处 / 练习记账 / 删除可撤销）、以及「删除不级联」的根因修复（sql.js `export()` 复位外键）· 1340 用例 / 89 文件*
+*最后更新：2026-09-26 | v1.3.4 已发布；之后 master 上补了 CI 换行符修复与 GitHub 维护面、四批工具链升级、密钥落盘加密与跨进程收口、功能深化一批（引用回原文 / 出处 / 练习记账 / 删除可撤销）、「删除不级联」的根因修复（sql.js `export()` 复位外键）、全局搜索一批、数据库层与主进程数据访问层三轮复扫收口 · 1346 用例 / 90 文件*
 *与 AGENTS.md 不一致时，两者均以上述实测代码配置为准（`package.json` / `eslint.config.js` / `tsconfig.json` / `vitest.config.ts`）*

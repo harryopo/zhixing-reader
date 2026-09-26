@@ -101,6 +101,8 @@ export default defineConfig({
         'electron/services/backup.ts',
         'electron/services/deleted-archive.ts',
         'electron/services/reading-time-sync.ts',
+        // 用户画像服务：2026-09-26 换读口后补了真库对账（tests/user-profile-service-real-db.test.ts）
+        'electron/services/user-profile-service.ts',
         // renderer（colocated __tests__ 已有测试）
         'src/renderer/src/stores/toastStore.ts',
         'src/renderer/src/pages/settings/use-data-io.ts',

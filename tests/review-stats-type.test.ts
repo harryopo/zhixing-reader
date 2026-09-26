@@ -1,6 +1,6 @@
-// ReviewStats 对账（2026-09-22）
+// ReviewStats 对账（2026-09-22 立，2026-09-26 改）
 //
-// 三处各自声明、一处说谎：
+// 当初三处各自声明、一处说谎：
 //  - src/shared/types.ts 的 ReviewStats 写的是 totalCards / masteredCards / learningCards /
 //    newCards / averageEase / retentionRate —— 一个都不存在（averageEase、retentionRate 是 SM-2 时代的概念）；
 //  - renderer.d.ts 把 card.getStats 标成 Promise<ReviewStats>，于是 profileStore 只能
@@ -9,13 +9,23 @@
 //    SqlCardRepository 的 due 还带着老写法，把新卡算成到期 —— 而用户画像服务用的正是这一份。
 //
 // 类型说谎的代价不是难看，是下一位（人或 AI）会照不存在的字段写界面、
-// 或者以为两个 getReviewStats 是一回事。这里用真库跑一遍，两侧对账。
+// 或者以为两个 getReviewStats 是一回事。这里用真库跑一遍，逐条钉住。
+// 09-26 那层仓储被整层拔掉（见本文件最后一节），"两份实现一致"这条对账因此改成
+// 直接钉真实行为，另加一条"第二套数据访问层不许回来"。
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
+import { join } from 'path'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
 import { cardsDb, getDatabase } from '../electron/database'
-import { SqlCardRepository } from '../electron/repositories/card-repository'
+
+function walkSources(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name)
+    if (statSync(p).isDirectory()) return name === 'node_modules' ? [] : walkSources(p)
+    return /\.(ts|tsx)$/.test(name) ? [p] : []
+  })
+}
 
 /** 从 src/shared/types.ts 抠出某个 interface 的字段名 */
 function interfaceFields(name: string): string[] {
@@ -69,10 +79,8 @@ describe('ReviewStats 与实际返回对账', () => {
     )
   })
 
-  it('两份实现必须给出一样的数：due 不算从未学过的卡', () => {
+  it('due 只算已学过且到期的卡（新卡不许冒充「待办」）', () => {
     seedCards()
-    const repo = new SqlCardRepository(getDatabase)
-    expect(repo.getReviewStats()).toEqual(cardsDb.getReviewStats())
     // 5 张里 3 张已学过，其中到期 2 张（学习态 1 张 + 复习态 1 张），
     // 另外那 2 张 state=0 的新卡 due 也在过去 —— 它们只进 new，不许冒充「待办」
     expect(cardsDb.getReviewStats().due).toBe(2)
@@ -95,18 +103,33 @@ describe('ReviewStats 与实际返回对账', () => {
   })
 })
 
-describe('一份定义两侧共用', () => {
-  it('主进程三处声明不再各自内联形状，统一用 shared 的 ReviewStats', () => {
-    const files = [
-      'electron/database/cards.ts',
-      'electron/repositories/card-repository.ts',
-      'electron/types/repositories.ts',
-    ]
+describe('一份定义、一条读数路径', () => {
+  /**
+   * 2026-09-22 立这条时是"三处声明"（database + repositories + types/repositories），
+   * 09-26 拔掉那层后剩两处：数据库实现与 preload 契约。判据不变 —— 谁都不许自己内联一份形状。
+   */
+  it('两处声明统一用 shared 的 ReviewStats，不各自内联形状', () => {
+    const files = ['electron/database/cards.ts', 'src/types/renderer.d.ts']
     for (const file of files) {
       const src = readFileSync(file, 'utf8')
       expect(src).toContain('ReviewStats')
       expect(src).not.toContain('total: number; due: number; new: number')
     }
+  })
+
+  /**
+   * 2026-09-22 那次抓到的是"同一个 `getReviewStats` 有两份实现且 due 口径不同"（档案页当时
+   * 用的正是错的那份）。2026-09-26 把整层仓储拔掉，从此只有一条路 —— 这条判据钉住它别回来：
+   * 主进程里不许再出现第二个数据访问层（`electron/repositories/` 与 `getRepositories()`）。
+   */
+  it('主进程不再的第二套数据访问层不许回来', () => {
+    expect(existsSync(join(process.cwd(), 'electron/repositories'))).toBe(false)
+    expect(existsSync(join(process.cwd(), 'electron/types/repositories.ts'))).toBe(false)
+    const sources = [...walkSources('electron'), ...walkSources('src')].filter(
+      (f) => !f.endsWith('.test.ts'),
+    )
+    const hits = sources.filter((f) => /getRepositories|from '.*\/repositories'/.test(readFileSync(f, 'utf8')))
+    expect(hits.map((f) => f.split(/[\\/]/).pop())).toEqual([])
   })
 
   it('渲染层不再用 as unknown as 绕过这个类型', () => {

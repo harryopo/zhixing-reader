@@ -333,7 +333,7 @@ export function initializeSchema(db: import('sql.js').Database): void {
  *
  * 背景：测试 fixture 曾自行复制一份 schema。每次生产侧加列，测试侧不知道，
  * 集成测试就以 "no such column" 失败（2026-08-28 加列、2026-09-15 加词汇记忆状态列
- * 各踩一次），而报错常被 repository 的 try/catch 吞成 `return null`，很难定位。
+ * 各踩一次），而报错常被当时那套数据访问层的 try/catch 吞成 `return null`，很难定位。
  */
 export function applySchemaAndMigrations(): void {
   const db = getDatabase();

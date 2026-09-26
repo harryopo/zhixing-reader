@@ -1,36 +1,33 @@
 // 知行读书 — user-profile-service 单元测试（2026-07-24，过夜 Task #12）
 //
 // 覆盖 hasUserProfile / buildUserProfile / generatePersonalizedPrompt。
-// user-profile-service 是 agent 用户画像构建核心，0 单测。
-// 用 mock repositories 隔离 DB。注意：buildUserProfile 有 5 分钟模块级缓存，
+// user-profile-service 是 agent 用户画像构建核心。
+// 用 mock `electron/database` 隔离 DB（喂的是**库里那一行**：`reading_progress` 这类原始列名，
+// 不是映射之后的驼峰 —— 服务现在直接读 database，跟其它消费者同一条路）。
+// 注意：buildUserProfile 有 5 分钟模块级缓存，
 // 每个测试用 vi.resetModules() + 动态 import 拿到干净的缓存状态。
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // vi.hoisted 确保 mock 引用在 vi.mock 工厂内可用
-const { mockBooks, mockConversations, mockHighlights, mockCards, mockGetRepos } = vi.hoisted(() => ({
+const { mockBooks, mockConversations, mockMessages, mockHighlights, mockCards } = vi.hoisted(() => ({
   mockBooks: vi.fn(() => []),
   mockConversations: vi.fn(() => []),
+  mockMessages: vi.fn(() => []),
   mockHighlights: vi.fn(() => []),
-  mockCards: vi.fn(() => ({ total: 0, new: 0, review: 0, learning: 0 })),
-  mockGetRepos: vi.fn(),
+  mockCards: vi.fn(() => ({ total: 0, due: 0, new: 0, learning: 0, review: 0 })),
 }))
 
-vi.mock('../electron/repositories', () => ({
-  getRepositories: mockGetRepos,
+vi.mock('../electron/database', () => ({
+  booksDb: { getAll: mockBooks },
+  conversationDb: { getAll: mockConversations, getMessages: mockMessages },
+  highlightsDb: { getAll: mockHighlights },
+  cardsDb: { getReviewStats: mockCards },
 }))
 
 vi.mock('../electron/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
-
-// 默认 repositories stub
-mockGetRepos.mockReturnValue({
-  books: { findAll: mockBooks },
-  conversations: { findAll: mockConversations },
-  highlights: { findAll: mockHighlights },
-  cards: { getReviewStats: mockCards },
-})
 
 import type { UserProfile } from '../electron/services/user-profile-service'
 
@@ -106,19 +103,12 @@ describe('user-profile-service — hasUserProfile', () => {
     expect(hasUserProfile()).toBe(false)
   })
 
-  it('repositories 抛错时返回 false（降级）', async () => {
-    mockGetRepos.mockImplementationOnce(() => {
+  it('读库抛错时返回 false（降级）', async () => {
+    mockBooks.mockImplementationOnce(() => {
       throw new Error('repos boom')
     })
     const { hasUserProfile } = await importFresh()
     expect(hasUserProfile()).toBe(false)
-    // 恢复默认
-    mockGetRepos.mockReturnValue({
-      books: { findAll: mockBooks },
-      conversations: { findAll: mockConversations },
-      highlights: { findAll: mockHighlights },
-      cards: { getReviewStats: mockCards },
-    })
   })
 })
 
@@ -128,7 +118,7 @@ describe('user-profile-service — buildUserProfile', () => {
     mockBooks.mockReturnValue([])
     mockConversations.mockReturnValue([])
     mockHighlights.mockReturnValue([])
-    mockCards.mockReturnValue({ total: 0, new: 0, review: 0, learning: 0 })
+    mockCards.mockReturnValue({ total: 0, due: 0, new: 0, review: 0, learning: 0 })
   })
 
   it('空数据时仍返回有效 profile 结构', async () => {
@@ -144,9 +134,9 @@ describe('user-profile-service — buildUserProfile', () => {
 
   it('阅读偏好：按分类/作者计数并取前5', async () => {
     mockBooks.mockReturnValue([
-      { id: 'b1', category: '认知', author: 'A', readingProgress: 1 },
-      { id: 'b2', category: '认知', author: 'A', readingProgress: 0 },
-      { id: 'b3', category: '心理', author: 'B', readingProgress: 1 },
+      { id: 'b1', category: '认知', author: 'A', reading_progress: 1 },
+      { id: 'b2', category: '认知', author: 'A', reading_progress: 0 },
+      { id: 'b3', category: '心理', author: 'B', reading_progress: 1 },
     ] as never)
     const { buildUserProfile } = await importFresh()
     const profile = await buildUserProfile()
@@ -157,9 +147,9 @@ describe('user-profile-service — buildUserProfile', () => {
 
   it('完成率 = 已读 / 总数', async () => {
     mockBooks.mockReturnValue([
-      { id: 'b1', readingProgress: 1 },
-      { id: 'b2', readingProgress: 1 },
-      { id: 'b3', readingProgress: 0 },
+      { id: 'b1', reading_progress: 1 },
+      { id: 'b2', reading_progress: 1 },
+      { id: 'b3', reading_progress: 0 },
     ] as never)
     const { buildUserProfile } = await importFresh()
     const profile = await buildUserProfile()
@@ -167,14 +157,14 @@ describe('user-profile-service — buildUserProfile', () => {
   })
 
   it('认知水平：overallScore = 已掌握卡 / 总卡 * 100', async () => {
-    mockCards.mockReturnValue({ total: 10, new: 4, review: 6, learning: 0 })
+    mockCards.mockReturnValue({ total: 10, due: 6, new: 4, review: 6, learning: 0 })
     const { buildUserProfile } = await importFresh()
     const profile = await buildUserProfile()
     expect(profile.cognitiveLevel.overallScore).toBe(60)
   })
 
   it('bloomDistribution 映射卡片状态', async () => {
-    mockCards.mockReturnValue({ total: 10, new: 3, review: 4, learning: 3 })
+    mockCards.mockReturnValue({ total: 10, due: 7, new: 3, review: 4, learning: 3 })
     const { buildUserProfile } = await importFresh()
     const profile = await buildUserProfile()
     expect(profile.cognitiveLevel.bloomDistribution.remember).toBe(3)
@@ -189,18 +179,12 @@ describe('user-profile-service — buildUserProfile', () => {
     expect(p2).toBe(p1)
   })
 
-  it('repositories 抛错时 buildUserProfile 抛出（非降级）', async () => {
-    mockGetRepos.mockImplementationOnce(() => {
+  it('读库抛错时 buildUserProfile 抛出（非降级）', async () => {
+    mockHighlights.mockImplementationOnce(() => {
       throw new Error('fatal')
     })
     const { buildUserProfile } = await importFresh()
     await expect(buildUserProfile()).rejects.toThrow('fatal')
-    mockGetRepos.mockReturnValue({
-      books: { findAll: mockBooks },
-      conversations: { findAll: mockConversations },
-      highlights: { findAll: mockHighlights },
-      cards: { getReviewStats: mockCards },
-    })
   })
 })
 

@@ -1,6 +1,29 @@
 import { logger } from '../logger'
-import { getRepositories } from '../repositories'
+import { booksDb, cardsDb, conversationDb, highlightsDb } from '../database'
 import { settingsService } from './settings-service'
+
+/** 库里读出来的是原始列名（`reading_progress` 这类），这两次转换只服务本文件那几处读数 */
+const str = (v: unknown): string => (v === null || v === undefined ? '' : String(v))
+const num = (v: unknown): number => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+/**
+ * 取最近若干次会话（按 created_at 倒序）。
+ *
+ * `conversationDb.getAll()` 按 updated_at 排，而画像采样一直是按 created_at 取的 ——
+ * 排序换掉就等于换掉被采样的那几场对话，档案页的数字会跟着变。
+ * 拔仓储层这次只换"从哪儿读"，不换"读到哪些"，所以排序留在这里明写。
+ */
+function recentConversations(limit: number): string[] {
+  return conversationDb
+    .getAll()
+    .slice()
+    .sort((a, b) => str(b.created_at).localeCompare(str(a.created_at)))
+    .slice(0, limit)
+    .map((c) => str(c.id))
+}
 
 export interface UserProfile {
   id: string
@@ -57,11 +80,8 @@ const CACHE_TTL = 5 * 60 * 1000
  */
 export function hasUserProfile(): boolean {
   try {
-    const repos = getRepositories()
-    const books = repos.books.findAll()
-    const conversations = repos.conversations.findAll()
     // 至少有3本书或10次对话才认为有有意义的用户画像
-    return books.length >= 3 || conversations.length >= 10
+    return booksDb.getAll().length >= 3 || conversationDb.getAll().length >= 10
   } catch {
     return false
   }
@@ -140,15 +160,14 @@ export async function buildUserProfile(): Promise<UserProfile> {
 }
 
 function analyzeReadingPreferences(): ReadingPreferences {
-  const repos = getRepositories()
-  const books = repos.books.findAll()
+  const books = booksDb.getAll()
 
   const categoryMap = new Map<string, number>()
   const authorMap = new Map<string, number>()
 
   for (const book of books) {
-    const category = book.category || '未分类'
-    const author = book.author || '未知作者'
+    const category = str(book.category) || '未分类'
+    const author = str(book.author) || '未知作者'
     categoryMap.set(category, (categoryMap.get(category) || 0) + 1)
     authorMap.set(author, (authorMap.get(author) || 0) + 1)
   }
@@ -163,11 +182,11 @@ function analyzeReadingPreferences(): ReadingPreferences {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5)
 
-  const finishedBooks = books.filter(b => b.readingProgress >= 1).length
+  const finishedBooks = books.filter((b) => num(b.reading_progress) >= 1).length
   const completionRate = books.length > 0 ? finishedBooks / books.length : 0
 
-  const recentBooks = books.filter(b => {
-    const lastRead = b.lastReadTime ? new Date(b.lastReadTime) : null
+  const recentBooks = books.filter((b) => {
+    const lastRead = b.last_read_time ? new Date(str(b.last_read_time)) : null
     if (!lastRead || isNaN(lastRead.getTime())) return false
     const daysSince = (Date.now() - lastRead.getTime()) / (1000 * 60 * 60 * 24)
     return daysSince <= 7
@@ -180,14 +199,13 @@ function analyzeReadingPreferences(): ReadingPreferences {
 }
 
 function analyzeCognitiveLevel(): CognitiveLevel {
-  const repos = getRepositories()
-  const highlights = repos.highlights.findAll()
-  const cards = repos.cards.getReviewStats()
+  const highlights = highlightsDb.getAll()
+  const cards = cardsDb.getReviewStats()
 
   const conceptMap = new Map<string, { total: number; mastered: number }>()
 
   for (const highlight of highlights) {
-    const content = highlight.content || ''
+    const content = str(highlight.content)
     const concepts = extractConcepts(content)
     for (const concept of concepts) {
       const existing = conceptMap.get(concept) || { total: 0, mastered: 0 }
@@ -224,9 +242,7 @@ function analyzeCognitiveLevel(): CognitiveLevel {
 
 function analyzeLearningStyle(): LearningStyle {
   try {
-    const repos = getRepositories()
-    const conversations = repos.conversations.findAll()
-    if (conversations.length === 0) {
+    if (conversationDb.getAll().length === 0) {
       return {
         preferredExplanation: 'mixed',
         interactionPattern: 'active',
@@ -244,14 +260,14 @@ function analyzeLearningStyle(): LearningStyle {
       casual_chat: 0,
     }
 
-    for (const conv of conversations.slice(0, 10)) {
-      const messages = repos.chatMessages.findByConversationId(conv.id)
+    for (const convId of recentConversations(10)) {
+      const messages = conversationDb.getMessages(convId)
       for (const msg of messages) {
         if (msg.role === 'user') {
-          totalMessageLength += (msg.content || '').length
+          totalMessageLength += str(msg.content).length
           messageCount++
 
-          const content = (msg.content || '').toLowerCase()
+          const content = str(msg.content).toLowerCase()
           if (/什么|解释|定义|意思/.test(content)) questionTypeCounts.knowledge_query++
           else if (/深入|详细|分析|对比|评价/.test(content)) questionTypeCounts.deep_discussion++
           else if (/教我|考考|练习|怎么做|实践/.test(content)) questionTypeCounts.teaching_practice++
@@ -283,14 +299,13 @@ function analyzeLearningStyle(): LearningStyle {
 }
 
 function buildKnowledgeGraph(): KnowledgeGraph {
-  const repos = getRepositories()
-  const books = repos.books.findAll()
+  const books = booksDb.getAll()
 
   const domainMap = new Map<string, { count: number; mastery: number }>()
 
   for (const book of books) {
-    const category = book.category || '未分类'
-    const progress = book.readingProgress || 0
+    const category = str(book.category) || '未分类'
+    const progress = num(book.reading_progress)
     const existing = domainMap.get(category) || { count: 0, mastery: 0 }
     existing.count++
     existing.mastery = Math.max(existing.mastery, progress * 100)
@@ -311,16 +326,15 @@ function buildKnowledgeGraph(): KnowledgeGraph {
 
 function analyzeConversationPatterns(): ConversationPattern {
   try {
-    const repos = getRepositories()
-    const conversations = repos.conversations.findAll()
+    const all = conversationDb.getAll()
     let totalMessageLength = 0
     let totalMessages = 0
 
-    for (const conv of conversations.slice(0, 20)) {
-      const messages = repos.chatMessages.findByConversationId(conv.id)
+    for (const convId of recentConversations(20)) {
+      const messages = conversationDb.getMessages(convId)
       for (const msg of messages) {
         if (msg.role === 'user') {
-          totalMessageLength += (msg.content || '').length
+          totalMessageLength += str(msg.content).length
           totalMessages++
         }
       }
@@ -329,7 +343,7 @@ function analyzeConversationPatterns(): ConversationPattern {
     return {
       commonTopics: [],
       averageMessageLength: totalMessages > 0 ? Math.round(totalMessageLength / totalMessages) : 100,
-      totalConversations: conversations.length,
+      totalConversations: all.length,
     }
   } catch {
     return { commonTopics: [], averageMessageLength: 100, totalConversations: 0 }

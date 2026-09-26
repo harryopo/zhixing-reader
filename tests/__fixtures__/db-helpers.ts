@@ -6,7 +6,7 @@ import { injectTestDatabase, resetTestDatabaseState, applySchemaAndMigrations } 
  *
  * ⚠️ 2026-09-15 重构：这里**曾经**是一份从 electron/database/schema.ts 复制粘贴出来的
  * 平行 schema（约 280 行 DDL）。它没有任何同步机制，于是每次生产侧加列，测试侧都不知道，
- * 集成测试就以 "no such column" 失败 —— 而报错常被 repository 的 try/catch 吞成 `return null`，
+ * 集成测试就以 "no such column" 失败 —— 而报错常被当时那套数据访问层的 try/catch 吞成 `return null`，
  * 只看断言信息极难定位。2026-08-28 与 2026-09-15 各踩了一次。
  *
  * 现在改为直接复用生产的 `applySchemaAndMigrations()`：schema 只有一份真值，

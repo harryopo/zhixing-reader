@@ -11,8 +11,6 @@ import { initFromSettings as initAISettings } from './ai-service';
 import { initFromSettings as initAISDKSettings, cancelActiveStream } from './ai-sdk-service';
 import { logger } from './logger';
 import { settingsService } from './services/settings-service';
-import { getDatabase } from './database/connection';
-import { initRepositoryFactory } from './repositories';
 import { startWereadAutoSync } from './weread-sync-manager';
 import { runStartupRepair } from './services/startup-repair';
 import { initAutoUpdater, stopUpdateChecks } from './updater';
@@ -240,12 +238,6 @@ if (!app.requestSingleInstanceLock()) {
 
     try {
       await initDatabase();
-
-      // Repository 工厂必须在任何 getRepositories() 调用之前初始化。
-      // 此前全项目从未调用过 initRepositoryFactory，导致 getRepositories() 恒抛
-      // 'RepositoryFactory not initialized' —— RAG 的关键词回退（keywordSearch）
-      // 与用户画像服务（6 处调用）因此全部静默失败，书籍上下文永远是空的。
-      initRepositoryFactory(getDatabase);
 
       registerIpcHandlers();
 

@@ -152,12 +152,13 @@ describe('拼进 SQL 的列名必须真是那张表的列', () => {
     /**
      * 允许不接守卫的两类（理由写在这儿，别只留文件名）：
      *  - 键名来自本文件的模块级常量清单
-     *  - 键名由子类的 mapToRow 逐字段赋值，不接受调用方的键
+     *  - 那段拼接自带 assertSafeIdentifier，且列名是从库里读出来的行上取的
+     * （原来还有第三条"仓储层 mapToRow 逐字段赋值"—— 那层 2026-09-26 整层拔掉了，
+     * 豁免条目不许空转，所以一起删。）
      */
     const EXEMPT: Record<string, string> = {
       'cards.ts': 'CARD_UPDATABLE_COLUMNS 常量清单',
       'deleted-archive.ts': '自带 assertSafeIdentifier，且列名来自库里读出的行',
-      'base-repository.ts': '键名来自子类的 mapToRow，逐字段赋值',
     }
 
     function sources(dir: string): string[] {

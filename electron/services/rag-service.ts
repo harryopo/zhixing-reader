@@ -15,7 +15,6 @@
  *   3. 把查询交给纯函数，返回带 highlightId 的结果（渲染层据此显示「引用来源」）
  */
 
-import { getRepositories } from '../repositories'
 import { highlightsDb } from '../database'
 import { logger } from '../logger'
 import { buildIndex, searchIndex, type RetrievalHit, type RetrievalIndex } from '../../src/shared/retrieval'
@@ -35,12 +34,14 @@ function getIndex(): RetrievalIndex {
   const signature = highlightsDb.getRetrievalSignature()
   if (cached && cached.signature === signature) return cached.index
 
-  const docs = getRepositories().highlights.findAll().map((h) => ({
-    id: h.id,
-    bookId: h.bookId,
-    bookTitle: h.bookTitle ?? '',
-    chapterTitle: h.chapterTitle,
-    content: h.content,
+  // getAll() 的 SQL 就把书名 JOIN 出来了（book_title）：整库划线一次读出来建索引，
+  // 与旧的仓储层 findAll() 是同一条查询 —— 那一层已经因为"同一份查询写两遍"漂过一次
+  const docs = highlightsDb.getAll().map((row) => ({
+    id: String(row.id),
+    bookId: String(row.book_id),
+    bookTitle: row.book_title == null ? '' : String(row.book_title),
+    chapterTitle: row.chapter_title == null ? undefined : String(row.chapter_title),
+    content: String(row.content ?? ''),
   }))
 
   const index = buildIndex(docs)
