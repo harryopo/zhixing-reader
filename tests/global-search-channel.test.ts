@@ -114,7 +114,7 @@ describe('search:global 通道', () => {
     expect(groupOf(r, 'highlight')!.hits[0].snippet).toContain('让我想到复利这件事')
     expect(groupOf(r, 'word')!.hits[0].link).toBe('/vocabulary?item=v1')
     expect(groupOf(r, 'article')!.hits[0].link).toBe('/daily-learning?article=a1')
-    expect(groupOf(r, 'card')!.hits[0].link).toBe('/knowledge-cards?q=%E5%A4%8D%E5%88%A9')
+    expect(groupOf(r, 'card')!.hits[0].link).toBe('/knowledge-cards?q=%E5%A4%8D%E5%88%A9&item=k1')
   })
 
   it('每类只到自己那条上限，但 matched 报的是库里真命中的条数', () => {

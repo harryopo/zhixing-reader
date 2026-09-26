@@ -20,6 +20,7 @@ import Icon from '@/components/ui/Icon'
 import { Loading, EmptyState } from '@/components/ui/Feedback'
 import { mapBooks, mapHighlights, formatTimeAgo } from '../utils/db-mapper'
 import type { BookRow, HighlightRow } from '../utils/db-mapper'
+import { highlightSearchFields, matchesAllTerms } from '../../../shared/page-filter'
 import { toast } from '../stores/toastStore'
 
 // ===== 工具函数 =====
@@ -124,16 +125,17 @@ export default function Notes() {
     }
 
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      const terms = query.split(/\s+/).filter((t) => t.length > 0)
-      result = result.filter((h) => {
-        const content = (h.content || '').toLowerCase()
-        const note = (h.note || '').toLowerCase()
-        const chapterTitle = (h.chapterTitle || '').toLowerCase()
-        const bookTitle = getBookTitle(h.bookId).toLowerCase()
-        const searchText = `${content} ${note} ${chapterTitle} ${bookTitle}`
-        return terms.every((term) => searchText.includes(term))
-      })
+      result = result.filter((h) =>
+        matchesAllTerms(
+          searchQuery,
+          highlightSearchFields({
+            content: h.content,
+            note: h.note,
+            chapterTitle: h.chapterTitle,
+            bookTitle: getBookTitle(h.bookId),
+          }),
+        ),
+      )
     }
 
     // 按创建时间倒序，最近在前

@@ -130,8 +130,9 @@ export function toLikePattern(query: string): string {
  * 按类拼"点回去"的链接。
  *
  * 划线与生词能精确到那一条（前者有 source-anchor，后者那一页本来就能按 id 选词）；
- * 卡片与方法论那两页没有"按 id 打开"的入口，就带着同一个关键词过去，
- * 让页面自己的搜索框把命中项筛到眼前 —— 比跳过去让人翻整页强。
+ * 卡片与方法论那两页的详情是页内状态，所以链接同时带上 `q`（让列表筛到这一批）
+ * 与 `item`（让页面把点的那一条翻开 / 选进详情面板）——
+ * 只带关键词等于跳过去让人自己认，那件事本来就该由链接做完。
  */
 export function buildHitLink(hit: {
   kind: SearchKind
@@ -142,20 +143,20 @@ export function buildHitLink(hit: {
   const { kind, id, query, bookId } = hit
   switch (kind) {
     case 'highlight':
-      return bookId ? sourceHighlightLink({ bookId, highlightId: id }) : `/notes?${qs(query)}`
+      return bookId ? sourceHighlightLink({ bookId, highlightId: id }) : `/notes?${qs({ q: query })}`
     case 'article':
       return articleDeepLink(id)
     case 'card':
-      return `/knowledge-cards?${qs(query)}`
+      return `/knowledge-cards?${qs({ q: query, item: id })}`
     case 'methodology':
-      return `/methodologies?${qs(query)}`
+      return `/methodologies?${qs({ q: query, item: id })}`
     case 'word':
       return `/vocabulary?item=${encodeURIComponent(id)}`
   }
 }
 
-function qs(query: string): string {
-  return new URLSearchParams({ q: query }).toString()
+function qs(params: Record<string, string>): string {
+  return new URLSearchParams(params).toString()
 }
 
 /** 这一类该怎么写条数：库里命中多少、这里列出多少 */
@@ -175,13 +176,13 @@ export function describeGroupCount(group: SearchGroupResult): string {
 export function seeAllLink(kind: SearchKind, query: string): string | null {
   switch (kind) {
     case 'highlight':
-      return `/notes?${qs(query)}`
+      return `/notes?${qs({ q: query })}`
     case 'card':
-      return `/knowledge-cards?${qs(query)}`
+      return `/knowledge-cards?${qs({ q: query })}`
     case 'methodology':
-      return `/methodologies?${qs(query)}`
+      return `/methodologies?${qs({ q: query })}`
     case 'word':
-      return `/vocabulary?${qs(query)}`
+      return `/vocabulary?${qs({ q: query })}`
     case 'article':
       return null
   }

@@ -38,6 +38,7 @@ import {
   generateButtonLabel,
   resolveGenerateAction,
 } from '../../../shared/ai-coverage'
+import { cardSearchFields, matchesAllTerms } from '../../../shared/page-filter'
 import {
   TABS,
   TYPE_FILTERS,
@@ -119,6 +120,17 @@ export default function KnowledgeCards() {
     }
   }
 
+  /**
+   * 搜索结果点进来时带着 `?item=` —— 直接把那一张翻过来。
+   *
+   * 过去只是把关键词带过来让这一页自己筛，用户还得在筛出来的几条里认出刚才点的那张；
+   * 而"认出来"这件事在筛选器与搜索字段对齐之前还不一定认得到（见 page-filter.ts）。
+   */
+  const itemFromUrl = searchParams.get('item')
+  useEffect(() => {
+    if (itemFromUrl && cards.some((c) => c.id === itemFromUrl)) setFlippedId(itemFromUrl)
+  }, [itemFromUrl, cards])
+
   const getBookTitle = useCallback(
     (bookId: string) => {
       const book = books.find((b) => b.id === bookId)
@@ -164,15 +176,18 @@ export default function KnowledgeCards() {
     }
 
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      const terms = query.split(/\s+/).filter((t) => t.length > 0)
-      result = result.filter((c) => {
-        const searchText = [c.title, c.content, c.interpretation, c.application, getBookTitle(c.bookId)]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-        return terms.every((term) => searchText.includes(term))
-      })
+      result = result.filter((c) =>
+        matchesAllTerms(
+          searchQuery,
+          cardSearchFields({
+            title: c.title,
+            content: c.content,
+            interpretation: c.interpretation,
+            application: c.application,
+            bookTitle: getBookTitle(c.bookId),
+          }),
+        ),
+      )
     }
 
     return result

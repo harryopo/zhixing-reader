@@ -30,6 +30,7 @@ import {
   generateButtonLabel,
   resolveGenerateAction,
 } from '../../../shared/ai-coverage'
+import { matchesAllTerms, methodologySearchFields } from '../../../shared/page-filter'
 import {
   MASTERY_FILTERS,
   VIEW_TOGGLES,
@@ -73,13 +74,15 @@ export default function Methodologies() {
     loadData()
   }, [])
 
-  // 首次加载完成后自动选中第一个方法论（与设计稿一致：右侧详情面板默认显示）
+  // 首次加载完成后自动选中一条（与设计稿一致：右侧详情面板默认显示）。
+  // 搜索结果点进来时带着 ?item= —— 选中的必须是那一条，否则用户还得自己在列表里认出它
   useEffect(() => {
     if (!initialSelectDone.current && methodologies.length > 0) {
-      setSelectedMethod(methodologies[0])
+      const wanted = searchParams.get('item')
+      setSelectedMethod(methodologies.find((m) => m.id === wanted) ?? methodologies[0])
       initialSelectDone.current = true
     }
-  }, [methodologies])
+  }, [methodologies, searchParams])
 
   const loadData = async () => {
     if (!window.electronAPI?.methodology || !window.electronAPI?.book) {
@@ -150,23 +153,23 @@ export default function Methodologies() {
     }
 
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      const terms = query.split(/\s+/).filter((t) => t.length > 0)
-      result = result.filter((m) => {
-        const searchText = [
-          m.name,
-          m.nameEn,
-          m.triggerScenario,
-          m.description,
-          m.outputFormat,
-          m.examples,
-          getBookTitle(m.bookId),
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-        return terms.every((term) => searchText.includes(term))
-      })
+      result = result.filter((m) =>
+        matchesAllTerms(
+          searchQuery,
+          methodologySearchFields({
+            name: m.name,
+            nameEn: m.nameEn,
+            triggerScenario: m.triggerScenario,
+            description: m.description,
+            outputFormat: m.outputFormat,
+            examples: m.examples,
+            // steps 在映射器里已解析成数组；SQL 那边搜的是同一列的 JSON 文本，
+            // 词落在任一步骤里两边都算命中（tests/search-filter-parity.test.ts 对账）
+            steps: m.steps.join(' '),
+            bookTitle: getBookTitle(m.bookId),
+          }),
+        ),
+      )
     }
 
     return result

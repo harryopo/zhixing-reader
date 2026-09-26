@@ -98,11 +98,20 @@ describe('点回去的链接', () => {
     )
   })
 
-  it('文章直接打开那一篇，卡片与方法论带着关键词去它们自己的页，生词精确到那一个词', () => {
+  it('文章直接打开那一篇，卡片与方法论带着关键词过去并点名那一条，生词精确到那一个词', () => {
     expect(buildHitLink({ kind: 'article', id: 'a1', query: 'x' })).toBe('/daily-learning?article=a1')
-    expect(buildHitLink({ kind: 'card', id: 'c1', query: '复利' })).toContain('/knowledge-cards?')
-    expect(buildHitLink({ kind: 'methodology', id: 'm1', query: '复利' })).toContain('/methodologies?')
+    expect(buildHitLink({ kind: 'card', id: 'c1', query: '复利' })).toBe(
+      '/knowledge-cards?q=%E5%A4%8D%E5%88%A9&item=c1',
+    )
+    expect(buildHitLink({ kind: 'methodology', id: 'm1', query: '复利' })).toBe(
+      '/methodologies?q=%E5%A4%8D%E5%88%A9&item=m1',
+    )
     expect(buildHitLink({ kind: 'word', id: 'v9', query: '复利' })).toBe('/vocabulary?item=v9')
+  })
+
+  it('「看全部」只带关键词 —— 它是去看这一批，不是去看某一条', () => {
+    expect(seeAllLink('card', '复利')).toBe('/knowledge-cards?q=%E5%A4%8D%E5%88%A9')
+    expect(seeAllLink('methodology', '复利')).toBe('/methodologies?q=%E5%A4%8D%E5%88%A9')
   })
 
   it('关键词里的特殊字符被编码（含 # 与 & 的查询不能把链接切开）', () => {

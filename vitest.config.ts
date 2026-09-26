@@ -87,6 +87,7 @@ export default defineConfig({
         'src/shared/csv.ts',
         'src/shared/daily-tasks.ts',
         'src/shared/global-search.ts',
+        'src/shared/page-filter.ts',
         'src/shared/model-routing.ts',
         'src/shared/profile-stats.ts',
         'src/shared/reading-trend.ts',

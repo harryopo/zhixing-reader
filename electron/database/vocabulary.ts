@@ -1,11 +1,15 @@
 /**
  * database/vocabulary — 生词本表操作（艾宾浩斯 + SM-2 混合复习算法）
- * 从原 database.ts 拆分而来，逻辑保持不变。
+ * 从原 database.ts 拆分而来。
  */
 import { getDatabase, saveDatabase } from './connection';
 import { rowsToObjects } from '../utils/db';
 import { logger } from '../logger';
 import { reviewVocabulary } from '../fsrs-engine';
+import { splitQueryTerms, toLikePattern } from '../../src/shared/global-search';
+
+/** 与全局搜索同一条 LIKE 写法：值走占位符，通配符在 pattern 里已转义，ESCAPE 不能省 */
+const LIKE = `LIKE ? ESCAPE '\\'`;
 
 export const vocabularyDb = {
   getAll(limit: number = 200): Record<string, unknown>[] {
@@ -238,12 +242,26 @@ export const vocabularyDb = {
     return result.length > 0 ? (result[0].values[0][0] as number) : 0;
   },
 
-  // 搜索单词
+  /**
+   * 生词本那台筛选器 —— 与全局搜索同一套语义：空格分词、词与词 AND、`%` `_` 按字面匹配。
+   *
+   * 分词与转义都取自 `src/shared/global-search.ts` 那一份：两边各写一遍就会漂
+   * （原来这条 SQL 把整串当一个连续片段、又不转义，搜「ZQXW XHYZ」出 0 条，
+   * 而搜索页说 1 条；搜 `%` 则命中所有行）。对账见 tests/search-filter-parity.test.ts。
+   */
   search(keyword: string): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      'SELECT * FROM vocabulary WHERE word LIKE ? OR meaning_zh LIKE ? ORDER BY created_at DESC',
-      [`%${keyword}%`, `%${keyword}%`]
+    const terms = splitQueryTerms(keyword);
+    if (terms.length === 0) {
+      return rowsToObjects(getDatabase().exec('SELECT * FROM vocabulary ORDER BY created_at DESC'));
+    }
+    const perTerm = `(word ${LIKE} OR meaning_zh ${LIKE})`;
+    const where = terms.map(() => perTerm).join(' AND ');
+    const params = terms.flatMap((term) => [toLikePattern(term), toLikePattern(term)]);
+    return rowsToObjects(
+      getDatabase().exec(
+        `SELECT * FROM vocabulary WHERE ${where} ORDER BY created_at DESC`,
+        params,
+      ),
     );
-    return rowsToObjects(result);
   },
 };
