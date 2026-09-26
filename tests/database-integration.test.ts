@@ -128,19 +128,6 @@ describe('database-integration — sql.js 集成测试', () => {
       expect((result as any).author).toBe('Author')
     })
 
-    it('应支持 createBatch 批量创建', async () => {
-      const books = [
-        { id: 'book_1', title: 'Book 1' },
-        { id: 'book_2', title: 'Book 2' },
-        { id: 'book_3', title: 'Book 3' },
-      ]
-
-      booksDb.createBatch(books as any)
-      const all = booksDb.getAll()
-
-      expect(all).toHaveLength(3)
-    })
-
     it('应支持 update 和 delete', async () => {
       booksDb.create({ id: 'book_1', title: 'Original' } as any)
       booksDb.update('book_1', { title: 'Updated', author: 'New Author' } as any)
@@ -154,18 +141,21 @@ describe('database-integration — sql.js 集成测试', () => {
       expect(deleted).toBeUndefined()
     })
 
-    it('应支持 search 和 count', async () => {
-      booksDb.createBatch([
-        { id: 'book_1', title: 'React Guide' },
-        { id: 'book_2', title: 'Vue Guide' },
-        { id: 'book_3', title: 'Angular Guide' },
-      ] as any)
+    it('应支持 search（booksDb.createBatch / count 已因零调用砍掉）', async () => {
+      for (const [id, title] of [
+        ['book_1', 'React Guide'],
+        ['book_2', 'Vue Guide'],
+        ['book_3', 'Angular Guide'],
+      ]) {
+        booksDb.create({ id, title } as any)
+      }
 
       const searchResult = booksDb.search('React')
       expect(searchResult).toHaveLength(1)
       expect((searchResult[0] as any).title).toBe('React Guide')
 
-      expect(booksDb.count()).toBe(3)
+      // 总数从活口读：getAll 就是 count() 的那批行
+      expect(booksDb.getAll()).toHaveLength(3)
     })
 
     it('应支持 updateProgress', async () => {
@@ -211,28 +201,8 @@ describe('database-integration — sql.js 集成测试', () => {
       expect(second).toBe(false)
     })
 
-    it('应支持 createBatch 去重', async () => {
-      booksDb.create({ id: 'book_1', title: 'Book' } as any)
-      const result = highlightsDb.createBatch([
-        { id: 'hl_1', book_id: 'book_1', content: 'Content 1' },
-        { id: 'hl_2', book_id: 'book_1', content: 'Content 2' },
-        { id: 'hl_3', book_id: 'book_1', content: 'Content 1' },
-      ] as any)
-
-      expect(result).toBe(2)
-    })
-
-    it('应支持 deleteByBookId 级联删除', async () => {
-      booksDb.create({ id: 'book_1', title: 'Book' } as any)
-      highlightsDb.createBatch([
-        { id: 'hl_1', book_id: 'book_1', content: 'C1' },
-        { id: 'hl_2', book_id: 'book_1', content: 'C2' },
-      ] as any)
-
-      highlightsDb.deleteByBookId('book_1')
-      const remaining = highlightsDb.getByBookId('book_1')
-      expect(remaining).toHaveLength(0)
-    })
+    // createBatch / deleteByBookId 已因零调用砍掉：去重由 create 那条用例钉住，
+    // "删一本书带走它的划线"由下面的级联用例钉住（外键 ON DELETE CASCADE）
   })
 
   describe('cardsDb CRUD', () => {
@@ -273,14 +243,13 @@ describe('database-integration — sql.js 集成测试', () => {
       expect(result[0]?.values[0]).toEqual([null, 0])
     })
 
-    it('应支持 deleteByHighlightId', async () => {
+    it('收回一条划线的复习卡（走活口 deleteBySource）', async () => {
       booksDb.create({ id: 'book_1', title: 'Book' } as any)
       highlightsDb.create({ id: 'hl_1', book_id: 'book_1', content: 'HL' } as any)
       const card = cardsDb.create('hl_1')
 
-      cardsDb.deleteByHighlightId('hl_1')
-      const deleted = cardsDb.getById(card.id)
-      expect(deleted).toBeNull()
+      expect(cardsDb.deleteBySource({ kind: 'highlight', id: 'hl_1' })).toBe(1)
+      expect(cardsDb.getById(card.id)).toBeNull()
     })
   })
 
@@ -425,7 +394,8 @@ describe('database-integration — sql.js 集成测试', () => {
       const { reviewId, card: updatedCard } = reviewsDb.create(card.id, 3)
       expect(reviewId).toContain('review_')
 
-      const reviews = reviewsDb.getByCardId(card.id)
+      // reviewsDb.getByCardId 已因零调用砍掉，从活口 getRecent 里筛同一张卡
+      const reviews = reviewsDb.getRecent(10).filter((r) => r.card_id === card.id)
       expect(reviews).toHaveLength(1)
 
       const todayStats = dailyStatsDb.getToday()
@@ -600,18 +570,8 @@ describe('database-integration — sql.js 集成测试', () => {
       expect((method as any).name).toBe('Test Method')
     })
 
-    it('应支持 search', async () => {
-      booksDb.create({ id: 'book_1', title: 'Book' } as any)
-      methodologiesDb.create({
-        id: 'method_1',
-        book_id: 'book_1',
-        name: 'Searchable Method',
-        description: 'Description',
-      } as any)
-
-      const results = methodologiesDb.search('Searchable')
-      expect(results).toHaveLength(1)
-    })
+    // methodologiesDb.search 已因零调用砍掉：方法论的关键词筛选在页面本地做，
+    // "按名称 / 说明 / 步骤搜"这件事由 tests/global-search*.test.ts 钉住
   })
 
   describe('knowledgeCardsDb CRUD', () => {
@@ -631,15 +591,8 @@ describe('database-integration — sql.js 集成测试', () => {
       expect((card as any).type).toBe('concept')
     })
 
-    it('应支持 getByType 查询', async () => {
-      booksDb.create({ id: 'book_1', title: 'Book' } as any)
-      knowledgeCardsDb.create({ id: 'card_1', book_id: 'book_1', type: 'concept', title: 'C1', content: 'C' } as any)
-      knowledgeCardsDb.create({ id: 'card_2', book_id: 'book_1', type: 'methodology', title: 'M1', content: 'M' } as any)
-
-      const concepts = knowledgeCardsDb.getByType('concept')
-      expect(concepts).toHaveLength(1)
-      expect((concepts[0] as any).title).toBe('C1')
-    })
+    // knowledgeCardsDb.getByType 已因零调用砍掉：卡片类型筛选在知识卡片页本地做，
+    // 三种来源各建一张卡这件事由 tests/review-queue-sources.test.ts 钉住
   })
 
   // ==========================================================================

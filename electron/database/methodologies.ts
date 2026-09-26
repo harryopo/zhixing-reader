@@ -100,15 +100,4 @@ export const methodologiesDb = {
     getDatabase().run('DELETE FROM methodologies WHERE id = ?', [id]);
     saveDatabase();
   },
-
-  search(keyword: string): Record<string, unknown>[] {
-    const pattern = `%${keyword}%`;
-    const result = getDatabase().exec(
-      `SELECT m.*, b.title as book_title FROM methodologies m
-       JOIN books b ON m.book_id = b.id
-       WHERE m.name LIKE ? OR m.description LIKE ? OR m.tags LIKE ?`,
-      [pattern, pattern, pattern]
-    );
-    return rowsToObjects(result);
-  },
 };

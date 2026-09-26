@@ -101,7 +101,7 @@ describe('cards:enroll / cards:unenroll / cards:enrolledSources', () => {
     expect(() =>
       handlers.get(IPC_CHANNELS.CARDS.ENROLL)?.('knowledge_card', ['k1', '']),
     ).toThrow('要加入复习队列的 id 不合法')
-    expect(cardsDb.count()).toBe(0)
+    expect(countOf('cards', '1 = 1')).toBe(0)
     // 名单查询走宽容路径：不认识的类型回空表，不让设置页因为一个坏 kind 崩掉
     expect(handlers.get(IPC_CHANNELS.CARDS.ENROLLED_SOURCES)?.('books')).toEqual({ ids: [] })
   })

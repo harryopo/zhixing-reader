@@ -65,14 +65,6 @@ export const knowledgeCardsDb = {
     return count;
   },
 
-  getByType(type: string): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      'SELECT * FROM knowledge_cards WHERE type = ? ORDER BY updated_at DESC',
-      [type]
-    );
-    return rowsToObjects(result);
-  },
-
   getAll(): Record<string, unknown>[] {
     const result = getDatabase().exec(
       `SELECT k.*, b.title as book_title FROM knowledge_cards k

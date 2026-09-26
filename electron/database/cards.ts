@@ -8,7 +8,7 @@
  */
 import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
-import { Card, cardFromDb, cardToRow, createCard, CardState } from '../fsrs-engine';
+import { Card, cardFromDb, cardToRow, createCard } from '../fsrs-engine';
 import { ReviewStats } from '../../src/shared/types';
 import {
   DEFAULT_NEW_CARDS_PER_DAY,
@@ -173,48 +173,8 @@ export const cardsDb = {
     return this.enroll({ kind: 'highlight', id: highlightId }).card;
   },
 
-  createBatch(highlightIds: string[]): Card[] {
-    this.enrollMany(highlightIds.map((id): ReviewSourceRef => ({ kind: 'highlight', id })));
-    return this.findByManySources(highlightIds.map((id): ReviewSourceRef => ({ kind: 'highlight', id })));
-  },
-
-  /** 一批来源各自的卡（没入队的缺席） */
-  findByManySources(sources: ReviewSourceRef[]): Card[] {
-    const cards: Card[] = [];
-    for (const source of sources) {
-      const card = this.findBySource(source);
-      if (card) cards.push(card);
-    }
-    return cards;
-  },
-
   update(card: Card): void {
     getDatabase().run(CARD_UPDATE_SQL, updateValues(card));
-    saveDatabase();
-  },
-
-  updateBatch(cards: Card[]): void {
-    runTransaction((database) => {
-      const stmt = database.prepare(CARD_UPDATE_SQL);
-      for (const card of cards) {
-        stmt.run(updateValues(card));
-      }
-      stmt.free();
-    });
-  },
-
-  deleteBatch(ids: string[]): void {
-    runTransaction((database) => {
-      const stmt = database.prepare('DELETE FROM cards WHERE id = ?');
-      for (const id of ids) {
-        stmt.run([id]);
-      }
-      stmt.free();
-    });
-  },
-
-  deleteByHighlightId(highlightId: string): void {
-    getDatabase().run('DELETE FROM cards WHERE highlight_id = ?', [highlightId]);
     saveDatabase();
   },
 
@@ -405,35 +365,5 @@ export const cardsDb = {
     const review = execScalar('SELECT COUNT(*) FROM cards WHERE state = 2');
 
     return { total, due, new: newCards, learning, review };
-  },
-
-  getByState(state: CardState, limit?: number): Card[] {
-    let sql = 'SELECT * FROM cards WHERE state = ? ORDER BY due ASC';
-    const params: unknown[] = [state];
-
-    if (limit) {
-      sql += ' LIMIT ?';
-      params.push(limit);
-    }
-
-    const result = getDatabase().exec(sql, params);
-    return rowsToObjects(result).map(cardFromDb);
-  },
-
-  getNewCards(limit: number = 20): Card[] {
-    return this.getByState(CardState.New, limit);
-  },
-
-  getLearningCards(limit: number = 20): Card[] {
-    const result = getDatabase().exec(
-      'SELECT * FROM cards WHERE state = ? OR state = ? ORDER BY due ASC LIMIT ?',
-      [CardState.Learning, CardState.Relearning, limit]
-    );
-    return rowsToObjects(result).map(cardFromDb);
-  },
-
-  count(): number {
-    const result = getDatabase().exec('SELECT COUNT(*) FROM cards');
-    return result.length > 0 ? (result[0].values[0][0] as number) : 0;
   },
 };

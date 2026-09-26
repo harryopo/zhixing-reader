@@ -5,8 +5,6 @@
  */
 import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
-import { logger } from '../logger';
-import { cardsDb } from './cards';
 import { UNGROUPED_CHAPTER } from '../../src/shared/chapter-summaries';
 import { assertRealColumns } from './updatable-columns';
 
@@ -78,67 +76,6 @@ export const highlightsDb = {
     );
     saveDatabase();
     return true;
-  },
-
-  createBatch(highlights: Array<Record<string, unknown>>): number {
-    writeRevision++;
-    let newCount = 0;
-    const newHighlightIds: string[] = [];
-    runTransaction((database) => {
-      const bookIds = [...new Set(highlights.map(h => h.book_id as string))];
-      const placeholders = bookIds.map(() => '?').join(', ');
-      const existingRows = database.exec(
-        `SELECT book_id, content FROM highlights WHERE book_id IN (${placeholders})`,
-        bookIds
-      );
-      const existingSet = new Set<string>();
-      if (existingRows.length > 0 && existingRows[0].values.length > 0) {
-        for (const row of existingRows[0].values) {
-          existingSet.add(`${row[0]}:${row[1]}`);
-        }
-      }
-
-      const stmt = database.prepare(
-        `INSERT INTO highlights (id, book_id, chapter_title, content, note, style, range_start, range_end)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      );
-
-      for (const highlight of highlights) {
-        const bookId = highlight.book_id as string;
-        const content = highlight.content as string;
-
-        if (existingSet.has(`${bookId}:${content}`)) {
-          continue;
-        }
-
-        stmt.run([
-          highlight.id,
-          bookId,
-          highlight.chapter_title ?? null,
-          content,
-          highlight.note ?? null,
-          highlight.style ?? 0,
-          highlight.range_start ?? null,
-          highlight.range_end ?? null,
-        ]);
-        existingSet.add(`${bookId}:${content}`);
-        newHighlightIds.push(highlight.id as string);
-        newCount++;
-      }
-
-      stmt.free();
-    });
-
-    // 批量创建复习卡片
-    if (newHighlightIds.length > 0) {
-      try {
-        cardsDb.createBatch(newHighlightIds);
-      } catch (error) {
-        logger.error('批量创建复习卡片失败', { error: String(error), count: newHighlightIds.length });
-      }
-    }
-
-    return newCount;
   },
 
   update(id: string, highlight: Record<string, unknown>): void {
@@ -221,23 +158,6 @@ export const highlightsDb = {
     saveDatabase();
   },
 
-  deleteBatch(ids: string[]): void {
-    writeRevision++;
-    runTransaction((database) => {
-      const stmt = database.prepare('DELETE FROM highlights WHERE id = ?');
-      for (const id of ids) {
-        stmt.run([id]);
-      }
-      stmt.free();
-    });
-  },
-
-  deleteByBookId(bookId: string): void {
-    writeRevision++;
-    getDatabase().run('DELETE FROM highlights WHERE book_id = ?', [bookId]);
-    saveDatabase();
-  },
-
   getAll(): Record<string, unknown>[] {
     const result = getDatabase().exec(`
       SELECT h.*, b.title as book_title
@@ -246,31 +166,6 @@ export const highlightsDb = {
       ORDER BY h.created_at DESC
     `);
     return rowsToObjects(result);
-  },
-
-  search(keyword: string): Record<string, unknown>[] {
-    const pattern = `%${keyword}%`;
-    const result = getDatabase().exec(`
-      SELECT h.*, b.title as book_title
-      FROM highlights h
-      JOIN books b ON h.book_id = b.id
-      WHERE h.content LIKE ? OR h.note LIKE ?
-      ORDER BY h.created_at DESC
-    `, [pattern, pattern]);
-    return rowsToObjects(result);
-  },
-
-  count(): number {
-    const result = getDatabase().exec('SELECT COUNT(*) FROM highlights');
-    return result.length > 0 ? (result[0].values[0][0] as number) : 0;
-  },
-
-  countByBookId(bookId: string): number {
-    const result = getDatabase().exec(
-      'SELECT COUNT(*) FROM highlights WHERE book_id = ?',
-      [bookId]
-    );
-    return result.length > 0 ? (result[0].values[0][0] as number) : 0;
   },
 
   /**
@@ -299,16 +194,5 @@ export const highlightsDb = {
       chapterTitle: String(row[1]),
       count: Number(row[2]),
     }));
-  },
-
-  getRecent(limit: number = 20): Record<string, unknown>[] {
-    const result = getDatabase().exec(`
-      SELECT h.*, b.title as book_title
-      FROM highlights h
-      JOIN books b ON h.book_id = b.id
-      ORDER BY h.created_at DESC
-      LIMIT ?
-    `, [limit]);
-    return rowsToObjects(result);
   },
 };

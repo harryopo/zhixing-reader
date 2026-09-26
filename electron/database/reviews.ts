@@ -35,14 +35,6 @@ export const reviewsDb = {
     return { reviewId, card: newCard };
   },
 
-  getByCardId(cardId: string): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      'SELECT * FROM reviews WHERE card_id = ? ORDER BY review_time DESC',
-      [cardId]
-    );
-    return rowsToObjects(result);
-  },
-
   /**
    * reviews 表的那一行。列名口径只有一份：`src/shared/types.ts` 的 `ReviewRow`
    * （导出 CSV 的列清单钉在它的键上，见 shared/review-export.ts；那条 spec 又拿
