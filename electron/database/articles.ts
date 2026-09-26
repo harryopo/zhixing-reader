@@ -79,21 +79,4 @@ export const articlesDb = {
     saveDatabase();
     return newStatus === 1;
   },
-
-  delete(id: string): void {
-    getDatabase().run('DELETE FROM articles WHERE id = ?', [id]);
-    saveDatabase();
-  },
-
-  count(): number {
-    const result = getDatabase().exec('SELECT COUNT(*) FROM articles');
-    return result.length > 0 ? (result[0].values[0][0] as number) : 0;
-  },
-
-  getTodayCount(): number {
-    const result = getDatabase().exec(
-      "SELECT COUNT(*) FROM articles WHERE date(created_at) = date('now')"
-    );
-    return result.length > 0 ? (result[0].values[0][0] as number) : 0;
-  },
 };

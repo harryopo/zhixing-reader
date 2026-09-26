@@ -22,6 +22,18 @@ import {
   getDatabase,
 } from '../electron/database'
 
+/**
+ * 读单行的两个小助手：数据库模块不再提供这些表的 `getById`（产品侧零调用，2026-09-25 砍掉），
+ * 断言一个字不改，只是从"活口 + find"取那一行。
+ */
+const cardRow = (id: string) => knowledgeCardsDb.getAll().find((c) => c.id === id)
+const conversationRow = (id: string) => conversationDb.getAll().find((c) => c.id === id)
+
+/** 产品没有"删一篇文章"的通路（那条通道早已因零调用被砍），用例要清库时直接走 SQL */
+const deleteArticleRow = (id: string) => {
+  getDatabase().run('DELETE FROM articles WHERE id = ?', [id])
+}
+
 describe('database-integration — sql.js 集成测试', () => {
   beforeEach(async () => {
     await setupTestDatabase()
@@ -233,17 +245,6 @@ describe('database-integration — sql.js 集成测试', () => {
       expect(card.state).toBe(0)
     })
 
-    it('应支持 createForExistingHighlights 批量创建', async () => {
-      booksDb.create({ id: 'book_1', title: 'Book' } as any)
-      // 用单个 create 而非 createBatch，因为 createBatch 会自动创建卡片
-      highlightsDb.create({ id: 'hl_1', book_id: 'book_1', content: 'C1' } as any)
-      highlightsDb.create({ id: 'hl_2', book_id: 'book_1', content: 'C2' } as any)
-
-      const result = cardsDb.createForExistingHighlights()
-      expect(result.created).toBe(2)
-      expect(result.skipped).toBe(0)
-    })
-
     it('应支持 getDueCards 查询', async () => {
       booksDb.create({ id: 'book_1', title: 'Book' } as any)
       highlightsDb.create({ id: 'hl_1', book_id: 'book_1', content: 'HL' } as any)
@@ -442,13 +443,16 @@ describe('database-integration — sql.js 集成测试', () => {
       expect((summary as any).summary).toBe('Summary content')
     })
 
-    it('应支持 delete', async () => {
+    // bookSummariesDb.delete 已因产品侧零调用砍掉（2026-09-25）：摘要跟着书走，
+    // 这条断言因此改成验"删一本书带走它的摘要"，而不是验一个没人调的方法
+    it('删除 book 应带走它的全书摘要（ON DELETE CASCADE）', async () => {
       booksDb.create({ id: 'book_1', title: 'Book' } as any)
       bookSummariesDb.create('book_1', 'Summary')
-      bookSummariesDb.delete('book_1')
+      expect(bookSummariesDb.getByBookId('book_1')).toBeDefined()
 
-      const summary = bookSummariesDb.getByBookId('book_1')
-      expect(summary).toBeUndefined()
+      booksDb.delete('book_1')
+
+      expect(bookSummariesDb.getByBookId('book_1')).toBeUndefined()
     })
   })
 
@@ -525,10 +529,12 @@ describe('database-integration — sql.js 集成测试', () => {
         durationMs: 1000,
       })
 
-      const recent = tokenUsageDb.getRecent(10)
-      expect(recent).toHaveLength(1)
-      expect((recent[0] as any).provider).toBe('openai')
-      expect((recent[0] as any).total_tokens).toBe(150)
+      // tokenUsageDb.getRecent 已因产品侧零调用砍掉（2026-09-25），这条断言看的是
+      // create() 有没有把 total_tokens 算出来，直接读表比留一个没人调的读口清楚
+      const rows = getDatabase().exec('SELECT provider, total_tokens FROM token_usage')[0].values
+      expect(rows).toHaveLength(1)
+      expect(rows[0][0]).toBe('openai')
+      expect(Number(rows[0][1])).toBe(150)
     })
 
     it('应支持 getStatsByProvider 统计', async () => {
@@ -565,16 +571,15 @@ describe('database-integration — sql.js 集成测试', () => {
       expect((messages[0] as any).content).toBe('Hello')
     })
 
-    it('应支持 search 和 delete', async () => {
+    // conversationDb.search 已因产品侧零调用砍掉（2026-09-25）：会话搜索走的是渲染层
+    // 那台筛选器，这条因此只留"删除真的删掉了"这半件事
+    it('删除会话后这一行不再存在', async () => {
       const conversation = conversationDb.create('Searchable')
       conversationDb.addMessage(String(conversation.id), { role: 'user', content: 'Unique search text' } as any)
-
-      const results = conversationDb.search('Unique')
-      expect(results).toHaveLength(1)
+      expect(conversationRow(String(conversation.id))).toBeDefined()
 
       conversationDb.delete(String(conversation.id))
-      const deleted = conversationDb.getById(String(conversation.id))
-      expect(deleted).toBeUndefined()
+      expect(conversationRow(String(conversation.id))).toBeUndefined()
     })
   })
 
@@ -620,7 +625,7 @@ describe('database-integration — sql.js 集成测试', () => {
         content: 'Content',
       } as any)
 
-      const card = knowledgeCardsDb.getById('card_1')
+      const card = cardRow('card_1')
       expect(card).toBeDefined()
       expect((card as any).title).toBe('Concept Title')
       expect((card as any).type).toBe('concept')
@@ -672,7 +677,7 @@ describe('database-integration — sql.js 集成测试', () => {
       seed({ bookId: 'b1', highlightContent: '原文一句话', cardContent: '原文一句话', cardId: 'kc1' })
       const updated = knowledgeCardsDb.backfillSourceHighlights()
       expect(updated).toBe(1)
-      expect((knowledgeCardsDb.getById('kc1') as any).source_highlight_id).toBe('hl_kc1')
+      expect((cardRow('kc1') as any).source_highlight_id).toBe('hl_kc1')
     })
 
     it('正文有差异（哪怕一个标点）→ **不关联**，宁可空着', async () => {
@@ -680,8 +685,8 @@ describe('database-integration — sql.js 集成测试', () => {
       seed({ bookId: 'b1', highlightContent: '另一条原文', cardContent: 'AI 改写过的内容', cardId: 'kc3' })
       const updated = knowledgeCardsDb.backfillSourceHighlights()
       expect(updated).toBe(0)
-      expect((knowledgeCardsDb.getById('kc2') as any).source_highlight_id).toBeNull()
-      expect((knowledgeCardsDb.getById('kc3') as any).source_highlight_id).toBeNull()
+      expect((cardRow('kc2') as any).source_highlight_id).toBeNull()
+      expect((cardRow('kc3') as any).source_highlight_id).toBeNull()
     })
 
     it('已有来源的卡片不被覆盖', async () => {
@@ -694,7 +699,7 @@ describe('database-integration — sql.js 集成测试', () => {
       })
       const updated = knowledgeCardsDb.backfillSourceHighlights()
       expect(updated).toBe(0)
-      expect((knowledgeCardsDb.getById('kc4') as any).source_highlight_id).toBe('hl_manual')
+      expect((cardRow('kc4') as any).source_highlight_id).toBe('hl_manual')
     })
 
     it('不能跨书匹配（只在同一本书内找）', async () => {
@@ -706,7 +711,7 @@ describe('database-integration — sql.js 集成测试', () => {
       } as any)
       const updated = knowledgeCardsDb.backfillSourceHighlights()
       expect(updated).toBe(0)
-      expect((knowledgeCardsDb.getById('kc5') as any).source_highlight_id).toBeNull()
+      expect((cardRow('kc5') as any).source_highlight_id).toBeNull()
     })
 
     it('幂等：重复执行第二次不再变化', async () => {
@@ -1061,7 +1066,7 @@ describe('database-integration — sql.js 集成测试', () => {
         source_article_id: 'fk_article',
       })
 
-      articlesDb.delete('fk_article')
+      deleteArticleRow('fk_article')
 
       const vocab = vocabularyDb.getByWord('foreign')
       expect((vocab as any).source_article_id).toBeNull()

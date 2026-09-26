@@ -47,14 +47,6 @@ export const tokenUsageDb = {
     return rowsToObjects(result);
   },
 
-  getRecent(limit: number = 100): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      'SELECT * FROM token_usage ORDER BY created_at DESC LIMIT ?',
-      [limit]
-    );
-    return rowsToObjects(result);
-  },
-
   getStatsByProvider(): Record<string, unknown>[] {
     const result = getDatabase().exec(`
       SELECT

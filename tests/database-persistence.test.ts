@@ -54,6 +54,9 @@ vi.mock('path', async (importOriginal) => {
 import * as fs from 'fs'
 import * as path from 'path'
 
+/** conversationDb.getById 已因产品侧零调用砍掉（2026-09-25）；断言照旧，从 getAll 里取那一行 */
+const conversationRow = (id: string) => conversationDb.getAll().find((c) => c.id === id)
+
 describe('database-persistence — 持久化与生命周期', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -397,7 +400,7 @@ describe('database-persistence — 持久化与生命周期', () => {
       const id1 = conversationDb.addMessage(convId, { role: 'user', content: 'Q' })
       conversationDb.addMessage(convId, { role: 'assistant', content: 'A' })
       expect(conversationDb.getMessages(convId)).toHaveLength(2)
-      expect(Number(conversationDb.getById(convId)?.message_count)).toBe(2)
+      expect(Number(conversationRow(convId)?.message_count)).toBe(2)
 
       // 删除 assistant 回复（保留 user 问题）
       const assistantMsg = conversationDb.getMessages(convId).find(m => m.role === 'assistant')
@@ -406,7 +409,7 @@ describe('database-persistence — 持久化与生命周期', () => {
       const remaining = conversationDb.getMessages(convId)
       expect(remaining).toHaveLength(1)
       expect(remaining[0].id).toBe(id1)
-      expect(Number(conversationDb.getById(convId)?.message_count)).toBe(1)
+      expect(Number(conversationRow(convId)?.message_count)).toBe(1)
     })
 
     it('message_count 回退不应低于 0（防御重复删除）', () => {
@@ -416,7 +419,7 @@ describe('database-persistence — 持久化与生命周期', () => {
       conversationDb.deleteMessage(id1)
       // 再删一次（已不存在）：SELECT 无行 → 不回退计数
       conversationDb.deleteMessage(id1)
-      expect(Number(conversationDb.getById(convId)?.message_count)).toBe(0)
+      expect(Number(conversationRow(convId)?.message_count)).toBe(0)
       expect(conversationDb.getMessages(convId)).toHaveLength(0)
     })
   })

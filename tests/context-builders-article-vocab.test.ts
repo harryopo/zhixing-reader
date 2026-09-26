@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
-import { articlesDb, vocabularyDb, booksDb } from '../electron/database'
+import { articlesDb, vocabularyDb, booksDb, getDatabase } from '../electron/database'
 import { ArticleContextBuilder } from '../electron/agent/builders/article-context-builder'
 import { VocabularyContextBuilder } from '../electron/agent/builders/vocabulary-context-builder'
 
@@ -51,7 +51,8 @@ describe('文章上下文构建器', () => {
   })
 
   it('库里没有文章时不报错、不注入', () => {
-    articlesDb.delete('a1')
+    // 产品没有"删文章"的通路（articles:delete 通道早已因零调用被砍），所以直接清表来造这个场景
+    getDatabase().run('DELETE FROM articles')
     const result = new ArticleContextBuilder().build(ctx('关于读书遗忘，我读过的那篇怎么说'))
     expect(result.content).toBe('')
     expect(result.metadata?.itemCount).toBe(0)

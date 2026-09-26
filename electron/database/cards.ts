@@ -230,22 +230,6 @@ export const cardsDb = {
     return 1;
   },
 
-  createForExistingHighlights(): { created: number; skipped: number } {
-    const result = getDatabase().exec(`
-      SELECT h.id FROM highlights h
-      LEFT JOIN cards c ON h.id = c.highlight_id
-      WHERE c.id IS NULL
-    `);
-    const rows = rowsToObjects(result);
-    const highlightIds = rows.map(r => r.id as string);
-
-    if (highlightIds.length === 0) {
-      return { created: 0, skipped: 0 };
-    }
-
-    return this.enrollMany(highlightIds.map((id): ReviewSourceRef => ({ kind: 'highlight', id })));
-  },
-
   /**
    * 今天已经引入的新卡数 —— 即**首次复习发生在今天**的卡片数。
    *

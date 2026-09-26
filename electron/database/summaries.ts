@@ -40,9 +40,4 @@ export const bookSummariesDb = {
     );
     saveDatabase();
   },
-
-  delete(bookId: string): void {
-    getDatabase().run('DELETE FROM book_summaries WHERE book_id = ?', [bookId]);
-    saveDatabase();
-  },
 };

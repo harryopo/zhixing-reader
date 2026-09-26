@@ -5,7 +5,7 @@
  * 单章一条 saveDatabase() 意味着整本书生成一次就把整个库导盘几十次
  * （sql.js 的持久化是全文导出，不是增量写）。
  */
-import { getDatabase, runTransaction, saveDatabase } from './connection';
+import { getDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 
 export interface ChapterSummaryRow {
@@ -78,10 +78,5 @@ export const chapterSummariesDb = {
       });
     });
     return items.length;
-  },
-
-  deleteByBookId(bookId: string): void {
-    getDatabase().run('DELETE FROM chapter_summaries WHERE book_id = ?', [bookId]);
-    saveDatabase();
   },
 };

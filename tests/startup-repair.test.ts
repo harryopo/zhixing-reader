@@ -67,7 +67,7 @@ describe('runStartupRepair — 启动时自动修复历史数据缺口', () => {
 
     const r = await runStartupRepair()
     expect(r.cardSources).toBe(1)
-    expect((knowledgeCardsDb.getById('kc1') as never as { source_highlight_id: string }).source_highlight_id).toBe('hl1')
+    expect((knowledgeCardsDb.getAll().find((c) => c.id === 'kc1') as never as { source_highlight_id: string }).source_highlight_id).toBe('hl1')
   })
 
   it('补上划线的章节名', async () => {

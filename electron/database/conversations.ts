@@ -5,9 +5,6 @@
 import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 
-/** update() 允许写入的列白名单（列名会拼入 SQL，必须过滤） */
-const UPDATABLE_COLUMNS = new Set(['title', 'book_id', 'message_count', 'updated_at']);
-
 export const conversationDb = {
   create(title?: string, bookId?: string): Record<string, unknown> {
     const id = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -25,26 +22,6 @@ export const conversationDb = {
       'SELECT * FROM conversations ORDER BY updated_at DESC'
     );
     return rowsToObjects(result);
-  },
-
-  getById(id: string): Record<string, unknown> | undefined {
-    const result = getDatabase().exec(
-      'SELECT * FROM conversations WHERE id = ?', [id]
-    );
-    const rows = rowsToObjects(result);
-    return rows[0];
-  },
-
-  update(id: string, data: Record<string, unknown>): void {
-    const updatableKeys = Object.keys(data).filter(k => k !== 'id' && UPDATABLE_COLUMNS.has(k));
-    if (updatableKeys.length === 0) return;
-    const setClauses = updatableKeys.map(k => `${k} = ?`).join(', ');
-    const values = updatableKeys.map(k => data[k]);
-    getDatabase().run(
-      `UPDATE conversations SET ${setClauses}, updated_at = datetime('now') WHERE id = ?`,
-      [...values, id]
-    );
-    saveDatabase();
   },
 
   delete(id: string): void {
@@ -124,18 +101,6 @@ export const conversationDb = {
       [summary, conversationId]
     );
     saveDatabase();
-  },
-
-  search(keyword: string): Record<string, unknown>[] {
-    const pattern = `%${keyword}%`;
-    const result = getDatabase().exec(
-      `SELECT DISTINCT c.* FROM conversations c
-       JOIN chat_messages m ON c.id = m.conversation_id
-       WHERE c.title LIKE ? OR m.content LIKE ?
-       ORDER BY c.updated_at DESC`,
-      [pattern, pattern]
-    );
-    return rowsToObjects(result);
   },
 
   /**

@@ -29,12 +29,6 @@ export const knowledgeCardsDb = {
     saveDatabase();
   },
 
-  getById(id: string): Record<string, unknown> | undefined {
-    const result = getDatabase().exec('SELECT * FROM knowledge_cards WHERE id = ?', [id]);
-    const rows = rowsToObjects(result);
-    return rows[0];
-  },
-
   getByBookId(bookId: string): Record<string, unknown>[] {
     const result = getDatabase().exec(
       'SELECT * FROM knowledge_cards WHERE book_id = ? ORDER BY updated_at DESC',
@@ -159,16 +153,5 @@ export const knowledgeCardsDb = {
   delete(id: string): void {
     getDatabase().run('DELETE FROM knowledge_cards WHERE id = ?', [id]);
     saveDatabase();
-  },
-
-  search(keyword: string): Record<string, unknown>[] {
-    const pattern = `%${keyword}%`;
-    const result = getDatabase().exec(
-      `SELECT k.*, b.title as book_title FROM knowledge_cards k
-       JOIN books b ON k.book_id = b.id
-       WHERE k.title LIKE ? OR k.content LIKE ? OR k.tags LIKE ?`,
-      [pattern, pattern, pattern]
-    );
-    return rowsToObjects(result);
   },
 };

@@ -156,7 +156,6 @@ describe('拼进 SQL 的列名必须真是那张表的列', () => {
      */
     const EXEMPT: Record<string, string> = {
       'cards.ts': 'CARD_UPDATABLE_COLUMNS 常量清单',
-      'conversations.ts': 'UPDATABLE_COLUMNS 常量清单',
       'deleted-archive.ts': '自带 assertSafeIdentifier，且列名来自库里读出的行',
       'base-repository.ts': '键名来自子类的 mapToRow，逐字段赋值',
     }
