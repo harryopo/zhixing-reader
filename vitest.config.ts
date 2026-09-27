@@ -150,6 +150,9 @@ export default defineConfig({
         // 2026-09-27 书籍与划线类通道：既有那份真库用例只走了入队三条，
         // 划线新建的字段兜底与「导出笔记」的分组/排序/转义/写盘都没判据。
         'electron/ipc/books.ts',           // 100 / 100 / 100
+        // 2026-09-27 用户画像构建器：原来只走过 shouldBuild 一行，两层装配（自述资料 +
+        // 行为画像）与「一层算崩了别把另一层一起带走」这条兜底都没有判据。
+        'electron/agent/builders/user-profile-context-builder.ts',
       ],
       exclude: [
         '**/*.test.ts',

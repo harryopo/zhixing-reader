@@ -28,10 +28,13 @@ export class UserProfileContextBuilder implements ContextBuilder {
 
   async build(_context: BuildContext): Promise<ContextBuildResult> {
     const startTime = Date.now()
+    // 收集箱放在 try 外面：模块头写的契约是「任一层数据存在即构建」，
+    // 所以行为画像那层算崩了，用户自己填的资料照样得进提示词 ——
+    // 一层失败把另一层已经读到的东西一起丢掉，就是把故障演成了「这人没填档案」。
+    const sections: string[] = []
+    let failure: string | undefined
 
     try {
-      const sections: string[] = []
-
       // ---- 第 1 层：用户自述资料 ----
       const selfProfile = getUserSelfProfile()
       if (selfProfile) {
@@ -55,29 +58,26 @@ export class UserProfileContextBuilder implements ContextBuilder {
           logger.info('User profile loaded', { score: profile.cognitiveLevel.overallScore })
         }
       }
-
-      if (sections.length === 0) {
-        return { content: '', priority: this.priority, metadata: { source: 'user-profile-service', buildTime: Date.now() - startTime, itemCount: 0, method: 'profile' } }
-      }
-
-      const content = `\n\n## 用户画像\n${sections.join('\n\n')}\n\n基于用户画像调整回答风格和内容深度。`
-
-      return {
-        content,
-        priority: this.priority,
-        metadata: { source: 'user-profile-service', buildTime: Date.now() - startTime, itemCount: sections.length, method: 'profile' }
-      }
     } catch (error) {
+      failure = error instanceof Error ? error.message : String(error)
       logger.error('Failed to build user profile context', error)
-      return {
-        content: '',
-        priority: this.priority,
-        metadata: {
-          source: 'user-profile-service',
-          buildTime: Date.now() - startTime,
-          error: error instanceof Error ? error.message : String(error)
-        }
-      }
+    }
+
+    const content =
+      sections.length === 0
+        ? ''
+        : `\n\n## 用户画像\n${sections.join('\n\n')}\n\n基于用户画像调整回答风格和内容深度。`
+
+    return {
+      content,
+      priority: this.priority,
+      metadata: {
+        source: 'user-profile-service',
+        buildTime: Date.now() - startTime,
+        itemCount: sections.length,
+        method: 'profile',
+        ...(failure === undefined ? {} : { error: failure }),
+      },
     }
   }
 }

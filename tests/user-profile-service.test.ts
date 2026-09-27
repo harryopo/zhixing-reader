@@ -1,6 +1,7 @@
 // 知行读书 — user-profile-service 单元测试（2026-07-24，过夜 Task #12）
 //
-// 覆盖 hasUserProfile / buildUserProfile / generatePersonalizedPrompt。
+// 覆盖 hasUserProfile / getUserSelfProfile / hasSelfOrBehaviorProfile /
+// buildUserProfile / generatePersonalizedPrompt。
 // user-profile-service 是 agent 用户画像构建核心。
 // 用 mock `electron/database` 隔离 DB（喂的是**库里那一行**：`reading_progress` 这类原始列名，
 // 不是映射之后的驼峰 —— 服务现在直接读 database，跟其它消费者同一条路）。
@@ -10,12 +11,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // vi.hoisted 确保 mock 引用在 vi.mock 工厂内可用
-const { mockBooks, mockConversations, mockMessages, mockHighlights, mockCards } = vi.hoisted(() => ({
+const { mockBooks, mockConversations, mockMessages, mockHighlights, mockCards, mockSettingGet } = vi.hoisted(() => ({
   mockBooks: vi.fn(() => []),
   mockConversations: vi.fn(() => []),
   mockMessages: vi.fn(() => []),
   mockHighlights: vi.fn(() => []),
   mockCards: vi.fn(() => ({ total: 0, due: 0, new: 0, learning: 0, review: 0 })),
+  mockSettingGet: vi.fn<(key: string) => unknown>(() => undefined),
 }))
 
 vi.mock('../electron/database', () => ({
@@ -23,6 +25,11 @@ vi.mock('../electron/database', () => ({
   conversationDb: { getAll: mockConversations, getMessages: mockMessages },
   highlightsDb: { getAll: mockHighlights },
   cardsDb: { getReviewStats: mockCards },
+}))
+
+// 用户自述资料读的是设置（个人档案页写的），不是库
+vi.mock('../electron/services/settings-service', () => ({
+  settingsService: { get: mockSettingGet },
 }))
 
 vi.mock('../electron/logger', () => ({
@@ -267,5 +274,105 @@ describe('user-profile-service — generatePersonalizedPrompt', () => {
     expect(prompt).toContain('认知水平')
     expect(prompt).toContain('擅长')
     expect(prompt).toContain('薄弱')
+  })
+})
+
+// ============================================================================
+// 用户自述资料（2026-09-27 补）
+//
+// 这两个函数此前一条判据没有 —— `hasSelfOrBehaviorProfile` 是画像上下文的门，
+// `getUserSelfProfile` 决定「用户自己在档案页写的那几句话」进不进提示词。
+// 空白资料不能进（白花 token），填了的一项不能因为另一项空就被编出默认值。
+// ============================================================================
+describe('user-profile-service — getUserSelfProfile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSettingGet.mockReturnValue(undefined)
+  })
+
+  /** 按设置键名喂值：档案页写的就是这三项 */
+  function seedSettings(values: Record<string, unknown>): void {
+    mockSettingGet.mockImplementation((key: string) => values[key])
+  }
+
+  it('三项都填了：去掉首尾空白后原样交出', async () => {
+    seedSettings({ userNickname: '  阿知  ', userLocation: ' 杭州 ', userBio: ' 在读认知科学 ' })
+    const { getUserSelfProfile } = await importFresh()
+    expect(getUserSelfProfile()).toEqual({ nickname: '阿知', location: '杭州', bio: '在读认知科学' })
+  })
+
+  it('一项都没填时回 null，不回一个三项全空的对象', async () => {
+    const { getUserSelfProfile } = await importFresh()
+    expect(getUserSelfProfile()).toBeNull()
+  })
+
+  it('填的全是空格也算没填（空格进提示词就是一行看不见的空值）', async () => {
+    seedSettings({ userNickname: '   ', userLocation: '\n', userBio: '\t' })
+    const { getUserSelfProfile } = await importFresh()
+    expect(getUserSelfProfile()).toBeNull()
+  })
+
+  it('只填昵称时另两项是空串，不是 undefined、更不是编出来的默认值', async () => {
+    seedSettings({ userNickname: '阿知' })
+    const { getUserSelfProfile } = await importFresh()
+    expect(getUserSelfProfile()).toEqual({ nickname: '阿知', location: '', bio: '' })
+  })
+
+  it('每项各截到 200 字：超长简介不许整段挤占 token 预算', async () => {
+    const long = '甲'.repeat(300)
+    seedSettings({ userNickname: long, userLocation: long, userBio: long })
+    const { getUserSelfProfile } = await importFresh()
+    const profile = getUserSelfProfile()
+    expect(profile).not.toBeNull()
+    // 三项都截，不是只截第一项
+    expect(Object.values(profile ?? {}).every((v) => v.length === 200)).toBe(true)
+  })
+
+  it('设置里存的是数字也读得动（档案页之外没人保证形状），但不因此崩', async () => {
+    seedSettings({ userNickname: 1984 })
+    const { getUserSelfProfile } = await importFresh()
+    expect(getUserSelfProfile()?.nickname).toBe('1984')
+  })
+
+  it('读设置抛错时回 null：画像这条链不许把对话一起带崩', async () => {
+    mockSettingGet.mockImplementation(() => {
+      throw new Error('settings boom')
+    })
+    const { getUserSelfProfile } = await importFresh()
+    expect(getUserSelfProfile()).toBeNull()
+  })
+})
+
+describe('user-profile-service — hasSelfOrBehaviorProfile（画像上下文的门）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSettingGet.mockReturnValue(undefined)
+    mockBooks.mockReturnValue([])
+    mockConversations.mockReturnValue([])
+  })
+
+  it('只填了档案、库里一本书都没有，也算有画像（自述资料单独就能开门）', async () => {
+    mockSettingGet.mockImplementation((key: string) => (key === 'userNickname' ? '阿知' : undefined))
+    const { hasSelfOrBehaviorProfile } = await importFresh()
+    expect(hasSelfOrBehaviorProfile()).toBe(true)
+  })
+
+  it('没填档案但书够三本，也算有画像', async () => {
+    mockBooks.mockReturnValue([{ id: 'b1' }, { id: 'b2' }, { id: 'b3' }] as never)
+    const { hasSelfOrBehaviorProfile } = await importFresh()
+    expect(hasSelfOrBehaviorProfile()).toBe(true)
+  })
+
+  it('两层都没有才是 false', async () => {
+    const { hasSelfOrBehaviorProfile } = await importFresh()
+    expect(hasSelfOrBehaviorProfile()).toBe(false)
+  })
+
+  it('自述资料在时不必翻库（省掉两次全表读）', async () => {
+    mockSettingGet.mockImplementation((key: string) => (key === 'userBio' ? '随便写点什么' : undefined))
+    const { hasSelfOrBehaviorProfile } = await importFresh()
+    expect(hasSelfOrBehaviorProfile()).toBe(true)
+    expect(mockBooks).not.toHaveBeenCalled()
+    expect(mockConversations).not.toHaveBeenCalled()
   })
 })

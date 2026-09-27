@@ -1,9 +1,10 @@
 // 知行读书 — agent builders 单元测试（2026-07-24，过夜 Task #10）
 //
-// 覆盖 5 个上下文构建器的 shouldBuild 决策 + build 内容组装 + 错误降级。
+// 覆盖 4 个上下文构建器的 shouldBuild 决策 + build 内容组装 + 错误降级。
 // 这些 builder 是 agent 上下文构建的数据来源，0 单测。
-// methodology/memory/user-profile 是纯 DB 查询，用测试 fixture；
+// methodology/knowledgeCard/memory 是纯 DB 查询，用测试 fixture；
 // book 依赖 RAG，mock rag-service。
+// （user-profile 那一路 2026-09-27 挪到 tests/user-profile-context-builder.test.ts，理由见那个文件头）
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
@@ -32,7 +33,6 @@ import { BookContextBuilder } from '../electron/agent/builders/book-context-buil
 import { MethodologyContextBuilder } from '../electron/agent/builders/methodology-context-builder'
 import { KnowledgeCardContextBuilder } from '../electron/agent/builders/knowledge-card-context-builder'
 import { MemoryContextBuilder } from '../electron/agent/builders/memory-context-builder'
-import { UserProfileContextBuilder } from '../electron/agent/builders/user-profile-context-builder'
 import { methodologiesDb, knowledgeCardsDb, memoriesDb, booksDb, chapterSummariesDb, bookSummariesDb } from '../electron/database'
 import type { BuildContext } from '../electron/agent/context-builder'
 
@@ -300,23 +300,9 @@ describe('MemoryContextBuilder', () => {
   })
 })
 
-describe('UserProfileContextBuilder', () => {
-  let builder: UserProfileContextBuilder
-
-  beforeEach(() => {
-    builder = new UserProfileContextBuilder()
-  })
-
-  it('shouldBuild 始终返回 false（当前禁用）', () => {
-    expect(builder.shouldBuild(ctxWithBook())).toBe(false)
-  })
-
-  it('build 无画像时返回空 content（await Promise）', async () => {
-    const result = await builder.build(ctxWithBook())
-    // hasUserProfile() false → personalizedPrompt 空 → content 为 ''
-    expect(result.content).toBe('')
-  })
-})
+// UserProfileContextBuilder 的判据在 tests/user-profile-context-builder.test.ts（2026-09-27 迁走）。
+// 这里原来那两条「shouldBuild 始终返回 false（当前禁用）」读的是真设置文件 ——
+// 它能过只因为共享测试画像目录里恰好没有 settings.json，档案页一填昵称就变成假绿。
 
 // ============================================================================
 // 未关联书籍时的全局检索（2026-09-16 新增）
