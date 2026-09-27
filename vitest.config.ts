@@ -144,6 +144,9 @@ export default defineConfig({
         // 2026-09-27 设置 store：20 个函数里只有微信读书连接测试那一条走过（09-26 登记欠账时的量法），
         // 读设置 / 保存 / 清除密钥 / 五个开关的乐观更新与回滚全部补齐后的量法。
         'src/renderer/src/stores/settingsStore.ts', // 100 / 98.87 / 100
+        // 2026-09-27 设置与系统类通道：十条 handler 里只有 GET / GET_ALL 被密钥边界那批用到，
+        // 强制落盘 / 清缓存 / 外链白名单 / 存储用量 / 清历史 / 重置库 / 撤销删除 / 备份 都没判据。
+        'electron/ipc/settings.ts',        // 98.18 / 97.61 / 100
       ],
       exclude: [
         '**/*.test.ts',
