@@ -17,23 +17,31 @@ import {
 } from './services/prompt-storage'
 import { getIntentKeywords } from './agent/intent-classifier'
 
-export function getAdminStats(): Record<string, unknown> {
-  const db = getDatabase()
+/**
+ * 聚合查询（COUNT / SUM）取单个数。
+ *
+ * 这类 SQL 一定返回一行一列，所以取不到就是 SQL 写错了 —— 直接让它抛，
+ * 而不是 `?? 0` 报一个看着正常的零：查询失败在界面上演成"数据就是没有"过一次。
+ */
+function aggregateNumber(sql: string, column: string): number {
+  return Number(rowsToObjects(getDatabase().exec(sql))[0][column])
+}
 
-  const totalConversations = rowsToObjects(db.exec('SELECT COUNT(*) as count FROM conversations'))
-  const totalMessages = rowsToObjects(db.exec('SELECT COUNT(*) as count FROM chat_messages'))
-  const totalTokens = rowsToObjects(db.exec('SELECT COALESCE(SUM(input_tokens + output_tokens), 0) as total FROM token_usage'))
-  const totalBooks = rowsToObjects(db.exec('SELECT COUNT(*) as count FROM books'))
-  const totalHighlights = rowsToObjects(db.exec('SELECT COUNT(*) as count FROM highlights'))
-  const totalCards = rowsToObjects(db.exec('SELECT COUNT(*) as count FROM knowledge_cards'))
+export function getAdminStats(): Record<string, unknown> {
+  const count = (table: string): number => aggregateNumber(`SELECT COUNT(*) as count FROM ${table}`, 'count')
 
   return {
-    totalConversations: totalConversations[0]?.count ?? 0,
-    totalMessages: totalMessages[0]?.count ?? 0,
-    totalTokens: totalTokens[0]?.total ?? 0,
-    totalBooks: totalBooks[0]?.count ?? 0,
-    totalHighlights: totalHighlights[0]?.count ?? 0,
-    totalCards: totalCards[0]?.count ?? 0,
+    totalConversations: count('conversations'),
+    totalMessages: count('chat_messages'),
+    // 全时段累计：概览那张卡写的是「总 Token」，不跟着下面那张 7 天图的时间窗走
+    totalTokens: aggregateNumber(
+      'SELECT COALESCE(SUM(input_tokens + output_tokens), 0) as total FROM token_usage',
+      'total',
+    ),
+    totalBooks: count('books'),
+    totalHighlights: count('highlights'),
+    // 「知识卡片」数的是 knowledge_cards，不是复习队列里的 cards —— 两张表别混
+    totalCards: count('knowledge_cards'),
   }
 }
 
@@ -170,11 +178,9 @@ export function getDatabaseTableData(
   if (safeName.startsWith('sqlite_')) {
     throw new Error('Invalid table name')
   }
-  const totalRows = rowsToObjects(db.exec(`SELECT COUNT(*) as count FROM "${safeName}"`))
-  const total = Number(totalRows[0]?.count ?? 0)
+  const total = aggregateNumber(`SELECT COUNT(*) as count FROM "${safeName}"`, 'count')
   const data = rowsToObjects(db.exec(`SELECT * FROM "${safeName}" LIMIT ? OFFSET ?`, [limit, offset]))
-  const columns = data.length > 0 ? Object.keys(data[0]) : []
-  return { columns, rows: data, total }
+  return { columns: data.length > 0 ? Object.keys(data[0]) : [], rows: data, total }
 }
 
 // ===== 自定义模板管理 =====

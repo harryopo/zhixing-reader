@@ -136,6 +136,8 @@ export default defineConfig({
         // 重写成真行为测试（tests/weread-sync-manager.test.ts）+ 抽出共享计划后的量法。
         'electron/weread-sync-manager.ts', // 100 / 98.3 / 100
         'src/shared/weread-book-sync.ts',  // 100 / 100 / 100
+        // 2026-09-26 后台的每条 SQL 上了真库对账（tests/admin-real-db.test.ts）
+        'electron/admin.ts',              // 100 / 96.96 / 100
       ],
       exclude: [
         '**/*.test.ts',
