@@ -23,7 +23,6 @@ const DEBT: Record<string, string> = {
   'electron/agent/builders/user-profile-context-builder.ts': '36.36 / 50 / 100',
   'electron/ipc/settings.ts': '38.18 / 100 / 100',
   'electron/ipc/books.ts': '44.96 / 93.75 / 100',
-  'src/renderer/src/stores/settingsStore.ts': '21.42 / 40 / 5',
   'electron/ipc/knowledge.ts': '50.76 / 79.31 / 50',
   'electron/services/knowledge-card-service.ts': '69.34 / 81.81 / 76.92',
   'src/renderer/src/utils/db-mapper.ts': '75.34 / 50 / 57.14',
@@ -199,9 +198,9 @@ describe('覆盖率清单与仓库对账', () => {
 
   it('判据自己得看得见东西（路径写错时上面几条会全部空转）', () => {
     // 实测下限跟着欠账走：每还一笔就把这个数一起往前推，否则这条守卫会变成一条永远绿的空话。
-    // 2026-09-27：测试文件 96 个、被 import 的源文件 80 个、欠账登记 19 条（chatStore 已还掉）。
+    // 2026-09-27：测试文件 97 个、被 import 的源文件 80 个、欠账登记 18 条（chatStore 与 settingsStore 已还掉）。
     expect(TEST_FILES.length).toBeGreaterThanOrEqual(85)
     expect(importedSources().size).toBeGreaterThanOrEqual(75)
-    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(19)
+    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(18)
   })
 })

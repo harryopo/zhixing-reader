@@ -141,6 +141,9 @@ export default defineConfig({
         // 2026-09-27 对话 store：原来只有 5 条用例（意图与引用来源那条链），
         // 会话读写 / 重新生成 / 流式控制 / 点赞收藏 16 个函数一条没走过。
         'src/renderer/src/stores/chatStore.ts', // 100 / 100 / 100
+        // 2026-09-27 设置 store：20 个函数里只有微信读书连接测试那一条走过（09-26 登记欠账时的量法），
+        // 读设置 / 保存 / 清除密钥 / 五个开关的乐观更新与回滚全部补齐后的量法。
+        'src/renderer/src/stores/settingsStore.ts', // 100 / 98.87 / 100
       ],
       exclude: [
         '**/*.test.ts',
