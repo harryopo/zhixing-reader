@@ -194,7 +194,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         }
 
         // 异步：先持久化 assistant 消息拿到 DB id，再写入本地 state（id 用于点赞/收藏）
-        const finishWithContent = async (fullContent: string, resolveStream: boolean) => {
+        const finishWithContent = async (fullContent: string) => {
           // 守卫：防止 onStreamComplete 与 activeStreamStop 并发触发导致重复消息
           if (finishing || settled) return
           finishing = true
@@ -252,7 +252,7 @@ export const useChatStore = create<ChatState>((set, get) => {
               ),
             }
           })
-          settle(() => (resolveStream ? resolve() : resolve()))
+          settle(() => resolve())
         }
 
         removeChunkListener = window.electronAPI.ai.onStreamChunk?.((chunk: string) => {
@@ -272,7 +272,9 @@ export const useChatStore = create<ChatState>((set, get) => {
         })
 
         removeErrorListener = window.electronAPI.ai.onStreamError?.((error: string) => {
-          set({ streaming: false, loading: false, error, streamingReasoning: '', reasoningStartTime: null })
+          // 半句正文既不入库也不再渲染（气泡只在 streaming 为真时画出来），
+          // 留在状态里只会让"界面上有没有内容"与 state 各说一套 —— 与 streamingReasoning 同步清掉
+          set({ streaming: false, loading: false, error, streamingContent: '', streamingReasoning: '', reasoningStartTime: null })
           settle(() => reject(new Error(error)))
         })
 
@@ -280,7 +282,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           if (settled) return
           // 主进程已完成 usage 落库，广播事件让 Sidebar/TokenUsage 立即刷新
           window.dispatchEvent(new Event('token-usage:updated'))
-          finishWithContent(get().streamingContent, true)
+          finishWithContent(get().streamingContent)
         })
 
         // 知识库检索过程可视化（start 已乐观置位，此处接收后端两阶段事件）
@@ -296,7 +298,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 
         activeStreamStop = () => {
           const partial = get().streamingContent
-          finishWithContent(partial, true)
+          finishWithContent(partial)
         }
       })
 

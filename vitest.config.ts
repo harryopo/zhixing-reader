@@ -138,6 +138,9 @@ export default defineConfig({
         'src/shared/weread-book-sync.ts',  // 100 / 100 / 100
         // 2026-09-26 后台的每条 SQL 上了真库对账（tests/admin-real-db.test.ts）
         'electron/admin.ts',              // 100 / 96.96 / 100
+        // 2026-09-27 对话 store：原来只有 5 条用例（意图与引用来源那条链），
+        // 会话读写 / 重新生成 / 流式控制 / 点赞收藏 16 个函数一条没走过。
+        'src/renderer/src/stores/chatStore.ts', // 100 / 100 / 100
       ],
       exclude: [
         '**/*.test.ts',
