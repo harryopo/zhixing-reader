@@ -126,9 +126,10 @@ export function registerBookHandlers(handle: HandleFn): void {
       for (const h of list) {
         const chapter =
           ((h.chapter_title as string | undefined) || (h.chapterTitle as string | undefined) || '未知章节');
-        const time = (h.created_at as string | undefined)
-          ? new Date(h.created_at as string).toLocaleString('zh-CN')
-          : '未知时间';
+        // 时间用排序那同一个解析结果：解析不出来就照实说"未知时间"，
+        // 不许把浏览器那句 Invalid Date 印进用户拿走的文件里
+        const stamp = getCreatedAt(h);
+        const time = stamp > 0 ? new Date(stamp).toLocaleString('zh-CN') : '未知时间';
         lines.push(`### ${chapter}`, '', `**时间**：${time}`, '', `> ${escapeMd(h.content)}`, '');
         if (h.note) {
           lines.push(`**批注**：${escapeMd(h.note)}`, '');
