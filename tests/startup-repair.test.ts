@@ -150,7 +150,13 @@ describe('runStartupRepair — 启动时自动修复历史数据缺口', () => {
 
   it('全新安装（没有任何数据）也能安全跑完', async () => {
     const r = await runStartupRepair()
-    expect(r).toEqual({ cardSources: 0, chapterTitles: 0, chapterSkipped: false, readingDays: 0 })
+    expect(r).toEqual({
+      cardSources: 0,
+      chapterTitles: 0,
+      chapterSkipped: false,
+      highlightTimes: 0,
+      readingDays: 0,
+    })
     expect(mockedContent).not.toHaveBeenCalled()
   })
 })

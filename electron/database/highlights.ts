@@ -205,6 +205,53 @@ export const highlightsDb = {
   },
 
   /**
+   * 找出「同一本书里多条划线共用一个时间戳」的书 —— 历史导入把真实划线时刻压平成导入那一刻。
+   *
+   * 只读库内信号，不发请求（与 `getBookIdsMissingChapterTitle` 同一个设计）。
+   * **必须排除正文为空的行**：它们按定义对不回微信读书的任何一条，若参与判定，
+   * 这几本书会被每一轮修复反复重新拉取、永远收敛不了（实测本机有 7 条这样的行）。
+   * 同理要求**至少 2 条**有正文的划线，单条的书没有"撞车"可言。
+   */
+  getBookIdsWithFlatTimestamps(): string[] {
+    const result = getDatabase().exec(
+      `SELECT book_id FROM (
+         SELECT book_id, COUNT(*) AS c, COUNT(DISTINCT created_at) AS d
+         FROM highlights
+         WHERE content IS NOT NULL AND TRIM(content) <> ''
+           AND book_id IS NOT NULL AND book_id <> ''
+         GROUP BY book_id
+       ) WHERE c >= 2 AND c > d`
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map((row) => String(row[0]));
+  },
+
+  /**
+   * 批量回填划线时间（单事务）。与 `updateChapterTitles` 同一套约定：
+   * 一次落盘、解析不出来的不写、返回真正改动的行数。
+   */
+  updateCreatedTimes(updates: Array<{ id?: string; createdAt?: unknown }>): number {
+    const byId = new Map<string, string>();
+    for (const u of updates) {
+      if (!u || !u.id) continue;
+      const value = toSqliteDateTime(u.createdAt);
+      if (value === null) continue;
+      byId.set(u.id, value);
+    }
+    if (byId.size === 0) return 0;
+
+    writeRevision++;
+    runTransaction((database) => {
+      const stmt = database.prepare(
+        "UPDATE highlights SET created_at = ?, updated_at = datetime('now') WHERE id = ?"
+      );
+      for (const [id, value] of byId) stmt.run([value, id]);
+      stmt.free();
+    });
+    return byId.size;
+  },
+
+  /**
    * 每本书每章还剩多少条**有正文**的划线 —— 摘要新鲜度判定的输入。
    *
    * 口径必须与 shared/chapter-summaries 的 groupHighlightsByChapter 一致

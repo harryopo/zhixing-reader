@@ -99,7 +99,110 @@ export function resolveWereadContent<
   }
 }
 
-/** 一条待写入 highlights 表的行（字段名 = 库里那一列） */
+/** 「划线原文 → 真实划线时刻」对照表的产出 */
+export interface ContentTimeMap {
+  /** 文本 → ISO 时刻（只有全局唯一的文本才在这里） */
+  times: Map<string, string>
+  /** 同一句文本对应多个时刻（或对应库里多义情况）⇒ 这里列出，交给调用方**跳过** */
+  ambiguous: Set<string>
+}
+
+/**
+ * 建立「划线原文 → 真实时刻」的对照表，用来回填历史数据。
+ *
+ * ## 为什么要单独一张表
+ * `highlights` 表没存微信读书的 `bookmarkId`，历史行里唯一可靠的对应关系就是**划线原文本身**
+ * （导入时的去重口径也是 `(book_id, content)`，与 `backfillChapterTitles` 同一个道理）。
+ *
+ * ## 撞车时必须留下"这条不该猜"
+ * 同一句被划了两次（很常见，同一句话在不同章节或重读时各划一次）而 `createTime` 不同 ⇒
+ * 无法判断库里那一行是哪一次。**宁可不改，也不给一个编出来的时间** ——
+ * 猜错会把这条划线挪到错误的一天，而统计页正是按天归集的。
+ */
+export function buildContentTimeMap(
+  content: { bookmarks?: WereadMarkLike[] | null; notes?: WereadMarkLike[] | null } | null | undefined,
+): ContentTimeMap {
+  const times = new Map<string, string>()
+  const ambiguous = new Set<string>()
+
+  const offer = (text: unknown, iso: string | null): void => {
+    const key = typeof text === 'string' ? text.trim() : ''
+    if (!key || !iso) return
+    const existing = times.get(key)
+    if (existing === undefined) {
+      times.set(key, iso)
+      return
+    }
+    if (existing !== iso) {
+      // 同一句对应到两个不同时刻：整条作废，不选一个
+      times.delete(key)
+      ambiguous.add(key)
+    }
+  }
+
+  for (const bm of content?.bookmarks ?? []) {
+    if (!bm) continue
+    offer(bm.markText, wereadTimeIso(bm.createTime))
+  }
+  for (const note of content?.notes ?? []) {
+    if (!note) continue
+    // 想法那一行入库时正文用的是 abstract（摘句），回填就按同一个口径对
+    offer(note.abstract, wereadTimeIso(note.createTime))
+  }
+
+  return { times, ambiguous }
+}
+
+/** 一条待回填的划线时间 */
+export interface HighlightTimeRepair {
+  id: string
+  createdAt: string
+}
+
+/**
+ * 规划「库里这些行该改成哪个时刻」。
+ *
+ * 纯函数：库里那一行（`id` / `content` / `created_at`）+ 对照表 ⇒ 要写的更新清单。
+ * 不动库、不发请求，所以两条通路（启动修复、按书单本修复）可以共用同一套判定。
+ */
+export function planHighlightTimeRepairs(
+  rows: readonly { id?: unknown; content?: unknown; created_at?: unknown }[] | null | undefined,
+  map: ContentTimeMap,
+): { updates: HighlightTimeRepair[]; ambiguous: number; unmatched: number } {
+  let ambiguous = 0
+  let unmatched = 0
+  const updates: HighlightTimeRepair[] = []
+
+  for (const row of rows ?? []) {
+    const id = typeof row?.id === 'string' ? row.id : ''
+    const text = typeof row?.content === 'string' ? row.content.trim() : ''
+    if (!id || !text) {
+      // 正文为空的行按定义对不上（没有可匹配的键），也不该反复触发重拉
+      unmatched++
+      continue
+    }
+    const target = map.times.get(text)
+    if (!target) {
+      if (map.ambiguous.has(text)) ambiguous++
+      else unmatched++
+      continue
+    }
+    // 已经是对的就不写：一轮修复后重复跑应当零写入
+    const current = typeof row.created_at === 'string' ? toMysqlComparable(row.created_at) : ''
+    if (current === toMysqlComparable(target)) continue
+    updates.push({ id, createdAt: target })
+  }
+
+  return { updates, ambiguous, unmatched }
+}
+
+/** 把两种形状（`YYYY-MM-DD HH:MM:SS` / ISO）折成同一串再比，避免"已经对了还写一遍" */
+function toMysqlComparable(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed.includes('T')) return trimmed.slice(0, 19)
+  const parsed = new Date(trimmed)
+  return Number.isNaN(parsed.getTime()) ? trimmed : parsed.toISOString().slice(0, 19).replace('T', ' ')
+}
 export interface HighlightImportRow {
   content: string
   note?: string

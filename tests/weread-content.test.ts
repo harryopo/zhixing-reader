@@ -13,6 +13,8 @@ import {
   resolveWereadContent,
   wereadTimeIso,
   planHighlightRows,
+  buildContentTimeMap,
+  planHighlightTimeRepairs,
 } from '../src/shared/weread-content'
 
 describe('buildChapterTitleMap', () => {
@@ -262,6 +264,106 @@ describe('planHighlightRows（三条导入通路共用的一份行规划）', ()
     expect(planHighlightRows(null)).toEqual([])
     expect(planHighlightRows(undefined)).toEqual([])
     expect(planHighlightRows({})).toEqual([])
+  })
+})
+
+describe('buildContentTimeMap + planHighlightTimeRepairs（历史时间回填的判定）', () => {
+  const content = {
+    bookmarks: [
+      { bookmarkId: 'w1', markText: '第一句', createTime: 1_700_000_000 },
+      { bookmarkId: 'w2', markText: '第二句', createTime: 1_700_003_600 },
+    ],
+    notes: [{ reviewId: 'r1', abstract: '摘句', content: '想法', createTime: 1_700_007_200 }],
+  }
+
+  it('按划线原文对上时刻，想法那条用摘句对（入库时正文就是摘句）', () => {
+    const map = buildContentTimeMap(content)
+    expect(map.times.get('第一句')).toBe(wereadTimeIso(1_700_000_000))
+    expect(map.times.get('摘句')).toBe(wereadTimeIso(1_700_007_200))
+    expect(map.ambiguous.size).toBe(0)
+  })
+
+  it('同一句被划两次且时刻不同 ⇒ 整条作废，不挑一个时间', () => {
+    const map = buildContentTimeMap({
+      bookmarks: [
+        { markText: '重句', createTime: 1_700_000_000 },
+        { markText: '重句', createTime: 1_700_009_999 },
+      ],
+      notes: [],
+    })
+    expect(map.times.has('重句')).toBe(false)
+    expect([...map.ambiguous]).toEqual(['重句'])
+  })
+
+  it('同一句两次时刻相同 ⇒ 不算歧义，可以回填', () => {
+    const map = buildContentTimeMap({
+      bookmarks: [
+        { markText: '重句', createTime: 1_700_000_000 },
+        { markText: '重句', createTime: 1_700_000_000 },
+      ],
+      notes: [],
+    })
+    expect(map.ambiguous.size).toBe(0)
+    expect(map.times.get('重句')).toBe(wereadTimeIso(1_700_000_000))
+  })
+
+  it('库里那一行的时间与目标不同 ⇒ 进更新清单', () => {
+    const { updates, ambiguous, unmatched } = planHighlightTimeRepairs(
+      [{ id: 'h1', content: '第一句', created_at: '2026-09-02 12:28:58' }],
+      buildContentTimeMap(content),
+    )
+    expect(updates).toEqual([{ id: 'h1', createdAt: wereadTimeIso(1_700_000_000) }])
+    expect({ ambiguous, unmatched }).toEqual({ ambiguous: 0, unmatched: 0 })
+  })
+
+  it('已经是对的了 ⇒ 零写入（同一天不同形状也认：库内存的是空格形状，对照表是 ISO）', () => {
+    const map = buildContentTimeMap(content)
+    const asIso = wereadTimeIso(1_700_000_000) as string
+    expect(planHighlightTimeRepairs([{ id: 'h1', content: '第一句', created_at: asIso }], map).updates).toEqual([])
+    expect(
+      planHighlightTimeRepairs(
+        [{ id: 'h1', content: '第一句', created_at: asIso.slice(0, 19).replace('T', ' ') }],
+        map,
+      ).updates,
+    ).toEqual([])
+  })
+
+  it('对不上微信读书的行只计数不猜时间', () => {
+    const r = planHighlightTimeRepairs(
+      [
+        { id: 'a', content: '库里独有的一句', created_at: '2026-09-02 12:28:58' },
+        { id: 'b', content: '   ', created_at: '2026-09-02 12:28:58' },
+        { id: 'c', content: '', created_at: '2026-09-02 12:28:58' },
+      ],
+      buildContentTimeMap(content),
+    )
+    expect(r.updates).toEqual([])
+    expect(r.unmatched).toBe(3)
+  })
+
+  it('歧义的行单独计入 ambiguous，不与"对不上"混为一谈', () => {
+    const map = buildContentTimeMap({
+      bookmarks: [
+        { markText: '重句', createTime: 1_700_000_000 },
+        { markText: '重句', createTime: 1_700_009_999 },
+      ],
+      notes: [],
+    })
+    const r = planHighlightTimeRepairs([{ id: 'h', content: '重句', created_at: '2026-09-02 12:28:58' }], map)
+    expect({ updates: r.updates, ambiguous: r.ambiguous, unmatched: r.unmatched }).toEqual({
+      updates: [],
+      ambiguous: 1,
+      unmatched: 0,
+    })
+  })
+
+  it('入参缺失（空库 / 接口一条没回）时安全返回', () => {
+    expect(planHighlightTimeRepairs(null, buildContentTimeMap(null))).toEqual({
+      updates: [],
+      ambiguous: 0,
+      unmatched: 0,
+    })
+    expect(buildContentTimeMap(undefined).times.size).toBe(0)
   })
 })
 

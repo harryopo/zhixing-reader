@@ -22,6 +22,7 @@
 
 import { knowledgeCardsDb, highlightsDb } from '../database';
 import { backfillChapterTitles } from './chapter-title-backfill';
+import { backfillHighlightTimes } from './highlight-time-backfill';
 import { syncReadingTimeToLocal } from './reading-time-sync';
 import { settingsService } from './settings-service';
 import { logger } from '../logger';
@@ -40,6 +41,8 @@ export interface StartupRepairResult {
   chapterTitles: number;
   /** 章节名补全是否因节流被跳过 */
   chapterSkipped: boolean;
+  /** 回填了真实时刻的划线条数 */
+  highlightTimes: number;
   /** 阅读时长写入/更新的天数 */
   readingDays: number;
 }
@@ -83,6 +86,27 @@ async function repairChapterTitles(): Promise<{ updated: number; skipped: boolea
   }
 }
 
+/**
+ * 回填历史划线的真实时刻。
+ *
+ * 缺口信号是纯库内的（同书多条共用一个 `created_at`），没有缺口时一次请求都不发；
+ * 有缺口时由 `backfillHighlightTimes` 自己按书节流（每本 7 天试一次），所以这里不加全局闸。
+ */
+async function repairHighlightTimes(): Promise<number> {
+  try {
+    const missing = highlightsDb.getBookIdsWithFlatTimestamps();
+    if (missing.length === 0) return 0;
+    const result = await backfillHighlightTimes();
+    if (result.updated > 0) {
+      logger.info('启动修复：划线时间已按微信读书的真实时刻回填', { ...result });
+    }
+    return result.updated;
+  } catch (error) {
+    logger.warn('启动修复：划线时间回填失败', { error: String(error) });
+    return 0;
+  }
+}
+
 async function refreshReadingTime(): Promise<number> {
   try {
     if (throttled(READING_TIME_ATTEMPT_KEY, READING_TIME_RETRY_MS)) return 0;
@@ -107,6 +131,7 @@ export async function runStartupRepair(): Promise<StartupRepairResult> {
     cardSources: 0,
     chapterTitles: 0,
     chapterSkipped: false,
+    highlightTimes: 0,
     readingDays: 0,
   };
   if (inFlight) return result;
@@ -116,11 +141,12 @@ export async function runStartupRepair(): Promise<StartupRepairResult> {
     const chapter = await repairChapterTitles();
     result.chapterTitles = chapter.updated;
     result.chapterSkipped = chapter.skipped;
+    result.highlightTimes = await repairHighlightTimes();
     result.readingDays = await refreshReadingTime();
   } finally {
     inFlight = false;
   }
-  if (result.cardSources || result.chapterTitles || result.readingDays) {
+  if (result.cardSources || result.chapterTitles || result.highlightTimes || result.readingDays) {
     logger.info('启动修复完成', { ...result });
   }
   return result;

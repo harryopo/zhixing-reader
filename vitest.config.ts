@@ -162,6 +162,8 @@ export default defineConfig({
         'electron/services/knowledge-card-service.ts',
         // 同一批：导入字段清单收成一份后，渲染层那条通路自己也该有判据（判重、补章节名、单条失败不带走整批）
         'src/renderer/src/utils/import-weread-content.ts',
+        // 同一批：历史划线时间回填（缺口信号纯库内、对不上就不猜、每本书只试一次）
+        'electron/services/highlight-time-backfill.ts',
       ],
       exclude: [
         '**/*.test.ts',
