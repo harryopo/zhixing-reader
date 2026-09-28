@@ -69,49 +69,47 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
         // 结果渲染层、主进程三处导入全都写出空章节名（实测 934 条 0 条有值）。
         const { bookmarks, notes } = resolveWereadContent(raw);
 
-        let _importedCount = 0;
-        if (bookmarks.length > 0) {
-          for (const bm of bookmarks) {
-            try {
-              highlightsDb.create({
-                book_id: bookId,
-                content: bm.markText,
-                chapter_title: bm.resolvedChapterTitle,
-                chapter_uid: bm.chapterUid,
-                type: 'highlight',
-                source: 'weread',
-                created_at: new Date(bm.createTime * 1000).toISOString(),
-              });
-              _importedCount++;
-            } catch (e) { logger.error('导入划线失败:', e); }
-          }
+        // 只数真插进去的那几条：create 判重时回 false，以前连 false 也一起 +1
+        let importedCount = 0;
+        for (const bm of bookmarks) {
+          try {
+            if (highlightsDb.create({
+              book_id: bookId,
+              content: bm.markText,
+              chapter_title: bm.resolvedChapterTitle,
+              chapter_uid: bm.chapterUid,
+              type: 'highlight',
+              source: 'weread',
+              created_at: new Date(bm.createTime * 1000).toISOString(),
+            })) importedCount++;
+          } catch (e) { logger.error('导入划线失败:', e); }
         }
-        if (notes.length > 0) {
-          for (const note of notes) {
-            try {
-              highlightsDb.create({
-                book_id: bookId,
-                content: note.abstract,
-                note: note.content,
-                chapter_title: note.resolvedChapterTitle,
-                chapter_uid: note.chapterUid,
-                type: 'note',
-                source: 'weread',
-                created_at: new Date(note.createTime * 1000).toISOString(),
-              });
-              _importedCount++;
-            } catch (e) { logger.error('导入笔记失败:', e); }
-          }
+        for (const note of notes) {
+          try {
+            if (highlightsDb.create({
+              book_id: bookId,
+              content: note.abstract,
+              note: note.content,
+              chapter_title: note.resolvedChapterTitle,
+              chapter_uid: note.chapterUid,
+              type: 'note',
+              source: 'weread',
+              created_at: new Date(note.createTime * 1000).toISOString(),
+            })) importedCount++;
+          } catch (e) { logger.error('导入笔记失败:', e); }
         }
+        logger.info('自动导入笔记完成', { bookId, bookmarks: bookmarks.length, notes: notes.length, importedCount });
 
         highlights = highlightsDb.getByBookId(bookId);
-
-        if (!highlights || highlights.length === 0) {
-          throw new Error('该书在微信读书中也没有笔记，无法提取方法论');
-        }
       } catch (error) {
         logger.error('自动导入笔记失败:', error);
         throw new Error(`自动导入笔记失败: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
+      // 这道闸排在 try 外面：库里和微信读书都没有笔记是「没数据」，
+      // 不是「导入失败」—— 混在一起报会让人以为是接口坏了。
+      if (!highlights || highlights.length === 0) {
+        throw new Error('该书在微信读书中也没有笔记，无法提取方法论');
       }
     }
 
@@ -231,8 +229,9 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     if (!methodology) {
       throw new Error('方法论不存在');
     }
-    const content = await generateSkill(toSkillPayload(methodology, bookTitle));
 
+    // 先问存哪儿，再花 AI 的钱：旧顺序是「先生成再弹框」，用户点一下取消，
+    // 这一次调用照样计费，而界面上只留下一句"已取消"。
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
     const result = await dialog.showSaveDialog(win, {
       title: '导出为 Skill',
@@ -243,6 +242,7 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
       return { saved: false };
     }
 
+    const content = await generateSkill(toSkillPayload(methodology, bookTitle));
     fs.writeFileSync(result.filePath, content, 'utf8');
     logger.info('Skill exported to file', { methodologyId, path: result.filePath });
     return { saved: true, path: result.filePath };

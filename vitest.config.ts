@@ -153,6 +153,9 @@ export default defineConfig({
         // 2026-09-27 用户画像构建器：原来只走过 shouldBuild 一行，两层装配（自述资料 +
         // 行为画像）与「一层算崩了别把另一层一起带走」这条兜底都没有判据。
         'electron/agent/builders/user-profile-context-builder.ts',
+        // 2026-09-28 知识与卡片类通道：既有两份测试只走了两条 coverage 与 extract 的分批续跑，
+        // 「本地没划线就去微信读书搬回来」那半边与「导出 Skill」（映射 + 文件名 + 写盘）一条没测过。
+        'electron/ipc/knowledge.ts',
       ],
       exclude: [
         '**/*.test.ts',

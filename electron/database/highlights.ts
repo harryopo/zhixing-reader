@@ -60,11 +60,17 @@ export const highlightsDb = {
       return false;
     }
 
+    // 不给 id 就自己造一个：sql.js 绑不了 `undefined`，以前调用方一漏写就在这条
+    // INSERT 上抛「tried to bind a value of an unknown type」，而自动导入那两处把
+    // create 包在 try/catch 里 ⇒ 每条都"失败"却只留一行日志，最后报的是
+    // 「该书在微信读书中也没有笔记」—— 有笔记，是根本没插进去。
+    const id = (highlight.id as string) ?? `hl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
     getDatabase().run(
       `INSERT INTO highlights (id, book_id, chapter_title, content, note, style, range_start, range_end)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        highlight.id,
+        id,
         bookId,
         highlight.chapter_title ?? null,
         content,
