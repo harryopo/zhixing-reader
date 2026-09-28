@@ -355,6 +355,26 @@ describe('导出笔记：分组、排序、转义，最后真落到那个文件'
     expect(text).toContain('> 上半句  \n下半句')
   })
 
+  it('库里那串空格分隔的时间是 UTC：导出的文件里不许早 8 小时', async () => {
+    // 真实库里绝大部分行就是这个形状（`datetime('now')` 与划线导入写回的 toSqliteDateTime）。
+    // 按本地时区解释它会把每一行「**时间**」都印早一个时区差；这里拿"同一个瞬间的本地表示"对账，
+    // 所以本机与 CI（UTC）上都是同一条判据。
+    const utcWallClock = '2026-05-06 07:08:09'
+    const trueInstant = new Date(`${utcWallClock.replace(' ', 'T')}Z`)
+    seams.highlights.getAll.mockResolvedValue([
+      { id: 'h1', book_id: 'b1', content: '一条按库里形状存的划线', created_at: utcWallClock },
+      { id: 'h2', book_id: 'b1', content: '另一条', created_at: '2026-05-06T07:08:00.000Z' },
+    ])
+    seams.books.getAll.mockResolvedValue([{ id: 'b1', title: '一本书' }])
+    picks(OUT)
+    await at(IPC_CHANNELS.HIGHLIGHTS.EXPORT)()
+
+    const text = fs.readFileSync(OUT, 'utf8')
+    expect(text).toContain(`**时间**：${trueInstant.toLocaleString('zh-CN')}`)
+    // 倒序也按真实时刻排：带 Z 的那条（07:08:00）比上面那条（07:08:09）早，排在后面
+    expect(text.indexOf('一条按库里形状存的划线')).toBeLessThan(text.indexOf('另一条'))
+  })
+
   it('章名缺失时是「未知章节」，时间是脏值时是「未知时间」，都不许写成 undefined', async () => {
     seams.highlights.getAll.mockResolvedValue([
       { id: 'h1', book_id: 'b1', content: '一句话', chapter_title: null, created_at: 'not-a-date' },

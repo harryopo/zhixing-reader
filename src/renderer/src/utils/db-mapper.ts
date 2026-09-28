@@ -1,4 +1,5 @@
 import type { RagSourceRef } from '../../../shared/types'
+import { dbTimeIso, parseDbTime } from '../../../shared/db-time'
 
 export function safeNum(val: unknown, fallback = 0): number {
   if (val === null || val === undefined || val === '') return fallback
@@ -39,61 +40,42 @@ export function safeStrArray(val: unknown): string[] {
   return safeJsonArray(val).map(String)
 }
 
+/**
+ * 库里那一列的时间到底是什么时刻，判定只有一份 —— 见 `src/shared/db-time.ts`。
+ * 主进程导出笔记走的是同一把尺，两边不许各写一份 `new Date(...)`。
+ */
 export function safeDate(val: unknown): string {
-  if (!val) return ''
-  try {
-    const d = new Date(val as string | number)
-    if (isNaN(d.getTime())) return ''
-    return d.toISOString()
-  } catch {
-    return ''
-  }
+  return dbTimeIso(val)
 }
 
 export function formatDate(val: unknown): string {
-  if (!val) return '未知时间'
-  try {
-    const d = new Date(val as string | number)
-    if (isNaN(d.getTime())) return '未知时间'
-    return d.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  } catch {
-    return '未知时间'
-  }
+  const d = parseDbTime(val)
+  if (!d) return '未知时间'
+  return d.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 export function formatDateShort(val: unknown): string {
-  if (!val) return '-'
-  try {
-    const d = new Date(val as string | number)
-    if (isNaN(d.getTime())) return '-'
-    return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-  } catch {
-    return '-'
-  }
+  const d = parseDbTime(val)
+  if (!d) return '-'
+  return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
 }
 
 export function formatTimeAgo(val: unknown): string {
-  if (!val) return '-'
-  try {
-    const d = new Date(val as string | number)
-    if (isNaN(d.getTime())) return '-'
-    const now = new Date()
-    const diffMs = now.getTime() - d.getTime()
-    const diffMin = Math.floor(diffMs / 60000)
-    if (diffMin < 1) return '刚刚'
-    if (diffMin < 60) return `${diffMin}分钟前`
-    const diffHr = Math.floor(diffMin / 60)
-    if (diffHr < 24) return `${diffHr}小时前`
-    return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-  } catch {
-    return '-'
-  }
+  const d = parseDbTime(val)
+  if (!d) return '-'
+  const now = new Date()
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000)
+  if (diffMin < 1) return '刚刚'
+  if (diffMin < 60) return `${diffMin}分钟前`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}小时前`
+  return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 /**

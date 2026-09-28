@@ -162,6 +162,11 @@ export default defineConfig({
         'electron/services/knowledge-card-service.ts',
         // 同一批：导入字段清单收成一份后，渲染层那条通路自己也该有判据（判重、补章节名、单条失败不带走整批）
         'src/renderer/src/utils/import-weread-content.ts',
+        // 2026-09-28 行映射层：九个列表包装与三个时间格式化从来没被执行过，branches 一半没判据。
+        // 补判据时量出「库里 UTC 那一串被按本地时区读」这条真偏差（实测 8.0002 小时），一并修掉。
+        'src/renderer/src/utils/db-mapper.ts',
+        // 同一批：时间口径收成一份（渲染层行映射与主进程导出笔记共用同一把尺）
+        'src/shared/db-time.ts',
         // 同一批：历史划线时间回填（缺口信号纯库内、对不上就不猜、每本书只试一次）
         'electron/services/highlight-time-backfill.ts',
       ],

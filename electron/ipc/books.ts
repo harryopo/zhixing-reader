@@ -7,6 +7,7 @@ import { dialog, BrowserWindow } from 'electron';
 import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, chapterSummariesDb } from '../database';
 import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
+import { parseDbTime } from '../../src/shared/db-time';
 import { settingsService } from '../services/settings-service';
 import { backfillChapterTitles } from '../services/chapter-title-backfill';
 import { findPendingSummaries, generateBookSummaries } from '../services/chapter-summary-service';
@@ -104,10 +105,9 @@ export function registerBookHandlers(handle: HandleFn): void {
     const getBookId = (h: Record<string, unknown>): string =>
       ((h.book_id as string | undefined) || (h.bookId as string | undefined) || 'unknown');
     const getCreatedAt = (h: Record<string, unknown>): number => {
-      const v = h.created_at as string | number | Date | undefined;
-      if (!v) return 0;
-      const t = new Date(v).getTime();
-      return Number.isNaN(t) ? 0 : t;
+      // 与渲染层行映射同一把尺：库里那串 'YYYY-MM-DD HH:MM:SS' 是 UTC 的墙上时钟，
+      // 直接 new Date(...) 会按本地时区解释，导出的文件里每行时间都早 8 小时。
+      return parseDbTime(h.created_at)?.getTime() ?? 0;
     };
 
     // 按书籍分组，书籍内按创建时间倒序

@@ -20,7 +20,6 @@ const ROOT = process.cwd()
 
 /** 欠账登记：文件 → 2026-09-26 实测的 lines / branches / funcs（不是估计，是量出来的） */
 const DEBT: Record<string, string> = {
-  'src/renderer/src/utils/db-mapper.ts': '75.34 / 50 / 57.14',
   'electron/agent/state-tracker.ts': '76.08 / 100 / 80',
   'electron/agent/builders/memory-context-builder.ts': '79.24 / 77.77 / 100',
   'electron/agent/builders/methodology-context-builder.ts': '82.88 / 75.75 / 100',
@@ -193,10 +192,10 @@ describe('覆盖率清单与仓库对账', () => {
 
   it('判据自己得看得见东西（路径写错时上面几条会全部空转）', () => {
     // 实测下限跟着欠账走：每还一笔就把这个数一起往前推，否则这条守卫会变成一条永远绿的空话。
-    // 2026-09-28：测试文件 103 个、被 import 的源文件 82 个、欠账登记 13 条（chatStore、settingsStore、
-    // ipc/settings、ipc/books、画像构建器、ipc/knowledge、蒸馏服务已还掉）。
+    // 2026-09-28：欠账登记 12 条（db-mapper 已还掉，随它一起还的还有 chatStore、settingsStore、
+    // ipc/settings、ipc/books、画像构建器、ipc/knowledge、蒸馏服务）。
     expect(TEST_FILES.length).toBeGreaterThanOrEqual(85)
     expect(importedSources().size).toBeGreaterThanOrEqual(75)
-    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(13)
+    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(12)
   })
 })
