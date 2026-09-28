@@ -167,6 +167,9 @@ export default defineConfig({
         'src/renderer/src/utils/db-mapper.ts',
         // 同一批：时间口径收成一份（渲染层行映射与主进程导出笔记共用同一把尺）
         'src/shared/db-time.ts',
+        // 2026-09-28 会话状态机：难度层级从来没写回（界面三条规则全停在纸面上），
+        // 而每小时回收定时器（TTL / 超上限腾位置）一次都没被跑过。
+        'electron/agent/state-tracker.ts',
         // 同一批：历史划线时间回填（缺口信号纯库内、对不上就不猜、每本书只试一次）
         'electron/services/highlight-time-backfill.ts',
       ],

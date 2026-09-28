@@ -66,7 +66,7 @@ vi.mock('../electron/agent/state-tracker', () => ({
     recentTopics: [],
     lastActivity: new Date(),
   })),
-  adjustDifficulty: vi.fn(() => ({ action: 'maintain', reason: '保持' })),
+  adjustDifficulty: vi.fn(() => ({ action: 'maintain', reason: '保持', bloomLevel: 1 })),
   updateConceptMastery: vi.fn(),
   clearState: vi.fn(),
 }))

@@ -2,7 +2,7 @@ import { estimateTextTokens } from '../../src/shared/usage-tokens'
 import { sdkStreamChat } from '../ai-sdk-service'
 import { logger } from '../logger'
 import { classifyIntent } from './intent-classifier'
-import { selectStrategy, strategyToPromptHint, BloomLevel } from './strategy-selector'
+import { selectStrategy, strategyToPromptHint } from './strategy-selector'
 import { getSystemPrompt } from './system-prompt'
 import { methodologiesDb, conversationDb } from '../database'
 import { summarizeHistoryIncremental } from './history-summarizer'
@@ -397,18 +397,17 @@ export async function processMessageStream(
   const intent = await classifyIntent(userMessage, context.conversationHistory)
   let strategy = selectStrategy(intent)
 
-  // 2. 难度调整
+  // 2. 难度调整（层级的读写都在 state-tracker 那一处，这里只消费它写回后的那一层）
   const sessionState = getOrCreateState(context.sessionId)
   const difficultyAdjustment = adjustDifficulty(context.sessionId)
+  const bloomLevel = difficultyAdjustment.bloomLevel
 
   if (difficultyAdjustment.action === 'increase_bloom') {
-    const newBloomLevel = Math.min(6, sessionState.currentBloomLevel + 1) as BloomLevel
-    strategy = { ...strategy, bloomLevel: newBloomLevel }
-    if (newBloomLevel >= 4) strategy = { ...strategy, teachingMode: 'socratic' }
+    strategy = { ...strategy, bloomLevel }
+    if (bloomLevel >= 4) strategy = { ...strategy, teachingMode: 'socratic' }
   } else if (difficultyAdjustment.action === 'decrease_bloom') {
-    const newBloomLevel = Math.max(1, sessionState.currentBloomLevel - 1) as BloomLevel
-    strategy = { ...strategy, bloomLevel: newBloomLevel }
-    if (newBloomLevel <= 2) strategy = { ...strategy, teachingMode: 'direct_answer' }
+    strategy = { ...strategy, bloomLevel }
+    if (bloomLevel <= 2) strategy = { ...strategy, teachingMode: 'direct_answer' }
   }
 
   logger.info('Agent streaming', {
