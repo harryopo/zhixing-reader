@@ -4,6 +4,10 @@
  */
 import { getDatabase, saveDatabase, forceSaveDatabase } from './connection';
 import { rowsToObjects } from '../utils/db';
+import { toLikePattern } from '../../src/shared/global-search';
+
+/** 与全局搜索、生词本同一把 LIKE：值走占位符，`%` `_` 已在 pattern 里转义，ESCAPE 不能省 */
+const LIKE = `LIKE ? ESCAPE '\\'`;
 
 export const memoriesDb = {
   create(memory: {
@@ -36,18 +40,31 @@ export const memoriesDb = {
     return rowsToObjects(result);
   },
 
+  /**
+   * 按分词找相关记忆。
+   *
+   * 召回是"命中任一分词"，排序就必须用**同一个**命中关系（命中的分词个数），
+   * 命中数相同再按 importance。此前 SQL 只按 `importance DESC` 排，
+   * "相关"两个字其实等于"含任一分词的行里最重要的 limit 条" —— 中文按 2 字滑窗
+   * 分词，一个问句里的常用二字组几乎什么记忆都命中，于是界面那块「相关记忆」
+   * 摆的其实是「最重记忆」。与 `services/global-search.ts` 的 `relevanceScore` 同一口径。
+   *
+   * 通配符按字面匹配（`toLikePattern` + `ESCAPE`），值一律走 `?` 占位符。
+   */
   getRelevant(queryTerms: string[], limit: number = 10): Record<string, unknown>[] {
     if (queryTerms.length === 0) return [];
-    const conditions = queryTerms.map(() => '(content LIKE ? OR category LIKE ?)').join(' OR ');
-    const params: string[] = [];
-    for (const term of queryTerms) {
-      params.push(`%${term}%`, `%${term}%`);
-    }
-    params.push(String(limit));
-    const result = getDatabase().exec(
-      `SELECT * FROM memories WHERE ${conditions} ORDER BY importance DESC LIMIT ?`,
-      params
-    );
+    const perTerm = queryTerms.map(() => `(content ${LIKE} OR category ${LIKE})`);
+    // 每个分词的命中是 0/1，加起来就是"这条记忆答上了几个词"
+    const hitCount = perTerm.join(' + ');
+    const params: Array<string | number> = [
+      ...queryTerms.flatMap((term) => [toLikePattern(term), toLikePattern(term)]),
+      ...queryTerms.flatMap((term) => [toLikePattern(term), toLikePattern(term)]),
+      limit,
+    ];
+    const sql =
+      `SELECT * FROM memories WHERE ${perTerm.join(' OR ')} ` +
+      `ORDER BY (${hitCount}) DESC, importance DESC LIMIT ?`;
+    const result = getDatabase().exec(sql, params);
     return rowsToObjects(result);
   },
 

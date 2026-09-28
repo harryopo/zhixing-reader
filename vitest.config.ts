@@ -172,6 +172,11 @@ export default defineConfig({
         'electron/agent/state-tracker.ts',
         // 同一批：历史划线时间回填（缺口信号纯库内、对不上就不猜、每本书只试一次）
         'electron/services/highlight-time-backfill.ts',
+        // 2026-09-28 记忆这一路：构建器三种交回形状与 catch 没走过；服务层更是要问
+        // 「库里到底有没有这一行、按什么顺序交回来」—— 补判据时量出"相关记忆"其实只按
+        // 重要度排（命中词数不参与），以及 LIKE 没转义（下划线多匹配一个字符）。
+        'electron/agent/builders/memory-context-builder.ts',
+        'electron/services/memory-service.ts',
       ],
       exclude: [
         '**/*.test.ts',

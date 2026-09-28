@@ -20,10 +20,8 @@ const ROOT = process.cwd()
 
 /** 欠账登记：文件 → 2026-09-26 实测的 lines / branches / funcs（不是估计，是量出来的） */
 const DEBT: Record<string, string> = {
-  'electron/agent/builders/memory-context-builder.ts': '79.24 / 77.77 / 100',
   'electron/agent/builders/methodology-context-builder.ts': '82.88 / 75.75 / 100',
   'electron/agent/builders/knowledge-card-context-builder.ts': '88.29 / 65.38 / 100',
-  'electron/services/memory-service.ts': '89.36 / 79.48 / 100',
   'src/renderer/src/components/Toast.tsx': '90.66 / 63.15 / 75',
   'electron/services/rag-service.ts': '92.68 / 71.42 / 100',
   'electron/agent/builders/book-context-builder.ts': '99.27 / 76.47 / 100',
@@ -191,10 +189,10 @@ describe('覆盖率清单与仓库对账', () => {
 
   it('判据自己得看得见东西（路径写错时上面几条会全部空转）', () => {
     // 实测下限跟着欠账走：每还一笔就把这个数一起往前推，否则这条守卫会变成一条永远绿的空话。
-    // 2026-09-28：欠账登记 11 条（db-mapper 与 state-tracker 已还掉，更早还掉的还有 chatStore、
-    // settingsStore、ipc/settings、ipc/books、画像构建器、ipc/knowledge、蒸馏服务）。
+    // 2026-09-28：欠账登记 9 条（记忆这一路与 db-mapper、state-tracker 都已还掉，更早还掉的还有
+    // chatStore、settingsStore、ipc/settings、ipc/books、画像构建器、ipc/knowledge、蒸馏服务）。
     expect(TEST_FILES.length).toBeGreaterThanOrEqual(85)
     expect(importedSources().size).toBeGreaterThanOrEqual(75)
-    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(11)
+    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(9)
   })
 })

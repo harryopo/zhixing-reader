@@ -11,7 +11,9 @@
  *     为编造（后端是总预算 4000 顺序截断，无按比例分配），已删除
  *   - 系统提示词：默认文本与 system-prompt.ts DEFAULT_SYSTEM_PROMPT 同源；保存/重置走 prompt-storage 真实生效
  *     （原「6 个模板变量 chip」为误导功能——后端无变量替换逻辑，占位符会原样发给 LLM，已删除）
- *   - 记忆提取：3 类规则与 memory-service 分类概念对应，保留；原「提取中」假状态徽章已删除
+ *   - 记忆提取：规则逐条对过 memory-service.extractMemoriesFromConversation 的真实行为（原写的是「事实类 / 反馈类」
+ *     两种**代码里根本不产出的记忆类型**，表名也写错了一个（真实表名 memories），已改写）；
+ *     原「提取中」假状态徽章已删除
  *   - 流水线：6 步真实存在；原写死「在线」状态徽章已删除
  *
  * IPC 接口（真实可用）：
@@ -137,21 +139,21 @@ const DEFAULT_BUILDERS: ContextBuilderInfo[] = [
   { no: 5, name: 'user-profile', desc: '用户画像：档案自述资料 + 行为推导（有数据时才构建）', priority: '优先级 5 · 条件构建' },
 ]
 
-/** 记忆提取 3 类规则（对应 services/memory-service.ts 的分类） */
+/** 记忆提取规则（逐条对过 memory-service.extractMemoriesFromConversation 的真实行为） */
 const MEMORY_RULES: { title: string; desc: string; icon: 'globe' | 'camera' | 'feedback' }[] = [
   {
-    title: '偏好类 · 阅读主题与作者倾向',
-    desc: '识别用户对特定主题、作者、流派的偏好倾向，写入 preference 类型记忆。',
+    title: '偏好类 · 你说出口的习惯',
+    desc: '你的消息里出现「我喜欢 / 我偏好 / 我习惯 / 我通常 / 我总是 / 我不喜欢 / 我不擅长」这类句子时，那句话（前 100 字）写入 preference 类型记忆。',
     icon: 'globe',
   },
   {
-    title: '事实类 · 个人背景与学习目标',
-    desc: '抽取用户的职业、学习阶段、考试目标等长期事实，写入 fact 类型记忆。',
+    title: '洞察类 · 讲通的那一刻',
+    desc: 'AI 回复里出现「原来 / 明白了 / 懂了 / 这是因为 / 原因是」这类句子时，把那一句（20–50 字）连同你的提问一起写入 insight 类型记忆。',
     icon: 'camera',
   },
   {
-    title: '反馈类 · 答题正确率与理解偏差',
-    desc: '记录用户在评估中的常见错误模式与理解偏差，写入 feedback 类型记忆。',
+    title: '检索类 · 每轮带上三条',
+    desc: '提问时按关键词从记忆里挑最多 3 条相关的，连同偏好与洞察摘要一起写进提示词；记忆最多留 100 条，超出按重要度与最近访问淘汰。',
     icon: 'feedback',
   },
 ]
@@ -1063,7 +1065,7 @@ export default function SettingsAgent() {
                 记忆提取
               </strong>
               <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-                每轮对话结束后自动抽取记忆条目，写入 user_memory 表供后续检索
+                每轮对话结束后自动抽取记忆条目，写入 memories 表供后续检索
               </div>
             </div>
           </div>

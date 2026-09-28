@@ -144,3 +144,53 @@ describe('「两种写法都认」的死兜底不许回来（2026-09-25）', () 
     expect(before[3]).toMatch(/export interface (Conversation|ChatMessage) \{/)
   })
 })
+
+describe('记忆那一路的界面承诺必须对得上库（2026-09-28）', () => {
+  // 智能体页「记忆提取」那三行原本写着"写入 fact 类型记忆""写入 feedback 类型记忆"，
+  // 而 memories 表的 CHECK 只认四类、生产代码也从来不产出这两类 —— 是一句永远兑现不了的承诺。
+  // 「写入 user_memory 表」同理：真表名是 memories，照着文案去找表的人会找不到。
+  const SCHEMA = 'electron/database/schema.ts'
+
+  /** 库里 CHECK 认下来的类型，就是这件事的唯一真值（别的表也有 CHECK，必须先框到 memories） */
+  function allowedTypes(): string[] {
+    const src = read(SCHEMA)
+    const table = /CREATE TABLE IF NOT EXISTS memories \(([\s\S]*?)\n\s*\);/.exec(src)
+    expect(table, 'memories 的建表语句没被扫描认出来（DDL 形状改了就要一起改这条判据）').not.toBeNull()
+    const check = /type TEXT NOT NULL CHECK\(type IN \(([^)]*)\)\)/.exec(table![1])
+    expect(check, 'memories.type 的 CHECK 约束没被认出来').not.toBeNull()
+    return check![1].split(',').map((s) => s.trim().replace(/'/g, ''))
+  }
+
+  /** 界面上那句"写入 X 类型记忆"里的 X */
+  function claimedTypes(src: string): string[] {
+    return [...src.matchAll(/写入 ([a-z_]+) 类型记忆/g)].map((m) => m[1])
+  }
+
+  it('界面承诺的记忆类型，库里都必须接得下', () => {
+    const claimed = claimedTypes(read(SETTINGS_AGENT))
+    expect(claimed.length, '扫描没抓到任何"写入 X 类型记忆"，判据在空转').toBeGreaterThan(0)
+    const allowed = allowedTypes()
+    for (const type of claimed) {
+      expect(allowed, `界面承诺了 ${type} 类型记忆，库里 CHECK 不认`).toContain(type)
+    }
+  })
+
+  it('界面提到的表名就是 memories，不再写 user_memory', () => {
+    expect(read(SETTINGS_AGENT)).not.toContain('user_memory')
+    expect(read(SETTINGS_AGENT)).toContain('写入 memories 表')
+  })
+
+  it('库的 CHECK 与 memory-service 的 type 联合必须同一份（两份真值迟早各漂一次）', () => {
+    const src = read('electron/services/memory-service.ts')
+    const m = /type: ('[a-z_]+'(?:\s*\|\s*'[a-z_]+')*)/.exec(src)
+    expect(m, 'memory-service 的 Memory.type 声明形状变了').not.toBeNull()
+    const declared = [...m![1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1])
+    expect(declared.slice().sort()).toEqual(allowedTypes().slice().sort())
+  })
+
+  it('反证：把收口前那两行原文喂进来必须被抓住', () => {
+    const before = '抽取用户的职业、学习阶段、考试目标等长期事实，写入 fact 类型记忆。'
+    expect(claimedTypes(before)).toEqual(['fact'])
+    expect(allowedTypes(), 'fact 必须不在库的清单里，否则这条反证是空的').not.toContain('fact')
+  })
+})
