@@ -5,11 +5,14 @@
 // 这里把解析规则钉死，避免再出现"三处各写一遍且三处都错"。
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   buildChapterTitleMap,
   resolveChapterTitle,
   withResolvedChapterTitles,
   resolveWereadContent,
+  wereadTimeIso,
+  planHighlightRows,
 } from '../src/shared/weread-content'
 
 describe('buildChapterTitleMap', () => {
@@ -164,5 +167,131 @@ describe('resolveWereadContent — 一次搞定 fetchAllContent 的返回值', (
       chapters: [{ chapterUid: 5, title: '第一章 人际关系' }],
     })
     expect(bookmarks.every((b) => b.resolvedChapterTitle === '第一章 人际关系')).toBe(true)
+  })
+})
+
+describe('wereadTimeIso（微信读书的秒级时间戳 → ISO）', () => {
+  it('正常秒数换算成对应的时刻', () => {
+    expect(wereadTimeIso(1_700_000_000)).toBe(new Date(1_700_000_000 * 1000).toISOString())
+  })
+
+  it('接口给成字符串也认（这个接口的数字字段经常是字符串）', () => {
+    expect(wereadTimeIso('1700000000')).toBe(wereadTimeIso(1700000000))
+  })
+
+  it('缺失、0、负数、非数字一律 null —— 不许写成 1970', () => {
+    for (const bad of [undefined, null, 0, '', -5, Number.NaN, 'abc', {}]) {
+      expect(wereadTimeIso(bad)).toBeNull()
+    }
+  })
+
+  it('0 换算出来确实是 1970-01-01（所以这一条不是"我想当然"）', () => {
+    expect(new Date(0).toISOString().startsWith('1970-01-01')).toBe(true)
+    expect(wereadTimeIso(0)).toBeNull()
+  })
+})
+
+describe('planHighlightRows（三条导入通路共用的一份行规划）', () => {
+  const raw = {
+    bookmarks: [
+      { bookmarkId: 'b1', chapterUid: 5, chapterTitle: '', markText: '青年们都想认真地生活', createTime: 1_700_000_000 },
+      { bookmarkId: 'b2', chapterUid: 9, chapterTitle: '自带标题', markText: '第二句', createTime: 1_700_000_060 },
+    ],
+    notes: [
+      { reviewId: 'n1', chapterUid: 5, chapterTitle: '', abstract: '被划的那一句', content: '我的想法', createTime: 1_700_000_120 },
+    ],
+    chapters: [{ chapterUid: 5, title: '第一章 人际关系' }],
+  }
+
+  it('划线：正文取 markText、章节名查对照表、时间取真实划线时刻', () => {
+    const rows = planHighlightRows(raw)
+    expect(rows[0]).toEqual({
+      content: '青年们都想认真地生活',
+      chapter_title: '第一章 人际关系',
+      created_at: new Date(1_700_000_000 * 1000).toISOString(),
+    })
+  })
+
+  it('条目自带章节名时优先用它，不去查表', () => {
+    expect(planHighlightRows(raw)[1].chapter_title).toBe('自带标题')
+  })
+
+  it('想法这一条分两个字段：正文=被划的摘句，note=用户自己写的想法', () => {
+    const row = planHighlightRows(raw)[2]
+    expect(row.content).toBe('被划的那一句')
+    expect(row.note).toBe('我的想法')
+    expect(row.chapter_title).toBe('第一章 人际关系')
+  })
+
+  it('想法没有正文（只在页边写了一句）时不塞空串键', () => {
+    const rows = planHighlightRows({
+      bookmarks: [],
+      notes: [{ reviewId: 'n2', chapterUid: 5, abstract: '摘句', content: '', createTime: 1_700_000_000 }],
+      chapters: raw.chapters,
+    })
+    expect('note' in rows[0]).toBe(false)
+  })
+
+  it('查不到章节名就留空串，不编「未知章节」', () => {
+    const rows = planHighlightRows({
+      bookmarks: [{ bookmarkId: 'b3', chapterUid: 404, chapterTitle: '', markText: '无章可查', createTime: 1_700_000_000 }],
+      notes: [],
+      chapters: [],
+    })
+    expect(rows[0].chapter_title).toBe('')
+  })
+
+  it('没有 createTime 时 created_at 是 null，不是 1970、也不是导入那一刻', () => {
+    const rows = planHighlightRows({
+      bookmarks: [{ bookmarkId: 'b4', chapterUid: 5, markText: '没时间戳' }],
+      notes: [],
+      chapters: raw.chapters,
+    })
+    expect(rows[0].created_at).toBeNull()
+  })
+
+  it('顺序固定：先全部划线，再全部想法', () => {
+    expect(planHighlightRows(raw).map((r) => r.content)).toEqual([
+      '青年们都想认真地生活',
+      '第二句',
+      '被划的那一句',
+    ])
+  })
+
+  it('入参为空（接口一个条目都没回）时返回空数组', () => {
+    expect(planHighlightRows(null)).toEqual([])
+    expect(planHighlightRows(undefined)).toEqual([])
+    expect(planHighlightRows({})).toEqual([])
+  })
+})
+
+describe('导入字段清单只有一份（三处手写循环不许回来）', () => {
+  // 这三个文件是"从微信读书搬划线进库"的三个入口。09-16 只把章节名收成一份，
+  // 字段清单仍各写一遍 ⇒ 同一批缺陷各犯一次（漏 id、绕开对照表、created_at 被丢）。
+  const importSites = [
+    'electron/ipc/knowledge.ts',
+    'electron/services/knowledge-card-service.ts',
+    'src/renderer/src/utils/import-weread-content.ts',
+  ]
+
+  const BANNED = ['chapter_uid:', "type: 'highlight'", 'bm.chapterTitle', 'note.abstract']
+
+  for (const site of importSites) {
+    it(`${site} 必须吃 planHighlightRows，且不再自己拼字段`, () => {
+      const text = readFileSync(site, 'utf8')
+      expect(text).toContain('planHighlightRows')
+      for (const token of BANNED) {
+        expect(text, `${site} 里不该再出现 ${token}`).not.toContain(token)
+      }
+    })
+  }
+
+  it('反证：这几段是收口前的原文，必须被同一条规则判红', () => {
+    const before = [
+      'highlightsDb.create({ book_id: bookId, content: bm.markText, chapter_uid: bm.chapterUid, type: \'highlight\' })',
+      'const row = { content: note.abstract, chapter_title: bm.chapterTitle }',
+    ]
+    const hit = before.filter((t) => BANNED.some((token) => t.includes(token)))
+    expect(hit).toHaveLength(before.length)
   })
 })

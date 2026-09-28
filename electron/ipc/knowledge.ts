@@ -9,7 +9,7 @@ import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { knowledgeCardService } from '../services/knowledge-card-service';
 import { fetchAllContent } from '../weread-api';
-import { resolveWereadContent } from '../../src/shared/weread-content';
+import { planHighlightRows } from '../../src/shared/weread-content';
 import { describeBookCoverage, pickUnprocessed } from '../../src/shared/ai-coverage';
 import type { AiCoverageTask } from '../../src/shared/ai-coverage';
 import { extractMethodologies } from '../ai-service';
@@ -58,47 +58,20 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
     if (!highlights || highlights.length === 0) {
       logger.info(`No highlights found for book "${bookTitle}", attempting to fetch from WeRead...`);
       try {
-        const raw = await fetchAllContent(bookId) as {
-          bookmarks: Array<{ bookmarkId: string; chapterTitle: string; markText: string; chapterUid: number; createTime: number }>;
-          notes: Array<{ reviewId: string; chapterTitle: string; abstract: string; content: string; chapterUid: number; createTime: number }>;
-          chapters?: Array<{ chapterUid: number; title: string; level?: number }>;
-        };
+        const raw = await fetchAllContent(bookId);
 
-        // 用共用的解析器补全章节名 —— 此前这里直接取 bm.chapterTitle，
-        // 而微信读书划线接口经常不给章节名（要靠 chapters 对照表），
-        // 结果渲染层、主进程三处导入全都写出空章节名（实测 934 条 0 条有值）。
-        const { bookmarks, notes } = resolveWereadContent(raw);
-
-        // 只数真插进去的那几条：create 判重时回 false，以前连 false 也一起 +1
+        // 章节名、真实划线时间、摘句与想法的分栏，全在 planHighlightRows 那一处
+        // （三条导入通路共用）。以前这里直接读划线条目自带的那个章节字段，而微信读书的
+        // 划线接口经常不给章节名 ⇒ 实测 934 条 0 条有值。
+        const rows = planHighlightRows(raw);
         let importedCount = 0;
-        for (const bm of bookmarks) {
+        for (const row of rows) {
           try {
-            if (highlightsDb.create({
-              book_id: bookId,
-              content: bm.markText,
-              chapter_title: bm.resolvedChapterTitle,
-              chapter_uid: bm.chapterUid,
-              type: 'highlight',
-              source: 'weread',
-              created_at: new Date(bm.createTime * 1000).toISOString(),
-            })) importedCount++;
+            // 只数真插进去的那几条：create 判重时回 false，连 false 也一起 +1 就是虚报
+            if (highlightsDb.create({ book_id: bookId, ...row })) importedCount++;
           } catch (e) { logger.error('导入划线失败:', e); }
         }
-        for (const note of notes) {
-          try {
-            if (highlightsDb.create({
-              book_id: bookId,
-              content: note.abstract,
-              note: note.content,
-              chapter_title: note.resolvedChapterTitle,
-              chapter_uid: note.chapterUid,
-              type: 'note',
-              source: 'weread',
-              created_at: new Date(note.createTime * 1000).toISOString(),
-            })) importedCount++;
-          } catch (e) { logger.error('导入笔记失败:', e); }
-        }
-        logger.info('自动导入笔记完成', { bookId, bookmarks: bookmarks.length, notes: notes.length, importedCount });
+        logger.info('自动导入笔记完成', { bookId, scanned: rows.length, importedCount });
 
         highlights = highlightsDb.getByBookId(bookId);
       } catch (error) {

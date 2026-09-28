@@ -98,3 +98,75 @@ export function resolveWereadContent<
     chapterTitleMap,
   }
 }
+
+/** 一条待写入 highlights 表的行（字段名 = 库里那一列） */
+export interface HighlightImportRow {
+  content: string
+  note?: string
+  chapter_title: string
+  created_at: string | null
+}
+
+/**
+ * 微信读书的秒级时间戳 → 可读的 ISO 串。
+ *
+ * 缺失、0、非数字、解析不出来一律回 `null` —— **不许回 1970-01-01**。
+ * 那等于把"不知道什么时候划的"写成"2026 年之前就读到了这一句"，
+ * 而笔记页与统计页都按 `created_at` 排与归日，一个假的起点会一路带进图表。
+ */
+export function wereadTimeIso(createTime: unknown): string | null {
+  const seconds = Number(createTime)
+  if (!Number.isFinite(seconds) || seconds <= 0) return null
+  const iso = new Date(seconds * 1000).toISOString()
+  return Number.isNaN(new Date(iso).getTime()) ? null : iso
+}
+
+/** 划线条目 / 笔记条目里，导入实际用到的那几个字段 */
+export interface WereadMarkLike extends ChapterCarrier {
+  /** 接口带回来的两个主键，导入不读它们，但声明里留着——测试喂的夹具就是这个形状 */
+  bookmarkId?: string
+  reviewId?: string
+  markText?: string | null
+  abstract?: string | null
+  content?: string | null
+  createTime?: number | string | null
+}
+
+/**
+ * 把 fetchAllContent 的返回值规划成「要往 highlights 插的那些行」。
+ *
+ * ## 为什么又收一层
+ * 09-16 那次只把**章节名**的解析收成一份，"一行该带哪些字段"仍然在三处各写一遍
+ * （渲染层导入、主进程提取方法论前的自动导入、蒸馏知识卡片前的自动导入）。
+ * 结果同一批缺陷各犯一次：两处漏 `id`（sql.js 直接拒，被 catch 咽掉后报"没有笔记"）、
+ * 一处绕开章节对照表（章节名永远空）、**三处都把 `created_at` 传给了一个
+ * 不认这列的 INSERT**（真实划线时间全被落成"导入那一刻"，实测 934 条只剩 9 个不同时间戳）。
+ * 字段清单收在这儿，三条通路共用，以后加一列只改一处。
+ */
+export function planHighlightRows(
+  content: { bookmarks?: WereadMarkLike[] | null; notes?: WereadMarkLike[] | null; chapters?: WereadChapterRef[] | null } | null | undefined,
+): HighlightImportRow[] {
+  const { bookmarks, notes } = resolveWereadContent<WereadMarkLike, WereadMarkLike>(content)
+  const rows: HighlightImportRow[] = []
+
+  for (const bm of bookmarks) {
+    rows.push({
+      content: String(bm.markText ?? ''),
+      chapter_title: bm.resolvedChapterTitle,
+      created_at: wereadTimeIso(bm.createTime),
+    })
+  }
+
+  // 想法这一条有两个字段：正文是那一句被划的原文（abstract），
+  // 用户自己写的想法进 note —— 少认一个就把想法正文和摘句混成一坨。
+  for (const note of notes) {
+    rows.push({
+      content: String(note.abstract ?? ''),
+      ...(note.content ? { note: String(note.content) } : {}),
+      chapter_title: note.resolvedChapterTitle,
+      created_at: wereadTimeIso(note.createTime),
+    })
+  }
+
+  return rows
+}

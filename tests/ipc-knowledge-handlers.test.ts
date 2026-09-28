@@ -414,27 +414,30 @@ describe('库里没划线时，extract 先去微信读书把笔记搬回来', ()
     expect(highlightRows()).toHaveLength(1)
     expect(seams.logger.info).toHaveBeenCalledWith('自动导入笔记完成', {
       bookId: 'b1',
-      bookmarks: 2,
-      notes: 0,
+      scanned: 2,
       importedCount: 1,
     })
     expect(seams.extract.mock.calls[0][0]).toHaveLength(1)
   })
 
-  it('单条插入真抛错时只丢那一条，其余照常导入（划线与笔记两个循环各挡一次）', async () => {
+  it('单条插入真抛错时只丢那一条，其余照常导入（一条失败不带走整批）', async () => {
     seams.fetchAllContent.mockResolvedValue(threeNotes())
     const realCreate = highlightsDb.create.bind(highlightsDb)
     const create = vi.spyOn(highlightsDb, 'create').mockImplementation((h: Record<string, unknown>) => {
-      // 挡掉"一条划线 + 那条笔记"，留下另一条划线
+      // 挡掉两条，留下另一条
       if (h.content === '第一条划线' || h.content === '笔记的摘句') throw new Error('这一条被外键挡了')
       return realCreate(h)
     })
-    await at(IPC_CHANNELS.METHODOLOGIES.EXTRACT)('b1', '一本书')
-    expect(highlightRows()).toHaveLength(1)
-    expect(seams.logger.error).toHaveBeenCalledWith('导入划线失败:', expect.any(Error))
-    expect(seams.logger.error).toHaveBeenCalledWith('导入笔记失败:', expect.any(Error))
-    expect(seams.extract.mock.calls[0][0]).toHaveLength(1)
-    create.mockRestore()
+    try {
+      await at(IPC_CHANNELS.METHODOLOGIES.EXTRACT)('b1', '一本书')
+      expect(highlightRows()).toHaveLength(1)
+      // 划线与想法现在走同一个循环、同一个口径报失败（字段清单收成一份之后没有两个循环了）
+      expect(seams.logger.error).toHaveBeenCalledWith('导入划线失败:', expect.any(Error))
+      expect(seams.logger.error).toHaveBeenCalledTimes(2)
+      expect(seams.extract.mock.calls[0][0]).toHaveLength(1)
+    } finally {
+      create.mockRestore()
+    }
   })
 
   it('取回的过程失败且抛的不是 Error ⇒ 照原文说出来，不变成 undefined', async () => {
@@ -465,8 +468,7 @@ describe('库里没划线时，extract 先去微信读书把笔记搬回来', ()
     expect(highlightRows()).toHaveLength(1)
     expect(seams.logger.info).toHaveBeenCalledWith('自动导入笔记完成', {
       bookId: 'b1',
-      bookmarks: 0,
-      notes: 2,
+      scanned: 2,
       importedCount: 1,
     })
   })

@@ -34,6 +34,26 @@ interface RepoModule {
   methods: string[]
 }
 
+/**
+ * 两格缩进后面跟着 `名字(` 的写法 —— 仓储对象里的每个方法都是这个形状。
+ *
+ * 但它同样会吃中**顶层函数体**里的控制流：`toSqliteDateTime()` 里两格缩进的
+ * `if (typeof value !== 'string')` 会被当成一个叫 `if` 的方法（2026-09-28 被自己咬到一次），
+ * 于是判据报出 `highlightsDb.if` 这种根本不存在的方法。关键字一律不算方法名。
+ */
+const NON_METHOD_KEYWORDS = new Set([
+  'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'try', 'catch', 'finally',
+  'return', 'throw', 'new', 'function', 'await', 'yield', 'typeof', 'delete', 'default',
+])
+
+const METHOD_SHAPE = /^  (?:async )?([a-zA-Z_]\w*)\s*(?:<[^>]*>)?\s*\(/gm
+
+function methodNames(src: string): string[] {
+  return [...src.matchAll(METHOD_SHAPE)]
+    .map((m) => m[1])
+    .filter((name) => !NON_METHOD_KEYWORDS.has(name))
+}
+
 /** electron/database/*.ts 里形如 `export const cardsDb = { ... }` 的那批仓储对象 */
 function repositoryModules(): RepoModule[] {
   return sources('electron/database')
@@ -41,8 +61,7 @@ function repositoryModules(): RepoModule[] {
       const src = readFileSync(file, 'utf8')
       const alias = /export const (\w+Db) = \{/.exec(src)?.[1]
       if (!alias) return null
-      const methods = [...src.matchAll(/^  (?:async )?([a-zA-Z_]\w*)\s*(?:<[^>]*>)?\s*\(/gm)].map((m) => m[1])
-      return { file, alias, methods }
+      return { file, alias, methods: methodNames(src) }
     })
     .filter((m): m is RepoModule => m !== null)
 }
@@ -91,6 +110,23 @@ describe('数据库模块的消费者', () => {
     expect(callOf('booksDb', 'count').test('return booksDb.count()')).toBe(true)
     // 名字更长的同类方法不能被误判成"count 有人调"
     expect(callOf('booksDb', 'count').test('booksDb.countByBookId(x)')).toBe(false)
+  })
+
+  it('两格缩进的控制流不算方法（顶层函数体里的 if 曾被当成一个叫 if 的方法）', () => {
+    const snippet = [
+      'export const demoDb = {',
+      '  getAll() { return 1 },',
+      '  count() { return 2 },',
+      '}',
+      'function helper(v: unknown): string | null {',
+      '  if (typeof v !== "string") return null;',
+      '  for (const k of v) helper(k);',
+      '  return v;',
+      '}',
+    ].join('\n')
+    // 只看形状会捞出 4 个名字（含 if 与 for），过一遍关键字黑名单只剩两个真方法
+    expect([...snippet.matchAll(METHOD_SHAPE)].map((m) => m[1])).toEqual(['getAll', 'count', 'if', 'for'])
+    expect(methodNames(snippet)).toEqual(['getAll', 'count'])
   })
 
   it('不许从仓储对象上解构方法（那样静态匹配就会漏掉真实调用点）', () => {

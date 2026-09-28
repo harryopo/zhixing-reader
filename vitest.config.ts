@@ -156,6 +156,12 @@ export default defineConfig({
         // 2026-09-28 知识与卡片类通道：既有两份测试只走了两条 coverage 与 extract 的分批续跑，
         // 「本地没划线就去微信读书搬回来」那半边与「导出 Skill」（映射 + 文件名 + 写盘）一条没测过。
         'electron/ipc/knowledge.ts',
+        // 2026-09-28 蒸馏服务：既有那份测试把 electron/database 整个 mock 掉了，
+        // "库里到底有没有这一行"从没被回答过；自动导入那半边还漏着 id（每条 INSERT 都抛错）。
+        // 新增真库那份：tests/knowledge-card-service-real-db.test.ts
+        'electron/services/knowledge-card-service.ts',
+        // 同一批：导入字段清单收成一份后，渲染层那条通路自己也该有判据（判重、补章节名、单条失败不带走整批）
+        'src/renderer/src/utils/import-weread-content.ts',
       ],
       exclude: [
         '**/*.test.ts',

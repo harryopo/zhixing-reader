@@ -5,6 +5,7 @@ import { distillKnowledgeCards, DistillOptions, DistilledKnowledgeCard } from '.
 import { logger } from '../logger'
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels'
 import { CoveragePlan, coverageNotice, pickUnprocessed } from '../../src/shared/ai-coverage'
+import { planHighlightRows } from '../../src/shared/weread-content'
 
 export interface DistillTaskProgress {
   bookId: string
@@ -109,47 +110,18 @@ class KnowledgeCardService {
     bookTitle: string
   ): Promise<Record<string, unknown>[]> {
     logger.info(`No highlights found for book "${bookTitle}", attempting to fetch from WeRead...`)
-    const content = (await fetchAllContent(bookId)) as {
-      bookmarks: Array<{ bookmarkId: string; chapterTitle: string; markText: string; chapterUid: number; createTime: number }>
-      notes: Array<{ reviewId: string; chapterTitle: string; abstract: string; content: string; chapterUid: number; createTime: number }>
-    }
+    const content = await fetchAllContent(bookId)
 
+    // 章节名 / 真实划线时间 / 摘句与想法的分栏都在 planHighlightRows 那一处。
+    // 这里此前自己写了一遍：直接读条目自带的那个章节字段（接口经常不给 ⇒ 章节名全空），
+    // 而且和另一条通路一样漏了 id —— sql.js 每条 INSERT 都抛错，被下面的 catch 咽掉，
+    // 最后界面收到的是「该书在微信读书中也没有笔记」。
     let importedCount = 0
-    if (content.bookmarks && content.bookmarks.length > 0) {
-      for (const bm of content.bookmarks) {
-        try {
-          highlightsDb.create({
-            book_id: bookId,
-            content: bm.markText,
-            chapter_title: bm.chapterTitle,
-            chapter_uid: bm.chapterUid,
-            type: 'highlight',
-            source: 'weread',
-            created_at: new Date(bm.createTime * 1000).toISOString(),
-          })
-          importedCount++
-        } catch (e) {
-          logger.error('导入划线失败:', e)
-        }
-      }
-    }
-    if (content.notes && content.notes.length > 0) {
-      for (const note of content.notes) {
-        try {
-          highlightsDb.create({
-            book_id: bookId,
-            content: note.abstract,
-            note: note.content,
-            chapter_title: note.chapterTitle,
-            chapter_uid: note.chapterUid,
-            type: 'note',
-            source: 'weread',
-            created_at: new Date(note.createTime * 1000).toISOString(),
-          })
-          importedCount++
-        } catch (e) {
-          logger.error('导入笔记失败:', e)
-        }
+    for (const row of planHighlightRows(content)) {
+      try {
+        if (highlightsDb.create({ book_id: bookId, ...row })) importedCount++
+      } catch (e) {
+        logger.error('导入划线失败:', e)
       }
     }
     logger.info(`Imported ${importedCount} highlights from WeRead for "${bookTitle}"`)

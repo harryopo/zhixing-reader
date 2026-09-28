@@ -230,6 +230,40 @@ describe('新建划线：字段兜底 + 顺带建卡', () => {
     })
   })
 
+  it('createdAt 两种写法都转给库层 —— 这一列以前在这里被整个丢掉', () => {
+    seams.highlights.create.mockReturnValue(true)
+    seams.cards.getByHighlightId.mockReturnValue(undefined)
+
+    at(IPC_CHANNELS.HIGHLIGHTS.CREATE)({
+      id: 'hl_t1',
+      bookId: 'b7',
+      content: 'x',
+      createdAt: '2023-11-14T22:13:20.000Z',
+    })
+    expect(seams.highlights.create.mock.calls[0][0]).toMatchObject({
+      created_at: '2023-11-14T22:13:20.000Z',
+    })
+
+    at(IPC_CHANNELS.HIGHLIGHTS.CREATE)({
+      id: 'hl_t2',
+      book_id: 'b7',
+      content: 'y',
+      created_at: '2023-11-14 22:13:20',
+    })
+    expect(seams.highlights.create.mock.calls[1][0]).toMatchObject({
+      created_at: '2023-11-14 22:13:20',
+    })
+  })
+
+  it('没给时间时传 null，让库吃自己的 DEFAULT（不是 undefined）', () => {
+    seams.highlights.create.mockReturnValue(true)
+    seams.cards.getByHighlightId.mockReturnValue(undefined)
+
+    at(IPC_CHANNELS.HIGHLIGHTS.CREATE)({ id: 'hl_t3', book_id: 'b7', content: 'x' })
+
+    expect(seams.highlights.create.mock.calls[0][0]).toMatchObject({ created_at: null })
+  })
+
   it('note / style 缺省时落成 null 与 0，而不是 undefined（库里那两列不是可选的）', () => {
     seams.highlights.create.mockReturnValue(true)
     seams.cards.getByHighlightId.mockReturnValue(undefined)

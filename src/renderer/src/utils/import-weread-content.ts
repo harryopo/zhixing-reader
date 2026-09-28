@@ -14,9 +14,12 @@
  * - 补全章节名：优先用条目自带标题，没有就用 `chapterUid` 查章节表
  * - **改为 upsert**：以前遇到已存在的划线直接跳过；现在会在"已有但章节名为空"时
  *   补写章节名。这样重新导入一次就能修复历史数据，不必删库重来。
+ * - 「一行该带哪些字段」不再由本文件决定，改吃 `src/shared/weread-content` 的
+ *   `planHighlightRows`。09-16 那次只把**章节名**收成一份，字段清单仍在三处各写一遍，
+ *   于是三条通路各自犯过同一批错（漏 id、绕开章节对照表、把 `created_at` 传给一个不认这列的 INSERT）。
  */
 
-import { resolveWereadContent } from '../../../shared/weread-content'
+import { planHighlightRows } from '../../../shared/weread-content'
 
 export interface ImportResult {
   /** 本轮扫描到的划线 + 笔记总数 */
@@ -29,23 +32,6 @@ export interface ImportResult {
   skipped: number
   /** 导入过程中单条失败次数（不中断整体导入） */
   failed: number
-}
-
-/** 微信读书划线的形状（只声明导入真正用到的字段） */
-interface WereadBookmarkLike {
-  chapterUid?: number | null
-  chapterTitle?: string | null
-  markText: string
-  createTime: number
-}
-
-/** 微信读书笔记的形状 */
-interface WereadNoteLike {
-  chapterUid?: number | null
-  chapterTitle?: string | null
-  abstract: string
-  content: string
-  createTime: number
 }
 
 interface RawHighlightRow {
@@ -71,12 +57,8 @@ export async function importWereadContentForBook(bookId: string): Promise<Import
     throw new Error('API 未正确初始化，请重启应用')
   }
 
-  const content = (await api.weread.fetchAllContent(bookId)) as {
-    bookmarks?: WereadBookmarkLike[]
-    notes?: WereadNoteLike[]
-    chapters?: Array<{ chapterUid: number; title: string; level?: number }>
-  } | null
-  const { bookmarks, notes } = resolveWereadContent<WereadBookmarkLike, WereadNoteLike>(content)
+  const content = await api.weread.fetchAllContent(bookId)
+  const rows = planHighlightRows(content as Parameters<typeof planHighlightRows>[0])
 
   // 已存在的划线：按 content 建索引（create 的去重口径就是 (book_id, content)）
   const existingRows = (await api.highlight.getByBook(bookId)) as unknown as RawHighlightRow[]
@@ -87,65 +69,30 @@ export async function importWereadContentForBook(bookId: string): Promise<Import
 
   const result: ImportResult = { total: 0, created: 0, chapterFilled: 0, skipped: 0, failed: 0 }
 
-  const handle = async (item: {
-    content: string
-    note?: string
-    chapterTitle: string
-    chapterUid?: number
-    type: 'highlight' | 'note'
-    createdAt: number
-  }): Promise<void> => {
+  for (const row of rows) {
     result.total++
     try {
-      const existing = existingByContent.get(item.content)
+      const existing = existingByContent.get(row.content)
       if (existing) {
         // 已存在：只在"原本没有章节名、现在能解析出来"时补写，避免无谓写库
         const had = readChapterTitle(existing)
-        if (!had && item.chapterTitle && existing.id) {
-          await api.highlight.update(existing.id, { chapter_title: item.chapterTitle })
+        if (!had && row.chapter_title && existing.id) {
+          await api.highlight.update(existing.id, { chapter_title: row.chapter_title })
           result.chapterFilled++
         } else {
           result.skipped++
         }
-        return
+        continue
       }
 
-      const isNew = await api.highlight.create({
-        bookId,
-        content: item.content,
-        ...(item.note ? { note: item.note } : {}),
-        chapterTitle: item.chapterTitle,
-        chapterUid: item.chapterUid,
-        type: item.type,
-        source: 'weread',
-        createdAt: item.createdAt,
-      })
+      // 字段名与库里那一列逐字相同（planHighlightRows 保证），主进程只认两种写法
+      const isNew = await api.highlight.create({ bookId, ...row })
       if (isNew) result.created++
       else result.skipped++
     } catch (e) {
       result.failed++
       console.error('导入条目失败:', e)
     }
-  }
-
-  for (const bm of bookmarks) {
-    await handle({
-      content: bm.markText,
-      chapterTitle: bm.resolvedChapterTitle,
-      chapterUid: bm.chapterUid ?? undefined,
-      type: 'highlight',
-      createdAt: bm.createTime,
-    })
-  }
-  for (const note of notes) {
-    await handle({
-      content: note.abstract,
-      note: note.content,
-      chapterTitle: note.resolvedChapterTitle,
-      chapterUid: note.chapterUid ?? undefined,
-      type: 'note',
-      createdAt: note.createTime,
-    })
   }
 
   return result

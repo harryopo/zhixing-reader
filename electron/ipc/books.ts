@@ -50,6 +50,9 @@ export function registerBookHandlers(handle: HandleFn): void {
       style: highlight.style ?? 0,
       range_start: highlight.range_start ?? highlight.rangeStart ?? null,
       range_end: highlight.range_end ?? highlight.rangeEnd ?? null,
+      // 渲染层导入那条一直都把微信读书的真实划线时间送过来（createdAt），
+      // 而这一行以前不读它 ⇒ 整批划线的 created_at 落成"导入那一刻"。
+      created_at: highlight.created_at ?? highlight.createdAt ?? null,
     });
 
     // Auto-index to vector DB in background (fire-and-forget)

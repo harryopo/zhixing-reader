@@ -18,6 +18,22 @@ import { assertRealColumns } from './updatable-columns';
  */
 let writeRevision = 0;
 
+/**
+ * 把调用方给的时间收成库里那一列一直在用的形状：`YYYY-MM-DD HH:MM:SS`（UTC）。
+ *
+ * 为什么不直接存 ISO：库里现存 934 条的 `created_at` 都是 `datetime('now')` 那个形状
+ * （第 10 位是**空格**）。导入若写成 `...T...Z`，字符串比较时 `T`(0x54) > ` `(0x20) ⇒
+ * 同一天里 ISO 那批会整体排在手填那条**之前**，划线列表与笔记页的先后顺序被格式悄悄改写。
+ * 本项目在 `cards.due` 上就栽过同一个坑（ISO 带 T 与空格，字符串比较下今天到期整天不计）。
+ * 解析不出来一律回 `null` —— 那就吃库的 DEFAULT，不编一个时间。
+ */
+function toSqliteDateTime(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const parsed = new Date(value.trim());
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 19).replace('T', ' ');
+}
+
 export const highlightsDb = {
   getByBookId(bookId: string): Record<string, unknown>[] {
     const result = getDatabase().exec(
@@ -66,19 +82,33 @@ export const highlightsDb = {
     // 「该书在微信读书中也没有笔记」—— 有笔记，是根本没插进去。
     const id = (highlight.id as string) ?? `hl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+    // 划线时间：调用方给了就照它写，没给才吃库里的 DEFAULT（=此刻）。
+    // 三条导入通路一直都传 `created_at`，而这句 INSERT 原先没这一列 ⇒
+    // 微信读书里真实划线时刻被整批落成"导入那一刻"（实测 934 条只剩 9 个不同时间戳，
+    // 一秒里挤 329 条）。笔记页排序、统计页与档案页的按天归集都读这一列，
+    // 时间被压平就等于历史阅读分布失真。
+    const createdAt = toSqliteDateTime(highlight.created_at);
+
+    const columns = ['id', 'book_id', 'chapter_title', 'content', 'note', 'style', 'range_start', 'range_end'];
+    const values: unknown[] = [
+      id,
+      bookId,
+      highlight.chapter_title ?? null,
+      content,
+      highlight.note ?? null,
+      highlight.style ?? 0,
+      highlight.range_start ?? null,
+      highlight.range_end ?? null,
+    ];
+    if (createdAt !== null) {
+      columns.push('created_at');
+      values.push(createdAt);
+    }
+    const placeholders = columns.map(() => '?').join(', ');
+
     getDatabase().run(
-      `INSERT INTO highlights (id, book_id, chapter_title, content, note, style, range_start, range_end)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        bookId,
-        highlight.chapter_title ?? null,
-        content,
-        highlight.note ?? null,
-        highlight.style ?? 0,
-        highlight.range_start ?? null,
-        highlight.range_end ?? null,
-      ]
+      `INSERT INTO highlights (${columns.join(', ')}) VALUES (${placeholders})`,
+      values
     );
     saveDatabase();
     return true;
