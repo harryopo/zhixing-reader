@@ -8,9 +8,10 @@
  * 于是每次中文提问都检索到 0 条，AI 带着空上下文回答用户关于书的问题，
  * 日志里还写着 "Using RAG semantic search"，从外面完全看不出来。
  *
- * 现在只剩一条路：本地 BM25（src/shared/retrieval.ts）。它不需要任何 API、不会失败、
- * 也没有「索引还没建」的中间状态。这个文件只做三件事：
- *   1. 从数据库把划线读出来（含书名）
+ * 现在只剩一条路：本地 BM25（src/shared/retrieval.ts）。它不需要任何 API，也没有
+ * 「索引还没建」的中间状态；会失败的只有读库那一步，而那一步的失败**必须让调用方看见**
+ * （见 retrieveHighlights 的注释）。这个文件只做三件事：
+ *   1. 从数据库把划线读出来（含书名与用户自己写的想法 note）
  *   2. 按签名缓存倒排索引，数据变了自动重建
  *   3. 把查询交给纯函数，返回带 highlightId 的结果（渲染层据此显示「引用来源」）
  */
@@ -24,12 +25,25 @@ export type { RetrievalHit }
 /** 缓存的索引 + 它对应的数据签名 */
 let cached: { index: RetrievalIndex; signature: string } | null = null
 
-/** 手动失效（测试与数据修复后调用；正常情况靠签名自动失效） */
+/**
+ * 手动失效索引缓存。
+ *
+ * 生产里没有调用方：签名含写计数器（见 highlights.ts 的 writeRevision），
+ * 任何走 highlightsDb 的增删改都会让它变化，索引自然重来。这个导出只服务测试的隔离，
+ * 别再往"数据修复后调一下"的方向想 —— 那个承诺原来就没人兑现，也不需要兑现。
+ */
 export function invalidateRetrievalIndex(): void {
   cached = null
 }
 
-/** 取当前索引；签名变了就重建 */
+/**
+ * 取当前索引；签名变了就重建
+ *
+ * 行形状的诚实声明：`content` 与 `book_title` 都来自 NOT NULL 列（后者还是 INNER JOIN
+ * 出来的，书的行不在就整条不出现），所以原来那两处兜底是永远走不到的分支，已删。
+ * `chapter_title` 与 `note` 是真可空列（DDL 没有 NOT NULL），null 归成 undefined ——
+ * 与"空串"在这一层之后不再区分，因为渲染层用的是同一个真值判定（空串也不摆空方括号）。
+ */
 function getIndex(): RetrievalIndex {
   const signature = highlightsDb.getRetrievalSignature()
   if (cached && cached.signature === signature) return cached.index
@@ -39,9 +53,10 @@ function getIndex(): RetrievalIndex {
   const docs = highlightsDb.getAll().map((row) => ({
     id: String(row.id),
     bookId: String(row.book_id),
-    bookTitle: row.book_title == null ? '' : String(row.book_title),
+    bookTitle: String(row.book_title),
     chapterTitle: row.chapter_title == null ? undefined : String(row.chapter_title),
-    content: String(row.content ?? ''),
+    content: String(row.content),
+    note: row.note == null ? undefined : String(row.note),
   }))
 
   const index = buildIndex(docs)
@@ -55,24 +70,24 @@ function getIndex(): RetrievalIndex {
  *
  * @param query   用户的问题（中文按 bigram 切）
  * @param options bookId 限定某本书；不传则跨书检索；limit 默认 5
+ *
+ * **失败一律往上抛，不在这里演成"没有命中"**：原来这层 `catch` 回空数组，于是读库炸了
+ * 与"这个问题确实搜不到东西"交回的结果一字不差 —— 而唯一的调用方（书籍上下文构建器）
+ * 自己有一层 catch 会把消息记进 `metadata.error`，对话面板据此才说得出「读取失败」。
+ * 这一层吞掉，面板就只能对用户的数据库结构说一句假话（说「无命中」）。
+ * 检索本身不崩对话：抛出去的那一条由调用方接住，本轮只是不带书籍上下文。
  */
 export async function retrieveHighlights(
   query: string,
   options: { bookId?: string; limit?: number } = {},
 ): Promise<RetrievalHit[]> {
-  try {
-    const index = getIndex()
-    const hits = searchIndex(index, query, { limit: options.limit ?? 5, bookId: options.bookId })
-    logger.info('本地检索', {
-      query: query.slice(0, 50),
-      bookId: options.bookId ?? '(全部)',
-      results: hits.length,
-      topScore: hits[0]?.relevanceScore,
-    })
-    return hits
-  } catch (error) {
-    // 检索失败不该让整轮对话崩掉：返回空上下文，但必须留日志
-    logger.error('本地检索失败，本轮不带书籍上下文', { error: String(error) })
-    return []
-  }
+  const index = getIndex()
+  const hits = searchIndex(index, query, { limit: options.limit ?? 5, bookId: options.bookId })
+  logger.info('本地检索', {
+    query: query.slice(0, 50),
+    bookId: options.bookId ?? '(全部)',
+    results: hits.length,
+    topScore: hits[0]?.relevanceScore,
+  })
+  return hits
 }

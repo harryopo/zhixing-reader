@@ -39,6 +39,13 @@ export interface RetrievalDoc {
   bookTitle: string
   chapterTitle?: string
   content: string
+  /**
+   * 用户自己写的想法（划线的 note 列）。
+   *
+   * 它参与打分，但**不与正文混成一坨**：展示时两边分得开（哪句是书里的、
+   * 哪句是用户自己的想法），否则模型会把用户的想法当成原文去引用。
+   */
+  note?: string
 }
 
 export interface Posting {
@@ -63,6 +70,7 @@ export interface RetrievalHit {
   bookTitle: string
   chapterTitle?: string
   content: string
+  note?: string
   relevanceScore: number
 }
 
@@ -111,7 +119,9 @@ export function buildIndex(docs: RetrievalDoc[]): RetrievalIndex {
       tfMap.set(token, (tfMap.get(token) ?? 0) + weight)
     }
 
-    const bodyTokens = tokenize(doc.content)
+    // 正文与用户想法都是"这篇文档的内容"，都按 1 计、都计入文档长度；
+    // 少了 note 那一条，用户自己写的想法就永远搜不到（全局搜索与笔记页都搜它）
+    const bodyTokens = [...tokenize(doc.content), ...tokenize(doc.note ?? '')]
     for (const t of bodyTokens) add(t, 1)
     // 章节名与书名只加权，不计入文档长度
     for (const t of tokenize(doc.chapterTitle ?? '')) add(t, TITLE_BOOST)
@@ -191,6 +201,7 @@ export function searchIndex(
         bookTitle: doc.bookTitle,
         chapterTitle: doc.chapterTitle,
         content: doc.content,
+        note: doc.note,
         relevanceScore: Number(score.toFixed(4)),
       }
     })

@@ -112,10 +112,14 @@ describe('BookContextBuilder', () => {
       expect(result.content).toBe('')
     })
 
-    it("检索抛错时降级为空上下文，对话照常进行", async () => {
+    it("检索抛错时降级为空上下文，但原因必须交出去（不许演成「无命中」）", async () => {
       mockRetrieveHighlights.mockRejectedValue(new Error('检索炸了'))
       const result = await builder.build(ctxWithBook())
       expect(result.content).toBe('')
+      // 2026-09-29：只断"空"等于把缺陷写成期望 —— 没有这一行，面板就只能说「无命中」。
+      // （这一本书在这份夹具里没有摘要，所以整块是空的；"划线炸了摘要照样带"在
+      // tests/book-context-builder-real-db.test.ts 里逐条钉着。）
+      expect(result.metadata?.error).toBe('检索炸了')
     })
 
     // ========================================================================

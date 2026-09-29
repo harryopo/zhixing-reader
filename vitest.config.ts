@@ -189,6 +189,11 @@ export default defineConfig({
         // 截断两头与上限钉住（tests/context-builders-article-vocab.test.ts 扩到 34 条）。
         'electron/agent/builders/article-context-builder.ts', // 100 / 93.54 / 100
         'electron/agent/builders/vocabulary-context-builder.ts', // 100 / 92.59 / 100
+        // 2026-09-29 划线检索那一路：用户想法（note）以前不进索引，而全局搜索与笔记页都搜它；
+        // 下游这层把读库失败演成空数组 ⇒ 面板只会说「无命中」。
+        // （tests/book-context-builder-real-db.test.ts 27 条 + rag-service 那份扩到 21 条）
+        'electron/agent/builders/book-context-builder.ts', // 92 / 88.13 / 100（未盖的是最外层那圈兜底 catch，见下）
+        'electron/services/rag-service.ts', // 100 / 100 / 100
       ],
       exclude: [
         '**/*.test.ts',
