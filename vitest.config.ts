@@ -194,6 +194,10 @@ export default defineConfig({
         // （tests/book-context-builder-real-db.test.ts 27 条 + rag-service 那份扩到 21 条）
         'electron/agent/builders/book-context-builder.ts', // 92 / 88.13 / 100（未盖的是最外层那圈兜底 catch，见下）
         'electron/services/rag-service.ts', // 100 / 100 / 100
+        // 2026-09-29 搜索那一路：入参非字符串时被硬掰成一个用户没打过的关键词，
+        // 而出处区块把"这一次没读出来"说成「原始划线已经不在了」。
+        'electron/ipc/search.ts', // 100 / 100 / 100
+        'src/renderer/src/components/SourceHighlights.tsx', // 100 / 100 / 100
       ],
       exclude: [
         '**/*.test.ts',

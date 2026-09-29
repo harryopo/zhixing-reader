@@ -36,6 +36,7 @@ export function SourceHighlights({
   const navigate = useNavigate()
   const [lines, setLines] = useState<SourceLine[]>([])
   const [lostCount, setLostCount] = useState(0)
+  const [failedCount, setFailedCount] = useState(0)
   const allIds = highlightIds.filter(Boolean)
   const ids = allIds.slice(0, MAX_SHOWN)
   const key = ids.join(',')
@@ -44,34 +45,37 @@ export function SourceHighlights({
     let alive = true
     setLines([])
     setLostCount(0)
+    setFailedCount(0)
     if (!key) return
     void (async () => {
+      /*
+        三件事必须分得开：读到了 / 库里确实没有这一条 / 这一次没读成功。
+        原来 `catch` 与"交回空"合成了一个 `null`，于是通道报错时界面对用户说
+        「原始划线已经不在了」—— 那是一条关于他自己数据的假话（划线可能好好的，
+        只是这一次没读出来），本项目在检索那两路已经治过同一个形状。
+      */
       const rows = await Promise.all(
-        key.split(',').map((id) =>
-          window.electronAPI.highlight
-            .getById(id)
-            // 通道交回的是数据库那一行，字段名以 db-mapper 为准，不在组件里自己猜列名；
-            // 划线已被删掉时这里拿到 undefined，按"来源已丢失"计一笔（不硬转成空行）
-            .then((raw) => (raw ? mapHighlight(raw) : null))
-            .catch(() => null),
-        ),
+        key.split(',').map(async (id) => {
+          try {
+            const raw = await window.electronAPI.highlight.getById(id)
+            return { id, row: raw ? mapHighlight(raw) : null, failed: false }
+          } catch {
+            return { id, row: null, failed: true }
+          }
+        }),
       )
       if (!alive) return
       const found: SourceLine[] = []
       let lost = 0
-      rows.forEach((row, i) => {
-        if (!row) {
-          lost++
-          return
-        }
-        found.push({
-          id: key.split(',')[i],
-          content: row.content,
-          chapterTitle: row.chapterTitle,
-        })
+      let failed = 0
+      rows.forEach((r) => {
+        if (r.failed) failed++
+        else if (!r.row) lost++
+        else found.push({ id: r.id, content: r.row.content, chapterTitle: r.row.chapterTitle })
       })
       setLines(found)
       setLostCount(lost)
+      setFailedCount(failed)
     })()
     return () => {
       alive = false
@@ -133,6 +137,11 @@ export function SourceHighlights({
       {lostCount > 0 && (
         <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)' }}>
           另有 {lostCount} 条原始划线已经不在了
+        </span>
+      )}
+      {failedCount > 0 && (
+        <span style={{ fontSize: '0.72rem', color: 'var(--destructive)' }}>
+          另有 {failedCount} 条出处这一次没读出来
         </span>
       )}
     </section>

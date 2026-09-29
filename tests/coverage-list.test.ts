@@ -21,8 +21,6 @@ const ROOT = process.cwd()
 /** 欠账登记：文件 → 2026-09-26 实测的 lines / branches / funcs（不是估计，是量出来的） */
 const DEBT: Record<string, string> = {
   'src/renderer/src/components/Toast.tsx': '90.66 / 63.15 / 75',
-  'electron/ipc/search.ts': '100 / 66.66 / 100',
-  'src/renderer/src/components/SourceHighlights.tsx': '100 / 87.5 / 66.66',
 }
 
 /** 结构性排除：coverage.exclude 规则本就不统计的文件（不是欠账，也不该统计） */
@@ -183,12 +181,13 @@ describe('覆盖率清单与仓库对账', () => {
 
   it('判据自己得看得见东西（路径写错时上面几条会全部空转）', () => {
     // 实测下限跟着欠账走：每还一笔就把这个数一起往前推，否则这条守卫会变成一条永远绿的空话。
-    // 2026-09-29：欠账登记 3 条（划线检索那一路 rag-service + book-context-builder 这一批还掉；
-    // 卡片构建器、方法论构建器、文章构建器、生词构建器
-    // 与 db-mapper / state-tracker / memory-context-builder 都已还掉；更早还掉的还有
-    // chatStore、settingsStore、ipc/settings、ipc/books、画像构建器、ipc/knowledge、蒸馏服务）。
+    // 2026-09-29：欠账登记 1 条（搜索那一路 ipc/search + SourceHighlights 这一批还掉；再往前
+    // 还掉的是划线检索那一路 rag-service + book-context-builder、文章与生词两路构建器、
+    // 卡片与方法论两路构建器、memory-context-builder、state-tracker、db-mapper、蒸馏服务、
+    // ipc/knowledge、画像构建器、chatStore、settingsStore、ipc/settings、ipc/books、
+    // 后台 admin、weread-sync-manager、weread-api、chatStore、以及更早的若干笔）。
     expect(TEST_FILES.length).toBeGreaterThanOrEqual(85)
     expect(importedSources().size).toBeGreaterThanOrEqual(75)
-    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(3)
+    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(1)
   })
 })
