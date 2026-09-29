@@ -234,6 +234,47 @@ describe('planHighlightRows（三条导入通路共用的一份行规划）', ()
     expect('note' in rows[0]).toBe(false)
   })
 
+  // ↓ 真机导入时量出来的：网关会回一些"摘句与想法都为空"的条目（划线里的空标记、
+  // 被删过内容的想法），而规划层照单建行 ⇒ 库里多出"正文为空且无想法"的空白划线，
+  // 笔记页摆出来就是一行空白。开发库里原有 7 条就是这个形状留下的。
+  it('书签正文为空 ⇒ 不建这一行（建进去就是笔记页的一行空白）', () => {
+    const rows = planHighlightRows({
+      bookmarks: [
+        { bookmarkId: 'e1', chapterUid: 5, chapterTitle: '', markText: '   ', createTime: 1_700_000_000 },
+        { bookmarkId: 'e2', chapterUid: 5, chapterTitle: '', markText: '', createTime: 1_700_000_000 },
+        { bookmarkId: 'ok', chapterUid: 5, chapterTitle: '', markText: '有内容的一句', createTime: 1_700_000_000 },
+      ],
+      notes: [],
+      chapters: raw.chapters,
+    })
+    expect(rows.map((r) => r.content)).toEqual(['有内容的一句'])
+  })
+
+  it('想法的摘句与正文都为空 ⇒ 这一条没有任何可导内容，一行都不产', () => {
+    // 夹具要能区分"闸在"与"闸不在"：如果把两条想法放一起（一条全空、一条是书评），
+    // 全空那条会先建成一行 content=''，书评那条按 content 命中它并 merge 进去 ⇒
+    // 无论这道闸在不在，行数都是 1，判据空转。所以这里只喂那一条全空的。
+    const rows = planHighlightRows({
+      bookmarks: [],
+      notes: [{ reviewId: 'both-blank', chapterUid: 5, abstract: '  ', content: '', createTime: 1_700_000_000 }],
+      chapters: raw.chapters,
+    })
+    expect(rows).toEqual([])
+  })
+
+  it('整本书评（不挂具体摘句）⇒ 产一行：正文空、note 是书评本身', () => {
+    // 实测网关就是这么回的（type=4 那几条），它是用户自己写的字，值得留进库里；
+    // 它和"空白划线"的区别是 note 非空，所以上一条那条闸不许把它一起挡掉。
+    const rows = planHighlightRows({
+      bookmarks: [],
+      notes: [{ reviewId: 'review', chapterUid: 0, abstract: '', content: '始于觉知，成于反思，终于改变。', createTime: 1_700_000_000 }],
+      chapters: raw.chapters,
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].content).toBe('')
+    expect(rows[0].note).toBe('始于觉知，成于反思，终于改变。')
+  })
+
   // ↓ 这两条是 2026-09-29 为「个人画像的前置数据源」补的。上面的夹具把想法的
   // abstract 故意写成与书签不同的一句，于是"同一句既划过、又写了想法"这个
   // 真会丢数据的形状从没被走到：两条行 content 相同 ⇒ 第二条撞 (book_id, content)

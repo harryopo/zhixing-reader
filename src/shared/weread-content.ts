@@ -246,6 +246,43 @@ export interface WereadMarkLike extends ChapterCarrier {
  * 不认这列的 INSERT**（真实划线时间全被落成"导入那一刻"，实测 934 条只剩 9 个不同时间戳）。
  * 字段清单收在这儿，三条通路共用，以后加一列只改一处。
  */
+/**
+ * 一条想法 → 该落库的那一行（或者不落）。
+ *
+ * 想法有两个字段：`abstract` 是它挂靠的原文，`content` 是用户自己写的想法。
+ * 少认一个就把"作者的话"和"我说的话"混成一坨；两个都空就不该产出任何行。
+ *
+ * 命中已有那句时**就地补**note（同一句先作为纯划线进来的常见情况），
+ * 交回 null 表示这一条不另外建行 —— 调用方据此决定行数，判据才能区分
+ * "闸生效"与"闸没生效"两种形状。
+ */
+function planNoteRow(
+  note: WereadMarkLike & { resolvedChapterTitle: string },
+  byContent: Map<string, HighlightImportRow>,
+): HighlightImportRow | null {
+  // trim 判空：接口常回一串空格或换行，那在微信读书里就是"没写想法"。
+  // 原来写真值 `note.content ? …` ⇒ 空格会被当想法落进库里。
+  const text = String(note.content ?? '').trim()
+  const abstract = String(note.abstract ?? '').trim()
+  if (!text && !abstract) return null
+
+  const marked = byContent.get(abstract)
+  if (marked && text && !marked.note) {
+    marked.note = text
+    if (marked.created_at === null) marked.created_at = wereadTimeIso(note.createTime)
+    return null
+  }
+
+  const row: HighlightImportRow = {
+    content: abstract,
+    ...(text ? { note: text } : {}),
+    chapter_title: note.resolvedChapterTitle,
+    created_at: wereadTimeIso(note.createTime),
+  }
+  if (!byContent.has(row.content)) byContent.set(row.content, row)
+  return row
+}
+
 export function planHighlightRows(
   content: { bookmarks?: WereadMarkLike[] | null; notes?: WereadMarkLike[] | null; chapters?: WereadChapterRef[] | null } | null | undefined,
 ): HighlightImportRow[] {
@@ -257,8 +294,12 @@ export function planHighlightRows(
   const byContent = new Map<string, HighlightImportRow>()
 
   for (const bm of bookmarks) {
+    const markText = String(bm.markText ?? '').trim()
+    // 同一条尺：正文空着的书签也是一行空白，建进去只是让笔记页多一条没内容的划线
+    // （开发库里那 7 条"正文为空且无想法"的行就是这个形状留下的）
+    if (!markText) continue
     const row: HighlightImportRow = {
-      content: String(bm.markText ?? ''),
+      content: markText,
       chapter_title: bm.resolvedChapterTitle,
       created_at: wereadTimeIso(bm.createTime),
     }
@@ -266,27 +307,9 @@ export function planHighlightRows(
     if (!byContent.has(row.content)) byContent.set(row.content, row)
   }
 
-  // 想法这一条有两个字段：正文是被划的原文（abstract），
-  // 用户自己写的想法进 note —— 少认一个就把想法正文和摘句混成一坨。
   for (const note of notes) {
-    // trim 判空：接口常回一串空格或换行，那在微信读书里就是"没写想法"。
-    // 原来写真值 `note.content ? …` ⇒ 空格会被当想法落进库里。
-    const text = String(note.content ?? '').trim()
-    const marked = byContent.get(String(note.abstract ?? ''))
-    if (marked && text && !marked.note) {
-      marked.note = text
-      if (marked.created_at === null) marked.created_at = wereadTimeIso(note.createTime)
-      continue
-    }
-
-    const row: HighlightImportRow = {
-      content: String(note.abstract ?? ''),
-      ...(text ? { note: text } : {}),
-      chapter_title: note.resolvedChapterTitle,
-      created_at: wereadTimeIso(note.createTime),
-    }
-    rows.push(row)
-    if (!byContent.has(row.content)) byContent.set(row.content, row)
+    const row = planNoteRow(note, byContent)
+    if (row) rows.push(row)
   }
 
   return rows
