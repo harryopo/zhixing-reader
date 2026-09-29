@@ -42,7 +42,7 @@ export class BookContextBuilder implements ContextBuilder {
     const startTime = Date.now()
 
     try {
-      const { items: highlights, method, topScore } = await this.retrieveHighlights(context.bookId, context.userMessage)
+      const { items: highlights, method } = await this.retrieveHighlights(context.bookId, context.userMessage)
       const summaries = context.bookId
         ? this.retrieveSummaries(context.bookId, context.userMessage)
         : { text: '', count: 0, previews: [] }
@@ -61,7 +61,6 @@ export class BookContextBuilder implements ContextBuilder {
           buildTime: Date.now() - startTime,
           itemCount: highlights.length + summaries.count,
           method,
-          topScore,
           previews: [
             ...summaries.previews,
             ...highlights.slice(0, 3).map(c => ({
@@ -107,7 +106,7 @@ export class BookContextBuilder implements ContextBuilder {
   private async retrieveHighlights(
     bookId: string | undefined,
     userMessage: string,
-  ): Promise<{ items: HighlightCtx[]; method: string; topScore?: number }> {
+  ): Promise<{ items: HighlightCtx[]; method: string }> {
     const hits = await retrieveLocalHighlights(
       userMessage,
       bookId ? { bookId, limit: 5 } : { limit: 5 },
@@ -122,7 +121,6 @@ export class BookContextBuilder implements ContextBuilder {
         relevanceScore: h.relevanceScore,
       })),
       method: 'local',
-      topScore: hits[0]?.relevanceScore,
     }
   }
 

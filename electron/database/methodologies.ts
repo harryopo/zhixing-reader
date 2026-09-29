@@ -6,6 +6,17 @@ import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 import { assertRealColumns } from './updatable-columns';
 
+/**
+ * 方法论行 + 书名，只有一份取法（与 knowledge-cards 同一手法）。
+ *
+ * 原先 `getByBookId` 是裸 `SELECT *`、`getAll` 才 JOIN 出 book_title：
+ * AI 那一路「选了书」与「没选书」拿到两种形状，而 `MethodologyContextBuilder`
+ * 直接把 `bookTitle` 写死成空串 —— 于是「问《某本书》里的方法论」时那一路永远检索不到，
+ * 而搜索页与方法论页都能按书名筛到同一条（三台筛选器两种答法，不报错）。
+ */
+const METHODOLOGY_WITH_BOOK_SQL =
+  'SELECT m.*, b.title as book_title FROM methodologies m JOIN books b ON m.book_id = b.id';
+
 export const methodologiesDb = {
   create(methodology: Record<string, unknown>): void {
     getDatabase().run(
@@ -38,7 +49,7 @@ export const methodologiesDb = {
 
   getByBookId(bookId: string): Record<string, unknown>[] {
     const result = getDatabase().exec(
-      'SELECT * FROM methodologies WHERE book_id = ? ORDER BY updated_at DESC',
+      `${METHODOLOGY_WITH_BOOK_SQL} WHERE m.book_id = ? ORDER BY m.updated_at DESC`,
       [bookId]
     );
     return rowsToObjects(result);
@@ -69,11 +80,7 @@ export const methodologiesDb = {
   },
 
   getAll(): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      `SELECT m.*, b.title as book_title FROM methodologies m
-       JOIN books b ON m.book_id = b.id
-       ORDER BY m.updated_at DESC`
-    );
+    const result = getDatabase().exec(`${METHODOLOGY_WITH_BOOK_SQL} ORDER BY m.updated_at DESC`);
     return rowsToObjects(result);
   },
 

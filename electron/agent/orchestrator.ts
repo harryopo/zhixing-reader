@@ -45,9 +45,8 @@ export interface RetrievalSource {
   used: boolean
   itemCount: number
   method?: string
-  topScore?: number
   buildTime: number
-  previews?: Array<{ title?: string; snippet?: string; score?: number }>
+  previews?: Array<{ title?: string; snippet?: string }>
   /**
    * 这一路命中的**真实原文片段**（含 highlightId / bookId / 相关度）。
    * 与 previews 的区别：previews 是给人看过程的缩略，sources 是能定位回原文的数据。
@@ -91,7 +90,6 @@ function toRetrievalSource(r: { name: string; result: ContextBuildResult }): Ret
     used: r.result.content.trim().length > 0,
     itemCount: m?.itemCount ?? 0,
     method: m?.method,
-    topScore: m?.topScore,
     buildTime: m?.buildTime ?? 0,
     previews: m?.previews,
     sources: m?.sources,

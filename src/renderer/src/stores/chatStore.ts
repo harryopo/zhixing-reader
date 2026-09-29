@@ -64,9 +64,8 @@ export interface RetrievalSource {
   used: boolean
   itemCount: number
   method?: string
-  topScore?: number
   buildTime: number
-  previews?: Array<{ title?: string; snippet?: string; score?: number }>
+  previews?: Array<{ title?: string; snippet?: string }>
   error?: string
 }
 /** Agent 检索状态：start 开始调取 / done 各路结果 */

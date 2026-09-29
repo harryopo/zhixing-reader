@@ -177,6 +177,13 @@ export default defineConfig({
         // 重要度排（命中词数不参与），以及 LIKE 没转义（下划线多匹配一个字符）。
         'electron/agent/builders/memory-context-builder.ts',
         'electron/services/memory-service.ts',
+        // 2026-09-29 卡片与方法论这两路：量出「AI 那台检索的字段清单与界面那两台不一致」
+        // （书名被写死成空串、输出格式既不搜也不摆），以及两条读路形状不同。
+        // 补判据那份是真库：tests/knowledge-methodology-builders.test.ts
+        'electron/agent/builders/methodology-context-builder.ts', // 100 / 92.1 / 100
+        'electron/agent/builders/knowledge-card-context-builder.ts', // 100 / 83.33 / 100
+        // 同一批：相关度的显示口径（BM25 原始分没有上界，界面那句 ×100 的百分比是编的）
+        'src/shared/relevance-display.ts', // 100 / 100 / 100
       ],
       exclude: [
         '**/*.test.ts',

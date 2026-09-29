@@ -6,6 +6,16 @@ import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 import { assertRealColumns } from './updatable-columns';
 
+/**
+ * 卡片行 + 书名，只有一份取法。
+ *
+ * 原先 `getByBookId` 是裸 `SELECT *`（没有 book_title 这一列），`getAll` 才 JOIN 出来 ——
+ * 于是 AI 那一路「选了书」和「没选书」拿到的是两种形状：注入文本里想写出处，
+ * 选了书那半边写不出来（而它是静默写不出来，因为字段是 undefined 而不是报错）。
+ */
+const CARD_WITH_BOOK_SQL =
+  'SELECT k.*, b.title as book_title FROM knowledge_cards k JOIN books b ON k.book_id = b.id';
+
 export const knowledgeCardsDb = {
   create(card: Record<string, unknown>): void {
     getDatabase().run(
@@ -31,7 +41,7 @@ export const knowledgeCardsDb = {
 
   getByBookId(bookId: string): Record<string, unknown>[] {
     const result = getDatabase().exec(
-      'SELECT * FROM knowledge_cards WHERE book_id = ? ORDER BY updated_at DESC',
+      `${CARD_WITH_BOOK_SQL} WHERE k.book_id = ? ORDER BY k.updated_at DESC`,
       [bookId]
     );
     return rowsToObjects(result);
@@ -66,11 +76,7 @@ export const knowledgeCardsDb = {
   },
 
   getAll(): Record<string, unknown>[] {
-    const result = getDatabase().exec(
-      `SELECT k.*, b.title as book_title FROM knowledge_cards k
-       JOIN books b ON k.book_id = b.id
-       ORDER BY k.updated_at DESC`
-    );
+    const result = getDatabase().exec(`${CARD_WITH_BOOK_SQL} ORDER BY k.updated_at DESC`);
     return rowsToObjects(result);
   },
 

@@ -70,9 +70,8 @@ export interface RetrievalSourceView {
   used: boolean
   itemCount: number
   method?: string
-  topScore?: number
   buildTime: number
-  previews?: Array<{ title?: string; snippet?: string; score?: number }>
+  previews?: Array<{ title?: string; snippet?: string }>
   error?: string
 }
 

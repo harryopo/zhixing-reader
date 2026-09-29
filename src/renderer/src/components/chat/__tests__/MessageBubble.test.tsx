@@ -274,7 +274,8 @@ describe('MessageBubble', () => {
         bookId: 'b1',
         bookTitle: '深入理解计算机系统',
         highlightId: 'c1',
-        relevanceScore: 0.92,
+        // BM25 的原始分实测就是这种量级（真库最高一条 17.2），不是 0-1
+        relevanceScore: 17.2,
         chapterTitle: '第1章',
         content: '引用片段内容',
       },
@@ -297,12 +298,15 @@ describe('MessageBubble', () => {
       expect(screen.getByText(/引用来源：1 个片段/)).toBeInTheDocument()
     })
 
-    it('点击引用按钮展开 → 显示书名和相关度', () => {
+    it('点击引用按钮展开 → 显示书名与相对相关度', () => {
       render(<MessageBubble role="assistant" content="x" sources={sources} />)
       const btn = screen.getByRole('button', { name: /引用来源/ })
       fireEvent.click(btn)
       expect(screen.getByText(/深入理解计算机系统/)).toBeInTheDocument()
-      expect(screen.getByText(/相关度 92%/)).toBeInTheDocument()
+      // 只有一条来源时它自己就是最高分 ⇒ 相对最相关 100%
+      expect(screen.getByText(/相对最相关 100%/)).toBeInTheDocument()
+      // 把 17.2 当成百分比摆出来（1720%）是这层修掉的编造
+      expect(screen.queryByText(/1720/)).not.toBeInTheDocument()
     })
 
     it('再次点击引用按钮 → 收起（书名消失）', () => {
@@ -724,25 +728,25 @@ describe('MessageBubble', () => {
   // Phase 12 T2 新增：SourceList 边界分支
   // ==========================================================================
   describe('SourceList 边界', () => {
-    it('多个 source → 展开后渲染多个 source 卡片', () => {
+    it('多个 source → 展开后渲染多个 source 卡片，相关度按"相对最相关那一条"排', () => {
       const sources = [
         {
           bookId: 'b1',
           bookTitle: '书1',
           highlightId: 'c1',
-          relevanceScore: 0.9,
+          relevanceScore: 17.2,
         },
         {
           bookId: 'b2',
           bookTitle: '书2',
           highlightId: 'c2',
-          relevanceScore: 0.8,
+          relevanceScore: 4.3,
         },
         {
           bookId: 'b3',
           bookTitle: '书3',
           highlightId: 'c3',
-          relevanceScore: 0.7,
+          relevanceScore: 0.86,
         },
       ]
       render(<MessageBubble role="assistant" content="x" sources={sources} />)
@@ -753,6 +757,10 @@ describe('MessageBubble', () => {
       expect(screen.getByText(/书1/)).toBeInTheDocument()
       expect(screen.getByText(/书2/)).toBeInTheDocument()
       expect(screen.getByText(/书3/)).toBeInTheDocument()
+      // 4.3 / 17.2 = 25%，0.86 / 17.2 = 5%：分母是这一批里最高的那条，不是虚构的 1.0
+      expect(screen.getByText('相对最相关 100%')).toBeInTheDocument()
+      expect(screen.getByText('相对最相关 25%')).toBeInTheDocument()
+      expect(screen.getByText('相对最相关 5%')).toBeInTheDocument()
     })
 
     it('chapterTitle → 展开后渲染章节标题', () => {
@@ -785,7 +793,7 @@ describe('MessageBubble', () => {
       expect(screen.getByText('这是引用片段的正文内容...')).toBeInTheDocument()
     })
 
-    it('relevanceScore=0 → 显示 "相关度 0%"', () => {
+    it('relevanceScore=0 → 没有"相关度 0%"可摆，改说这是第几条引用', () => {
       const sources = [
         {
           bookId: 'b1',
@@ -796,13 +804,11 @@ describe('MessageBubble', () => {
       ]
       render(<MessageBubble role="assistant" content="x" sources={sources} />)
       fireEvent.click(screen.getByRole('button', { name: /引用来源/ }))
-      expect(screen.getByText(/相关度 0%/)).toBeInTheDocument()
+      expect(screen.getByText('第 1 条引用')).toBeInTheDocument()
+      expect(screen.queryByText(/相关度/)).not.toBeInTheDocument()
     })
 
-    it('relevanceScore=undefined → Math.round(NaN * 100) = NaN，显示 "相关度 NaN%"', () => {
-      // 源码：Math.round((src.relevanceScore || 0) * 100)
-      //   src.relevanceScore 为 undefined → (undefined || 0) = 0 → Math.round(0) = 0
-      //   实际不会显示 NaN（因为 || 0 兜底）
+    it('relevanceScore=undefined → 同上，界面里不许出现 NaN', () => {
       const sources = [
         {
           bookId: 'b1',
@@ -813,8 +819,31 @@ describe('MessageBubble', () => {
       ]
       render(<MessageBubble role="assistant" content="x" sources={sources} />)
       fireEvent.click(screen.getByRole('button', { name: /引用来源/ }))
-      // 因为 || 0 兜底，显示 0% 而非 NaN%
-      expect(screen.getByText(/相关度 0%/)).toBeInTheDocument()
+      expect(screen.getByText('第 1 条引用')).toBeInTheDocument()
+      expect(document.body.textContent).not.toMatch(/NaN/)
+    })
+
+    it('整批都没有有效分数 → 每条各报自己的序号，不是一水的 0%', () => {
+      const sources = [
+        { bookId: 'b1', bookTitle: '书1', highlightId: 'c1', relevanceScore: undefined as unknown as number },
+        { bookId: 'b2', bookTitle: '书2', highlightId: 'c2', relevanceScore: 0 },
+      ]
+      render(<MessageBubble role="assistant" content="x" sources={sources} />)
+      fireEvent.click(screen.getByRole('button', { name: /引用来源/ }))
+      expect(screen.getByText('第 1 条引用')).toBeInTheDocument()
+      expect(screen.getByText('第 2 条引用')).toBeInTheDocument()
+    })
+
+    it('有命中的那条排在没命中的后面时，分母仍取最高分', () => {
+      // 顺序不假设检索结果已排好：界面按"这批里最高分"折算，与它在哪一条无关
+      const sources = [
+        { bookId: 'b1', bookTitle: '书1', highlightId: 'c1', relevanceScore: 0.86 },
+        { bookId: 'b2', bookTitle: '书2', highlightId: 'c2', relevanceScore: 17.2 },
+      ]
+      render(<MessageBubble role="assistant" content="x" sources={sources} />)
+      fireEvent.click(screen.getByRole('button', { name: /引用来源/ }))
+      expect(screen.getByText('相对最相关 5%')).toBeInTheDocument()
+      expect(screen.getByText('相对最相关 100%')).toBeInTheDocument()
     })
 
     it('展开/收起切换 → aria-expanded 同步', () => {

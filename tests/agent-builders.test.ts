@@ -90,7 +90,7 @@ describe('BookContextBuilder', () => {
           content: '笔记内容',
           bookTitle: '书名',
           chapterTitle: '第1章',
-          relevanceScore: 0.9,
+          relevanceScore: 5.4744,
         },
       ])
       const result = await builder.build(ctxWithBook())
@@ -103,7 +103,6 @@ describe('BookContextBuilder', () => {
       expect(result.metadata?.source).toBe('rag')
       expect(result.metadata?.method).toBe('local')
       expect(result.metadata?.itemCount).toBe(1)
-      expect(result.metadata?.topScore).toBe(0.9)
       expect(result.metadata?.previews?.[0]).toMatchObject({ title: '第1章', snippet: '笔记内容' })
     })
 
@@ -121,10 +120,13 @@ describe('BookContextBuilder', () => {
 
     // ========================================================================
     // 引用来源（2026-09-16 新增）
-    // metadata.previews 只有 title/snippet/score，是给「调取知识库」面板看过程用的；
+    // metadata.previews 只有 title/snippet，是给「调取知识库」面板看过程用的；
     // 消息气泡的「引用来源」需要能定位回具体划线的真实片段。
     // 此前这一层把 highlightId / bookId / relevanceScore 丢掉了，
     // 导致 chat_messages.sources 永远为空。
+    // 2026-09-29：relevanceScore 一律按 BM25 的真实量级喂（那分数没有上界，
+    // 真库实测最高 17.2）—— 之前这里喂 0.9 之类的 0-1 小数，正好把界面那句
+    // 「相关度 90%」的编造掩护住了。
     // ========================================================================
     it("metadata.sources 带齐 highlightId / bookId / 相关度", async () => {
       mockRetrieveHighlights.mockResolvedValue([
@@ -134,7 +136,7 @@ describe('BookContextBuilder', () => {
           content: '原文片段',
           bookTitle: '书名',
           chapterTitle: '第1章',
-          relevanceScore: 0.83,
+          relevanceScore: 17.2,
         },
       ])
       const result = await builder.build(ctxWithBook())
@@ -145,7 +147,7 @@ describe('BookContextBuilder', () => {
           bookTitle: '书名',
           chapterTitle: '第1章',
           content: '原文片段',
-          relevanceScore: 0.83,
+          relevanceScore: 17.2,
         },
       ])
     })
@@ -153,7 +155,7 @@ describe('BookContextBuilder', () => {
     it("缺少 highlightId 的命中项被剔除（不能进「引用来源」）", async () => {
       mockRetrieveHighlights.mockResolvedValue([
         { content: '来源不明', bookTitle: '书', relevanceScore: 0.5 },
-        { highlightId: 'hl_ok', bookId: 'b1', content: '有身份', bookTitle: '书', relevanceScore: 0.6 },
+        { highlightId: 'hl_ok', bookId: 'b1', content: '有身份', bookTitle: '书', relevanceScore: 5.4744 },
       ])
       const result = await builder.build(ctxWithBook())
       expect(result.metadata?.sources).toHaveLength(1)

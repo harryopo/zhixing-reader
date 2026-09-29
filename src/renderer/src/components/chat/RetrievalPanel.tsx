@@ -3,7 +3,7 @@
  *
  * agent 运行时展示各路知识库检索（书籍笔记 RAG / 知识卡片 / 方法论 / 记忆 / 用户画像）：
  *   - start 阶段：正在调取…（脉冲指示）
- *   - done 阶段：逐路展示 命中数 / 检索方式 / 相关度 / 可展开片段预览
+ *   - done 阶段：逐路展示 命中数 / 检索方式 / 可展开片段预览
  * 让 RAG / 知识库调取过程对用户可见（此前只存在于后端日志）。
  */
 import { useState, type CSSProperties } from 'react'
@@ -51,10 +51,6 @@ function SourceRow({ source }: { source: RetrievalSource }) {
   const previews = source.previews ?? []
   const hasPreviews = previews.length > 0
   const icon = SOURCE_ICONS[source.name] ?? 'search'
-  const scoreText =
-    typeof source.topScore === 'number' && source.topScore > 0
-      ? ` · ${Math.round(source.topScore * 100)}%`
-      : ''
 
   return (
     <div>
@@ -83,7 +79,7 @@ function SourceRow({ source }: { source: RetrievalSource }) {
         <span style={{ fontWeight: 500 }}>{source.label}</span>
         <MethodBadge method={source.method} />
         <span style={{ marginLeft: 'auto', color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
-          {source.used ? `${source.itemCount} 条命中${scoreText}` : '无命中'}
+          {source.used ? `${source.itemCount} 条命中` : '无命中'}
         </span>
         {hasPreviews && (
           <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} />

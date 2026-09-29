@@ -6,7 +6,6 @@ import type { RagSourceRef } from '../../src/shared/types'
 export interface RetrievalPreview {
   title?: string
   snippet?: string
-  score?: number
 }
 
 /**
@@ -23,8 +22,6 @@ export interface ContextBuildResult {
     itemCount?: number
     /** 检索方式：semantic(向量语义) / keyword(关键词) / relevance(相关度排序) / profile(画像) */
     method?: string
-    /** 最高相关度（0-1，RAG 语义检索时有值） */
-    topScore?: number
     /** 命中条目预览（标题/片段），供 UI 展开 */
     previews?: RetrievalPreview[]
     /**

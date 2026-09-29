@@ -14,6 +14,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import CodeBlock from './CodeBlock'
 import { Reasoning } from './Reasoning'
+import { relativeRelevancePercent, topRelevanceScore } from '../../../../shared/relevance-display'
 
 /**
  * 引用来源片段。形状定义在 src/shared/types.ts 的 RagSourceRef —— 只留一份。
@@ -458,6 +459,9 @@ function SourceList({
   onOpenSource?: (src: RAGSource) => void
 }) {
   const [open, setOpen] = useState(false)
+  // BM25 原始分没有上界（实测一条就是 5.47，真库上量到过 17.2），所以只能相对地讲：
+  // 与本次最相关那条比。原先直接 ×100 当百分比，界面会印出「相关度 547%」。
+  const topScore = topRelevanceScore(sources.map((s) => s.relevanceScore))
   return (
     <div style={{ width: '100%', maxWidth: '90%' }}>
       <button
@@ -534,7 +538,12 @@ function SourceList({
                     📖 {src.bookTitle}
                   </strong>
                   <span style={{ color: 'var(--muted-foreground)', flexShrink: 0 }}>
-                    相关度 {Math.round((src.relevanceScore || 0) * 100)}%
+                    {(() => {
+                      const relative = relativeRelevancePercent(src.relevanceScore, topScore)
+                      return relative === null
+                        ? `第 ${i + 1} 条引用`
+                        : `相对最相关 ${relative}%`
+                    })()}
                   </span>
                 </div>
                 {src.chapterTitle && (
