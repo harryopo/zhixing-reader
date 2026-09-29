@@ -234,6 +234,42 @@ describe('planHighlightRows（三条导入通路共用的一份行规划）', ()
     expect('note' in rows[0]).toBe(false)
   })
 
+  // ↓ 这两条是 2026-09-29 为「个人画像的前置数据源」补的。上面的夹具把想法的
+  // abstract 故意写成与书签不同的一句，于是"同一句既划过、又写了想法"这个
+  // 真会丢数据的形状从没被走到：两条行 content 相同 ⇒ 第二条撞 (book_id, content)
+  // 判重 ⇒ create 返回 false ⇒ 用户写的想法整条不进库。收在规划这一层合掉。
+  it('同一句既被划过又写了想法 ⇒ 合成一行（正文 + note），不产出两条互相顶掉的行', () => {
+    const rows = planHighlightRows({
+      bookmarks: [
+        { bookmarkId: 'm1', chapterUid: 5, chapterTitle: '', markText: '人的烦恼皆源于人际关系', createTime: 1_700_000_000 },
+      ],
+      notes: [
+        { reviewId: 'm1n', chapterUid: 5, chapterTitle: '', abstract: '人的烦恼皆源于人际关系', content: '这句我要用在明天的沟通里', createTime: 1_700_009_000 },
+      ],
+      chapters: raw.chapters,
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toEqual({
+      content: '人的烦恼皆源于人际关系',
+      note: '这句我要用在明天的沟通里',
+      // 章节名两边都能解析出来，取到的必须是同一个
+      chapter_title: '第一章 人际关系',
+      // 时刻取划线那一刻，不取想法那一刻 —— 库里这一列回答的是"我什么时候划的"
+      created_at: new Date(1_700_000_000 * 1000).toISOString(),
+    })
+  })
+
+  it('想法正文只有空格 ⇒ 按"没写想法"处理，不产出 note 键', () => {
+    const rows = planHighlightRows({
+      bookmarks: [],
+      notes: [{ reviewId: 'blank', chapterUid: 5, abstract: '摘句', content: '   \n\t ', createTime: 1_700_000_000 }],
+      chapters: raw.chapters,
+    })
+
+    expect('note' in rows[0]).toBe(false)
+  })
+
   it('查不到章节名就留空串，不编「未知章节」', () => {
     const rows = planHighlightRows({
       bookmarks: [{ bookmarkId: 'b3', chapterUid: 404, chapterTitle: '', markText: '无章可查', createTime: 1_700_000_000 }],

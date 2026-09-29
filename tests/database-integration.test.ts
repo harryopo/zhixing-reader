@@ -184,7 +184,7 @@ describe('database-integration — sql.js 集成测试', () => {
       expect((result[0] as any).content).toBe('Highlight content')
     })
 
-    it('应检测重复 highlight（create 返回 false）', async () => {
+    it('同一句第二次进来不再建第二行（created 为 false，且什么都没补时三个计数都不亮）', async () => {
       booksDb.create({ id: 'book_1', title: 'Book' } as any)
       const first = highlightsDb.create({
         id: 'hl_1',
@@ -197,8 +197,11 @@ describe('database-integration — sql.js 集成测试', () => {
         content: 'Same content',
       } as any)
 
-      expect(first).toBe(true)
-      expect(second).toBe(false)
+      expect(first.created).toBe(true)
+      // 2026-09-29：返回值从 boolean 收成三个各自独立的计数 ——
+      // "库里已经有这句"与"这轮什么都没做成"必须是两种答案，
+      // 否则"补上了用户写的想法"会被界面读成"跳过一条重复"
+      expect(second).toEqual({ created: false, noteFilled: false, chapterFilled: false })
     })
 
     // createBatch / deleteByBookId 已因零调用砍掉：去重由 create 那条用例钉住，

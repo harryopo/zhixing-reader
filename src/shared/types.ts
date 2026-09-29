@@ -131,6 +131,23 @@ export interface ReviewStats {
   review: number
 }
 
+/**
+ * `highlightsDb.create` 交回的三种各自独立的计数（跨进程声明与主进程实现共用这一份）。
+ *
+ * 原来是 boolean：`false` 同时表示"库里已经有这句"和"这轮什么都没做成"，
+ * 于是"把用户新写的想法补进了那一行"被界面读成"跳过一条重复"——
+ * 而这恰恰是导入想法时唯一有价值的那件事（见 2026-09-29 想法导入那批）。
+ * `noteFilled` / `chapterFilled` 只在 `created` 为 false 时才可能是 true。
+ */
+export interface HighlightCreateOutcome {
+  /** 库里新起了一行 */
+  created: boolean;
+  /** 命中已有那一行，并把缺失的用户想法补了进去 */
+  noteFilled: boolean;
+  /** 命中已有那一行，并把缺失的章节名补了进去 */
+  chapterFilled: boolean;
+}
+
 export interface IPCResponse<T = unknown> {
   success: boolean
   data?: T

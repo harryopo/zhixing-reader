@@ -25,6 +25,12 @@ type SpecOrFn = Spec | ((body: Record<string, unknown>) => Spec)
 const h = vi.hoisted(() => ({
   routes: new Map<string, unknown[]>(),
   calls: [] as Array<{ api_name: string; body: Record<string, unknown> }>,
+  /**
+   * logger 的替身。故意不 `import { logger }`：那份 import 会让 electron/logger.ts
+   * 变成"被测试 import 却没进覆盖率清单也没登记欠账"，被 coverage-list 判红 ——
+   * 而这里要的只是一个能断言的收口，不是给 logger.ts 记一笔覆盖率欠账。
+   */
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
 vi.mock('../electron/http-client', () => ({
@@ -56,9 +62,7 @@ vi.mock('../electron/http-client', () => ({
   },
 }))
 
-vi.mock('../electron/logger', () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}))
+vi.mock('../electron/logger', () => ({ logger: h.logger }))
 
 import * as api from '../electron/weread-api'
 
@@ -77,6 +81,7 @@ describe('weread-api 走真实网络层代码（mock 只在 fetch 那条缝）',
   beforeEach(() => {
     h.routes.clear()
     h.calls.length = 0
+    Object.values(h.logger).forEach((fn) => fn.mockClear())
     api.setApiKey('test-key')
   })
 
@@ -260,6 +265,47 @@ describe('weread-api 走真实网络层代码（mock 只在 fetch 那条缝）',
       expect(await api.fetchChapters('b1')).toEqual([{ chapterUid: 1, title: '第一章', level: 1 }])
     })
 
+    it('按书取想法时书 id 放在 bookId 键上 —— 与同文件另三条按书取数同一写法', async () => {
+      // 生产侧这里写的是 `bookid`（小写），而 getprogress / bookmarklist / chapterinfo
+      // 三条都写 `bookId`。网关把不认的参数丢掉时回的是 errcode:0 + 空 reviews，
+      // 不抛错 ⇒ "用户写的想法"读不回来且全程静默（实测本机 934 条划线 note 非空 0 条）。
+      // 这条判据断的是**发出去的请求体**，不是 mock 的行为：那是这一层的对外契约。
+      respond('/review/list/mine', { body: { errcode: 0, reviews: [] } })
+      await api.fetchNotes('b7')
+
+      const sent = sentBodies('/review/list/mine').pop()
+      expect(sent).toMatchObject({ api_name: '/review/list/mine', bookId: 'b7' })
+      expect(sent).not.toHaveProperty('bookid')
+    })
+
+    it('想法一次拉满一页 ⇒ 如实报警"可能还有更多没取回来"，不静默截断', async () => {
+      // count: 100 是一次请求的上限，而这个接口有没有续拉的游标**我没有核实过**，
+      // 所以这里不猜分页语义，只把"恰好取满一页"这件一定会发生的事变成可见的：
+      // 真写了 120 条想法的人，今天只会进来 100 条，而界面与日志都不说。
+      const reviews = Array.from({ length: 100 }, (_, i) => ({
+        reviewId: `r${i}`, bookId: 'b1', chapterUid: 1, abstract: `摘句${i}`, content: `想法${i}`, range: '', createTime: 1_700_000_000,
+      }))
+      respond('/review/list/mine', { body: { errcode: 0, reviews } })
+
+      const notes = await api.fetchNotes('b1')
+
+      expect(notes).toHaveLength(100)
+      expect(h.logger.warn).toHaveBeenCalledWith(
+        'WeRead notes filled one page',
+        expect.objectContaining({ bookId: 'b1', fetched: 100, page: 100 }),
+      )
+    })
+
+    it('不足一页 ⇒ 不许乱报警（报一次就得有人去查一次）', async () => {
+      respond('/review/list/mine', {
+        body: { errcode: 0, reviews: [{ reviewId: 'r1', bookId: 'b1', chapterUid: 1, abstract: 'a', content: 'c', range: '', createTime: 1 }] },
+      })
+
+      await api.fetchNotes('b2')
+
+      expect(h.logger.warn).not.toHaveBeenCalledWith('WeRead notes filled one page', expect.anything())
+    })
+
     it('fetchAllContent 一次把三件取齐', async () => {
       respond('/book/bookmarklist', { body: { errcode: 0, updated: [{ bookmarkId: 'm1', bookId: 'b1', chapterUid: 1, markText: 'x', style: 0, range: '', createTime: 1 }] } })
       respond('/review/list/mine', { body: { errcode: 0, reviews: [{ reviewId: 'r1', bookId: 'b1', abstract: 'a', content: 'c', range: '', createTime: 2 }] } })
@@ -272,7 +318,10 @@ describe('weread-api 走真实网络层代码（mock 只在 fetch 那条缝）',
 
     it('批量取内容时，失败的那本不进结果，别的照常（一批三本，第七本坏掉）', async () => {
       respond('/book/bookmarklist', (body) => (body.bookId === 'bad' ? { status: 500, text: 'no' } : { body: { errcode: 0, updated: [] } }))
-      respond('/review/list/mine', (body) => (body.bookid === 'bad' ? { status: 500, text: 'no' } : { body: { errcode: 0, reviews: [] } }))
+      // 这个 mock 原来读的是 `body.bookid`（小写），与生产侧那个错拼法一模一样 ——
+      // 于是"500 的那本不进结果"这一支在想法这条路上**从来没被触发过**，
+      // 测试绿着却什么都没验。参数名对齐后，mock 必须跟着读同一个键名才真的有效。
+      respond('/review/list/mine', (body) => (body.bookId === 'bad' ? { status: 500, text: 'no' } : { body: { errcode: 0, reviews: [] } }))
       respond('/book/chapterinfo', (body) => (body.bookId === 'bad' ? { status: 500, text: 'no' } : { body: { errcode: 0, chapters: [] } }))
       const ids = ['b1', 'b2', 'b3', 'bad', 'b5']
       const out = await api.fetchAllContentBatch(ids)

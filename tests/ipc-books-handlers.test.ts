@@ -275,20 +275,29 @@ describe('新建划线：字段兜底 + 顺带建卡', () => {
     expect(row.range_start).toBeNull()
   })
 
-  it('划线建成功才顺带建 FSRS 卡；没建成的不建', () => {
-    seams.highlights.create.mockReturnValue(false)
+  it('划线建成功才顺带建 FSRS 卡；库里已有那句的不建', () => {
+    // 补上用户想法那种命中也不算"新起一行"：那句原文早就有它自己的复习卡，
+    // 补进来的想法是一个新记忆点内容，不是一张新卡
+    seams.highlights.create.mockReturnValue({ created: false, noteFilled: true, chapterFilled: false })
     at(IPC_CHANNELS.HIGHLIGHTS.CREATE)({ id: 'hl4', book_id: 'b1', content: 'x' })
     expect(seams.cards.getByHighlightId).not.toHaveBeenCalled()
     expect(seams.cards.create).not.toHaveBeenCalled()
   })
 
+  it('什么都没补成时同样不建卡', () => {
+    seams.highlights.create.mockReturnValue({ created: false, noteFilled: false, chapterFilled: false })
+    at(IPC_CHANNELS.HIGHLIGHTS.CREATE)({ id: 'hl4b', book_id: 'b1', content: 'x' })
+    expect(seams.cards.create).not.toHaveBeenCalled()
+  })
+
   it('建卡失败只记一条错误日志，划线本身照样算成功', () => {
-    seams.highlights.create.mockReturnValue(true)
+    seams.highlights.create.mockReturnValue({ created: true, noteFilled: false, chapterFilled: false })
     seams.cards.getByHighlightId.mockReturnValue(undefined)
     seams.cards.create.mockImplementation(() => {
       throw new Error('cards 表写入被锁')
     })
-    expect(at(IPC_CHANNELS.HIGHLIGHTS.CREATE)({ id: 'hl5', book_id: 'b1', content: 'x' })).toBe(true)
+    expect(at(IPC_CHANNELS.HIGHLIGHTS.CREATE)({ id: 'hl5', book_id: 'b1', content: 'x' }))
+      .toEqual({ created: true, noteFilled: false, chapterFilled: false })
     expect(seams.logger.error).toHaveBeenCalledWith(
       'Auto-create FSRS card failed',
       expect.objectContaining({ highlightId: 'hl5' }),

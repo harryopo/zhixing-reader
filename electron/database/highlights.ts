@@ -7,6 +7,7 @@ import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 import { UNGROUPED_CHAPTER } from '../../src/shared/chapter-summaries';
 import { assertRealColumns } from './updatable-columns';
+import type { HighlightCreateOutcome } from '../../src/shared/types';
 
 /**
  * 进程内的写计数器：每次增删改都 +1。
@@ -34,6 +35,19 @@ function toSqliteDateTime(value: unknown): string | null {
   return parsed.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+/**
+ * 那一格里到底有没有内容。
+ *
+ * 微信读书对"只在页边写了一句、没摘原文"的笔记会回 `abstract: ""`，
+ * 而对"没写想法"的回的是空串或一串空格。两种空形状必须都算"没写"，
+ * 否则一串空格会被当作用户的思考落库，再进 AI 的上下文。
+ */
+function hasText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 export const highlightsDb = {
   getByBookId(bookId: string): Record<string, unknown>[] {
     const result = getDatabase().exec(
@@ -59,21 +73,56 @@ export const highlightsDb = {
     return counts;
   },
 
-  exists(bookId: string, content: string): boolean {
-    const result = getDatabase().exec(
-      'SELECT 1 FROM highlights WHERE book_id = ? AND content = ? LIMIT 1',
-      [bookId, content]
-    );
-    return result.length > 0 && result[0].values.length > 0;
+  /**
+   * 「这一句在库里是哪一行」。
+   *
+   * 判重键原来是 `(book_id, content)`。想法行的正文就是它挂靠的那句摘句，
+   * 所以**同一句既被划过、又写了想法**时，想法那条被当成重复整条丢掉；
+   * 而"只在页边写一句"的笔记正文是空串，两条空正文的行会互相顶掉，只能进去第一条。
+   * 正文为空时把 note 一起纳进键 —— 空正文的那些行各自是一条独立记录。
+   */
+  findDuplicate(bookId: string, content: string, note: string | null): Record<string, unknown> | null {
+    const db = getDatabase();
+    const found = content === ''
+      ? rowsToObjects(db.exec(
+        'SELECT id, note, chapter_title FROM highlights WHERE book_id = ? AND content = ? AND note IS ? LIMIT 1',
+        [bookId, content, note]
+      ))
+      : rowsToObjects(db.exec(
+        'SELECT id, note, chapter_title FROM highlights WHERE book_id = ? AND content = ? LIMIT 1',
+        [bookId, content]
+      ));
+    return found[0] ?? null;
   },
 
-  create(highlight: Record<string, unknown>): boolean {
+  /**
+   * 已有那一行：缺什么补什么，**库里已有的内容一字不改**。
+   *
+   * "库里已有想法"这一支是用户自己编辑过的那一句（编辑划线走 HIGHLIGHTS.UPDATE），
+   * 任何自动导入都不许拿接口回来的那份去盖它 —— 盖掉的正是用户自己的话。
+   */
+  mergeInto(existing: Record<string, unknown>, note: string | null, chapter: string | null): HighlightCreateOutcome {
+    const noteFilled = note !== null && hasText(existing.note) === null;
+    const chapterFilled = chapter !== null && hasText(existing.chapter_title) === null;
+    if (noteFilled || chapterFilled) {
+      this.update(String(existing.id), {
+        ...(noteFilled ? { note } : {}),
+        ...(chapterFilled ? { chapter_title: chapter } : {}),
+      });
+    }
+    return { created: false, noteFilled, chapterFilled };
+  },
+
+  create(highlight: Record<string, unknown>): HighlightCreateOutcome {
     writeRevision++;
     const bookId = highlight.book_id as string;
-    const content = highlight.content as string;
+    const content = String(highlight.content ?? '');
+    const note = hasText(highlight.note);
+    const chapter = hasText(highlight.chapter_title);
 
-    if (this.exists(bookId, content)) {
-      return false;
+    const existing = this.findDuplicate(bookId, content, note);
+    if (existing) {
+      return this.mergeInto(existing, note, chapter);
     }
 
     // 不给 id 就自己造一个：sql.js 绑不了 `undefined`，以前调用方一漏写就在这条
@@ -111,7 +160,8 @@ export const highlightsDb = {
       values
     );
     saveDatabase();
-    return true;
+    // 新建就是新建：两个补全计数各自只许被"真的补了东西"那件事点亮
+    return { created: true, noteFilled: false, chapterFilled: false };
   },
 
   update(id: string, highlight: Record<string, unknown>): void {

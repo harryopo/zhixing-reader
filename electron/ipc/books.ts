@@ -42,7 +42,7 @@ export function registerBookHandlers(handle: HandleFn): void {
   handle(IPC_CHANNELS.HIGHLIGHTS.CREATE, (highlight: Record<string, unknown>) => {
     const id = (highlight.id as string) || `hl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const bookId = highlight.book_id ?? highlight.bookId;
-    const created = highlightsDb.create({
+    const outcome = highlightsDb.create({
       id,
       book_id: bookId,
       chapter_title: highlight.chapter_title ?? highlight.chapterTitle ?? null,
@@ -57,7 +57,7 @@ export function registerBookHandlers(handle: HandleFn): void {
     });
 
     // Auto-index to vector DB in background (fire-and-forget)
-    if (created) {
+    if (outcome.created) {
       // Single-create path used by bookshelf import — also create FSRS card (batch path already does)
       try {
         if (!cardsDb.getByHighlightId(id)) {
@@ -72,7 +72,7 @@ export function registerBookHandlers(handle: HandleFn): void {
       // 现在检索走本地 BM25，索引按 DB 签名自动重建 —— 不需要在这里做任何事。
     }
 
-    return created;
+    return outcome;
   });
   handle(IPC_CHANNELS.HIGHLIGHTS.UPDATE, (id: string, highlight: Record<string, unknown>) => highlightsDb.update(id, highlight));
   handle(IPC_CHANNELS.HIGHLIGHTS.GET_ALL, () => highlightsDb.getAll());

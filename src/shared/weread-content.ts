@@ -251,24 +251,42 @@ export function planHighlightRows(
 ): HighlightImportRow[] {
   const { bookmarks, notes } = resolveWereadContent<WereadMarkLike, WereadMarkLike>(content)
   const rows: HighlightImportRow[] = []
+  // content → 已规划出的那一行。微信读书把"划线"和"对同一句写的想法"当成两个条目回，
+  // 而库里想法行的正文就是那句原文 ⇒ 两条行会在 (book_id, content) 上撞判重，
+  // 后到的想法整条被 return false 丢掉。在规划这一层就合成一行。
+  const byContent = new Map<string, HighlightImportRow>()
 
   for (const bm of bookmarks) {
-    rows.push({
+    const row: HighlightImportRow = {
       content: String(bm.markText ?? ''),
       chapter_title: bm.resolvedChapterTitle,
       created_at: wereadTimeIso(bm.createTime),
-    })
+    }
+    rows.push(row)
+    if (!byContent.has(row.content)) byContent.set(row.content, row)
   }
 
-  // 想法这一条有两个字段：正文是那一句被划的原文（abstract），
+  // 想法这一条有两个字段：正文是被划的原文（abstract），
   // 用户自己写的想法进 note —— 少认一个就把想法正文和摘句混成一坨。
   for (const note of notes) {
-    rows.push({
+    // trim 判空：接口常回一串空格或换行，那在微信读书里就是"没写想法"。
+    // 原来写真值 `note.content ? …` ⇒ 空格会被当想法落进库里。
+    const text = String(note.content ?? '').trim()
+    const marked = byContent.get(String(note.abstract ?? ''))
+    if (marked && text && !marked.note) {
+      marked.note = text
+      if (marked.created_at === null) marked.created_at = wereadTimeIso(note.createTime)
+      continue
+    }
+
+    const row: HighlightImportRow = {
       content: String(note.abstract ?? ''),
-      ...(note.content ? { note: String(note.content) } : {}),
+      ...(text ? { note: text } : {}),
       chapter_title: note.resolvedChapterTitle,
       created_at: wereadTimeIso(note.createTime),
-    })
+    }
+    rows.push(row)
+    if (!byContent.has(row.content)) byContent.set(row.content, row)
   }
 
   return rows

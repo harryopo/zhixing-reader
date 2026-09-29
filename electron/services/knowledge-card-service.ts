@@ -119,7 +119,10 @@ class KnowledgeCardService {
     let importedCount = 0
     for (const row of planHighlightRows(content)) {
       try {
-        if (highlightsDb.create({ book_id: bookId, ...row })) importedCount++
+        // 与 ipc/knowledge 那条同一口径：新起一行、补上想法、补上章节名，
+        // 三件里真发生了任意一件才算"带回来一条"。
+        const outcome = highlightsDb.create({ book_id: bookId, ...row })
+        if (outcome.created || outcome.noteFilled || outcome.chapterFilled) importedCount++
       } catch (e) {
         logger.error('导入划线失败:', e)
       }

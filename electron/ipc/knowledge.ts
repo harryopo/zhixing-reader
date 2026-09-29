@@ -67,8 +67,12 @@ export function registerKnowledgeHandlers(handle: HandleFn): void {
         let importedCount = 0;
         for (const row of rows) {
           try {
-            // 只数真插进去的那几条：create 判重时回 false，连 false 也一起 +1 就是虚报
-            if (highlightsDb.create({ book_id: bookId, ...row })) importedCount++;
+            // create 现在交回三个各自独立的计数（新起一行 / 补上想法 / 补上章节名）。
+            // 只要真把内容带回来了就算一条：判重命中又什么都没补时三个都不亮，不算。
+            // 原来写的是 `if (create(...))` —— 返回值变成对象后那个条件恒真，
+            // 界面那句"自动导入 N 条"会连"一条都没动"也数进去，正是本项目说的虚报。
+            const outcome = highlightsDb.create({ book_id: bookId, ...row });
+            if (outcome.created || outcome.noteFilled || outcome.chapterFilled) importedCount++;
           } catch (e) { logger.error('导入划线失败:', e); }
         }
         logger.info('自动导入笔记完成', { bookId, scanned: rows.length, importedCount });

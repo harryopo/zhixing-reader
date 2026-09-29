@@ -1,4 +1,4 @@
-import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind } from '../shared/types'
+import { Book, Highlight, Card, ReviewRow, BookSummary, ChapterSummary, BookSummaryRunResult, PendingSummaryEntry, DailyStatsRow, ReviewStats, ReadingDataResponse, RecommendationItem, BookmarkedMessageRow, ArchiveResult, RestoreResult, UndoableDeleteKind, HighlightCreateOutcome } from '../shared/types'
 import type { ChatMessageRow, ConversationRow } from '../renderer/src/utils/db-mapper'
 import type { DueReviewCardView, ReviewCardFields, ReviewSourceKind } from '../shared/review-sources'
 import type { BookCoverageView, CoveragePlan } from '../shared/ai-coverage'
@@ -130,8 +130,12 @@ export interface ElectronAPI {
       failedBooks: number
     }>
     getById: (id: string) => Promise<Record<string, unknown> | undefined>
-    /** 主进程建好划线并顺带建它的复习卡片，返回的是"有没有落库" */
-    create: (highlight: Record<string, unknown>) => Promise<boolean>
+    /**
+     * 主进程建好划线并顺带建它的复习卡片。
+     * 交回的是三种各自独立的计数（新建 / 补上想法 / 补上章节名），不是"有没有落库" ——
+     * 原来声明成 `Promise<boolean>` 时，"补上了用户写的想法"与"一句都没动"是同一个答案。
+     */
+    create: (highlight: Record<string, unknown>) => Promise<HighlightCreateOutcome>
     update: (id: string, highlight: Record<string, unknown>) => Promise<void>
     getAll: () => Promise<Array<Record<string, unknown>>>
     export: () => Promise<{ saved: boolean; count: number; path?: string }>

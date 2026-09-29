@@ -6,6 +6,11 @@ const GATEWAY_URL = 'https://i.weread.qq.com/api/agent/gateway';
 const SKILL_VERSION = '1.0.5';
 const { timeout: REQUEST_TIMEOUT, maxRetries: MAX_RETRIES, baseDelay: RETRY_DELAY } = RETRY_CONFIGS.WEREAD_API;
 const CACHE_TTL = 5 * 60 * 1000;
+/**
+ * 一次 `/review/list/mine` 请求的条数上限。
+ * 这个数同时用在请求与"取满了要报警"的判据里 —— 分成两个字面量迟早各漂一次。
+ */
+const NOTES_PAGE_SIZE = 100;
 
 interface GatewayRequest {
   api_name: string;
@@ -443,11 +448,26 @@ export async function fetchNotes(bookId: string): Promise<WereadReview[]> {
       }>;
     }>({
       api_name: '/review/list/mine',
-      bookid: bookId,
-      count: 100,
+      // 键名必须是 `bookId`：同文件另外三条按书取数都是这个写法，而这里曾写成 `bookid`。
+      // 拼错时网关回的是 errcode:0 + 空 reviews（不抛错），于是用户的想法静默读不回来。
+      // 判据：tests/weread-api-network.test.ts「书 id 放在 bookId 键上」
+      bookId,
+      count: NOTES_PAGE_SIZE,
     });
 
-    return (data.reviews || []).map(item => ({
+    const reviews = data.reviews || [];
+    // 一次请求的上限就是这一页。这个接口有没有续拉游标**我没有核实过**，
+    // 所以不假装分页，只把"取满一整页"这件必然意味着可能还有更多的事情报警出来 ——
+    // 否则真写了 120 条想法的人，只有前 100 条进得了库，而界面与日志都不说。
+    if (reviews.length >= NOTES_PAGE_SIZE) {
+      logger.warn('WeRead notes filled one page', {
+        bookId,
+        fetched: reviews.length,
+        page: NOTES_PAGE_SIZE,
+      });
+    }
+
+    return reviews.map(item => ({
       reviewId: item.reviewId,
       bookId: item.bookId,
       chapterUid: item.chapterUid || 0,
