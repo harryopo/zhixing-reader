@@ -15,6 +15,7 @@ import { registerAdminHandlers } from './admin';
 import { registerSettingsHandlers } from './settings';
 import { registerFsrsHandlers } from './fsrs';
 import { registerKnowledgeHandlers } from './knowledge';
+import { registerProfileHandlers } from './profile';
 import { registerSearchHandlers } from './search';
 import { registerUpdateHandlers } from './update';
 import { logger } from '../logger';
@@ -33,6 +34,7 @@ export function registerIpcHandlers(): void {
   registerFsrsHandlers(handle);
   registerKnowledgeHandlers(handle);
   registerSearchHandlers(handle);
+  registerProfileHandlers(handle);
   registerUpdateHandlers(handle);
 
   logger.info('IPC handlers registered');

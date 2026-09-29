@@ -85,6 +85,7 @@ export default function Profile() {
   const [editForm, setEditForm] = useState<UserProfile>(DEFAULT_PROFILE)
   const [editSaving, setEditSaving] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const editFirstInputRef = useRef<HTMLInputElement>(null)
 
   // 确保全局设置（含 profileBadgesEnabled）已加载
@@ -315,6 +316,24 @@ export default function Profile() {
     }
   }
 
+  // ===== 导出阅读画像语料包（零 AI 调用：只把证据分层写盘，总结交给外部 AI）=====
+  const handleExportCorpus = async () => {
+    setExporting(true)
+    try {
+      const result = await window.electronAPI.profile.exportPackage()
+      // saved:false 有两种（用户取消 / 库里确实没东西），主进程各给一句人话，这里不合并
+      if (result.saved) {
+        toast.success(result.summary, 8000)
+      } else {
+        toast.info(result.summary)
+      }
+    } catch (err) {
+      toast.error(`导出失败: ${(err as Error).message}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // ===== 加载与错误状态 =====
   if (loading) {
     return <Loading hint="正在加载个人档案..." />
@@ -355,6 +374,14 @@ export default function Profile() {
               {syncingProfile ? '同步中...' : '同步微信读书'}
             </Button>
             <Button variant="secondary" data-dom-id="cta-edit" onClick={openEditModal}>编辑资料</Button>
+            <Button
+              variant="secondary"
+              data-dom-id="cta-export-corpus"
+              onClick={() => void handleExportCorpus()}
+              disabled={exporting}
+            >
+              {exporting ? '导出中...' : '导出画像语料包'}
+            </Button>
             {/* 这个按钮实际只是把一段文本写进剪贴板（没有分享面板/链接/文件），
             原来叫「分享」名不副实，改成它真正做的事。 */}
         <Button variant="ghost" data-dom-id="cta-share" onClick={handleShare}>复制档案摘要</Button>

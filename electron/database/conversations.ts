@@ -122,6 +122,24 @@ export const conversationDb = {
     return rowsToObjects(result);
   },
 
+  /**
+   * 跨会话取出**你自己打的话**（role='user'，最新的在前）。
+   *
+   * 只服务阅读画像语料的 said 层：那一层要的判据是"这句话是人亲手打的"，
+   * 所以按角色筛在 SQL 里筛死，不把 assistant 的行交出去再让调用方自己滤
+   * ——  filter 写在调用方就等于每条新读路都要记得滤一次。
+   */
+  getUserMessages(limit: number = 500): Record<string, unknown>[] {
+    const result = getDatabase().exec(
+      `SELECT id, conversation_id, content, created_at
+       FROM chat_messages
+       WHERE role = 'user'
+       ORDER BY created_at DESC LIMIT ?`,
+      [limit]
+    );
+    return rowsToObjects(result);
+  },
+
   // 点赞：liked 用 INTEGER 0/1 存储（SQLite 无原生 BOOLEAN）
   setLike(messageId: string, liked: boolean): void {
     getDatabase().run(

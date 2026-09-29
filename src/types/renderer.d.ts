@@ -4,6 +4,7 @@ import type { DueReviewCardView, ReviewCardFields, ReviewSourceKind } from '../s
 import type { BookCoverageView, CoveragePlan } from '../shared/ai-coverage'
 import type { BackupExport, BackupImportResult } from '../shared/backup'
 import type { GlobalSearchResult } from '../shared/global-search'
+import type { CorpusExportResult } from '../shared/profile-manifest'
 
 export interface TokenSummary {
   totalRequests: number
@@ -313,6 +314,13 @@ export interface ElectronAPI {
   }
   skill: {
     exportFile: (methodologyId: string, bookTitle: string) => Promise<{ saved: boolean; path?: string }>
+  }
+  profile: {
+    /**
+     * 导出阅读画像语料包（分层证据 + manifest），零 AI 调用。
+     * 返回形状与 `src/shared/profile-manifest.ts` 的 `CorpusExportResult` 同源。
+     */
+    exportPackage: () => Promise<CorpusExportResult>
   }
   system: {
     openExternal: (url: string) => Promise<{ opened: boolean }>

@@ -234,6 +234,13 @@ export const IPC_CHANNELS = {
     // 生成 + 弹保存对话框写盘（方法论详情页「导出为 Skill」）
     EXPORT_FILE: 'skill:exportFile',
   },
+  PROFILE: {
+    /**
+     * 导出阅读画像语料包（分层证据 + manifest）。
+     * 零 AI 调用：应用只把证据如实搬出去，"总结成一个人"由外部 AI 做。
+     */
+    EXPORT_PACKAGE: 'profile:exportPackage',
+  },
   // 主进程菜单事件（主进程 -> 渲染进程，由 Menu 点击触发）
   MENU: {
     NAVIGATE: 'menu:navigate',

@@ -201,6 +201,13 @@ export default defineConfig({
         // 2026-09-29 提示条：这块空清单时 return null 让 aria-live 区域与文案一起出现，
         // 读屏软件收不到任何提示（撤销只有这一个出口）；计时与收起那半壁也没判据走过。
         'src/renderer/src/components/Toast.tsx', // 100 / 100 / 100
+        // 2026-09-29 阅读画像语料包（方案书第 2 批）：这批的重点是**归层** ——
+        // 「作者写的句子」与「你自己写的字」分不开，外部 AI 就会把书里的话当成你的观点引回去。
+        // 判据两份：tests/profile-corpus.test.ts（纯函数 38 条）
+        // 与 tests/ipc-profile-handlers.test.ts（真库 + 真写盘，不 mock fs，12 条）。
+        'src/shared/profile-corpus.ts',        // 100 / 84.26 / 100
+        'src/shared/profile-manifest.ts',      // 100 / 100 / 100
+        'electron/ipc/profile.ts',             // 100 / 100 / 100
       ],
       exclude: [
         '**/*.test.ts',

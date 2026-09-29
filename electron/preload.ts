@@ -391,6 +391,11 @@ const electronAPI = {
       invoke(IPC_CHANNELS.SKILL.EXPORT_FILE, methodologyId, bookTitle),
   },
 
+  profile: {
+    /** 导出阅读画像语料包：弹目录选择框 → 取数分层 → 写盘。零 AI 调用 */
+    exportPackage: () => invoke(IPC_CHANNELS.PROFILE.EXPORT_PACKAGE),
+  },
+
   system: {
     openExternal: (url: string) => invoke(IPC_CHANNELS.SYSTEM.OPEN_EXTERNAL, url),
     forceSaveDatabase: () => invoke(IPC_CHANNELS.SYSTEM.FORCE_SAVE_DATABASE),
