@@ -51,6 +51,58 @@ describe('RetrievalPanel — 调取知识库可视化', () => {
     expect(document.body.textContent).not.toMatch(/\d+%/)
   })
 
+  it('这一路读库失败 ⇒ 说「读取失败」并把原因挂在 title 上，不含糊成「无命中」', () => {
+    const state: RetrievalState = {
+      stage: 'done',
+      sources: [
+        {
+          name: 'article',
+          label: '读过的文章',
+          source: 'database',
+          used: false,
+          itemCount: 0,
+          method: 'relevance',
+          buildTime: 5,
+          error: '文章库读不动',
+        },
+      ],
+    }
+    render(<RetrievalPanel retrieval={state} />)
+    const failed = screen.getByText('读取失败')
+    expect(failed).toHaveAttribute('title', '文章库读不动')
+    expect(screen.queryByText('无命中')).not.toBeInTheDocument()
+  })
+
+  it('确实没命中（没有 error）才说「无命中」，也不挂 title', () => {
+    const state: RetrievalState = {
+      stage: 'done',
+      sources: [
+        { name: 'article', label: '读过的文章', source: 'database', used: false, itemCount: 0, buildTime: 2 },
+      ],
+    }
+    render(<RetrievalPanel retrieval={state} />)
+    expect(screen.getByText('无命中')).toBeInTheDocument()
+    expect(screen.queryByText('读取失败')).not.toBeInTheDocument()
+  })
+
+  it('反证：失败与没命中是两种形状 —— 同一份数据只改 error 这一格，文字就得跟着变', () => {
+    const base = {
+      name: 'article',
+      label: '读过的文章',
+      source: 'database',
+      used: false,
+      itemCount: 0,
+      buildTime: 2,
+    }
+    const { unmount } = render(
+      <RetrievalPanel retrieval={{ stage: 'done', sources: [{ ...base, error: '炸了' }] }} />,
+    )
+    expect(screen.getByText('读取失败')).toBeInTheDocument()
+    unmount()
+    render(<RetrievalPanel retrieval={{ stage: 'done', sources: [base] }} />)
+    expect(screen.getByText('无命中')).toBeInTheDocument()
+  })
+
   it('点击有预览的来源展开片段', () => {
     const state: RetrievalState = {
       stage: 'done',

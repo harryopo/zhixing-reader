@@ -23,8 +23,6 @@ const DEBT: Record<string, string> = {
   'src/renderer/src/components/Toast.tsx': '90.66 / 63.15 / 75',
   'electron/services/rag-service.ts': '92.68 / 71.42 / 100',
   'electron/agent/builders/book-context-builder.ts': '99.27 / 76.47 / 100',
-  'electron/agent/builders/article-context-builder.ts': '100 / 60 / 100',
-  'electron/agent/builders/vocabulary-context-builder.ts': '100 / 60 / 100',
   'electron/ipc/search.ts': '100 / 66.66 / 100',
   'src/renderer/src/components/SourceHighlights.tsx': '100 / 87.5 / 66.66',
 }
@@ -187,11 +185,11 @@ describe('覆盖率清单与仓库对账', () => {
 
   it('判据自己得看得见东西（路径写错时上面几条会全部空转）', () => {
     // 实测下限跟着欠账走：每还一笔就把这个数一起往前推，否则这条守卫会变成一条永远绿的空话。
-    // 2026-09-29：欠账登记 7 条（卡片构建器与方法论构建器这一批还掉；更早还掉的还有
-    // chatStore、settingsStore、ipc/settings、ipc/books、画像构建器、ipc/knowledge、蒸馏服务、
-    // db-mapper、state-tracker、memory-context-builder）。
+    // 2026-09-29：欠账登记 5 条（卡片构建器、方法论构建器、文章构建器、生词构建器
+    // 与 db-mapper / state-tracker / memory-context-builder 都已还掉；更早还掉的还有
+    // chatStore、settingsStore、ipc/settings、ipc/books、画像构建器、ipc/knowledge、蒸馏服务）。
     expect(TEST_FILES.length).toBeGreaterThanOrEqual(85)
     expect(importedSources().size).toBeGreaterThanOrEqual(75)
-    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(7)
+    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(5)
   })
 })

@@ -3,7 +3,7 @@
  *
  * agent 运行时展示各路知识库检索（书籍笔记 RAG / 知识卡片 / 方法论 / 记忆 / 用户画像）：
  *   - start 阶段：正在调取…（脉冲指示）
- *   - done 阶段：逐路展示 命中数 / 检索方式 / 可展开片段预览
+ *   - done 阶段：逐路展示 命中数 / 检索方式 / 读取失败 / 可展开片段预览
  * 让 RAG / 知识库调取过程对用户可见（此前只存在于后端日志）。
  */
 import { useState, type CSSProperties } from 'react'
@@ -46,11 +46,24 @@ function MethodBadge({ method }: { method?: string }) {
   )
 }
 
+/*
+  右侧那一句状态，三种情形各说一句。「无命中」与「读取失败」是两件事，此前被摆成同一句：
+  构建器读库炸了会交出 `metadata.error`（orchestrator 一路带到这层），
+  这时说「无命中」等于替用户的数据结构撒一个谎 —— 改说「读取失败」，
+  并把原因放进 title，鼠标停上去看得到。
+*/
+function statusOf(source: RetrievalSource): { text: string; failed: boolean } {
+  if (source.used) return { text: `${source.itemCount} 条命中`, failed: false }
+  if (source.error) return { text: '读取失败', failed: true }
+  return { text: '无命中', failed: false }
+}
+
 function SourceRow({ source }: { source: RetrievalSource }) {
   const [expanded, setExpanded] = useState(false)
   const previews = source.previews ?? []
   const hasPreviews = previews.length > 0
   const icon = SOURCE_ICONS[source.name] ?? 'search'
+  const status = statusOf(source)
 
   return (
     <div>
@@ -78,8 +91,15 @@ function SourceRow({ source }: { source: RetrievalSource }) {
         <Icon name={icon} size={14} />
         <span style={{ fontWeight: 500 }}>{source.label}</span>
         <MethodBadge method={source.method} />
-        <span style={{ marginLeft: 'auto', color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
-          {source.used ? `${source.itemCount} 条命中` : '无命中'}
+        <span
+          title={status.failed ? source.error : undefined}
+          style={{
+            marginLeft: 'auto',
+            color: status.failed ? 'var(--destructive)' : 'var(--muted-foreground)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {status.text}
         </span>
         {hasPreviews && (
           <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} />

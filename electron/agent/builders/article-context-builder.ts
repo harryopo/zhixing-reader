@@ -3,12 +3,17 @@ import { articlesDb } from '../../database'
 import { buildIndex, searchIndex, type RetrievalDoc } from '../../../src/shared/retrieval'
 import { ContextBuilder, BuildContext, ContextBuildResult } from '../context-builder'
 
-/** articles 表读出来的行（rowsToObjects 保留数据库列名，即 snake_case） */
+/**
+ * articles 表读出来的行（rowsToObjects 保留数据库列名，即 snake_case）
+ *
+ * `id / title_en / content_en` 库里是 PRIMARY KEY / NOT NULL，所以不写成可选 ——
+ * 原先那句"没有 id 就按行号编一个"与 `a.title_en ?? a.title_zh` 都永远走不到。
+ */
 type ArticleRow = {
-  id?: string
-  title_en?: string
+  id: string
+  title_en: string
   title_zh?: string
-  content_en?: string
+  content_en: string
   content_zh?: string
   summary_zh?: string
   category?: string
@@ -22,14 +27,13 @@ const MAX_BODY_CHARS = 700
 
 function toDocs(items: ArticleRow[]): { docs: RetrievalDoc[]; byId: Map<string, ArticleRow> } {
   const byId = new Map<string, ArticleRow>()
-  const docs = items.map((a, index) => {
-    const id = a.id ?? 'article_' + index
-    byId.set(id, a)
+  const docs = items.map((a) => {
+    byId.set(a.id, a)
     return {
-      id,
+      id: a.id,
       bookId: '',
       bookTitle: '',
-      chapterTitle: a.title_en ?? a.title_zh,
+      chapterTitle: a.title_en,
       content: [a.title_en, a.title_zh, a.summary_zh, a.content_en, a.content_zh]
         .filter(Boolean)
         .join('\n'),
@@ -69,26 +73,34 @@ export class ArticleContextBuilder implements ContextBuilder {
 
   build(context: BuildContext): ContextBuildResult {
     const startTime = Date.now()
-    const empty = (count: number): ContextBuildResult => ({
+    /**
+     * 交回"这一路什么也没带"的结果。
+     *
+     * `error` 必须带上：此前 catch 与"库里没文章"交出的是同一份形状，
+     * 「调取知识库」面板因此把**读库失败**说成「无命中」—— 用户看到的是一个
+     * 关于自己数据结构的假陈述（本项目反复治的"把失败演成没有数据"）。
+     */
+    const empty = (error?: string): ContextBuildResult => ({
       content: '',
       priority: this.priority,
       metadata: {
         source: 'database',
         buildTime: Date.now() - startTime,
-        itemCount: count,
+        itemCount: 0,
         method: 'relevance',
+        ...(error === undefined ? {} : { error }),
       },
     })
 
     try {
       // 文章不属于某一本书，跨全部取；上限按实际数据量给，避免每次都全表扫
       const articles = articlesDb.getAll(500) as ArticleRow[]
-      if (articles.length === 0) return empty(0)
+      if (articles.length === 0) return empty()
 
       const { docs, byId } = toDocs(articles)
       const hits = searchIndex(buildIndex(docs), context.userMessage, { limit: MAX_ARTICLES })
       const relevant = hits.map((hit) => byId.get(hit.highlightId)).filter((a): a is ArticleRow => !!a)
-      if (relevant.length === 0) return empty(0)
+      if (relevant.length === 0) return empty()
 
       const body = relevant.map(render).join('\n\n---\n\n')
       const content =
@@ -114,7 +126,7 @@ export class ArticleContextBuilder implements ContextBuilder {
       }
     } catch (error) {
       logger.error('Failed to build article context', error)
-      return empty(0)
+      return empty(error instanceof Error ? error.message : String(error))
     }
   }
 }

@@ -184,6 +184,11 @@ export default defineConfig({
         'electron/agent/builders/knowledge-card-context-builder.ts', // 100 / 83.33 / 100
         // 同一批：相关度的显示口径（BM25 原始分没有上界，界面那句 ×100 的百分比是编的）
         'src/shared/relevance-display.ts', // 100 / 100 / 100
+        // 2026-09-29 文章与生词这两路：catch 交出的是与"库里没数据"一字不差的形状
+        // ⇒「调取知识库」面板把读库失败说成「无命中」。补判据时顺带把两路的每一栏、
+        // 截断两头与上限钉住（tests/context-builders-article-vocab.test.ts 扩到 34 条）。
+        'electron/agent/builders/article-context-builder.ts', // 100 / 93.54 / 100
+        'electron/agent/builders/vocabulary-context-builder.ts', // 100 / 92.59 / 100
       ],
       exclude: [
         '**/*.test.ts',
