@@ -198,6 +198,9 @@ export default defineConfig({
         // 而出处区块把"这一次没读出来"说成「原始划线已经不在了」。
         'electron/ipc/search.ts', // 100 / 100 / 100
         'src/renderer/src/components/SourceHighlights.tsx', // 100 / 100 / 100
+        // 2026-09-29 提示条：这块空清单时 return null 让 aria-live 区域与文案一起出现，
+        // 读屏软件收不到任何提示（撤销只有这一个出口）；计时与收起那半壁也没判据走过。
+        'src/renderer/src/components/Toast.tsx', // 100 / 100 / 100
       ],
       exclude: [
         '**/*.test.ts',

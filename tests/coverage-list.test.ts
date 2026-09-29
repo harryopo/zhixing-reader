@@ -18,10 +18,15 @@ import { dirname, join, relative, resolve } from 'path'
 
 const ROOT = process.cwd()
 
-/** 欠账登记：文件 → 2026-09-26 实测的 lines / branches / funcs（不是估计，是量出来的） */
-const DEBT: Record<string, string> = {
-  'src/renderer/src/components/Toast.tsx': '90.66 / 63.15 / 75',
-}
+/**
+ * 欠账登记：文件 → 2026-09-26 实测的 lines / branches / funcs（不是估计，是量出来的）。
+ *
+ * 2026-09-29 这张表清零（登记时 22 条，逐批按"先读代码找真缺陷再补判据"还完）。
+ * 空表不等于这条守卫失去意义：它的牙齿在"被测试 import、既没进清单又没登记欠账 ⇒ 判红"
+ * 那条上（与表长不相关），下面配了一条反证把它咬得起来的样子钉住。
+ * 以后再登记欠账，必须带实测三线，不许写"看起来还行"。
+ */
+const DEBT: Record<string, string> = {}
 
 /** 结构性排除：coverage.exclude 规则本就不统计的文件（不是欠账，也不该统计） */
 const EXCLUDED_BY_RULE: Record<string, string> = {
@@ -180,14 +185,37 @@ describe('覆盖率清单与仓库对账', () => {
   })
 
   it('判据自己得看得见东西（路径写错时上面几条会全部空转）', () => {
-    // 实测下限跟着欠账走：每还一笔就把这个数一起往前推，否则这条守卫会变成一条永远绿的空话。
-    // 2026-09-29：欠账登记 1 条（搜索那一路 ipc/search + SourceHighlights 这一批还掉；再往前
-    // 还掉的是划线检索那一路 rag-service + book-context-builder、文章与生词两路构建器、
-    // 卡片与方法论两路构建器、memory-context-builder、state-tracker、db-mapper、蒸馏服务、
-    // ipc/knowledge、画像构建器、chatStore、settingsStore、ipc/settings、ipc/books、
-    // 后台 admin、weread-sync-manager、weread-api、chatStore、以及更早的若干笔）。
+    // 实测下限跟着仓库规模走：清单条目数与"被测试 import 的源文件数"掉下来说明扫描瞎了。
+    // 2026-09-29：欠账表已清零（登记时 22 条，逐批还完），所以下面不再断"表至少有几条"——
+    // 一条 `≥0` 的断言是永远绿的空话，这张表的牙齿改由下面那条反证钉住。
     expect(TEST_FILES.length).toBeGreaterThanOrEqual(85)
     expect(importedSources().size).toBeGreaterThanOrEqual(75)
-    expect(Object.keys(DEBT).length).toBeGreaterThanOrEqual(1)
+    expect(DEBT, '欠账表已清零；再往里塞条目必须带 2026-09-26 那种实测三线').toEqual({})
+  })
+
+  it('反证：一张表挡不住时"有测试却没进清单也没登记欠账"必须报出来（表空了这条也得有牙）', () => {
+    // `electron/database/index.ts` 真实存在、被测试 import、且**不在**清单里，
+    // 它今天靠 EXCLUDED_BY_RULE 免掉。把那张免罪表摘掉再跑同一个过滤式，
+    // 它必须立刻被报出来 —— 否则就说明过滤器本身瞎了，而不是账真还完了。
+    const file = 'electron/database/index.ts'
+    expect(importedSources().has(file), '前提：这个文件确实被测试 import 到').toBe(true)
+    expect(inIncludeList(file), '前提：这个文件确实不在清单里').toBe(false)
+    expect(file in EXCLUDED_BY_RULE, '前提：它确实是被 EXCLUDED_BY_RULE 免掉的').toBe(true)
+
+    const unlisted = [...importedSources()].filter(
+      (f) => !inIncludeList(f) && !(f in DEBT) && !(f in NOT_LISTED),
+    )
+    expect(unlisted, '摘掉 EXCLUDED_BY_RULE 后必须把这个文件报出来').toContain(file)
+  })
+
+  it('反证：把已进清单的文件留在欠账里必须判红（欠账不许空转）', () => {
+    // 与上面那条判据同一个式子，只是把一张"确实已在清单里"的文件塞进欠账表：
+    // 必须当场报出来，否则"补了测试就顺手销账"这条规矩没人守。
+    const already = coverageInclude().filter((e) => !e.includes('*'))
+    expect(already.length, '前提：清单里有精确路径条目可拿来做反证').toBeGreaterThan(0)
+    const probe = already[0]
+    expect(inIncludeList(probe), '前提：挑出来的这条确实在清单里').toBe(true)
+    const idle = Object.keys({ ...DEBT, [probe]: '反证用' }).filter((f) => inIncludeList(f))
+    expect(idle, '已进清单的文件留在欠账里必须被报出来').toContain(probe)
   })
 })

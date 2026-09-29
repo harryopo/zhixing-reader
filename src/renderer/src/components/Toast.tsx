@@ -101,6 +101,7 @@ function ToastItem({
           ) : (
             <svg
               className={`w-5 h-5 ${config.iconColor}`}
+              aria-hidden="true"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -116,10 +117,10 @@ function ToastItem({
           {action && (
             <button
               // 连点两次撤销：第二次会把「现场已用过」的错误甩给用户（主进程那边
-              // token 一次一废），所以这里只认第一次
+              // token 一次一废）。挡住第二次的是这个 disabled（禁用后浏览器不再派发
+              // 点击），处理器里再判一次是走不到的分支，留着一个也没人会测它
               disabled={actionUsed}
               onClick={() => {
-                if (actionUsed) return
                 setActionUsed(true)
                 // 先收起这条再执行：撤销会另出一条结果提示，
                 // 两条叠在一起会让人分不清哪条对应哪次操作
@@ -138,9 +139,18 @@ function ToastItem({
         {type !== 'loading' && (
           <button
             onClick={handleClose}
+            // 图标按钮没有可读文字，不给名字读屏软件只能播报「按钮」——
+            // 与弹层原语同一个口径（ui/Modal 的关闭键写的是 aria-label）
+            aria-label="关闭这条提示"
             className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="w-4 h-4"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -171,10 +181,22 @@ function ToastItem({
 export default function ToastContainer() {
   const toasts = useToastStore((state) => state.toasts)
 
-  if (toasts.length === 0) return null
-
+  /*
+    这块是全站唯一的异步结果出口（删除成功 / 撤销 / 同步失败 / AI 跑完），
+    而 `aria-live` 有一条已知的坑：**活动区域必须在内容出现之前就已经挂在 DOM 里**，
+    连同内容一起插入时多数读屏软件不播报。原来这里在清单为空时 `return null`，
+    等于每次都是"新区域 + 新文案"一起出现 ⇒ 整条提示系统对读屏软件是静默的，
+    用辅助技术的人丢掉的是撤销的唯一出口（界面上没有第二个入口）。
+    空清单也渲染这个壳：fixed + pointer-events-none，没有子节点时不占一个像素。
+  */
   return (
-    <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none">
+    <div
+      className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none"
+      role="log"
+      aria-live="polite"
+      aria-atomic="false"
+      aria-label="提示"
+    >
       {toasts.map((toast) => (
         <div key={toast.id} className="pointer-events-auto">
           <ToastItem
