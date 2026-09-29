@@ -82,6 +82,9 @@ describe('weread-api 走真实网络层代码（mock 只在 fetch 那条缝）',
     h.routes.clear()
     h.calls.length = 0
     Object.values(h.logger).forEach((fn) => fn.mockClear())
+    // 缓存是模块级、按 (api_name + 整个请求体) 做键的。多条用例用同一个 bookId 时，
+    // 后一条会直接读到前一条的响应而**根本不发网络** —— 那样判据绿的是缓存，不是代码。
+    api.clearCache()
     api.setApiKey('test-key')
   })
 
@@ -247,12 +250,54 @@ describe('weread-api 走真实网络层代码（mock 只在 fetch 那条缝）',
       expect(await api.fetchBookmarks('b2')).toEqual([])
     })
 
-    it('笔记缺 chapterUid / abstract / content 时兜底，书名不带的字段不会变 NaN', async () => {
+    it('想法正文嵌在 review 里 —— 读顶层那条路永远读不到东西（2026-09-29 实测）', async () => {
+      // 网关真实回包形状（原始 JSON 核过，官方接口文档同口径）：
+      //   reviews[] = { reviewId, review: { content, abstract, range, chapterUid, chapterTitle, createTime } }
+      // 旧写法读 reviews[].content ⇒ 永远 undefined ⇒ 归一成空串，
+      // 实测本机三本书 22 条想法里 21 条有正文，读回来是 0 条，且界面与日志都不说。
       respond('/review/list/mine', {
         body: {
           errcode: 0,
-          reviews: [{ reviewId: 'r1', bookId: 'b1', range: '1-2', createTime: 9 }],
+          reviews: [{
+            reviewId: 'wrap-1',
+            review: {
+              reviewId: 'r1', bookId: 'b1', chapterUid: 176, chapterTitle: '过多的自我意识，反而会束缚自己',
+              abstract: '但是，如果登山的目的不是登顶而是登山本身。', content: '去爬山，登山只是一个阶段',
+              range: '33777-33826', createTime: 1776069824,
+            },
+          }],
         },
+      })
+
+      expect(await api.fetchNotes('b1')).toEqual([{
+        reviewId: 'r1',
+        bookId: 'b1',
+        chapterUid: 176,
+        chapterTitle: '过多的自我意识，反而会束缚自己',
+        abstract: '但是，如果登山的目的不是登顶而是登山本身。',
+        content: '去爬山，登山只是一个阶段',
+        range: '33777-33826',
+        createTime: 1776069824,
+      }])
+    })
+
+    it('条目里没有嵌套 review ⇒ 丢掉并报警，不归一成"一条空正文的想法"', async () => {
+      // 认不出形状就演成"用户没写想法"，是本项目反复治的那条形状；
+      // 这一条既不进库、也必须留下一句可见的话。
+      respond('/review/list/mine', {
+        body: { errcode: 0, reviews: [{ reviewId: 'r1', content: '顶层就带正文的旧形状' }] },
+      })
+
+      expect(await api.fetchNotes('b1')).toEqual([])
+      expect(h.logger.warn).toHaveBeenCalledWith(
+        'WeRead notes came back without the nested review body',
+        expect.objectContaining({ bookId: 'b1', unreadable: 1 }),
+      )
+    })
+
+    it('笔记缺 chapterUid / abstract / content 时兜底，书名不带的字段不会变 NaN', async () => {
+      respond('/review/list/mine', {
+        body: { errcode: 0, reviews: [{ reviewId: 'r1', review: { reviewId: 'r1', bookId: 'b1', range: '1-2', createTime: 9 } }] },
       })
       const notes = await api.fetchNotes('b1')
       expect(notes[0]).toMatchObject({ chapterUid: 0, chapterTitle: '', abstract: '', content: '' })
@@ -265,50 +310,73 @@ describe('weread-api 走真实网络层代码（mock 只在 fetch 那条缝）',
       expect(await api.fetchChapters('b1')).toEqual([{ chapterUid: 1, title: '第一章', level: 1 }])
     })
 
-    it('按书取想法时书 id 放在 bookId 键上 —— 与同文件另三条按书取数同一写法', async () => {
-      // 生产侧这里写的是 `bookid`（小写），而 getprogress / bookmarklist / chapterinfo
-      // 三条都写 `bookId`。网关把不认的参数丢掉时回的是 errcode:0 + 空 reviews，
-      // 不抛错 ⇒ "用户写的想法"读不回来且全程静默（实测本机 934 条划线 note 非空 0 条）。
-      // 这条判据断的是**发出去的请求体**，不是 mock 的行为：那是这一层的对外契约。
+    it('按书取想法时书 id 放在小写 bookid 键上 —— 网关这个接口的口径与另三条不一样', async () => {
+      // 2026-09-29 对真实网关发过一次：`/review/list/mine` 带 `bookId`（驼峰）会被拒
+      //   errcode -2003 / HTTP 499 / errmsg「缺少必填参数: bookid (书籍 ID)」
+      // 而 getprogress / bookmarklist / chapterinfo 三条要的是驼峰 `bookId`。
+      // 上一批按"同文件应当统一"把它改成驼峰，结果整条想法通路直接断掉 ——
+      // 参数名的真值是网关定的，不是代码风格定的，所以这条判据断**发出去的请求体**。
       respond('/review/list/mine', { body: { errcode: 0, reviews: [] } })
       await api.fetchNotes('b7')
 
       const sent = sentBodies('/review/list/mine').pop()
-      expect(sent).toMatchObject({ api_name: '/review/list/mine', bookId: 'b7' })
-      expect(sent).not.toHaveProperty('bookid')
+      expect(sent).toMatchObject({ api_name: '/review/list/mine', bookid: 'b7' })
+      expect(sent).not.toHaveProperty('bookId')
     })
 
-    it('想法一次拉满一页 ⇒ 如实报警"可能还有更多没取回来"，不静默截断', async () => {
-      // count: 100 是一次请求的上限，而这个接口有没有续拉的游标**我没有核实过**，
-      // 所以这里不猜分页语义，只把"恰好取满一页"这件一定会发生的事变成可见的：
-      // 真写了 120 条想法的人，今天只会进来 100 条，而界面与日志都不说。
-      const reviews = Array.from({ length: 100 }, (_, i) => ({
-        reviewId: `r${i}`, bookId: 'b1', chapterUid: 1, abstract: `摘句${i}`, content: `想法${i}`, range: '', createTime: 1_700_000_000,
-      }))
-      respond('/review/list/mine', { body: { errcode: 0, reviews } })
+    it('回包说还有更多 ⇒ 按 synckey 游标续拉，取回的是两页之和', async () => {
+      // 网关的回包里带 hasMore 与 synckey（实测原始回包 + 官方文档），
+      // 所以"只取第一页"会把写了 120 条想法的人截成 100 条 —— 这次按游标续拉。
+      const wrap = (i: number) => ({ reviewId: `r${i}`, review: { reviewId: `r${i}`, bookId: 'b1', chapterUid: 1, abstract: `摘句${i}`, content: `想法${i}`, range: '', createTime: 1700000000 } })
+      respond(
+        '/review/list/mine',
+        { body: { errcode: 0, reviews: Array.from({ length: 2 }, (_, i) => wrap(i)), hasMore: 1, synckey: 500 } },
+        { body: { errcode: 0, reviews: Array.from({ length: 2 }, (_, i) => wrap(i + 2)), hasMore: 0, synckey: 900 } },
+      )
 
       const notes = await api.fetchNotes('b1')
 
-      expect(notes).toHaveLength(100)
-      expect(h.logger.warn).toHaveBeenCalledWith(
-        'WeRead notes filled one page',
-        expect.objectContaining({ bookId: 'b1', fetched: 100, page: 100 }),
-      )
+      expect(notes).toHaveLength(4)
+      expect(notes.map((n) => n.content)).toEqual(['想法0', '想法1', '想法2', '想法3'])
+      const bodies = sentBodies('/review/list/mine')
+      expect(bodies[0]).not.toHaveProperty('synckey')
+      expect(bodies[1]).toMatchObject({ synckey: 500, bookid: 'b1' })
     })
 
-    it('不足一页 ⇒ 不许乱报警（报一次就得有人去查一次）', async () => {
+    it('回包说没有更多 ⇒ 就地收，不多发一趟', async () => {
       respond('/review/list/mine', {
-        body: { errcode: 0, reviews: [{ reviewId: 'r1', bookId: 'b1', chapterUid: 1, abstract: 'a', content: 'c', range: '', createTime: 1 }] },
+        body: {
+          errcode: 0,
+          reviews: [{ reviewId: 'r1', review: { reviewId: 'r1', bookId: 'b1', abstract: 'a', content: 'c', createTime: 1 } }],
+          hasMore: 0,
+          synckey: 77,
+        },
       })
 
       await api.fetchNotes('b2')
 
-      expect(h.logger.warn).not.toHaveBeenCalledWith('WeRead notes filled one page', expect.anything())
+      expect(timesCalled('/review/list/mine')).toBe(1)
+      expect(h.logger.warn).not.toHaveBeenCalled()
+    })
+
+    it('游标不前进 ⇒ 停在第一页并报警，不许把自己变成无限请求的循环', async () => {
+      respond('/review/list/mine', {
+        body: { errcode: 0, reviews: [{ reviewId: 'r1', review: { reviewId: 'r1', abstract: 'a', content: 'c' } }], hasMore: 1, synckey: 0 },
+      })
+
+      const notes = await api.fetchNotes('b3')
+
+      expect(notes).toHaveLength(1)
+      expect(timesCalled('/review/list/mine')).toBe(1)
+      expect(h.logger.warn).toHaveBeenCalledWith(
+        'WeRead notes cursor did not advance, stopping',
+        expect.objectContaining({ bookId: 'b3', page: 1 }),
+      )
     })
 
     it('fetchAllContent 一次把三件取齐', async () => {
       respond('/book/bookmarklist', { body: { errcode: 0, updated: [{ bookmarkId: 'm1', bookId: 'b1', chapterUid: 1, markText: 'x', style: 0, range: '', createTime: 1 }] } })
-      respond('/review/list/mine', { body: { errcode: 0, reviews: [{ reviewId: 'r1', bookId: 'b1', abstract: 'a', content: 'c', range: '', createTime: 2 }] } })
+      respond('/review/list/mine', { body: { errcode: 0, reviews: [{ reviewId: 'r1', review: { reviewId: 'r1', bookId: 'b1', abstract: 'a', content: 'c', range: '', createTime: 2 } }], hasMore: 0 } })
       respond('/book/chapterinfo', { body: { errcode: 0, chapters: [{ chapterUid: 1, title: 't', level: 1 }] } })
       const all = await api.fetchAllContent('b1')
       expect(all.bookmarks).toHaveLength(1)
@@ -318,10 +386,9 @@ describe('weread-api 走真实网络层代码（mock 只在 fetch 那条缝）',
 
     it('批量取内容时，失败的那本不进结果，别的照常（一批三本，第七本坏掉）', async () => {
       respond('/book/bookmarklist', (body) => (body.bookId === 'bad' ? { status: 500, text: 'no' } : { body: { errcode: 0, updated: [] } }))
-      // 这个 mock 原来读的是 `body.bookid`（小写），与生产侧那个错拼法一模一样 ——
-      // 于是"500 的那本不进结果"这一支在想法这条路上**从来没被触发过**，
-      // 测试绿着却什么都没验。参数名对齐后，mock 必须跟着读同一个键名才真的有效。
-      respond('/review/list/mine', (body) => (body.bookId === 'bad' ? { status: 500, text: 'no' } : { body: { errcode: 0, reviews: [] } }))
+      // mock 读的键名必须与网关真实接受的那个一致（想法这一条是小写 `bookid`，见上面那条判据），
+      // 否则"500 的那本不进结果"这一支根本不会被触发，测试绿着却什么都没验。
+      respond('/review/list/mine', (body) => (body.bookid === 'bad' ? { status: 500, text: 'no' } : { body: { errcode: 0, reviews: [] } }))
       respond('/book/chapterinfo', (body) => (body.bookId === 'bad' ? { status: 500, text: 'no' } : { body: { errcode: 0, chapters: [] } }))
       const ids = ['b1', 'b2', 'b3', 'bad', 'b5']
       const out = await api.fetchAllContentBatch(ids)

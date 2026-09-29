@@ -8,9 +8,17 @@ const { timeout: REQUEST_TIMEOUT, maxRetries: MAX_RETRIES, baseDelay: RETRY_DELA
 const CACHE_TTL = 5 * 60 * 1000;
 /**
  * 一次 `/review/list/mine` 请求的条数上限。
- * 这个数同时用在请求与"取满了要报警"的判据里 —— 分成两个字面量迟早各漂一次。
+ * 这个数同时用在请求与页数计算的判据里 —— 分成两个字面量迟早各漂一次。
  */
 const NOTES_PAGE_SIZE = 100;
+
+/**
+ * 想法最多翻这么多页（100 × 50 = 5,000 条）。
+ *
+ * 网关的回包里有 `hasMore` 与 `synckey` 游标（实测），所以正常结束靠游标；
+ * 这个上限只挡"游标不前进/回包自相矛盾"把这里变成无限请求的那一种坏情况。
+ */
+const NOTES_MAX_PAGES = 50;
 
 interface GatewayRequest {
   api_name: string;
@@ -433,50 +441,96 @@ export async function fetchBookmarks(bookId: string): Promise<WereadBookmark[]> 
   }
 }
 
+/** `/review/list/mine` 一页条目（正文真实形状嵌在 `review` 里，见 unwrapNote） */
+interface RawNoteItem {
+  reviewId?: string;
+  bookId?: string;
+  chapterUid?: number;
+  chapterTitle?: string;
+  abstract?: string;
+  content?: string;
+  range?: string;
+  createTime?: number;
+  review?: RawNoteItem;
+}
+
+/**
+ * 把一条想法摊平。
+ *
+ * 网关回的是 `reviews[].review.{content,abstract,...}` —— **正文嵌一层**（实测原始回包 +
+ * 官方接口文档两处一致）。这里原来直接读 `reviews[].content`，读到的永远是 `undefined`，
+ * 归一化成空串，于是"用户亲手写的想法"整条通路一条都没进过库，而界面与日志都不说。
+ * 实测本机三本书：22 条想法条目里 21 条有正文，读回来是 0 条。
+ *
+ * 认不出形状的那一条**丢掉并报警**，不许归一成"一条空正文的想法"——
+ * 把读不到演成没内容，是本项目反复治的那个形状。
+ */
+function unwrapNote(item: RawNoteItem, bookId: string): WereadReview | null {
+  const src = item.review;
+  if (!src) return null;
+  return {
+    reviewId: String(src.reviewId ?? item.reviewId ?? ''),
+    bookId: String(src.bookId ?? bookId),
+    chapterUid: src.chapterUid || 0,
+    chapterTitle: src.chapterTitle || '',
+    abstract: src.abstract || '',
+    content: src.content || '',
+    range: src.range ?? '',
+    createTime: src.createTime ?? 0,
+  };
+}
+
 export async function fetchNotes(bookId: string): Promise<WereadReview[]> {
   try {
-    const data = await gatewayRequest<{
-      reviews: Array<{
-        reviewId: string;
-        bookId: string;
-        chapterUid?: number;
-        chapterTitle?: string;
-        abstract: string;
-        content: string;
-        range: string;
-        createTime: number;
-      }>;
-    }>({
-      api_name: '/review/list/mine',
-      // 键名必须是 `bookId`：同文件另外三条按书取数都是这个写法，而这里曾写成 `bookid`。
-      // 拼错时网关回的是 errcode:0 + 空 reviews（不抛错），于是用户的想法静默读不回来。
-      // 判据：tests/weread-api-network.test.ts「书 id 放在 bookId 键上」
-      bookId,
-      count: NOTES_PAGE_SIZE,
-    });
+    const collected: WereadReview[] = [];
+    let synckey = 0;
 
-    const reviews = data.reviews || [];
-    // 一次请求的上限就是这一页。这个接口有没有续拉游标**我没有核实过**，
-    // 所以不假装分页，只把"取满一整页"这件必然意味着可能还有更多的事情报警出来 ——
-    // 否则真写了 120 条想法的人，只有前 100 条进得了库，而界面与日志都不说。
-    if (reviews.length >= NOTES_PAGE_SIZE) {
-      logger.warn('WeRead notes filled one page', {
-        bookId,
-        fetched: reviews.length,
-        page: NOTES_PAGE_SIZE,
+    for (let page = 1; page <= NOTES_MAX_PAGES; page++) {
+      const data = await gatewayRequest<{
+        reviews?: RawNoteItem[];
+        hasMore?: number;
+        synckey?: number;
+      }>({
+        api_name: '/review/list/mine',
+        // 这一个接口的参数名是小写 `bookid`，与同文件另外三条按书取数的 `bookId` **不一样**。
+        // 实测（2026-09-29 对真实网关发过一次）：写成 `bookId` 会被拒
+        //   errcode -2003 / HTTP 499 / errmsg「缺少必填参数: bookid (书籍 ID)」
+        // 所以这里不是拼写错误，是网关自己的口径不统一 —— 改成"看起来一致"就把这条路弄断了。
+        // 判据：tests/weread-api-network.test.ts「书 id 放在 bookid 键上」
+        bookid: bookId,
+        count: NOTES_PAGE_SIZE,
+        ...(page > 1 ? { synckey } : {}),
       });
+
+      const reviews = data.reviews || [];
+      for (const item of reviews) {
+        const note = unwrapNote(item, bookId);
+        if (note) collected.push(note);
+      }
+      const unreadable = reviews.length - reviews.filter((item) => item.review).length;
+      if (unreadable > 0) {
+        logger.warn('WeRead notes came back without the nested review body', { bookId, page, unreadable });
+      }
+
+      // 续拉靠游标：回包说没有更多了就停。加一个页数上限是为了
+      // "游标不前进"这种坏情况不会把这里变成无限请求的循环。
+      if (!data.hasMore || reviews.length === 0) return collected;
+      if (data.synckey === undefined || data.synckey === synckey) {
+        logger.warn('WeRead notes cursor did not advance, stopping', { bookId, page, synckey });
+        return collected;
+      }
+      synckey = data.synckey;
+
+      if (page === NOTES_MAX_PAGES) {
+        logger.warn('WeRead notes hit page ceiling, more may exist', {
+          bookId,
+          fetched: collected.length,
+          ceiling: NOTES_MAX_PAGES,
+        });
+      }
     }
 
-    return reviews.map(item => ({
-      reviewId: item.reviewId,
-      bookId: item.bookId,
-      chapterUid: item.chapterUid || 0,
-      chapterTitle: item.chapterTitle || '',
-      abstract: item.abstract || '',
-      content: item.content || '',
-      range: item.range,
-      createTime: item.createTime,
-    }));
+    return collected;
   } catch (error) {
     logger.error(`Failed to fetch notes for book ${bookId}`, error);
     throw error;
