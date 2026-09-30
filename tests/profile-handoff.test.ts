@@ -17,6 +17,7 @@ import {
   validateStatements,
 } from '../src/shared/profile-statements'
 import type { ProfileManifest } from '../src/shared/profile-manifest'
+import { CORPUS_MAX_CHARS_PER_VOLUME, planVolumes, volumeChars } from '../src/shared/profile-corpus'
 import { SKILL_DESCRIPTION, SKILL_DIR_NAME, buildSkillFile } from '../src/shared/profile-skill'
 import { BODY_MAX_LINES, checkSkill } from './__fixtures__/skill-spec'
 
@@ -111,6 +112,45 @@ describe('文档里那份样例是跑得通的', () => {
   it('样例用的 id 是编的（hl_1 这种），不含任何真实划线编号', () => {
     expect(doc).toContain('hl_1')
     expect(doc).not.toMatch(/hl_\d{13}_[a-z0-9]{6,}/)
+  })
+})
+
+describe('说明书把"能撑到哪、撑不到哪"写死', () => {
+  /** 「诚实边界」那一节里的条目：按节切，数它自己的项目符号，不数常量数组长度 */
+  const boundaryItems = (): string[] => {
+    const section = doc.split('\n## ').find((block) => block.startsWith('六、诚实边界'))
+    if (!section) throw new Error(`文档里没有「六、诚实边界」这一节\n${doc}`)
+    return section.split('\n').filter((line) => line.startsWith('- '))
+  }
+
+  it('有「诚实边界」一节，且条目不少于 3 条（方案书 §8 那条静态阈值）', () => {
+    expect(boundaryItems().length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('写死这一条：本地模式没有「他者视角」与「时间线」两维，这两块必然薄弱', () => {
+    const found = boundaryItems().find((line) => line.includes('他者视角') && line.includes('时间线'))
+    expect(found, '缺了那两维的交代，外部工具会蒙过去').toBeDefined()
+    expect(found).toContain('薄弱')
+  })
+
+  it('写明每卷上限多少字 —— 那个数要等于分卷实际装下的字数', () => {
+    // 行为推出来的上限：每条 1000 字，按同一个 maxChars 分卷 ⇒ 一卷装下的就是那个数。
+    // 文档里写死一个别的数（比如 5000）就当场对不上。
+    const rows = Array.from({ length: 9 }, (_, i) => ({
+      id: `r${i}`,
+      layer: 'marked' as const,
+      kind: 'highlight' as const,
+      text: '一'.repeat(1000),
+      at: null,
+    }))
+    const packed = Math.max(...planVolumes(rows, CORPUS_MAX_CHARS_PER_VOLUME).map((v) => volumeChars(v.records)))
+    expect(doc).toContain(`${packed} 字`)
+  })
+
+  it('交代清楚交给外部蒸馏工具的做法：选纯本地语料、把 corpus 那些卷一起给它、不联网交叉验证', () => {
+    expect(doc).toContain('纯本地语料')
+    expect(doc).toContain('corpus/')
+    expect(doc).toContain('不联网')
   })
 })
 

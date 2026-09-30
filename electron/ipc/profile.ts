@@ -14,7 +14,12 @@ import { BrowserWindow, dialog } from 'electron';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
-import { describeCorpus, planCorpusRecords, planVolumes } from '../../src/shared/profile-corpus';
+import {
+  CORPUS_MAX_CHARS_PER_VOLUME,
+  describeCorpus,
+  planCorpusRecords,
+  planVolumes,
+} from '../../src/shared/profile-corpus';
 import type { CorpusPlan, CorpusVolume } from '../../src/shared/profile-corpus';
 import { buildManifest, describeManifest } from '../../src/shared/profile-manifest';
 import type { CorpusExportResult, ProfileManifest } from '../../src/shared/profile-manifest';
@@ -41,12 +46,6 @@ import { booksDb, conversationDb, dailyStatsDb, highlightsDb, memoriesDb, profil
 import { getUserSelfProfile } from '../services/user-profile-service';
 import { logger } from '../logger';
 import type { HandleFn } from './types';
-
-/**
- * 每卷的上限（字）。marked 层本机实测 56,299 字，一次喂进去既超常见上下文，
- * 也正是 OP-Bench 测出「记忆反而拖垮表现」的那种用法 —— 所以按卷切，让人挑着贴。
- */
-export const CORPUS_MAX_CHARS_PER_VOLUME = 4000;
 
 /** 日粒度数据取全史：`daily_stats.date` 是 `YYYY-MM-DD`，两头各给一个不会越界的哨兵值 */
 const ALL_DAYS: [string, string] = ['0001-01-01', '9999-12-31'];

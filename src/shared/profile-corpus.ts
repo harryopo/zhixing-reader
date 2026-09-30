@@ -283,6 +283,13 @@ export interface CorpusVolume {
 }
 
 /**
+ * 每卷的上限（字）。marked 层本机实测 56,299 字，一次喂进去既超常见上下文，
+ * 也正是 OP-Bench 测出「记忆反而拖垮表现」的那种用法 —— 所以按卷切，让人挑着贴。
+ * 这个数同时被导出那侧与交接说明用（说明里要告诉对方每卷多大），所以只有这一处。
+ */
+export const CORPUS_MAX_CHARS_PER_VOLUME = 4000
+
+/**
  * 按层分卷：said / marked / chose 各自切，文件名带层名。
  * 单层只有一卷时也叫 `-vol-01`，不为省一个字再分两种命名。
  */
