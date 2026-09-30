@@ -219,6 +219,13 @@ export default defineConfig({
         'electron/database/profile-statements.ts', // 100 / 100 / 100
         'src/renderer/src/utils/clipboard.ts', // 100 / 100 / 100
         'src/renderer/src/pages/profile/StatementReview.tsx', // 100 / 82.08 / 100
+        // 2026-09-30 画像包交接说明与 Skill 目录合规（方案书第 4 批）：说明书由程序写出，
+        // 形状写歪不会报错，只是外部 AI 交回一篇 markdown、或客户端静默不加载这个目录。
+        // 判据：tests/profile-handoff.test.ts（与闸门同源 + 样例真能过闸）、
+        // tests/profile-skill.test.ts（四种不合规各自判红）、
+        // tests/ipc-profile-handlers.test.ts（落盘对账 + 文件清单 + 密钥扫描守卫）。
+        'src/shared/profile-handoff.ts',       // 100 / 100 / 100
+        'src/shared/profile-skill.ts',         // 100 / 100 / 100
       ],
       exclude: [
         '**/*.test.ts',

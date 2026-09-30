@@ -36,6 +36,13 @@ export const STATEMENT_ORIGINS: readonly StatementOrigin[] = ['app', 'nuwa', 'ma
 export const STATEMENT_FILE_APP = 'zhixing-reader-profile-statements'
 export const STATEMENT_FILE_VERSION = '1.0'
 
+/**
+ * 这份清单在界面上叫什么时候，导出的说明书里就写什么时候。
+ * 导入弹框的筛选器名字与文档各写一遍，早晚一个说「画像结论清单」一个说「结论清单」，
+ * 而对方照着文档存的文件名与界面认的名字不一致时，用户只会觉得"我明明给了它文件"。
+ */
+export const STATEMENT_FILE_LABEL = '画像结论清单'
+
 /** 一条结论至少几条证据 —— 少于这个数就是孤证，孤证不立 */
 export const MIN_EVIDENCE = 2
 

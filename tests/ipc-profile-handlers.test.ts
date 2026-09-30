@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import { BrowserWindow, dialog } from 'electron'
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { join, basename, relative } from 'path'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
 import {
   booksDb,
@@ -27,7 +27,9 @@ import {
 import { registerProfileHandlers } from '../electron/ipc/profile'
 import { IPC_CHANNELS } from '../src/shared/ipc-channels'
 import { CATEGORY_CAVEAT } from '../src/shared/profile-corpus'
-import { STATEMENT_FILE_APP, STATEMENT_FILE_VERSION } from '../src/shared/profile-statements'
+import { STATEMENT_FILE_APP, STATEMENT_FILE_LABEL, STATEMENT_FILE_VERSION, parseStatementsFile, validateStatements } from '../src/shared/profile-statements'
+import { SKILL_DIR_NAME } from '../src/shared/profile-skill'
+import { checkSkill } from './__fixtures__/skill-spec'
 import type { CorpusExportResult, ProfileManifest } from '../src/shared/profile-manifest'
 import type { StatementImportResult, StatementListView } from '../src/shared/profile-statements'
 
@@ -277,6 +279,95 @@ describe('真库导出：文件里的每一行都对得上库里那一行', () =
   })
 })
 
+describe('导出的包自带交接说明（第 4 批：形状由程序写，不再靠人手抄）', () => {
+  /** 包根目录 = corpus 的上一级 */
+  function rootOf(result: CorpusExportResult): string {
+    return join(result.dir, '..')
+  }
+
+  it('根目录里有 README.md 与 SKILL.md，与 corpus 同级', async () => {
+    seedLibrary()
+    pickAt(PICKED)
+    const result = await exportOnce()
+
+    expect(readdirSync(rootOf(result)).sort()).toEqual(['README.md', 'SKILL.md', 'corpus'])
+  })
+
+  it('写出去的文件只有清单里那些 —— 多一个就判红（把设置或密钥写进包里就是这么漏出去的）', async () => {
+    seedLibrary()
+    pickAt(PICKED)
+    const result = await exportOnce()
+
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory() ? walk(join(dir, entry.name)) : [relative(rootOf(result), join(dir, entry.name))],
+      )
+    expect(walk(rootOf(result)).sort()).toEqual([
+      'README.md',
+      'SKILL.md',
+      join('corpus', 'chose-vol-01.jsonl'),
+      join('corpus', 'manifest.json'),
+      join('corpus', 'marked-vol-01.jsonl'),
+      join('corpus', 'said-vol-01.jsonl'),
+    ])
+  })
+
+  it('SKILL.md 的 name 就是它所在的目录名，整体过校验（不等 ⇒ 客户端静默不加载）', async () => {
+    seedLibrary()
+    pickAt(PICKED)
+    const result = await exportOnce()
+    const text = readFileSync(join(rootOf(result), 'SKILL.md'), 'utf8')
+
+    expect(basename(rootOf(result))).toBe(SKILL_DIR_NAME)
+    expect(checkSkill(text, SKILL_DIR_NAME)).toEqual([])
+  })
+
+  it('落盘那份说明里的样例，真能被导入那道闸认下来', async () => {
+    seedLibrary()
+    pickAt(PICKED)
+    const result = await exportOnce()
+    const readme = readFileSync(join(rootOf(result), 'README.md'), 'utf8')
+    const sample = readme.slice(readme.indexOf('```json'), readme.indexOf('```', readme.indexOf('```json') + 7) + 3)
+      .replace(/^```json\n/, '')
+      .replace(/\n```$/, '')
+
+    const parsed = parseStatementsFile(sample)
+    if (!parsed.ok) throw new Error(`样例没过文件级校验：${parsed.reason}`)
+    expect(parsed.file.app).toBe(STATEMENT_FILE_APP)
+    expect(validateStatements(parsed.file.statements, new Set(['hl_1', 'hl_2', 'hl_1#note', 'hl_2#note'])).rejected).toEqual([])
+  })
+
+  it('说明书里不许抄进用户的任何一个字（正文只活在 corpus 那些卷里）', async () => {
+    seedLibrary()
+    pickAt(PICKED)
+    const result = await exportOnce()
+    const docs = ['README.md', 'SKILL.md'].map((name) => readFileSync(join(rootOf(result), name), 'utf8')).join('\n')
+
+    for (const leaked of ['向外求求而不得', '欢乐总是衍生于你之外的事物', '我该怎么开始写卡片笔记', '《当下的力量》']) {
+      expect(docs, `说明书里出现了语料正文：${leaked}`).not.toContain(leaked)
+    }
+  })
+
+  it('SKILL.md 去掉 frontmatter 之后与 README.md 逐字相同（两份说明书不许各漂一次）', async () => {
+    seedLibrary()
+    pickAt(PICKED)
+    const result = await exportOnce()
+    const readme = readFileSync(join(rootOf(result), 'README.md'), 'utf8')
+    const skill = readFileSync(join(rootOf(result), 'SKILL.md'), 'utf8')
+    const body = skill.slice(skill.indexOf('\n---', 3) + 5)
+
+    expect(body).toBe(readme)
+  })
+
+  it('取消时一份说明都不写，磁盘上仍然什么都没有', async () => {
+    seedLibrary()
+    cancelPick()
+    await exportOnce()
+
+    expect(existsSync(PICKED)).toBe(false)
+  })
+})
+
 describe('读库炸了不许演成"没有语料"', () => {
   it('getAll 抛错时把错误交出去，而不是回一个空包', async () => {
     const boom = vi.spyOn(highlightsDb, 'getAll').mockImplementation(() => {
@@ -290,6 +381,44 @@ describe('读库炸了不许演成"没有语料"', () => {
   })
 })
 
+describe('导出这条通路一次都不碰密钥', () => {
+  // 语料包会交到别人手上。它该读的只有那六摊表与档案页三项自述 ——
+  // 微信读书 key、AI key 落盘在 userData/secure/*.enc，一旦被这条通路读进来，
+  // 就是"我把你的密钥打包发给了另一个 AI"。这条守卫是结构性的：不靠我记得没写。
+  const FORBIDDEN = ['wereadApiKey', 'llmKey', 'getSecureKey', 'setSecureKey', 'SECRET_SETTING_KEYS', 'settingsService']
+
+  /** 这条守卫只问一件事：这段源码里有没有出现密钥标识符 */
+  function scan(label: string, source: string): string[] {
+    return FORBIDDEN.filter((token) => source.includes(token)).map((token) => `${label} 出现了 ${token}`)
+  }
+
+  const FILES = [
+    'electron/ipc/profile.ts',
+    'src/shared/profile-corpus.ts',
+    'src/shared/profile-manifest.ts',
+    'src/shared/profile-statements.ts',
+    'src/shared/profile-card.ts',
+    'src/shared/profile-handoff.ts',
+    'src/shared/profile-skill.ts',
+  ]
+
+  it('profile 导出与 shared 那几份画像模块里，一个密钥标识符都不许出现', () => {
+    const hits = FILES.flatMap((file) => scan(file, readFileSync(join(process.cwd(), file), 'utf8')))
+    expect(hits).toEqual([])
+  })
+
+  it('反证：把一处密钥读取喂进同一个扫描器，它必须报出来（不报就是空转）', () => {
+    const leaks = scan('electron/ipc/profile.ts', 'const key = getSecureKey("wereadApiKey")')
+    expect(leaks).toEqual(['electron/ipc/profile.ts 出现了 wereadApiKey', 'electron/ipc/profile.ts 出现了 getSecureKey'])
+  })
+
+  it('扫描看得见这些文件（路径写错时它先红，而不是默默扫 0 个文件）', () => {
+    const missing = FILES.filter((file) => !existsSync(join(process.cwd(), file)))
+    expect(missing).toEqual([])
+    expect(FILES.length).toBeGreaterThanOrEqual(7)
+  })
+})
+
 function some<T>(rows: T[], test: (row: T) => boolean): boolean {
   return rows.some(test)
 }
@@ -300,6 +429,19 @@ const VERDICT = IPC_CHANNELS.PROFILE.SET_STATEMENT_VERDICT
 
 function pickFile(path: string) {
   vi.mocked(dialog.showOpenDialog).mockResolvedValue({ canceled: false, filePaths: [path], blobURLs: [] } as never)
+}
+
+/**
+ * 弹框被要求摆出来的那些筛选器名字。
+ *
+ * 代码走的是 `showOpenDialog(win, options)` 这一条重载，vitest 的类型只认单参数那一条，
+ * 所以实参按数组读、不在这儿再声明一遍 electron 的形状。
+ */
+function lastDialogFilters(): string[] {
+  const calls = vi.mocked(dialog.showOpenDialog).mock.calls
+  const args: unknown[] = calls[calls.length - 1] ?? []
+  const options = args[args.length - 1] as { filters?: { name: string }[] } | undefined
+  return options?.filters?.map((item) => item.name) ?? []
 }
 
 /** 写一份结论文件到磁盘（导入这条路不 mock fs：界面拿到的就是这一份文件的真实结果） */
@@ -333,6 +475,15 @@ describe('导入结论清单：先问文件、逐条过闸、只写库不写盘'
     expect(profileStatementsDb.getAll()).toEqual([])
     readCorpus.mockRestore()
     readStatements.mockRestore()
+  })
+
+  it('弹框里那份清单叫什么，与说明书写的是同一个名字（两处各写一遍迟早各漂一次）', async () => {
+    seedLibrary()
+    cancelPick()
+
+    await run(IMPORT)
+
+    expect(lastDialogFilters()).toEqual([STATEMENT_FILE_LABEL])
   })
 
   it('两条合规格的进库，判定从 pending 起', async () => {

@@ -18,7 +18,10 @@ import { describeCorpus, planCorpusRecords, planVolumes } from '../../src/shared
 import type { CorpusPlan, CorpusVolume } from '../../src/shared/profile-corpus';
 import { buildManifest, describeManifest } from '../../src/shared/profile-manifest';
 import type { CorpusExportResult, ProfileManifest } from '../../src/shared/profile-manifest';
+import { buildHandoffDoc } from '../../src/shared/profile-handoff';
+import { README_FILE_NAME, SKILL_DESCRIPTION, SKILL_DIR_NAME, SKILL_FILE_NAME, buildSkillFile } from '../../src/shared/profile-skill';
 import {
+  STATEMENT_FILE_LABEL,
   STATEMENT_VERDICTS,
   describeBadFile,
   describeStatementImport,
@@ -54,11 +57,14 @@ const USER_MESSAGE_LIMIT = 500;
 /** 我们自己写出去的那些卷的命名 —— 清理旧卷时只认这个形状，别的一个不碰 */
 const VOL_FILE = /^[a-z]+-vol-\d{2}\.jsonl$/;
 
-/** 导出包根目录名：带日期，重复导出不互相盖 */
-export function packageDirName(now: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `zhixing-profile-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
+/**
+ * 包目录名 = Skill 的 `name`（Agent Skills 要求两者一字不差，不等时客户端**静默不加载**）。
+ * 带日期的目录名在这套规范下没有意义 —— 外部工具按目录名找入口，而日期每次变。
+ * 所以目录固定，`manifest.json` 里的 `generated_at` 说清这一批是哪一刻的快照；
+ * 重导出走的是同一份清理（旧卷摘掉、说明覆盖），是沉淀不是攒副本。
+ * 名字只有一个出处：`SKILL_DIR_NAME`。
+ */
+export const PACKAGE_DIR_NAME = SKILL_DIR_NAME;
 
 /** 六摊数据一次读齐，交给纯函数分层 —— 归层的规则一条都不在这儿 */
 export function collectCorpusPlan(): CorpusPlan {
@@ -86,7 +92,8 @@ export function writeCorpusPackage(
   volumes: readonly CorpusVolume[],
   now: Date,
 ): { dir: string; manifest: ProfileManifest } {
-  const dir = join(root, packageDirName(now), 'corpus');
+  const packageRoot = join(root, PACKAGE_DIR_NAME);
+  const dir = join(packageRoot, 'corpus');
   mkdirSync(dir, { recursive: true });
   const manifest = buildManifest({ plan, volumes, now });
   // 上一次导出留下的旧卷要先摘掉：外部 AI 是照着目录读文件的，留着 marked-vol-07
@@ -101,6 +108,17 @@ export function writeCorpusPackage(
     writeFileSync(join(dir, volume.file), `${lines.join('\n')}\n`, 'utf8');
   }
   writeFileSync(join(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  // 交接说明与语料同批写出：一份散文，两个入口文件名（README 给人和其他工具翻，
+  // SKILL.md 给按 Agent Skills 认目录的那批客户端）。**正文同一个字符串**，
+  // 所以两处不可能各说一套 —— 判据逐字节对账这条。
+  const doc = buildHandoffDoc(manifest);
+  writeFileSync(join(packageRoot, README_FILE_NAME), doc, 'utf8');
+  writeFileSync(
+    join(packageRoot, SKILL_FILE_NAME),
+    buildSkillFile({ name: PACKAGE_DIR_NAME, description: SKILL_DESCRIPTION, body: doc }),
+    'utf8',
+  );
   return { dir, manifest };
 }
 
@@ -168,7 +186,7 @@ export function registerProfileHandlers(handle: HandleFn): void {
       title: '导入画像结论清单',
       buttonLabel: '导入这一份',
       properties: ['openFile'],
-      filters: [{ name: '画像结论清单', extensions: ['json'] }],
+      filters: [{ name: STATEMENT_FILE_LABEL, extensions: ['json'] }],
     });
     if (picked.canceled || picked.filePaths.length === 0) {
       return { saved: false, summary: '已取消，库里什么都没改', written: 0, reason: 'canceled' };
