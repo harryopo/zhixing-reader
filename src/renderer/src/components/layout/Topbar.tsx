@@ -133,14 +133,53 @@ function IconButton({
 
 interface NotifData {
   unreadNotes: number
+  /** 划线这一次的读结果：读失败时那句必须说"没读出来"，不能替用户断言他没有新笔记 */
+  notesFailed: boolean
   dueCards: number
+  queueFailed: boolean
   lastSyncAt: string | null
   lastSyncOk: boolean | null
   lastSyncCount: number | null
   /** 章节摘要欠更新的书（纯本地算出来的，不点就不花 AI 钱） */
   pendingSummaries: PendingSummaryEntry[]
+  summariesFailed: boolean
   /** 上次导出备份的时间（设置里的原值；没导出过是 null） */
   lastExportAt: string | null
+  backupAtFailed: boolean
+}
+
+/**
+ * 面板那四句的两套说法。抽成模块级纯函数是因为就地写三元会把本体复杂度顶过阈值
+ * （本项目"新代码不带新 warning"这条口径已被门禁教过四次）。
+ */
+function notesLine(notif: NotifData): string {
+  if (notif.notesFailed) return '笔记列表这一次没读出来'
+  return notif.unreadNotes > 0 ? `${notif.unreadNotes} 条新笔记待查看` : '暂无新笔记'
+}
+
+function queueLine(notif: NotifData): string {
+  if (notif.queueFailed) return '复习队列这一次没读出来'
+  return notif.dueCards > 0 ? `${notif.dueCards} 张卡片待复习` : '今日无待复习卡片'
+}
+
+/** 备份提醒：读失败与"确实没导出过"是两句话，后者由 backup-reminder 自己说 */
+function backupLine(notif: NotifData): string | null {
+  if (notif.backupAtFailed) return '备份时间这一次没读出来'
+  return describeBackupReminder(notif.lastExportAt).text || null
+}
+
+/** 失败那句要用另一支笔，否则和"没有新东西"混成一行字 */
+function lineColor(failed: boolean): string {
+  return failed ? 'var(--destructive)' : 'var(--muted-foreground)'
+}
+
+/** 一路读数：炸了也交回"没读到"这个标记，而不是与"库里确实没有"同一个形状 */
+async function readOr<T>(promise: Promise<T>, fallback: T): Promise<{ value: T; failed: boolean }> {
+  try {
+    return { value: await promise, failed: false }
+  } catch {
+    return { value: fallback, failed: true }
+  }
 }
 
 export default function Topbar({ onToggleSidebar }: TopbarProps) {
@@ -155,12 +194,16 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notif, setNotif] = useState<NotifData>({
     unreadNotes: 0,
+    notesFailed: false,
     dueCards: 0,
+    queueFailed: false,
     lastSyncAt: null,
     lastSyncOk: null,
     lastSyncCount: null,
     pendingSummaries: [],
+    summariesFailed: false,
     lastExportAt: null,
+    backupAtFailed: false,
   })
 
   /** 通知按钮容器 ref，用于面板外点击关闭 */
@@ -217,23 +260,31 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
   /** 拉取通知数据：未读笔记 + 今日复习 + 摘要待更新 + 同步状态 */
   const refreshNotifData = useCallback(async () => {
     try {
-      const [highlights, queue, pendingSummaries, lastExportRaw] = await Promise.all([
-        window.electronAPI.highlight.getAll().catch(() => []),
+      // 四路各归各的：任何一路炸了都不许被演成"你这里没东西"
+      const [notes, queue, summaries, lastExport] = await Promise.all([
+        readOr(window.electronAPI.highlight.getAll(), []),
         // 取队列计数而不是拉一列表再 .length —— getDue(100) 最多只能报 100 张，
         // 逾期卡片堆到几百张时，通知会一直显示「100 张待复习」，数字是假的
-        window.electronAPI.card.getQueueStats?.().catch(() => null) ?? Promise.resolve(null),
-        window.electronAPI.summary?.pending().catch(() => []) ?? Promise.resolve([]),
-        // 上次导出备份的时间存在设置里（由导出那一步写入）；读不到就当从没备份过
-        window.electronAPI.settings
-          ?.get('lastDataExportAt')
-          .then((v) => (typeof v === 'string' ? v : null))
-          .catch(() => null),
+        readOr(window.electronAPI.card.getQueueStats?.() ?? Promise.resolve(null), null),
+        readOr(
+          window.electronAPI.summary
+            ? window.electronAPI.summary.pending()
+            : Promise.resolve([] as PendingSummaryEntry[]),
+          [],
+        ),
+        // 上次导出备份的时间存在设置里（由导出那一步写入）
+        readOr(
+          window.electronAPI.settings
+            ? window.electronAPI.settings.get('lastDataExportAt')
+            : Promise.resolve(null),
+          null,
+        ),
       ])
 
       const lastViewAt = Number(localStorage.getItem(LAST_VIEW_NOTES_AT_KEY) || 0)
       // P0-1 修复：highlight.getAll() 返回 snake_case 字段（created_at），
       // 需用 mapHighlights 映射为 camelCase（createdAt）后再过滤,否则 unreadNotes 永远 0
-      const mappedHighlights = mapHighlights(highlights)
+      const mappedHighlights = mapHighlights(notes.value)
       const unreadNotes = mappedHighlights.filter((h) => {
         const createdAt = h.createdAt as string | undefined
         const t = createdAt ? new Date(createdAt).getTime() : 0
@@ -261,15 +312,19 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
 
       setNotif({
         unreadNotes,
-        dueCards: queue?.actionable ?? 0,
+        notesFailed: notes.failed,
+        dueCards: queue.value?.actionable ?? 0,
+        queueFailed: queue.failed,
         lastSyncAt,
         lastSyncOk,
         lastSyncCount,
-        pendingSummaries,
-        lastExportAt: lastExportRaw ?? null,
+        pendingSummaries: summaries.value,
+        summariesFailed: summaries.failed,
+        lastExportAt: typeof lastExport.value === 'string' ? lastExport.value : null,
+        backupAtFailed: lastExport.failed,
       })
     } catch {
-      // 静默失败，不打扰用户
+      // 只剩"映射或本地存储自己坏了"会落到这里；四路读数的失败上面已各自认领
     }
   }, [])
 
@@ -502,6 +557,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
             updateNotice !== null) && !notifyOpen && (
             <span
               aria-hidden="true"
+              data-dom-id="notify-dot"
               style={{
                 position: 'absolute',
                 top: 4,
@@ -617,8 +673,8 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                     <span style={{ display: 'block', fontSize: '0.88rem', fontWeight: 500 }}>
                       未读笔记
                     </span>
-                    <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
-                      {notif.unreadNotes > 0 ? `${notif.unreadNotes} 条新笔记待查看` : '暂无新笔记'}
+                    <span style={{ display: 'block', fontSize: '0.78rem', color: lineColor(notif.notesFailed) }}>
+                      {notesLine(notif)}
                     </span>
                   </span>
                   <Icon name="chevron-right" size={16} />
@@ -666,25 +722,27 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                     <span style={{ display: 'block', fontSize: '0.88rem', fontWeight: 500 }}>
                       今日复习
                     </span>
-                    <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
-                      {notif.dueCards > 0 ? `${notif.dueCards} 张卡片待复习` : '今日无待复习卡片'}
+                    <span style={{ display: 'block', fontSize: '0.78rem', color: lineColor(notif.queueFailed) }}>
+                      {queueLine(notif)}
                     </span>
                   </span>
                   <Icon name="chevron-right" size={16} />
                 </button>
 
                 {/* 摘要欠更新：只报数，不自动烧 AI —— 点进去仍要用户自己按「生成 AI 摘要」 */}
-                {notif.pendingSummaries.length > 0 && (
+                {(notif.summariesFailed || notif.pendingSummaries.length > 0) && (
                   <div style={{ padding: 'calc(var(--spacing) * 2) 0 0' }}>
                     <span
                       style={{
                         display: 'block',
                         padding: '0 calc(var(--spacing) * 4)',
                         fontSize: '0.78rem',
-                        color: 'var(--muted-foreground)',
+                        color: lineColor(notif.summariesFailed),
                       }}
                     >
-                      {notif.pendingSummaries.length} 本书划线有变化，摘要待更新
+                      {notif.summariesFailed
+                        ? '摘要新鲜度这一次没读出来'
+                        : `${notif.pendingSummaries.length} 本书划线有变化，摘要待更新`}
                     </span>
                     {notif.pendingSummaries.map((book) => (
                       <button
@@ -737,7 +795,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
 
                 {/* 备份提醒：数据只在这台电脑上，没备份过 / 太久没备份就说一句。
                     不挂红点也不弹窗 —— 一行字，出口在「设置 → 数据」。 */}
-                {describeBackupReminder(notif.lastExportAt).text && (
+                {backupLine(notif) && (
                   <button
                     type="button"
                     title="到「设置 → 数据」导出或恢复备份"
@@ -764,8 +822,15 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                       e.currentTarget.style.background = 'transparent'
                     }}
                   >
-                    <span style={{ flex: 1, minWidth: 0, fontSize: '0.85rem' }}>
-                      {describeBackupReminder(notif.lastExportAt).text}
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        fontSize: '0.85rem',
+                        color: lineColor(notif.backupAtFailed),
+                      }}
+                    >
+                      {backupLine(notif)}
                     </span>
                     <Icon name="chevron-right" size={16} />
                   </button>

@@ -226,6 +226,13 @@ export default defineConfig({
         // tests/ipc-profile-handlers.test.ts（落盘对账 + 文件清单 + 密钥扫描守卫）。
         'src/shared/profile-handoff.ts',       // 100 / 100 / 100
         'src/shared/profile-skill.ts',         // 100 / 100 / 100
+        // 2026-09-30 顶栏与书架的"读失败"口径：一路读库炸了不许被演成"你这里没东西"。
+        // 判据：tests/../src/renderer/src/components/layout/__tests__/Topbar.notify.test.tsx
+        // 与 src/renderer/src/utils/__tests__/book-cards.test.ts。
+        // Topbar 那 20% 的函数是同步 / 主题 / 搜索 / 头像那一堆（Issue #8 的页面渲染测试欠账），
+        // 本批量出来如实写在这里，不是因为低就不统计 —— 统计了才看得见还差多少。
+        'src/renderer/src/utils/book-cards.ts', // 100 / 100 / 100
+        'src/renderer/src/components/layout/Topbar.tsx', // 75.47 / 78.31 / 20
       ],
       exclude: [
         '**/*.test.ts',

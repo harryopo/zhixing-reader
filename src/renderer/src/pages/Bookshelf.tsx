@@ -22,6 +22,7 @@ import { importWereadContentForBook, describeImportResult } from '../utils/impor
 import { mapBooks, mapHighlights, mapCards, formatTimeAgo } from '../utils/db-mapper'
 import type { BookRow, HighlightRow, CardRow } from '../utils/db-mapper'
 import { syncBookshelfToDb, describeSyncResult } from '../utils/sync-bookshelf'
+import { readBookCards } from '../utils/book-cards'
 import { RecommendationItem } from '../../../shared/types'
 
 // ===== 常量 =====
@@ -111,6 +112,8 @@ export default function Bookshelf() {
   const [books, setBooks] = useState<BookRow[]>([])
   const [highlights, setHighlights] = useState<HighlightRow[]>([])
   const [cards, setCards] = useState<CardRow[]>([])
+  /** 这一次没读到卡片数的书：那些书的「N 张卡片」与「待复习」都不可信，要在界面上说一句 */
+  const [cardFailedBookIds, setCardFailedBookIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [importingBookId, setImportingBookId] = useState<string | null>(null)
@@ -197,12 +200,12 @@ export default function Bookshelf() {
       setBooks(mappedBooks)
       setHighlights(mapHighlights(highlightsRaw))
 
-      // 并行获取每本书的卡片数（限制 100 本）
+      // 并行获取每本书的卡片数（限制 100 本）。读失败的那几本要点名交出去 ——
+      // 静默当成 0 张会让这本书的卡片数说假话，还会把它从「待复习」筛选里悄悄排除
       const bookIds = mappedBooks.map((b) => b.id).slice(0, 100)
-      const cardLists = await Promise.all(
-        bookIds.map((id) => window.electronAPI.card.getByBook(id).catch(() => [])),
-      )
-      setCards(mapCards(cardLists.flat()))
+      const cardRead = await readBookCards(bookIds)
+      setCards(mapCards(cardRead.cards))
+      setCardFailedBookIds(cardRead.failedBookIds)
     } catch (error) {
       console.error('加载数据失败:', error)
       toast.error('加载书架数据失败')
@@ -367,6 +370,19 @@ export default function Bookshelf() {
           </>
         }
       >
+        {/* 有几本的卡片数这一次没读到就说一句：不说的话那几本会一直显示 0 张 */}
+        {cardFailedBookIds.length > 0 && (
+          <div
+            style={{
+              padding: 'calc(var(--spacing) * 2) calc(var(--spacing) * 4)',
+              fontSize: '0.85rem',
+              color: 'var(--destructive)',
+            }}
+          >
+            {cardFailedBookIds.length} 本书的卡片数这一次没读出来（这些书的「待复习」筛选可能不全）
+          </div>
+        )}
+
         {/* ===== 第一层：筛选条 ===== */}
         <div
           className="card"
