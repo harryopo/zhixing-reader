@@ -5,6 +5,7 @@ import type { BookCoverageView, CoveragePlan } from '../shared/ai-coverage'
 import type { BackupExport, BackupImportResult } from '../shared/backup'
 import type { GlobalSearchResult } from '../shared/global-search'
 import type { CorpusExportResult } from '../shared/profile-manifest'
+import type { StatementImportResult, StatementListView, StatementVerdict } from '../shared/profile-statements'
 
 export interface TokenSummary {
   totalRequests: number
@@ -321,6 +322,12 @@ export interface ElectronAPI {
      * 返回形状与 `src/shared/profile-manifest.ts` 的 `CorpusExportResult` 同源。
      */
     exportPackage: () => Promise<CorpusExportResult>
+    /** 核验区一次读全（结论 + 证据原文），形状与 `profile-statements.ts` 同源 */
+    listStatements: () => Promise<StatementListView>
+    /** 导入外部 AI 写的结论清单，形状与 `StatementImportResult` 同源 */
+    importStatements: () => Promise<StatementImportResult>
+    /** recorded=false 说的是"库里已经没有这一条"，不是"没记上" */
+    setStatementVerdict: (id: string, verdict: StatementVerdict) => Promise<{ recorded: boolean }>
   }
   system: {
     openExternal: (url: string) => Promise<{ opened: boolean }>

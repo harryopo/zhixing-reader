@@ -208,6 +208,17 @@ export default defineConfig({
         'src/shared/profile-corpus.ts',        // 100 / 84.26 / 100
         'src/shared/profile-manifest.ts',      // 100 / 100 / 100
         'electron/ipc/profile.ts',             // 100 / 100 / 100
+        // 2026-09-30 画像结论落库与核验（方案书第 3 批）：外部 AI 写的结论进库前只过这一道闸，
+        // 而"哪些算你本人的"这件事一旦写错，不报错、只是画像卡里混进没核验的话。
+        // 判据：tests/profile-statements.test.ts（闸与合并 28 条）、tests/profile-card.test.ts（画像卡 12 条）、
+        // tests/profile-statements-real-db.test.ts（第 18 张表真库 20 条，含三条"注册触点"）、
+        // tests/ipc-profile-handlers.test.ts（三条新通道 + 原导出 29 条，真库真文件不 mock fs）、
+        // pages/profile/__tests__/StatementReview.test.tsx（界面 20 条）、tests/clipboard.test.ts（剪贴板 5 条）。
+        'src/shared/profile-statements.ts',    // 100 / 93.5 / 100
+        'src/shared/profile-card.ts',          // 100 / 96.42 / 100
+        'electron/database/profile-statements.ts', // 100 / 100 / 100
+        'src/renderer/src/utils/clipboard.ts', // 100 / 100 / 100
+        'src/renderer/src/pages/profile/StatementReview.tsx', // 100 / 82.08 / 100
       ],
       exclude: [
         '**/*.test.ts',

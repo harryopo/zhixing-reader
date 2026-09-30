@@ -11,14 +11,30 @@
  * 读库失败**往外抛**，不在这里演成"没有语料"（本项目反复治的那个形状）。
  */
 import { BrowserWindow, dialog } from 'electron';
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
 import { describeCorpus, planCorpusRecords, planVolumes } from '../../src/shared/profile-corpus';
 import type { CorpusPlan, CorpusVolume } from '../../src/shared/profile-corpus';
 import { buildManifest, describeManifest } from '../../src/shared/profile-manifest';
 import type { CorpusExportResult, ProfileManifest } from '../../src/shared/profile-manifest';
-import { booksDb, conversationDb, dailyStatsDb, highlightsDb, memoriesDb } from '../database';
+import {
+  STATEMENT_VERDICTS,
+  describeBadFile,
+  describeStatementImport,
+  highlightIdOfCorpusId,
+  mergeStatementsForWrite,
+  parseStatementsFile,
+  validateStatements,
+} from '../../src/shared/profile-statements';
+import type {
+  EvidenceText,
+  StatementImportResult,
+  StatementListView,
+  StatementVerdict,
+  StatementWritePlan,
+} from '../../src/shared/profile-statements';
+import { booksDb, conversationDb, dailyStatsDb, highlightsDb, memoriesDb, profileStatementsDb } from '../database';
 import { getUserSelfProfile } from '../services/user-profile-service';
 import { logger } from '../logger';
 import type { HandleFn } from './types';
@@ -111,5 +127,88 @@ export function registerProfileHandlers(handle: HandleFn): void {
     const { dir, manifest } = writeCorpusPackage(picked.filePaths[0], plan, volumes, new Date());
     logger.info('Profile corpus exported', { dir, volumes: volumes.length, records: plan.records.length });
     return { saved: true, summary: describeManifest(manifest), dir, volumes: volumes.length };
+  });
+
+  /**
+   * 核验区一次读全：结论 + 每条证据的原话。
+   *
+   * 证据原文取的是**与导出同一个出处**（`collectCorpusPlan` 交回的那批记录）：
+   * 导入那道闸认的 id 集就是它，这里再算一遍别处读法，早晚会漂成"闸收了的 id 界面读不出原文"。
+   */
+  handle(IPC_CHANNELS.PROFILE.LIST_STATEMENTS, (): StatementListView => {
+    const statements = profileStatementsDb.getAll();
+    const wanted = new Set(statements.flatMap((row) => row.evidenceIds));
+    const evidence: Record<string, EvidenceText> = {};
+    // 没有结论可摆 ⇒ 一次语料都不读。核验区刚进应用时库里是空的，
+    // 读一整套六摊数据只为交回一个空表，是白读。
+    if (wanted.size > 0) {
+      for (const record of collectCorpusPlan().records) {
+        if (!wanted.has(record.id)) continue;
+        const item: EvidenceText = { text: record.text };
+        if (record.bookId) item.bookId = record.bookId;
+        if (record.bookTitle) item.bookTitle = record.bookTitle;
+        if (record.kind === 'highlight' || record.kind === 'highlight_note') {
+          item.highlightId = highlightIdOfCorpusId(record.id);
+        }
+        evidence[record.id] = item;
+      }
+    }
+    return { statements, evidence };
+  });
+
+  /**
+   * 导入外部 AI 写的结论清单。
+   *
+   * 顺序仍是**先问文件、再读库**（与 `EXPORT_PACKAGE` 同一条口径）：用户点取消时
+   * 一次库都不读。读文件失败**往外抛** —— 不演成"这份文件没有结论"。
+   */
+  handle(IPC_CHANNELS.PROFILE.IMPORT_STATEMENTS, async (): Promise<StatementImportResult> => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const picked = await dialog.showOpenDialog(win, {
+      title: '导入画像结论清单',
+      buttonLabel: '导入这一份',
+      properties: ['openFile'],
+      filters: [{ name: '画像结论清单', extensions: ['json'] }],
+    });
+    if (picked.canceled || picked.filePaths.length === 0) {
+      return { saved: false, summary: '已取消，库里什么都没改', written: 0, reason: 'canceled' };
+    }
+
+    const text = readFileSync(picked.filePaths[0], 'utf8');
+    const parsed = parseStatementsFile(text);
+    if (!parsed.ok) {
+      return { saved: false, summary: describeBadFile(parsed.reason), written: 0, reason: 'bad_file' };
+    }
+
+    const knownIds = new Set(collectCorpusPlan().records.map((record) => record.id));
+    const { accepted, rejected } = validateStatements(parsed.file.statements, knownIds, parsed.file.origin);
+    for (const item of rejected) logger.warn('Profile statement rejected on import', item);
+
+    const existing: Record<string, { verdict: StatementVerdict }> = {};
+    for (const row of profileStatementsDb.getAll()) existing[row.id] = { verdict: row.verdict };
+    const merged = mergeStatementsForWrite(accepted, existing);
+    const plan: StatementWritePlan = { ...merged, rejected };
+
+    if (merged.toWrite.length === 0) {
+      // 库里一格没动：可能全被闸挡下，也可能全是你已经判过的 —— summary 里分得开这两种
+      return { saved: false, summary: describeStatementImport(plan), written: 0, reason: 'nothing_accepted' };
+    }
+
+    const written = profileStatementsDb.upsertMany(merged.toWrite);
+    logger.info('Profile statements imported', { written, protected: merged.protectedIds.length, rejected: rejected.length });
+    return { saved: true, summary: describeStatementImport(plan), written };
+  });
+
+  /**
+   * 按下「对 / 不对 / 不确定」。只认那四个取值 —— 传进来别的形状不掰成判定
+   * （`{}` 被当成"用户按过了"是本项目在 IPC 边界治过多次的假成功）。
+   */
+  handle(IPC_CHANNELS.PROFILE.SET_STATEMENT_VERDICT, (id: unknown, verdict: unknown): { recorded: boolean } => {
+    const key = typeof id === 'string' ? id.trim() : '';
+    if (!key) throw new Error('没有结论编号，改不了判定');
+    if (!STATEMENT_VERDICTS.includes(verdict as StatementVerdict)) {
+      throw new Error(`「${String(verdict)}」不是我认的判定：只认 ${STATEMENT_VERDICTS.join(' / ')}`);
+    }
+    return { recorded: profileStatementsDb.setVerdict(key, verdict as StatementVerdict) };
   });
 }

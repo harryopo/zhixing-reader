@@ -40,6 +40,7 @@ export const BACKUP_TABLES: BackupTableSpec[] = [
   { table: 'book_summaries', label: '份全书摘要' },
   { table: 'chapter_summaries', label: '章层级摘要' },
   { table: 'ai_generation_batches', label: '条生成台账' },
+  { table: 'profile_statements', label: '条画像结论' },
 ]
 
 /**

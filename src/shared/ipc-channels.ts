@@ -240,6 +240,12 @@ export const IPC_CHANNELS = {
      * 零 AI 调用：应用只把证据如实搬出去，"总结成一个人"由外部 AI 做。
      */
     EXPORT_PACKAGE: 'profile:exportPackage',
+    /** 读回画像结论与它们的证据原文（核验区一次读全） */
+    LIST_STATEMENTS: 'profile:listStatements',
+    /** 导入外部 AI 写的结论清单：逐条过闸，不合的丢掉并说清为什么 */
+    IMPORT_STATEMENTS: 'profile:importStatements',
+    /** 本人按下「对 / 不对 / 不确定」—— 只有这一格能让一条结论进画像卡 */
+    SET_STATEMENT_VERDICT: 'profile:setStatementVerdict',
   },
   // 主进程菜单事件（主进程 -> 渲染进程，由 Menu 点击触发）
   MENU: {

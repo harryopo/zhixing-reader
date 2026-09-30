@@ -13,10 +13,12 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import { Loading, Trend } from '@/components/ui/Feedback'
 import Modal from '@/components/ui/Modal'
+import StatementReview from './profile/StatementReview'
 import { useProfileStore } from '../stores/profileStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { toast } from '../stores/toastStore'
 import { safeNum, safeStr, mapBooks } from '../utils/db-mapper'
+import { copyToClipboard } from '../utils/clipboard'
 import {
   averageMinutesPerActiveDay,
   daysWithActivity,
@@ -296,24 +298,9 @@ export default function Profile() {
       '— 来自「知行读书」阅读成长工作台',
     ]
     const text = lines.join('\n')
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text)
-      } else {
-        // 回退方案：临时 textarea + execCommand
-        const ta = document.createElement('textarea')
-        ta.value = text
-        ta.style.position = 'fixed'
-        ta.style.opacity = '0'
-        document.body.appendChild(ta)
-        ta.select()
-        document.execCommand('copy')
-        document.body.removeChild(ta)
-      }
-      toast.success('分享文本已复制到剪贴板')
-    } catch (err) {
-      toast.error(`复制失败: ${(err as Error).message}`)
-    }
+    // 剪贴板那一套（含 WebView 里的 textarea 兜底）收进 utils/clipboard，全应用一份
+    if (await copyToClipboard(text)) toast.success('分享文本已复制到剪贴板')
+    else toast.error('剪贴板用不了，分享文本没复制成功')
   }
 
   // ===== 导出阅读画像语料包（零 AI 调用：只把证据分层写盘，总结交给外部 AI）=====
@@ -951,6 +938,12 @@ export default function Profile() {
             </div>
           </Card>
         )}
+
+        {/* ===== 画像核验：外部 AI 读语料写出的结论，逐条由本人判定（只有点「对」的进画像卡）===== */}
+        <Card padding="calc(var(--spacing) * 5)">
+          <CardHead eyebrow="阅读画像" title="画像核验" />
+          <StatementReview />
+        </Card>
 
         {/* ===== 设计稿专属样式：热力图色阶 ===== */}
         <style>{`

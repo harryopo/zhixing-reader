@@ -15,6 +15,7 @@ import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpe
 import { getDatabase } from '../electron/database'
 import {
   aiBatchesDb,
+  profileStatementsDb,
   articlesDb,
   booksDb,
   bookSummariesDb,
@@ -100,6 +101,19 @@ function seedWorld(): void {
   bookSummariesDb.create('b1', '全书概括', '["要点甲"]')
   // 上一批刚加的台账：丢了它，界面上"已处理 1/1"会变成"重新蒸馏"（再花一次钱）
   aiBatchesDb.record('b1', 'knowledgeCards', ['h1'])
+  // 画像结论 + 本人按下的判定：这是"你确认过的你是谁"，丢了等于让人从头判一遍
+  profileStatementsDb.upsertMany([
+    {
+      id: 'nuwa:p1',
+      layer: 'said',
+      topic: '表达',
+      statement: '我写东西短、直白',
+      evidenceIds: ['h1#note', 'h1'],
+      verdict: 'pending',
+      origin: 'nuwa',
+    },
+  ])
+  profileStatementsDb.setVerdict('nuwa:p1', 'confirmed')
 }
 
 function snapshotCounts(): Record<string, number> {
@@ -194,6 +208,7 @@ describe('导出 → 清空 → 导入 的往返', () => {
     expect(counts.book_summaries, 'AI 全书摘要没进备份').toBe(1)
     expect(counts.chat_messages).toBe(2)
     expect(counts.reviews, '复习历史没进备份 ⇒ 统计与队列都少数据').toBe(1)
+    expect(counts.profile_statements, '画像结论与本人判定没进备份 ⇒ 恢复后要从头判一遍').toBe(1)
 
     // 清空：导一份"什么表都是空的"备份，等于把业务表全清
     importBackup({ app: 'zhixing-reader', version: BACKUP_VERSION, tables: {} })
@@ -213,6 +228,11 @@ describe('导出 → 清空 → 导入 的往返', () => {
 
     // 台账：这一批喂过哪些划线，恢复后仍然认得（按钮不该变成「重新蒸馏」）
     expect(aiBatchesDb.getProcessedIds('b1', 'knowledgeCards')).toEqual(['h1'])
+    // 画像结论连同本人按下的判定原样回来（不是重建回 pending）
+    const kept = profileStatementsDb.getAll()
+    expect(kept.map((row) => row.id)).toEqual(['nuwa:p1'])
+    expect(kept[0].verdict).toBe('confirmed')
+    expect(kept[0].evidenceIds).toEqual(['h1#note', 'h1'])
     expect(aiBatchesDb.getProcessedCounts('knowledgeCards').b1).toBe(1)
     // 知识卡片/方法论的复习登记按原行回来（旧实现只会按划线重建，这两类会丢）
     expect(cell(`SELECT COUNT(*) FROM cards WHERE knowledge_card_id IS NOT NULL`)).toBe(1)

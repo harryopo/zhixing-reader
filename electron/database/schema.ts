@@ -302,6 +302,37 @@ export function initializeSchema(db: import('sql.js').Database): void {
     );
   `);
 
+  /**
+   * 画像结论与本人判定（第 18 张表）。
+   *
+   * 为什么要落库：画像的结论原先只活在一次导出的 markdown 里，判完「对 / 不对」没有下文，
+   * 下次重读又要从头判一遍。这张表把**结论**与**你本人的判定**放在一起，
+   * 于是画像是一份越用越准的沉淀，而不是一次性导出。
+   *
+   * `evidence_ids` 存 JSON 数组、元素是语料包里的 id（划线主键 / `主键#note` / 消息 id / 书 id）。
+   * **故意不建外键**：那是「导出那一刻的引用」，一条划线被删掉之后画像结论该跟着消失
+   * 还是该留着由你判定，这是产品决定，不能让 `ON DELETE CASCADE` 替我们悄悄决定
+   * （何况 sql.js 的 `export()` 曾把外键复位成 0，级联静默失效过一次，见 2026-09-25 那批）。
+   * 引用没了，界面就把那一条标成「原始划线已不在」，结论留着。
+   *
+   * `layer` 里的 `inferred` 是给「系统推断」预留的：应用内一次 AI 都不调，所以这一层
+   * 目前没有生产者，导入时会被挡在外面（见 `src/shared/profile-statements.ts`）。
+   */
+  db.run(`
+    CREATE TABLE IF NOT EXISTS profile_statements (
+      id TEXT PRIMARY KEY,
+      layer TEXT NOT NULL CHECK(layer IN ('said', 'marked', 'chose', 'inferred')),
+      topic TEXT NOT NULL,
+      statement TEXT NOT NULL,
+      evidence_ids TEXT NOT NULL,
+      verdict TEXT NOT NULL DEFAULT 'pending'
+        CHECK(verdict IN ('pending', 'confirmed', 'rejected', 'unsure')),
+      origin TEXT NOT NULL CHECK(origin IN ('app', 'nuwa', 'manual')),
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
   db.run('CREATE INDEX IF NOT EXISTS idx_highlights_book_id ON highlights(book_id);');
   db.run('CREATE INDEX IF NOT EXISTS idx_cards_highlight_id ON cards(highlight_id);');
   db.run('CREATE INDEX IF NOT EXISTS idx_cards_due ON cards(due);');
@@ -616,6 +647,34 @@ export function clearConversationsAndMessages(): void {
 }
 
 /**
+ * 重置数据库要清掉的表 —— 写成导出的一份，是因为"清干净了没有"必须能被判据问住。
+ * 它原先是这个函数里的局部数组：加一张新表忘了往里放，界面上「重置数据库」就少清一张，
+ * 而没有任何测试会发现（`tests/backup-roundtrip.test.ts` 那条"每张业务表要么进备份、
+ * 要么写明理由"的守卫只管备份，不管重置）。
+ * 现在 `tests/profile-statements-real-db.test.ts` 拿真实建出来的库对账这张清单。
+ */
+export const RESET_TABLES: string[] = [
+  'chat_messages',
+  'conversations',
+  'reviews',
+  'cards',
+  'highlights',
+  'book_summaries',
+  'chapter_summaries',
+  'daily_stats',
+  'token_usage',
+  'methodologies',
+  'knowledge_cards',
+  'book_architecture',
+  'articles',
+  'vocabulary',
+  'memories',
+  'ai_generation_batches',
+  'profile_statements',
+  'books',
+]
+
+/**
  * 重置数据库：清空所有业务表数据，保留 schema。
  * 关闭外键检查避免级联约束干扰，清空后重新落盘。
  */
@@ -624,27 +683,8 @@ export function resetDatabase(): void {
   // 关闭 FK 检查以避免删除顺序约束
   database.run('PRAGMA foreign_keys = OFF');
   try {
-    const tables = [
-      'chat_messages',
-      'conversations',
-      'reviews',
-      'cards',
-      'highlights',
-      'book_summaries',
-      'chapter_summaries',
-      'daily_stats',
-      'token_usage',
-      'methodologies',
-      'knowledge_cards',
-      'book_architecture',
-      'articles',
-      'vocabulary',
-      'memories',
-      'ai_generation_batches',
-      'books',
-    ];
     runTransaction((db) => {
-      for (const table of tables) {
+      for (const table of RESET_TABLES) {
         db.run(`DELETE FROM ${table}`);
       }
     });

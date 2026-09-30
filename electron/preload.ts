@@ -394,6 +394,13 @@ const electronAPI = {
   profile: {
     /** 导出阅读画像语料包：弹目录选择框 → 取数分层 → 写盘。零 AI 调用 */
     exportPackage: () => invoke(IPC_CHANNELS.PROFILE.EXPORT_PACKAGE),
+    /** 核验区一次读全：结论 + 每条证据的原话（对不上语料的那条不带键） */
+    listStatements: () => invoke(IPC_CHANNELS.PROFILE.LIST_STATEMENTS),
+    /** 导入外部 AI 写的结论清单：弹文件选择框 → 逐条过闸 → 落库 */
+    importStatements: () => invoke(IPC_CHANNELS.PROFILE.IMPORT_STATEMENTS),
+    /** 按下「对 / 不对 / 不确定」；交回 recorded=false 表示库里已经没有这一条 */
+    setStatementVerdict: (id: string, verdict: string) =>
+      invoke<{ recorded: boolean }>(IPC_CHANNELS.PROFILE.SET_STATEMENT_VERDICT, id, verdict),
   },
 
   system: {

@@ -12,14 +12,24 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import { BrowserWindow, dialog } from 'electron'
-import { existsSync, readdirSync, readFileSync, rmSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
-import { booksDb, conversationDb, dailyStatsDb, getDatabase, highlightsDb, memoriesDb } from '../electron/database'
+import {
+  booksDb,
+  conversationDb,
+  dailyStatsDb,
+  getDatabase,
+  highlightsDb,
+  memoriesDb,
+  profileStatementsDb,
+} from '../electron/database'
 import { registerProfileHandlers } from '../electron/ipc/profile'
 import { IPC_CHANNELS } from '../src/shared/ipc-channels'
 import { CATEGORY_CAVEAT } from '../src/shared/profile-corpus'
+import { STATEMENT_FILE_APP, STATEMENT_FILE_VERSION } from '../src/shared/profile-statements'
 import type { CorpusExportResult, ProfileManifest } from '../src/shared/profile-manifest'
+import type { StatementImportResult, StatementListView } from '../src/shared/profile-statements'
 
 const PROFILE = 'user-data-profile-corpus'
 process.env.ZHIXING_TEST_PROFILE = PROFILE
@@ -114,6 +124,7 @@ beforeEach(() => {
   getDatabase().run('DELETE FROM daily_stats')
   getDatabase().run('DELETE FROM highlights')
   getDatabase().run('DELETE FROM books')
+  getDatabase().run('DELETE FROM profile_statements')
   rmSync(PICKED, { recursive: true, force: true })
 })
 
@@ -282,3 +293,242 @@ describe('读库炸了不许演成"没有语料"', () => {
 function some<T>(rows: T[], test: (row: T) => boolean): boolean {
   return rows.some(test)
 }
+
+const LIST = IPC_CHANNELS.PROFILE.LIST_STATEMENTS
+const IMPORT = IPC_CHANNELS.PROFILE.IMPORT_STATEMENTS
+const VERDICT = IPC_CHANNELS.PROFILE.SET_STATEMENT_VERDICT
+
+function pickFile(path: string) {
+  vi.mocked(dialog.showOpenDialog).mockResolvedValue({ canceled: false, filePaths: [path], blobURLs: [] } as never)
+}
+
+/** 写一份结论文件到磁盘（导入这条路不 mock fs：界面拿到的就是这一份文件的真实结果） */
+function writeStatementsFile(name: string, statements: unknown[], origin = 'nuwa'): string {
+  const path = join(DATA_DIR, name)
+  writeFileSync(path, `${JSON.stringify({ app: STATEMENT_FILE_APP, version: STATEMENT_FILE_VERSION, origin, statements }, null, 2)}\n`, 'utf8')
+  return path
+}
+
+async function run(channel: string, ...args: unknown[]): Promise<unknown> {
+  const handler = register().get(channel)
+  if (!handler) throw new Error(`profile 没注册 ${channel}`)
+  return handler(...args)
+}
+
+const importOnce = (path?: string) => (path ? pickFile(path) : cancelPick(), run(IMPORT) as Promise<StatementImportResult>)
+const listOnce = () => run(LIST) as Promise<StatementListView>
+
+describe('导入结论清单：先问文件、逐条过闸、只写库不写盘', () => {
+  it('用户点取消 ⇒ saved:false、一次库都不读、库里一行都没有', async () => {
+    seedLibrary()
+    const readCorpus = vi.spyOn(highlightsDb, 'getAll')
+    const readStatements = vi.spyOn(profileStatementsDb, 'getAll')
+
+    const result = await importOnce()
+
+    expect(result).toEqual({ saved: false, summary: '已取消，库里什么都没改', written: 0, reason: 'canceled' })
+    // 取消那条路上任何一摊数据都不许先读：语料与已有结论都排在弹框之后
+    expect(readCorpus).not.toHaveBeenCalled()
+    expect(readStatements).not.toHaveBeenCalled()
+    expect(profileStatementsDb.getAll()).toEqual([])
+    readCorpus.mockRestore()
+    readStatements.mockRestore()
+  })
+
+  it('两条合规格的进库，判定从 pending 起', async () => {
+    seedLibrary()
+    const path = writeStatementsFile('ok.json', [
+      { id: 'p1', layer: 'said', topic: '表达', statement: '我写东西短、直白', evidenceIds: ['hl_both#note', 'hl_only_marked'] },
+      { id: 'p2', layer: 'marked', topic: '读什么', statement: '我挑的多是向内看的句子', evidenceIds: ['hl_both', 'hl_only_marked'] },
+    ])
+
+    const result = await importOnce(path)
+
+    expect(result.saved).toBe(true)
+    expect(result.written).toBe(2)
+    const rows = profileStatementsDb.getAll()
+    expect(rows.map((row) => row.id).sort()).toEqual(['nuwa:p1', 'nuwa:p2'])
+    expect(rows.every((row) => row.verdict === 'pending')).toBe(true)
+  })
+
+  it('只有一条证据的那条被挡下，其余照常进，且 logger.warn 有那一条', async () => {
+    seedLibrary()
+    const path = writeStatementsFile('half.json', [
+      { id: 'p1', layer: 'said', topic: '表达', statement: '站得住的那条', evidenceIds: ['hl_both#note', 'hl_only_marked'] },
+      { id: 'p2', layer: 'said', topic: '表达', statement: '一条孤证', evidenceIds: ['hl_both#note'] },
+    ])
+
+    const result = await importOnce(path)
+
+    expect(result.written).toBe(1)
+    expect(result.summary).toContain('证据不足两条 1 条')
+    expect(profileStatementsDb.getAll().map((row) => row.statement)).toEqual(['站得住的那条'])
+    expect(seamer.logger.warn).toHaveBeenCalledWith('Profile statement rejected on import', { id: 'p2', reason: 'too_few_evidence' })
+  })
+
+  it('证据 id 对不上这份语料 ⇒ 整条不收（收了那颗「回原文」就是死链）', async () => {
+    seedLibrary()
+    const path = writeStatementsFile('ghost.json', [
+      { id: 'p1', layer: 'said', topic: '表达', statement: '引用了一条不存在的划线', evidenceIds: ['hl_both#note', 'hl_404'] },
+    ])
+
+    const result = await importOnce(path)
+
+    expect(result.saved).toBe(false)
+    expect(result.reason).toBe('nothing_accepted')
+    expect(result.summary).toContain('对不上你的语料 1 条')
+    expect(profileStatementsDb.getAll()).toEqual([])
+  })
+
+  it('文件里替我写 verdict 无效 ⇒ 那一格只有我按下才算', async () => {
+    seedLibrary()
+    const path = writeStatementsFile('pushy.json', [
+      { id: 'p1', layer: 'said', topic: '表达', statement: '外部 AI 替我判了', evidenceIds: ['hl_both#note', 'hl_only_marked'], verdict: 'confirmed' },
+    ])
+
+    await importOnce(path)
+
+    expect(profileStatementsDb.getAll()[0].verdict).toBe('pending')
+  })
+
+  it('重导入不覆盖我已判过的那条（正文也不动），报的是"保持原样"', async () => {
+    seedLibrary()
+    const first = writeStatementsFile('v1.json', [
+      { id: 'p1', layer: 'said', topic: '表达', statement: '第一版说法', evidenceIds: ['hl_both#note', 'hl_only_marked'] },
+    ])
+    await importOnce(first)
+    profileStatementsDb.setVerdict('nuwa:p1', 'confirmed')
+
+    const second = writeStatementsFile('v2.json', [
+      { id: 'p1', layer: 'said', topic: '表达', statement: '第二版说法', evidenceIds: ['hl_both#note', 'hl_only_marked'] },
+    ])
+    const result = await importOnce(second)
+
+    expect(result.saved).toBe(false)
+    expect(result.summary).toContain('你已经判过的 1 条保持原样')
+    expect(profileStatementsDb.getAll()[0].statement).toBe('第一版说法')
+  })
+
+  it('不是知行的结论文件 ⇒ 认出来并拒收，库里一字不动', async () => {
+    seedLibrary()
+    const path = join(DATA_DIR, 'other.json')
+    writeFileSync(path, '{"app":"someone-else","version":"1.0","origin":"nuwa","statements":[]}\n', 'utf8')
+
+    const result = await importOnce(path)
+
+    expect(result.saved).toBe(false)
+    expect(result.reason).toBe('bad_file')
+    expect(result.summary).toContain('库里什么都没改')
+    expect(profileStatementsDb.getAll()).toEqual([])
+  })
+
+  it('读文件读不动时把错误交出去，不演成"这份文件没有结论"', async () => {
+    seedLibrary()
+    pickAt(DATA_DIR) // 选中的是目录：readFileSync 会抛 EISDIR
+    await expect(run(IMPORT)).rejects.toThrow()
+    expect(profileStatementsDb.getAll()).toEqual([])
+  })
+})
+
+describe('核验区读的那一份', () => {
+  it('证据原句、书名、点得回去的那条划线，都来自语料自己那批记录', async () => {
+    seedLibrary()
+    const path = writeStatementsFile('ok.json', [
+      { id: 'p1', layer: 'said', topic: '表达', statement: '我写东西短', evidenceIds: ['hl_both#note', 'hl_only_marked'] },
+    ])
+    await importOnce(path)
+
+    const view = await listOnce()
+
+    expect(view.statements).toHaveLength(1)
+    expect(view.evidence['hl_both#note']).toEqual({
+      text: '向外求求而不得',
+      bookId: 'b1',
+      bookTitle: '当下的力量',
+      highlightId: 'hl_both',
+    })
+    // marked 层的 id 不带后缀，回原文指向它自己
+    expect(view.evidence['hl_only_marked'].highlightId).toBe('hl_only_marked')
+  })
+
+  it('划线被删掉之后，那一条不出现在证据表里（界面据此说"已经找不到了"）', async () => {
+    seedLibrary()
+    const path = writeStatementsFile('ok.json', [
+      { id: 'p1', layer: 'said', topic: '表达', statement: '我写东西短', evidenceIds: ['hl_both#note', 'hl_only_marked'] },
+    ])
+    await importOnce(path)
+    getDatabase().run("DELETE FROM highlights WHERE id = 'hl_only_marked'")
+
+    const view = await listOnce()
+
+    expect(view.evidence.hl_only_marked).toBeUndefined()
+    expect(view.evidence['hl_both#note']).toBeDefined()
+  })
+
+  it('库里一条结论都没有时交回空表，不抛，也不白读一整套语料', async () => {
+    seedLibrary()
+    const readAll = vi.spyOn(highlightsDb, 'getAll')
+
+    expect(await listOnce()).toEqual({ statements: [], evidence: {} })
+    expect(readAll).not.toHaveBeenCalled()
+    readAll.mockRestore()
+  })
+
+  it('正向对照：有结论要摆证据时确实去读了语料', async () => {
+    seedLibrary()
+    await importOnce(writeStatementsFile('ok.json', [{ id: 'p1', layer: 'said', topic: '表达', statement: '我写东西短', evidenceIds: ['hl_both#note', 'hl_only_marked'] }]))
+    const readAll = vi.spyOn(highlightsDb, 'getAll')
+
+    const view = await listOnce()
+
+    expect(Object.keys(view.evidence).sort()).toEqual(['hl_both#note', 'hl_only_marked'])
+    expect(readAll).toHaveBeenCalled()
+    readAll.mockRestore()
+  })
+
+  it('读库炸了要抛出去 —— 界面那句只能是"这一次没读出来"', async () => {
+    const boom = vi.spyOn(profileStatementsDb, 'getAll').mockImplementation(() => {
+      throw new Error('库文件被占用')
+    })
+    await expect(listOnce()).rejects.toThrow('库文件被占用')
+    boom.mockRestore()
+  })
+})
+
+describe('按下「对 / 不对 / 不确定」', () => {
+  it('记上了交回 true，库里那一行跟着变', async () => {
+    seedLibrary()
+    await importOnce(writeStatementsFile('ok.json', [{ id: 'p1', layer: 'said', topic: '表达', statement: '我写东西短', evidenceIds: ['hl_both#note', 'hl_only_marked'] }]))
+
+    const result = (await run(VERDICT, 'nuwa:p1', 'confirmed')) as { recorded: boolean }
+
+    expect(result).toEqual({ recorded: true })
+    expect(profileStatementsDb.getAll()[0].verdict).toBe('confirmed')
+  })
+
+  it('库里没有这一条时交回 false，不凭空建行', async () => {
+    seedLibrary()
+    const result = (await run(VERDICT, 'nuwa:没有这条', 'confirmed')) as { recorded: boolean }
+    expect(result).toEqual({ recorded: false })
+    expect(profileStatementsDb.getAll()).toEqual([])
+  })
+
+  it('判定只认那四个取值：把 `{}` 或字符串掰成"按过了"要抛出去', async () => {
+    seedLibrary()
+    await importOnce(writeStatementsFile('ok.json', [{ id: 'p1', layer: 'said', topic: '表达', statement: '我写东西短', evidenceIds: ['hl_both#note', 'hl_only_marked'] }]))
+
+    for (const bad of [{}, [], 42, null, 'maybe', '']) {
+      await expect(run(VERDICT, 'nuwa:p1', bad)).rejects.toThrow(/不是我认的判定/)
+    }
+    expect(profileStatementsDb.getAll()[0].verdict).toBe('pending')
+  })
+
+  it('没有编号时抛，且不碰库里那一行', async () => {
+    seedLibrary()
+    await importOnce(writeStatementsFile('ok.json', [{ id: 'p1', layer: 'said', topic: '表达', statement: '我写东西短', evidenceIds: ['hl_both#note', 'hl_only_marked'] }]))
+    for (const bad of ['', '   ', {}, 42, null]) {
+      await expect(run(VERDICT, bad, 'confirmed')).rejects.toThrow('没有结论编号')
+    }
+    expect(profileStatementsDb.getAll()[0].verdict).toBe('pending')
+  })
+})
