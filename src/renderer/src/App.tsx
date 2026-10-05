@@ -20,7 +20,26 @@ import DailyLearning from './pages/DailyLearning'
 import VocabularyPage from './pages/VocabularyPage'
 
 // 开发期管理后台（无前端入口，开发时 URL 直达 /admin）
-const AdminPage = lazy(() => import('./pages/admin/AdminPage'))
+//
+// **只在开发构建里存在** —— `import.meta.env.DEV` 是 Vite 的编译期常量，`npm run build`
+// 时它恒为 `false`，Rollup 的死代码消除会把整个 true 分支连同那句 `import()` 一起丢掉，
+// 于是 `pages/admin/` 那 1482 行与它引用的 echarts 不会进产物。改回无条件 lazy import 的话，
+// /admin 路由又会回到安装版里 —— 那正是 Issue #2 要治的（无鉴权、任何人改一下 hash 就能进）。
+const AdminPage = import.meta.env.DEV
+  ? lazy(() => import('./pages/admin/AdminPage'))
+  : // 构建产物里没有这一页；路由仍留着，直达时如实说"这页只存在于开发版"而不是白屏
+    lazy(async () => ({ default: () => <AdminNotInBuild /> }))
+
+function AdminNotInBuild() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+      <h1 className="text-lg font-semibold">管理后台只存在于开发版</h1>
+      <p className="text-sm text-muted-foreground">
+        安装版不包含这一页，也就没有它的任何代码。想用就在仓库里 <code>npm run dev</code>。
+      </p>
+    </div>
+  )
+}
 
 // 设置子页（懒加载）
 const SettingsAccount = lazy(() => import('./pages/settings/SettingsAccount'))
