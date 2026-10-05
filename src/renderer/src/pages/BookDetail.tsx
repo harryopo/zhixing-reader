@@ -68,6 +68,7 @@ export default function BookDetail() {
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
   const [summarizing, setSummarizing] = useState(false)
+  const [exportingNotes, setExportingNotes] = useState(false)
   // 通知面板的「摘要待更新」直接链到 ?tab=summary；AI 回答的引用来源链到
   // ?tab=highlights&highlight=<划线 id>，点进来就落在那条原文上，不用自己翻。
   const [searchParams] = useSearchParams()
@@ -210,6 +211,36 @@ export default function BookDetail() {
    * 生成分章摘要（L1）并顺带汇总全书摘要（L2）。
    * 只重做划线条数变了的章节，所以重复点不会重复烧钱 —— 但仍是几十次 AI 调用，按钮要防连点。
    */
+  /**
+   * 导出这一本书的笔记。此前只有全库导出一颗按钮，想"只要这一本"得从大文件里自己挑 ——
+   * 而写文章时真正会翻的就是某一本里的那几十条。
+   *
+   * 拼装在主进程（`notes-export.ts`），与笔记页那颗导出按钮走同一份逻辑，
+   * 差别只有这一个 bookId 参数。
+   */
+  const handleExportThisBook = async () => {
+    if (!id || exportingNotes) return
+    setExportingNotes(true)
+    const pendingToast = toast.loading('正在导出这本书的笔记…')
+    try {
+      const result = await window.electronAPI.highlight.export(id)
+      toast.remove(pendingToast)
+      if (!result?.saved) {
+        // 空书 / 取消 / 这一本一条都没有 —— 各说各的，别一律报"失败"
+        toast.info(
+          result?.reason === 'empty' ? '这本书还没有可导出的笔记' : '已取消，没有导出',
+        )
+        return
+      }
+      toast.success(`已导出 ${result.summary ?? `${result.count} 条笔记`}`)
+    } catch (error) {
+      toast.remove(pendingToast)
+      toast.error(`导出失败: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setExportingNotes(false)
+    }
+  }
+
   const handleGenerateSummaries = async () => {
     if (!id || summarizing) return
     setSummarizing(true)
@@ -362,6 +393,14 @@ export default function BookDetail() {
               本地书籍（暂不支持阅读）
             </Button>
           )}
+          <Button
+            variant="secondary"
+            data-dom-id="cta-export-book-notes"
+            disabled={highlights.length === 0 || exportingNotes}
+            onClick={() => void handleExportThisBook()}
+          >
+            {exportingNotes ? '导出中…' : '导出这本书的笔记'}
+          </Button>
           <Button
             variant="secondary"
             data-dom-id="cta-chat-book"

@@ -7,7 +7,8 @@ import { dialog, BrowserWindow } from 'electron';
 import { booksDb, highlightsDb, cardsDb, reviewsDb, bookSummariesDb, chapterSummariesDb } from '../database';
 import { logger } from '../logger';
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels';
-import { parseDbTime } from '../../src/shared/db-time';
+import { buildNotesMarkdown, notesFileName } from '../../src/shared/notes-export';
+import type { BookRow, HighlightRow } from '../../src/shared/notes-export';
 import { settingsService } from '../services/settings-service';
 import { backfillChapterTitles } from '../services/chapter-title-backfill';
 import { findPendingSummaries, generateBookSummaries } from '../services/chapter-summary-service';
@@ -79,71 +80,57 @@ export function registerBookHandlers(handle: HandleFn): void {
   // 一次性补全历史划线的章节名（见 services/chapter-title-backfill.ts）
   handle(IPC_CHANNELS.HIGHLIGHTS.BACKFILL_CHAPTER_TITLES, (bookId?: string) =>
     backfillChapterTitles(bookId));
-  handle(IPC_CHANNELS.HIGHLIGHTS.EXPORT, async () => {
+  /**
+   * 导出读书笔记。**拼 Markdown 的逻辑只有一份**（`src/shared/notes-export.ts`）——
+   * 此前笔记页与设置页各写一份且已漂移（标题不同、`---` 只有一边有、一边带章节名另一边不带），
+   * 现在同一份数据导出两次逐字节相同。
+   *
+   * 传 bookId = 只导这一本（书籍详情页那颗按钮）。
+   */
+  handle(IPC_CHANNELS.HIGHLIGHTS.EXPORT, async (bookId?: string) => {
     const rawHighlights = await highlightsDb.getAll();
     if (!Array.isArray(rawHighlights) || rawHighlights.length === 0) {
       throw new Error('没有可导出的笔记');
     }
     const rawBooks = await booksDb.getAll();
-    const bookMap = new Map(
-      rawBooks.map((b) => [
-        (b.id as string) ?? 'unknown',
-        ((b.title as string) || '未知书籍'),
-      ]),
-    );
+    const wanted = typeof bookId === 'string' && bookId ? bookId : undefined;
+    const now = new Date();
+
+    // 选书只认书名与作者（拼文件名用），导出前算一次，别等用户点了保存框再去算
+    const singleTitle = wanted
+      ? String((rawBooks.find((b) => (b.id as string) === wanted)?.title ?? '') || '')
+      : '';
 
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
     const result = await dialog.showSaveDialog(win, {
-      title: '导出读书笔记',
-      defaultPath: 'zhixing-notes.md',
+      title: wanted ? '导出这本书的笔记' : '导出读书笔记',
+      defaultPath: notesFileName(singleTitle || undefined, now),
       filters: [{ name: 'Markdown', extensions: ['md'] }],
     });
     if (result.canceled || !result.filePath) {
       return { saved: false, count: 0 };
     }
 
-    const getBookId = (h: Record<string, unknown>): string =>
-      ((h.book_id as string | undefined) || (h.bookId as string | undefined) || 'unknown');
-    const getCreatedAt = (h: Record<string, unknown>): number => {
-      // 与渲染层行映射同一把尺：库里那串 'YYYY-MM-DD HH:MM:SS' 是 UTC 的墙上时钟，
-      // 直接 new Date(...) 会按本地时区解释，导出的文件里每行时间都早 8 小时。
-      return parseDbTime(h.created_at)?.getTime() ?? 0;
-    };
-
-    // 按书籍分组，书籍内按创建时间倒序
-    const grouped = new Map<string, Record<string, unknown>[]>();
-    for (const h of rawHighlights) {
-      const bid = getBookId(h);
-      const list = grouped.get(bid) || [];
-      list.push(h);
-      grouped.set(bid, list);
-    }
-    for (const list of grouped.values()) {
-      list.sort((a, b) => getCreatedAt(b) - getCreatedAt(a));
+    const built = buildNotesMarkdown({
+      highlights: rawHighlights as HighlightRow[],
+      books: rawBooks as BookRow[],
+      now,
+      onlyBookId: wanted,
+    });
+    if (built.total === 0) {
+      // 这一本一条都没有（或是全空的划线）：不写一个只有标题的文件出去
+      return { saved: false, count: 0, reason: 'empty' as const };
     }
 
-    const escapeMd = (s: unknown) => String(s ?? '').replace(/\n/g, '  \n');
-    const lines: string[] = ['# 知行读书 · 读书笔记导出', '', `共 ${rawHighlights.length} 条笔记`, ''];
-    for (const [bookId, list] of grouped) {
-      lines.push(`## 《${bookMap.get(bookId) || '未知书籍'}》`, '');
-      for (const h of list) {
-        const chapter =
-          ((h.chapter_title as string | undefined) || (h.chapterTitle as string | undefined) || '未知章节');
-        // 时间用排序那同一个解析结果：解析不出来就照实说"未知时间"，
-        // 不许把浏览器那句 Invalid Date 印进用户拿走的文件里
-        const stamp = getCreatedAt(h);
-        const time = stamp > 0 ? new Date(stamp).toLocaleString('zh-CN') : '未知时间';
-        lines.push(`### ${chapter}`, '', `**时间**：${time}`, '', `> ${escapeMd(h.content)}`, '');
-        if (h.note) {
-          lines.push(`**批注**：${escapeMd(h.note)}`, '');
-        }
-        lines.push('---', '');
-      }
-    }
-
-    fs.writeFileSync(result.filePath, lines.join('\n'), 'utf8');
-    logger.info(`Highlights exported`, { count: rawHighlights.length, path: result.filePath });
-    return { saved: true, count: rawHighlights.length, path: result.filePath };
+    fs.writeFileSync(result.filePath, built.markdown, 'utf8');
+    logger.info(`Highlights exported`, {
+      count: built.total,
+      books: built.books,
+      skipped: built.skipped,
+      onlyBook: wanted ?? '',
+      path: result.filePath,
+    });
+    return { saved: true, count: built.total, path: result.filePath, summary: built.summary };
   });
 
   handle(IPC_CHANNELS.CARDS.GET_DUE, (limit?: number) => cardsDb.getDueCards(limit, newCardsPerDay()));

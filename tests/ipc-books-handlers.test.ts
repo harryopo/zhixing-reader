@@ -341,15 +341,19 @@ describe('导出笔记：分组、排序、转义，最后真落到那个文件'
 
     const text = fs.readFileSync(OUT, 'utf8')
     expect(text.split('\n')[0]).toBe('# 知行读书 · 读书笔记导出')
-    expect(text).toContain('共 3 条笔记')
+    // 抬头口径 2026-10-03 改过：旧写法是「共 N 条笔记」，现在写清「其中多少条是你自己写下的」
+    // —— 写文章时翻的是后者，那才是这份文件存在的理由
+    expect(text).toContain('你自己写下的')
     expect(text).toContain('## 《被讨厌的勇气》')
     // 库里查不到书的那条不是丢掉，而是落在《未知书籍》下面
     expect(text).toContain('## 《未知书籍》')
     // 时间倒序：同一本书里 3 月那条排在 1 月前面
     expect(text.indexOf('晚的一条')).toBeLessThan(text.indexOf('早的一条'))
-    expect(text).toContain('**批注**：我的想法')
-    // 没写批注的那条不许出现"批注"这个标签
-    expect(text.split('### 第一章')[1].split('### ')[0]).not.toContain('**批注**')
+    // 「批注」2026-10-03 改叫「想法」：那是读者自己写下的话，
+    // 叫"批注"会读成作者或工具的批注 —— 而写文章时引的正是前者
+    expect(text).toContain('**想法：**我的想法')
+    // 没写想法的那条不许出现"想法"这个标签
+    expect(text.split('### 你划过的')[1]).not.toContain('**想法：**')
     expect(seams.logger.info).toHaveBeenCalledWith('Highlights exported', expect.objectContaining({ count: 3 }))
   })
 
@@ -379,7 +383,7 @@ describe('导出笔记：分组、排序、转义，最后真落到那个文件'
     await at(IPC_CHANNELS.HIGHLIGHTS.EXPORT)()
 
     const text = fs.readFileSync(OUT, 'utf8')
-    expect(text).toContain(`**时间**：${trueInstant.toLocaleString('zh-CN')}`)
+    expect(text).toContain(trueInstant.toLocaleString('zh-CN'))
     // 倒序也按真实时刻排：带 Z 的那条（07:08:00）比上面那条（07:08:09）早，排在后面
     expect(text.indexOf('一条按库里形状存的划线')).toBeLessThan(text.indexOf('另一条'))
   })
@@ -392,8 +396,11 @@ describe('导出笔记：分组、排序、转义，最后真落到那个文件'
     picks(OUT)
     await at(IPC_CHANNELS.HIGHLIGHTS.EXPORT)()
     const text = fs.readFileSync(OUT, 'utf8')
-    expect(text).toContain('### 未知章节')
-    expect(text).toContain('**时间**：未知时间')
+    // 2026-10-03 起：没有章节就不摆章节那一段（不编「未知章节」这个占位），
+    // 时间解析不出来照实说「时间未知」——**不许印 undefined 或 Invalid Date**
+    expect(text).toContain('时间未知')
+    expect(text).not.toContain('未知章节')
+    expect(text).not.toContain('undefined')
     expect(text).not.toContain('undefined')
   })
 
@@ -422,22 +429,35 @@ describe('导出笔记：分组、排序、转义，最后真落到那个文件'
     expect(text.indexOf('另一条')).toBeLessThan(text.indexOf('没挂书的笔记'))
   })
 
-  it('缺字段的那几条照样列出来：没正文给空引用块、没时间给「未知时间」、书没有 id 就归 unknown', async () => {
+  /**
+   * 2026-10-03 改过判定口径：`h1` 原来靠"给一个空引用块"出现在文件里，
+   * 那在 Markdown 里就是一个孤零零的 `>` —— 读的人以为"这里有一条笔记"，其实什么都没有。
+   * 现在**正文与想法都空的直接跳过并计数**，有想法没正文的照样保留
+   * （那一刻想法本身就是内容）。跳过的数目写进抬头，不静默。
+   */
+  it('正文与想法都空的跳过并计数；有想法没正文、没时间的照样留下', async () => {
     seams.highlights.getAll.mockResolvedValue([
       { id: 'h1', book_id: 'b1' },
       { id: 'h2', book_id: 'b1', content: '有正文但没时间', note: '也没时间' },
+      { id: 'h3', book_id: 'b1', content: '', note: '只有想法没正文' },
     ])
     seams.books.getAll.mockResolvedValue([{ title: '没有 id 的一本书' }])
     picks(OUT)
     const res = await at(IPC_CHANNELS.HIGHLIGHTS.EXPORT)()
     expect(res).toMatchObject({ saved: true, count: 2 })
+    expect(res).toMatchObject({ summary: expect.stringContaining('跳过 1 条空白') })
     const text = fs.readFileSync(OUT, 'utf8')
+    // 跳过的那条一个字都不许留（原来是个空引用块）
+    expect(text).not.toMatch(/^>\s*$/m)
+    expect(text).toContain('另有 1 条既没有原文也没有你的想法')
+    // 有想法没正文的那条：想法本身要留下（那一刻想法就是内容）
+    expect(text).toContain('只有想法没正文')
     // 书名照样在（那一行靠的是 bookMap 里 `|| '未知书籍'` 的兜底，不是把整组丢掉）
     expect(text).toContain('## 《未知书籍》')
     expect(text).toContain('> 有正文但没时间')
-    expect(text).toContain('**时间**：未知时间')
+    expect(text).toContain('时间未知')
     expect(text).not.toContain('undefined')
-    expect(text.match(/\*\*时间\*\*：未知时间/g)).toHaveLength(2)
+    expect(text.match(/时间未知/g)).toHaveLength(2)
   })
 })
 

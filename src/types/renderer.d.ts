@@ -140,7 +140,19 @@ export interface ElectronAPI {
     create: (highlight: Record<string, unknown>) => Promise<HighlightCreateOutcome>
     update: (id: string, highlight: Record<string, unknown>) => Promise<void>
     getAll: () => Promise<Array<Record<string, unknown>>>
-    export: () => Promise<{ saved: boolean; count: number; path?: string }>
+    /**
+     * 导出读书笔记。不传 = 全库；传 bookId = 只要这一本。
+     * 拼装在主进程（`src/shared/notes-export.ts`），两个入口共用同一份逻辑。
+     */
+    export: (bookId?: string) => Promise<{
+      saved: boolean
+      count: number
+      path?: string
+      /** 这一本一条都没有时是 'empty'，与「用户取消」分得开 */
+      reason?: 'empty'
+      /** 界面上报的那句口径来自主进程，界面不自己再数一遍 */
+      summary?: string
+    }>
   }
   card: {
     getDue: (limit?: number) => Promise<Card[]>

@@ -4,6 +4,8 @@ import { toast } from '@/stores/toastStore'
 import { downloadBlob } from './data-utils'
 import { buildReviewCsv } from '../../../../shared/review-export'
 import { describeImportedCounts } from '../../../../shared/backup'
+import { buildNotesMarkdown, notesFileName } from '../../../../shared/notes-export'
+import type { BookRow, HighlightRow } from '../../../../shared/notes-export'
 
 /**
  * 这一坨只碰 IPC、拼装文件和浏览器下载，不碰页面其它状态，所以整块搬走。
@@ -45,6 +47,11 @@ export function useDataIo() {
   }, [])
 
   // ===== 导出笔记（Markdown，兼容 Obsidian） =====
+  //
+  // 拼装走 `src/shared/notes-export.ts` —— 笔记页那颗导出按钮走的是主进程那条通路，
+  // 此前两边各写一份且已漂移（这边没有章节名也没有时间，那边有）。
+  // 这一路保留"直接下载、不弹保存框"的行为：设置页这里是浏览器里的下载，
+  // 而笔记页那颗走主进程弹窗，两处入口不同、产出必须一致。
   const handleExportNotes = useCallback(async () => {
     const api = window.electronAPI
     if (!api?.book?.getAll || !api?.highlight?.getAll) {
@@ -57,33 +64,20 @@ export function useDataIo() {
         api.book.getAll(),
         api.highlight.getAll(),
       ])
-      const bookMap = new Map<string, { title: string; author: string }>(
-        (books as Array<{ id: string; title: string; author: string }>).map((b) => [b.id, { title: b.title, author: b.author }]),
-      )
-      // 按书分组
-      const grouped = new Map<string, Array<{ content: string; note?: string; createdAt?: unknown }>>()
-      for (const h of (highlights as Array<{ bookId: string; content: string; note?: string; createdAt?: unknown }>) ?? []) {
-        const list = grouped.get(h.bookId) ?? []
-        list.push(h)
-        grouped.set(h.bookId, list)
+      const now = new Date()
+      const built = buildNotesMarkdown({
+        highlights: (highlights ?? []) as HighlightRow[],
+        books: (books ?? []) as BookRow[],
+        now,
+      })
+      if (built.total === 0) {
+        toast.remove(tId)
+        toast.info('库里一条笔记都没有，没什么可导出的')
+        return
       }
-      const lines: string[] = ['# 知行读书笔记导出', '']
-      for (const [bookId, hs] of grouped.entries()) {
-        const book = bookMap.get(bookId)
-        lines.push(`## ${book?.title ?? '未知书名'}`)
-        if (book?.author) lines.push(`*作者：${book.author}*`)
-        lines.push('')
-        for (const h of hs) {
-          lines.push(`> ${h.content}`)
-          if (h.note) lines.push('', `**笔记：** ${h.note}`)
-          lines.push('')
-        }
-        lines.push('---', '')
-      }
-      const filename = `zhixing-notes-${new Date().toISOString().split('T')[0]}.md`
-      downloadBlob(filename, lines.join('\n'), 'text/markdown')
+      downloadBlob(notesFileName(undefined, now), built.markdown, 'text/markdown')
       toast.remove(tId)
-      toast.success(`已导出 ${grouped.size} 本书 / ${highlights.length} 条笔记`)
+      toast.success(`已导出 ${built.summary}`)
     } catch (err) {
       toast.remove(tId)
       toast.error(`导出失败: ${(err as Error).message}`)
