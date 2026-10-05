@@ -7,8 +7,10 @@
 // 与版本号同一类问题，所以用同一套办法：**能由仓库算出来的，就别让人抄**。
 // 本文件先算真值，再从文档正文里把承诺值抽出来对账。
 //
-// 只扫正文：AGENTS 第十节（§十 变更记录）那些行是 append-only 的历史，
-// 当年那个数是当年实测的，不许改、也不许拿今天的真值判它红。
+// 2026-10-04：AGENTS §十 变更记录整节搬进 `docs/agent-history.md` 之后，这里那层
+// 按「## 十、」排除历史段落的过滤失去了截断点（`indexOf` 恒为 -1，退化成全文扫描）。
+// 已改成显式扫全文 —— 那份历史档是 append-only 的、里面的数是当年实测，
+// 由 `tests/doc-pointers.test.ts` 的「变更历史只许待在历史档」那一组管它的边界。
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync, readdirSync } from 'fs'
@@ -68,6 +70,29 @@ export function realChannelCount(): number {
 /** 某个目录下的 .ts 文件数（可排除指定文件名） */
 export function realDomainFileCount(dir: string, exclude: string[] = []): number {
   return readdirSync(join(ROOT, dir)).filter((f) => f.endsWith('.ts') && !exclude.includes(f)).length
+}
+
+/** 渲染层单文件行数（相对仓库根，含 pages/ 与 components/） */
+function realSourceLineCounts(): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const file of walkSources(join('src', 'renderer', 'src'))) {
+    if (/\.test\.tsx?$/.test(file)) continue
+    out.set(
+      file,
+      readFileSync(join(ROOT, file), 'utf8').split('\n').length - 1,
+    )
+  }
+  return out
+}
+
+function walkSources(dir: string): string[] {
+  const out: string[] = []
+  for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+    const rel = join(dir, entry.name)
+    if (entry.isDirectory()) out.push(...walkSources(rel))
+    else if (/\.tsx?$/.test(entry.name)) out.push(rel)
+  }
+  return out
 }
 
 function walkTests(dir: string): string[] {
@@ -178,6 +203,15 @@ export const RULES: Rule[] = [
     actual: realChannelCount,
   },
   {
+    // 这条与上一条是**同一个数**：一处写在架构说明、一处写在目录树注释里。
+    // 2026-09-30 发现目录树那行是 144 而架构那行是 148 —— 上面的规则只锚第六节，
+    // 目录树不在任何规则里，于是它可以一直漂着（静默失配比报错更糟）。
+    where: 'README 目录树 · 通道常量数',
+    file: 'README.md',
+    pattern: /跨进程共享（类型 \+ (\d+) 条 IPC 通道常量/,
+    actual: realChannelCount,
+  },
+  {
     where: 'README 第三节 · 功能模块数',
     file: 'README.md',
     pattern: /## 三、(\d+) 大功能模块/,
@@ -220,6 +254,21 @@ export const RULES: Rule[] = [
     actual: () => realDomainFileCount(DB_DIR, ['index.ts', 'schema.ts', 'connection.ts']),
   },
   {
+    // CONTRIBUTING 的目录树与 README/AGENTS 是同一份事实的第三处抄写。
+    // 2026-09-30 发现它停在 12 / 16（真实 13 / 17）—— 前两处有守卫、这处没有，
+    // 于是它可以一直漂着。同一件事三处各写一遍，迟早各漂一次。
+    where: 'CONTRIBUTING 目录树 · ipc',
+    file: 'CONTRIBUTING.md',
+    pattern: /ipc\/\s+# IPC handlers（按领域 (\d+) 文件/,
+    actual: () => realDomainFileCount(IPC_DIR, ['index.ts', 'types.ts']),
+  },
+  {
+    where: 'CONTRIBUTING 目录树 · database',
+    file: 'CONTRIBUTING.md',
+    pattern: /database\/\s+# sql\.js DB（按领域 (\d+) 文件/,
+    actual: () => realDomainFileCount(DB_DIR, ['index.ts', 'schema.ts', 'connection.ts']),
+  },
+  {
     where: 'AGENTS 第二节 · tests 目录',
     file: 'AGENTS.md',
     pattern: /tests\/\s+# Vitest 单元测试（(\d+) 文件/,
@@ -227,20 +276,22 @@ export const RULES: Rule[] = [
   },
 ]
 
-/** 第十节之前才算正文（之后的历史记录不许改） */
-function bodyOf(text: string): string {
-  const cut = text.indexOf('## 十、')
-  return cut === -1 ? text : text.slice(0, cut)
-}
-
 /**
- * 抽出所有对不上的地方。锚点句式被人改掉同样算不一致 ——
- * 静默失配比报错更糟（本项目已在覆盖率清单上被"静默空匹配"咬过一次）。
+ * 抽出所有对不上的地方，两处口径：
+ *   1) 锚点句式被人改掉同样算不一致 —— 静默失配比报错更糟
+ *      （本项目已在覆盖率清单上被"静默空匹配"咬过一次）；
+ *   2) **全文扫**，历史记录也不豁免。这份文件原来有一层 `bodyOf()`，
+ *      按 `## 十、` 把 AGENTS 第十节那 30 万字符的变更记录排除在外
+ *      （那里的用例数是**当年**的实测，不该按今天的真值判红）。
+ *      2026-10-04 第十节整节搬进 `docs/agent-history.md`，那个截断点不存在了 ——
+ *      旧写法会退化成「返回全文」，**判定范围悄悄变大却不报错**，
+ *      正是同一类坑。历史档那边由 `tests/doc-pointers.test.ts` 的
+ *      `历史档的数不许回到入口文档` 一条管。
  */
 export function collectMismatches(files: Record<string, string>): Claim[] {
   const out: Claim[] = []
   for (const rule of RULES) {
-    const m = bodyOf(files[rule.file] ?? '').match(rule.pattern)
+    const m = (files[rule.file] ?? '').match(rule.pattern)
     const actual = rule.actual()
     if (!m) {
       out.push({ where: `${rule.where}（锚点句式没找到）`, claimed: -1, actual })
@@ -255,7 +306,11 @@ export function collectMismatches(files: Record<string, string>): Claim[] {
 }
 
 describe('文档里的结构数字与仓库真值对账', () => {
-  const docs = { 'README.md': read('README.md'), 'AGENTS.md': read('AGENTS.md') }
+  const docs = {
+    'README.md': read('README.md'),
+    'AGENTS.md': read('AGENTS.md'),
+    'CONTRIBUTING.md': read('CONTRIBUTING.md'),
+  }
 
   // 表数读的是真实建出来的库（生产的 applySchemaAndMigrations），不是源码里的字符串
   beforeAll(async () => {
@@ -289,6 +344,51 @@ describe('文档里的结构数字与仓库真值对账', () => {
     expect(BACKUP_TABLES.length + Object.keys(EXCLUDED_TABLES).length).toBe(realTableCount())
   })
 
+  it('CI 真的跑 test:cov，CLAUDE.md 就不许再写「未接入 CI」（2026-09-30 修的就是这句）', () => {
+    const ci = read('.github/workflows/ci.yml')
+    expect(ci, 'CI 工作流里没找到 npm run test:cov —— 阈值在 CI 上又成了装饰').toContain(
+      'npm run test:cov',
+    )
+    // 这类"状态陈述"没有数字可对账，只能钉住"不许出现反面说法"
+    const claude = read('CLAUDE.md')
+    expect(claude, 'CLAUDE.md 又说覆盖率阈值未接入 CI 了').not.toMatch(/覆盖率[^。\n]*未接入\s*CI/)
+  })
+
+  it('AGENTS §9.1.1 的「>1000 行文件」清单 == 仓库实况（这份清单漏过 BookDetail）', () => {
+    const real = [...realSourceLineCounts().entries()]
+      .filter(([, n]) => n > 1000)
+      .map(([p, n]) => [p.split(/[\\/]/).slice(-1)[0], n] as const)
+      .sort((a, b) => b[1] - a[1])
+
+    expect(real.length, '量不到 >1000 行的文件，锚点或扫描范围变了').toBeGreaterThan(5)
+
+    // 文档表： | `pages/X.tsx` | 1632 |
+    const rows = [...docs['AGENTS.md'].matchAll(/^\|\s*`pages\/[^`]+`\s*\|\s*(\d+)\s*\|$/gm)]
+    const claimed = rows.map((m) => {
+      // 文档里写的是 pages/settings/SettingsAbout.tsx（带子目录），
+      // 实况那侧取的是文件名 —— 两边必须都归一到 basename 才比得起来。
+      const path = /`pages\/([^`]+)`/.exec(m[0])![1]
+      return [path.split('/').slice(-1)[0], Number(m[1])] as const
+    })
+
+    expect(
+      claimed.map((c) => c[0]).sort(),
+      '清单里的文件集合与仓库实况不一致（漏了一个，或写了已拆小的文件）',
+    ).toEqual(real.map((r) => r[0]).sort())
+
+    for (const [name, lines] of claimed) {
+      const actual = real.find((r) => r[0] === name)![1]
+      expect(lines, `AGENTS §9.1.1 里 ${name} 的行数与仓库实况不符`).toBe(actual)
+    }
+  })
+
+  it('反证 · 清单漏掉一个文件时必须判红（BookDetail 1084 行曾被漏记十一天）', () => {
+    const without = docs['AGENTS.md'].replace(/^\|\s*`pages\/BookDetail\.tsx`.*\n/m, '')
+    const real = [...realSourceLineCounts().entries()].filter(([, n]) => n > 1000).length
+    const rows = [...without.matchAll(/^\|\s*`pages\/[^`]+`\s*\|\s*(\d+)\s*\|$/gm)]
+    expect(rows.length, '删掉 BookDetail 那一行后清单与实况不等，说明这条判据没牙').toBeLessThan(real)
+  })
+
   it('同一份 README 里「N 用例 / M 文件」的 M 只有一个口径，且等于真值', () => {
     const counts = [...docs['README.md'].matchAll(/([\d,]+) 用例 \/ (\d+) 文件/g)].map((m) =>
       Number(m[2]),
@@ -296,6 +396,13 @@ describe('文档里的结构数字与仓库真值对账', () => {
     expect(counts.length, '至少量到 4 处（锚点被改就量不到了）').toBeGreaterThan(3)
     expect(new Set(counts).size, 'README 内部出现了两个不同的测试文件数').toBe(1)
     expect(counts[0]).toBe(realTestFileCount())
+  })
+
+  it('同一份 README 里「通道数」只有一个口径（2026-09-30：目录树写 144、架构写 148）', () => {
+    // 上面两条规则各自锚一个句式，只保证那两处对；这一条保证**全文再没有第三个数**
+    const claims = [...docs['README.md'].matchAll(/(\d+) 条(?: IPC)? ?通道/g)].map((m) => Number(m[1]))
+    expect(claims.length, '至少量到 2 处（锚点被改就量不到了）').toBeGreaterThan(1)
+    expect(new Set(claims), 'README 内部出现了两个不同的通道数').toEqual(new Set([realChannelCount()]))
   })
 
   it('README 不再承诺"某个文件有多少行"（行数和版本号一样，抄一次漂一次）', () => {
