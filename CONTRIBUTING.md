@@ -60,8 +60,8 @@ zhixing-reader/
 ├── electron/              # Main 进程：数据库、IPC、AI、FSRS、微信读书 API
 │   ├── main.ts            # 入口
 │   ├── preload.ts         # contextBridge API（Renderer 桥）
-│   ├── ipc/               # IPC handlers（按领域 12 文件，index.ts 统一注册）
-│   ├── database/          # sql.js DB（按领域 16 文件，index.ts 统一出口）
+│   ├── ipc/               # IPC handlers（按领域 13 文件，index.ts 统一注册）
+│   ├── database/          # sql.js DB（按领域 17 文件，index.ts 统一出口）
 │   ├── fsrs-engine.ts     # FSRS-6.0 适配层（基于 ts-fsrs 5.4.1）
 │   ├── agent/             # AI 智能体（5 维上下文构建 + 编排）
 │   └── services/          # 业务服务

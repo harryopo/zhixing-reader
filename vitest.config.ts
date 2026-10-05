@@ -144,6 +144,13 @@ export default defineConfig({
         // 2026-09-27 设置 store：20 个函数里只有微信读书连接测试那一条走过（09-26 登记欠账时的量法），
         // 读设置 / 保存 / 清除密钥 / 五个开关的乐观更新与回滚全部补齐后的量法。
         'src/renderer/src/stores/settingsStore.ts', // 100 / 98.87 / 100
+        // 2026-10-04 阅读数据 store（Issue #8 的真实剩余部分）：45 行、两个方法，
+        // 取数 / 失败态 / 切档位重取 / formatReadingTime 四档边界，
+        // 顺带修掉「读失败仍留着上一次的数据」那条把失败演成旧值的缺陷。
+        'src/renderer/src/stores/readingDataStore.ts', // 100 / 100 / 100
+        // 2026-10-04 退出收尾：Issue #1 那条修复此前只有 5 条读源码的字符串判据，
+        // 证不到运行时顺序；补行为判据时量出「一步抛错把后面几步一起带走」这条真缺陷。
+        'electron/shutdown.ts', // 100 / 80 / 100
         // 2026-09-27 设置与系统类通道：十条 handler 里只有 GET / GET_ALL 被密钥边界那批用到，
         // 强制落盘 / 清缓存 / 外链白名单 / 存储用量 / 清历史 / 重置库 / 撤销删除 / 备份 都没判据。
         'electron/ipc/settings.ts',        // 98.18 / 97.61 / 100
@@ -216,9 +223,19 @@ export default defineConfig({
         // pages/profile/__tests__/StatementReview.test.tsx（界面 20 条）、tests/clipboard.test.ts（剪贴板 5 条）。
         'src/shared/profile-statements.ts',    // 100 / 93.5 / 100
         'src/shared/profile-card.ts',          // 100 / 96.42 / 100
+        // 「已确认清单随包带走」（2026-09-30 第一期 A）。判据分两处：
+        // tests/ipc-profile-handlers.test.ts（真写盘读回 + 闸门认得"已确认过"，+4 条）
+        // 与 tests/profile-handoff.test.ts（说明书那一节的两种说法，+3 条）。
+        // 剥来源前缀那条最要紧：写回整串主键的话，外部 AI 交回后闸门会再加一次前缀。
+        // 导出读书笔记的拼装（2026-10-03）。此前笔记页与设置页各写一份且已漂移，
+        // 现在只有这一份；判据 tests/notes-export.test.ts 17 条（格式三条硬要求 +
+        // 两条入口收口 + 逐字节稳定），tests/ipc-books-handlers 那组走真写盘对内容。
+        'src/shared/notes-export.ts',          // 100 / 97.14 / 100
+        'src/shared/profile-verified.ts',      // 100 / 92 / 100
+        'src/renderer/src/pages/profile/statement-filter.ts', // 100 / 100 / 100
         'electron/database/profile-statements.ts', // 100 / 100 / 100
         'src/renderer/src/utils/clipboard.ts', // 100 / 100 / 100
-        'src/renderer/src/pages/profile/StatementReview.tsx', // 100 / 82.08 / 100
+        'src/renderer/src/pages/profile/StatementReview.tsx', // 100 / 83.11 / 100
         // 2026-09-30 画像包交接说明与 Skill 目录合规（方案书第 4 批）：说明书由程序写出，
         // 形状写歪不会报错，只是外部 AI 交回一篇 markdown、或客户端静默不加载这个目录。
         // 判据：tests/profile-handoff.test.ts（与闸门同源 + 样例真能过闸）、

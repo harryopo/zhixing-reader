@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-2281%20%E7%94%A8%E4%BE%8B%20/%20123%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-2391%20%E7%94%A8%E4%BE%8B%20/%20128%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![CI](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml?query=branch%3Amaster)
 [![Lines](https://img.shields.io/badge/code-53%2C800%2B%20TS-blueviolet)]()
 
@@ -30,7 +30,7 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 约 5.9 万行 TypeScript strict（`electron/` + `src/` 下跟踪的 `.ts`/`.tsx`，由 `tests/doc-figures.test.ts` 现算对账）|
-| **测试** | 2281 用例 / 123 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
+| **测试** | 2391 用例 / 128 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
 | **存储** | sql.js (SQLite WASM) · 18 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -67,7 +67,7 @@
 
 ---
 
-## 三、17 大功能模块
+## 三、18 大功能模块
 
 | # | 模块 | 路由 | 核心能力 |
 |---|------|------|----------|
@@ -83,11 +83,12 @@
 | 10 | 生词本 | `/vocabulary` | ECDICT 查询 + 学习阶段 + CSV/Anki 导出 |
 | 11 | 数据统计 | `/stats` | 阅读趋势 + 学习热力图 + 12 周复习可视化 |
 | 12 | Token 监控 | `/token-usage` | 服务商/功能双维用量 + 成本核算 |
-| 13 | 个人中心 | `/profile` | 阅读画像 + 微信读书资料继承 |
+| 13 | 个人中心 | `/profile` | 阅读画像 + 微信读书资料继承 + **画像语料包导出与结论核验**（见下） |
 | 14 | 设置 | `/settings` | AI 多服务商热切换 + 数据导入导出 |
 | 15 | 智能体编排 | `/settings/agent` | 六步流水线可视化 + 意图/策略矩阵 + 提示词模板（设置子页） |
 | 16 | 划线检索 | 设置/对话内 | 本地 BM25 检索（零依赖零网络）+ 引用来源溯源 |
 | 17 | 全局搜索 | `/search` | 一个关键词同时找划线 / 知识卡片 / 方法论 / 文章 / 生词（空格分词，词与词之间 AND），最相关的排在前面，命中句居中显示并可点回原处（卡片与方法论会直接翻开那一条）；每类报出库里命中总数，被截断时给「看全部」出口（本地 LIKE + 本地打分，零 AI 调用） |
+| 18 | 阅读画像（语料包 + 核验） | `/profile` 内 | 把本地阅读痕迹按**三层**分别导出成一个目录：「我说的」（自己写的想法、说进对话的话、档案自述）/「我挑的」（划线原文）/「我选的」（书架与每日阅读），附 `manifest.json` 说明这批证据有多少、缺什么；包里自带交接说明，可交给外部 AI 工具读。读完后把结论清单导回应用逐条点「对 / 不对 / 不确定」，只有点过「对」的才拼进可复制的画像卡。**全程在本地完成，不调用 AI、不联网** |
 
 ---
 
@@ -140,7 +141,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 3.x | 2281 用例 / 123 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 3.x | 2391 用例 / 128 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 26.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -209,11 +210,11 @@ zhixing-reader/
 │       ├── utils/db-mapper.ts               # ⭐ 数据库行 → 前端对象的唯一一处转换
 │       ├── admin-charts.tsx                 # ECharts 6 图
 │       └── echarts-theme-tailwind.ts        # 主题映射
-├── src/shared/                              # 跨进程共享（类型 + 144 条 IPC 通道常量 + 纯函数）
+├── src/shared/                              # 跨进程共享（类型 + 148 条 IPC 通道常量 + 纯函数）
 ├── tokens/brand.json                        # 全部色值的唯一真值（产物由 npm run build:tokens 生成）
 ├── brand/                                   # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal）
 ├── scripts/                                 # 构建期脚本（build-tokens / build-icons）
-├── tests/                                   # Vitest 单元测试（2281 用例 / 123 文件）
+├── tests/                                   # Vitest 单元测试（2391 用例 / 128 文件）
 ├── .github/
 │   ├── workflows/ci.yml                     # lint + typecheck + test:cov + build（windows-latest）
 │   └── ISSUE_TEMPLATE/                      # Bug / 功能建议 / 环境与构建 三类模板
@@ -387,6 +388,7 @@ npm run package:win
 
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
+| 未发布 | v1.3.5（进行中） | **阅读画像导出与核验**（4 个提交）：导出三层语料包（我说的 / 我挑的 / 我选的）→ 交给外部 AI 工具读 → 结论清单导回应用逐条点「对 / 不对 / 不确定」→ 只有点过「对」的拼成画像卡，包内自带交接说明与诚实边界 + 通知面板与书架区分「库里没有」与「这一次没读出来」+ 微信读书想法导入的真实请求修复 / 测试 2281 用例 | 张子涵 |
 | 2026-09-23 | v1.3.4 | 应用内「重启安装」不再弹「无法关闭」（退出前先同步写盘再结束进程）+ 复习待办数不再把新卡算进去 + 书籍详情「笔记」页签恢复可筛 + 开发版与安装版数据目录分开 / 测试 1019 用例 | 张子涵 |
 | 2026-09-21 | v1.3.3 | 检查更新失败时的提示改为可执行的中文说明（不再显示网络错误码），同一次失败只提示一次；「设置 → 关于」更新历史改为短句分条 / 测试 990 用例 | 张子涵 |
 | 2026-09-21 | v1.3.2 | 统计页数据口径修正：趋势图与所选时间范围对齐（本周/本月按天、本年按月）+ 复习热力图改用本地日期 + 卡片总数与近 12 周复习次数分别标注 + 移除未接入计费数据的费用列 / 测试 985 用例 | 张子涵 |
@@ -460,4 +462,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-09-30 | 与 master 分支代码一致（最新发布 v1.3.4，2281 用例 / 123 文件）*
+*最后更新：2026-10-04 | 与 master 分支代码一致（最新发布 v1.3.4，2391 用例 / 128 文件）*
