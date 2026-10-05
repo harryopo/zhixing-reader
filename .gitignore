@@ -90,6 +90,7 @@ pnpm-workspace.yaml
 # Local AI / agent config (not for repo)
 .claude/
 .learnings/
+.qoder/
 
 # 一次性脚本与生成产物（不入库）
 html2pdf-ultra.js
