@@ -50,14 +50,27 @@ describe('重启安装的退出路径', () => {
     expect(fn.indexOf('!== \'downloaded\'')).toBeLessThan(fn.indexOf('autoUpdater.quitAndInstall('))
   })
 
-  it('收尾函数真的落盘，并且库关闭排在日志关闭之前', () => {
-    const closeAt = shutdownSrc.indexOf('closeDatabase()')
-    expect(closeAt).toBeGreaterThan(-1)
-    expect(closeAt).toBeLessThan(shutdownSrc.indexOf('logger.close()'))
+  it('收尾函数真的落盘，并且那几步都在', () => {
+    // 这条原先断的是 `indexOf('closeDatabase()')` 与 `indexOf('logger.close()')` 的先后。
+    // 2026-10-04 给退出收尾补了真行为判据（`tests/shutdown-behavior.test.ts`）之后，
+    // 生产代码里那两步被包进 `runStep(label, fn, errors)` 兜底，字面量从
+    // `closeDatabase()` 变成裸标识符 `closeDatabase` —— 旧判据当场失配（expected -1）。
+    //
+    // 「顺序」这件事现在由行为判据用**真实调用序列**来钉（那里量的是 steps() 的下标，
+    // 写错了顺序或撤掉某一步的兜底都会红）。这条只负责"这些步骤一个都没被删掉"。
+    for (const step of [
+      'cancelActiveStream',
+      'stopWereadAutoSync',
+      'knowledgeCardService',
+      'closeDatabase',
+      'logger.close',
+    ]) {
+      expect(shutdownSrc, `收尾里没有 ${step} 了`).toContain(step)
+    }
     // 中止进行中的 AI 流：exit 不走窗口 close，这条路没人替我们做
-    expect(shutdownSrc).toContain('cancelActiveStream()')
-    expect(shutdownSrc).toContain('stopWereadAutoSync()')
-    expect(shutdownSrc).toContain('knowledgeCardService.shutdown()')
+    expect(shutdownSrc).toContain('cancelActiveStream')
+    expect(shutdownSrc).toContain('stopWereadAutoSync')
+    expect(shutdownSrc).toContain('knowledgeCardService.shutdown')
   })
 
   it('before-quit 与安装路径共用同一份收尾', () => {
