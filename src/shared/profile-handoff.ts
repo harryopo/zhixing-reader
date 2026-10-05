@@ -17,6 +17,7 @@
  */
 import {
   MIN_EVIDENCE,
+  INFERRED_LAYER_NOTE,
   STATEMENT_FILE_APP,
   STATEMENT_FILE_LABEL,
   STATEMENT_FILE_VERSION,
@@ -26,6 +27,8 @@ import {
 import type { StatementOrigin } from './profile-statements'
 import { CORPUS_MAX_CHARS_PER_VOLUME } from './profile-corpus'
 import type { ProfileManifest } from './profile-manifest'
+import { verifiedSection } from './profile-verified'
+import type { VerifiedFile } from './profile-verified'
 
 const FENCE = '```'
 
@@ -58,7 +61,7 @@ function sampleFile(origin: StatementOrigin = 'nuwa'): string {
   return `${FENCE}json\n${JSON.stringify(file, null, 2)}\n${FENCE}`
 }
 
-export function buildHandoffDoc(manifest: ProfileManifest): string {
+export function buildHandoffDoc(manifest: ProfileManifest, verified: VerifiedFile): string {
   const layers = PROFILE_STATEMENT_LAYERS.join(' / ')
   const caveats = manifest.caveats.map((line) => `- ${line}`).join('\n')
   return `# 这批阅读证据怎么用
@@ -73,6 +76,10 @@ ${manifest.summary}
 - \`chose\`（${STATEMENT_LAYER_LABELS.chose}）—— 你书架上的书与每日阅读记录。分类标签出自微信读书的平台体系，不是你选的词。
 
 回指某一条证据时用它的 \`id\`：想法那条带 \`#note\` 后缀（同一条划线会出两条记录、id 不同）。
+
+${INFERRED_LAYER_NOTE}
+
+${verifiedSection(verified)}
 
 ## 二、这批证据缺什么（先读这一节再下结论）
 

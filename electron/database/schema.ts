@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import { logger } from '../logger';
 import { rowsToObjects } from '../utils/db';
 import { getDatabasePath, getDatabase, setDatabase, saveDatabase, runTransaction } from './connection';
+import { PROFILE_STATEMENT_ALL_LAYERS } from '../../src/shared/profile-statements';
 
 export function initializeSchema(db: import('sql.js').Database): void {
   // 外键开关：连接一开就先打开，schema 里那些 ON DELETE CASCADE 才有意义。
@@ -315,13 +316,15 @@ export function initializeSchema(db: import('sql.js').Database): void {
    * （何况 sql.js 的 `export()` 曾把外键复位成 0，级联静默失效过一次，见 2026-09-25 那批）。
    * 引用没了，界面就把那一条标成「原始划线已不在」，结论留着。
    *
-   * `layer` 里的 `inferred` 是给「系统推断」预留的：应用内一次 AI 都不调，所以这一层
-   * 目前没有生产者，导入时会被挡在外面（见 `src/shared/profile-statements.ts`）。
+   * `layer` 认四层（清单从 `PROFILE_STATEMENT_ALL_LAYERS` 派生，不是手写的四个字符串 ——
+   * 同一份各写一遍，加层时漏了 CHECK 要等真库报错才现形，而那一刻已经晚了）。
+   * 其中 `inferred` 没有生产者、导入时会被挡在外面，理由见 `INFERRED_LAYER_NOTE`。
    */
+  const statementLayers = PROFILE_STATEMENT_ALL_LAYERS.map((l) => `'${l}'`).join(', ');
   db.run(`
     CREATE TABLE IF NOT EXISTS profile_statements (
       id TEXT PRIMARY KEY,
-      layer TEXT NOT NULL CHECK(layer IN ('said', 'marked', 'chose', 'inferred')),
+      layer TEXT NOT NULL CHECK(layer IN (${statementLayers})),
       topic TEXT NOT NULL,
       statement TEXT NOT NULL,
       evidence_ids TEXT NOT NULL,

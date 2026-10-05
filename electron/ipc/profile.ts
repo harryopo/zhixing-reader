@@ -24,6 +24,12 @@ import type { CorpusPlan, CorpusVolume } from '../../src/shared/profile-corpus';
 import { buildManifest, describeManifest } from '../../src/shared/profile-manifest';
 import type { CorpusExportResult, ProfileManifest } from '../../src/shared/profile-manifest';
 import { buildHandoffDoc } from '../../src/shared/profile-handoff';
+import {
+  VERIFIED_FILE_NAME,
+  buildVerified,
+  describeVerified,
+} from '../../src/shared/profile-verified';
+import type { StatementRowLike, VerifiedFile } from '../../src/shared/profile-verified';
 import { README_FILE_NAME, SKILL_DESCRIPTION, SKILL_DIR_NAME, SKILL_FILE_NAME, buildSkillFile } from '../../src/shared/profile-skill';
 import {
   STATEMENT_FILE_LABEL,
@@ -90,11 +96,14 @@ export function writeCorpusPackage(
   plan: CorpusPlan,
   volumes: readonly CorpusVolume[],
   now: Date,
-): { dir: string; manifest: ProfileManifest } {
+  /** 本人已判「对」的结论 —— 语料是证据，这一份是"这些结论你已认可" */
+  confirmedStatements: readonly StatementRowLike[] = [],
+): { dir: string; manifest: ProfileManifest; verified: VerifiedFile } {
   const packageRoot = join(root, PACKAGE_DIR_NAME);
   const dir = join(packageRoot, 'corpus');
   mkdirSync(dir, { recursive: true });
   const manifest = buildManifest({ plan, volumes, now });
+  const verified = buildVerified(confirmedStatements, now);
   // 上一次导出留下的旧卷要先摘掉：外部 AI 是照着目录读文件的，留着 marked-vol-07
   // 就是把已经删掉的划线当成还在。只摘我们自己那个命名（`*-vol-NN.jsonl`），
   // 用户放在同一目录里的别的文件一个都不碰。
@@ -107,44 +116,77 @@ export function writeCorpusPackage(
     writeFileSync(join(dir, volume.file), `${lines.join('\n')}\n`, 'utf8');
   }
   writeFileSync(join(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  // 已确认清单放在包根（与 corpus/ 平级）：它是"结论"，不是"证据"，
+  // 混进 corpus/ 里会让对方按语料的读法去读它。
+  writeFileSync(
+    join(packageRoot, VERIFIED_FILE_NAME),
+    `${JSON.stringify(verified, null, 2)}\n`,
+    'utf8',
+  );
 
   // 交接说明与语料同批写出：一份散文，两个入口文件名（README 给人和其他工具翻，
   // SKILL.md 给按 Agent Skills 认目录的那批客户端）。**正文同一个字符串**，
   // 所以两处不可能各说一套 —— 判据逐字节对账这条。
-  const doc = buildHandoffDoc(manifest);
+  const doc = buildHandoffDoc(manifest, verified);
   writeFileSync(join(packageRoot, README_FILE_NAME), doc, 'utf8');
   writeFileSync(
     join(packageRoot, SKILL_FILE_NAME),
     buildSkillFile({ name: PACKAGE_DIR_NAME, description: SKILL_DESCRIPTION, body: doc }),
     'utf8',
   );
-  return { dir, manifest };
+  return { dir, manifest, verified };
+}
+
+/**
+ * 导出那一条：先问存哪儿、再取数写盘（取消时一次库都不读）。
+ *
+ * 独立成模块级函数而不是内联在 registerProfileHandlers 里：加上"已确认清单"
+ * 之后那个函数超过了 80 行（"新代码不带新 warning"这条口径第六次被门禁教）。
+ */
+async function exportCorpusPackage(): Promise<CorpusExportResult> {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const picked = await dialog.showOpenDialog(win, {
+    title: '导出阅读画像语料包',
+    buttonLabel: '导出到这里',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (picked.canceled || picked.filePaths.length === 0) {
+    return { saved: false, summary: '已取消，磁盘上没有动', dir: '', volumes: 0, reason: 'canceled' };
+  }
+
+  // 取数排在保存框之后：取消时一次库都不读、一个目录都不建
+  const plan = collectCorpusPlan();
+  if (plan.records.length === 0) {
+    // 空语料不写盘 —— 导一个空包出去，外部 AI 只能凭猜测编一个人
+    return { saved: false, summary: describeCorpus(plan), dir: '', volumes: 0, reason: 'empty' };
+  }
+
+  const volumes = planVolumes(plan.records, CORPUS_MAX_CHARS_PER_VOLUME);
+  // 取已确认清单排在保存框之后（上面已经 return 了取消与空语料两种）：取消时连库都不读
+  const confirmed = profileStatementsDb.getAll();
+  const { dir, manifest, verified } = writeCorpusPackage(
+    picked.filePaths[0],
+    plan,
+    volumes,
+    new Date(),
+    confirmed,
+  );
+  logger.info('Profile corpus exported', {
+    dir,
+    volumes: volumes.length,
+    records: plan.records.length,
+    verified: verified.confirmed,
+  });
+  return {
+    saved: true,
+    summary: `${describeManifest(manifest)} · ${describeVerified(verified)}`,
+    dir,
+    volumes: volumes.length,
+  };
 }
 
 export function registerProfileHandlers(handle: HandleFn): void {
-  handle(IPC_CHANNELS.PROFILE.EXPORT_PACKAGE, async (): Promise<CorpusExportResult> => {
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-    const picked = await dialog.showOpenDialog(win, {
-      title: '导出阅读画像语料包',
-      buttonLabel: '导出到这里',
-      properties: ['openDirectory', 'createDirectory'],
-    });
-    if (picked.canceled || picked.filePaths.length === 0) {
-      return { saved: false, summary: '已取消，磁盘上没有动', dir: '', volumes: 0, reason: 'canceled' };
-    }
-
-    // 取数排在保存框之后：取消时一次库都不读、一个目录都不建
-    const plan = collectCorpusPlan();
-    if (plan.records.length === 0) {
-      // 空语料不写盘 —— 导一个空包出去，外部 AI 只能凭猜测编一个人
-      return { saved: false, summary: describeCorpus(plan), dir: '', volumes: 0, reason: 'empty' };
-    }
-
-    const volumes = planVolumes(plan.records, CORPUS_MAX_CHARS_PER_VOLUME);
-    const { dir, manifest } = writeCorpusPackage(picked.filePaths[0], plan, volumes, new Date());
-    logger.info('Profile corpus exported', { dir, volumes: volumes.length, records: plan.records.length });
-    return { saved: true, summary: describeManifest(manifest), dir, volumes: volumes.length };
-  });
+  handle(IPC_CHANNELS.PROFILE.EXPORT_PACKAGE, exportCorpusPackage);
 
   /**
    * 核验区一次读全：结论 + 每条证据的原话。

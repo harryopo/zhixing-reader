@@ -25,6 +25,27 @@ export const PROFILE_STATEMENT_LAYERS = ['said', 'marked', 'chose'] as const
 /** 库里 CHECK 认的四层；`inferred` 这一层在没有应用内蒸馏之前没有生产者 */
 export const PROFILE_STATEMENT_ALL_LAYERS = [...PROFILE_STATEMENT_LAYERS, 'inferred'] as const
 
+/**
+ * `inferred`（系统推断）为什么在四个地方都"认得但不收"—— 这条理由只此一份，
+ * schema 的 CHECK、导入闸门、导出说明书、界面标签四处都从它派生。
+ *
+ * **不删这一层的理由**：它是给"以后可能出现的应用内蒸馏"留的位置，而"预留"这件事
+ * 写进注释不算数，得在数据结构里认着。**现在不收的理由**：这一层语义是"系统推断"，
+ * 而应用内一次 AI 都不调 ⇒ **没有生产者**；让外部 AI 往这一层写，等于把它的猜测
+ * 记成"系统推断"，那是把最不可信的东西挂在最像事实的那一层上。
+ *
+ * ⚠️ 改这一层之前先问一句"生产者出现了没有"。真有生产者了（应用内蒸馏上线），
+ * 本条与四处派生一起改，只改一处会立刻漂 —— 本项目被这件事咬过七次。
+ */
+/** 界面上告诉用户"为什么被挡"的那一句 —— 说明书、判据、导入提示三处都从它派生 */
+export const INFERRED_REJECT_TEXT = '系统推断那一层现在不产'
+
+/** 写进导出说明书里的那几句（`inferred` 为什么认着但不收） */
+export const INFERRED_LAYER_NOTE =
+  '`inferred`（系统推断）这一层在库里认着、但现在一条都不收：应用内一次 AI 都不调，没有生产者。' +
+  '你写进这一层的东西会被逐条挡下并告诉你「' + INFERRED_REJECT_TEXT + '」——' +
+  '结论请归到 said / marked / chose 里真正对应的那一层。'
+
 export type StatementLayer = (typeof PROFILE_STATEMENT_ALL_LAYERS)[number]
 export type StatementVerdict = 'pending' | 'confirmed' | 'rejected' | 'unsure'
 export type StatementOrigin = 'app' | 'nuwa' | 'manual'
@@ -159,7 +180,7 @@ const REASON_TEXT: Record<RejectReason, string> = {
   blank_id: '没给编号',
   duplicate_id: '编号重复',
   bad_layer: '层名不认识',
-  inferred_disabled: '系统推断那一层现在不产',
+  inferred_disabled: INFERRED_REJECT_TEXT,
   blank_statement: '结论正文是空的',
   blank_topic: '没写话题',
   too_few_evidence: '证据不足两条',

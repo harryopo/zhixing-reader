@@ -27,7 +27,15 @@ import {
 import { registerProfileHandlers } from '../electron/ipc/profile'
 import { IPC_CHANNELS } from '../src/shared/ipc-channels'
 import { CATEGORY_CAVEAT } from '../src/shared/profile-corpus'
-import { STATEMENT_FILE_APP, STATEMENT_FILE_LABEL, STATEMENT_FILE_VERSION, parseStatementsFile, validateStatements } from '../src/shared/profile-statements'
+import { VERIFIED_FILE_NAME } from '../src/shared/profile-verified'
+import {
+  STATEMENT_FILE_APP,
+  STATEMENT_FILE_LABEL,
+  STATEMENT_FILE_VERSION,
+  parseStatementsFile,
+  validateStatements,
+  mergeStatementsForWrite,
+} from '../src/shared/profile-statements'
 import { SKILL_DIR_NAME } from '../src/shared/profile-skill'
 import { checkSkill } from './__fixtures__/skill-spec'
 import type { CorpusExportResult, ProfileManifest } from '../src/shared/profile-manifest'
@@ -64,6 +72,11 @@ function pickAt(dir: string) {
 
 function cancelPick() {
   vi.mocked(dialog.showOpenDialog).mockResolvedValue({ canceled: true, filePaths: [], blobURLs: [] } as never)
+}
+
+/** 包根目录 = corpus 的上一级 */
+function rootOf(result: CorpusExportResult): string {
+  return join(result.dir, '..')
 }
 
 async function exportOnce(): Promise<CorpusExportResult> {
@@ -280,17 +293,17 @@ describe('真库导出：文件里的每一行都对得上库里那一行', () =
 })
 
 describe('导出的包自带交接说明（第 4 批：形状由程序写，不再靠人手抄）', () => {
-  /** 包根目录 = corpus 的上一级 */
-  function rootOf(result: CorpusExportResult): string {
-    return join(result.dir, '..')
-  }
-
   it('根目录里有 README.md 与 SKILL.md，与 corpus 同级', async () => {
     seedLibrary()
     pickAt(PICKED)
     const result = await exportOnce()
 
-    expect(readdirSync(rootOf(result)).sort()).toEqual(['README.md', 'SKILL.md', 'corpus'])
+    expect(readdirSync(rootOf(result)).sort()).toEqual([
+      'README.md',
+      'SKILL.md',
+      'corpus',
+      VERIFIED_FILE_NAME,
+    ])
   })
 
   it('写出去的文件只有清单里那些 —— 多一个就判红（把设置或密钥写进包里就是这么漏出去的）', async () => {
@@ -309,6 +322,7 @@ describe('导出的包自带交接说明（第 4 批：形状由程序写，不�
       join('corpus', 'manifest.json'),
       join('corpus', 'marked-vol-01.jsonl'),
       join('corpus', 'said-vol-01.jsonl'),
+      VERIFIED_FILE_NAME,
     ])
   })
 
@@ -681,5 +695,97 @@ describe('按下「对 / 不对 / 不确定」', () => {
       await expect(run(VERDICT, bad, 'confirmed')).rejects.toThrow('没有结论编号')
     }
     expect(profileStatementsDb.getAll()[0].verdict).toBe('pending')
+  })
+})
+
+// 2026-09-30 补（第一期 A）：语料包带上"你已经判过什么"。
+// 这是整批最要紧的一条 —— 此前 `profile_statements` **从不进导出包**，于是第二轮的外部 AI
+// 拿到的包与第一轮一模一样，它不知道你认可过哪些结论，每轮都从零重新推断。
+describe('已确认清单随包带走（第一期 A：让第二轮变成增量修正）', () => {
+  const seedVerdicts = () => {
+    const base = { layer: 'said' as const, topic: '你怎么用时间' }
+    // ⚠️ 必须走**真实通路**（validateStatements → merge → upsertMany）才落得出
+    // `nuwa:v1` 那个主键：直接调 upsertMany 写 `v1`，绕过 import 那道换算，
+    // 于是"库里 id 带不带前缀"这个前提本身就是假的 —— 判据自己造了个假现场。
+    const evidence = new Set(['hl_both', 'hl_both#note', 'hl_only_marked'])
+    const accepted = validateStatements(
+      [
+        { id: 'v1', ...base, statement: '晚上比早晨更愿意读长文', evidenceIds: ['hl_both', 'hl_both#note'] },
+        { id: 'v2', ...base, statement: '还没判的那条', evidenceIds: ['hl_both'] },
+        { id: 'v3', ...base, statement: '判过不对的那条', evidenceIds: ['hl_only_marked'] },
+      ],
+      evidence,
+    ).accepted
+    profileStatementsDb.upsertMany(accepted)
+    // 按**库里真实主键**按判定，不是 extId —— 落库时闸门加过前缀了，
+    // 用 'v1' 去 setVerdict 是更新 0 行，判定会静默没记上（本项目的老形状）
+    profileStatementsDb.setVerdict('nuwa:v1', 'confirmed')
+    profileStatementsDb.setVerdict('nuwa:v3', 'rejected')
+  }
+
+  it('只把判「对」的写进去 —— 待判与判过不对的都不许出现在清单里', async () => {
+    seedLibrary()
+    seedVerdicts()
+    pickAt(PICKED)
+    const result = await exportOnce()
+
+    const file = JSON.parse(
+      readFileSync(join(rootOf(result), VERIFIED_FILE_NAME), 'utf8'),
+    ) as { confirmed: number; statements: { id: string; statement: string }[] }
+
+    expect(file.confirmed).toBe(1)
+    expect(file.statements.map((s) => s.id)).toEqual(['v1'])
+    expect(file.statements[0].statement).toBe('晚上比早晨更愿意读长文')
+    // 逐条断言"没被写的那些"：只断 confirmed===1 时，把过滤整个撤掉也可能撞上
+    for (const absent of ['还没判的那条', '判过不对的那条']) {
+      expect(readFileSync(join(rootOf(result), VERIFIED_FILE_NAME), 'utf8')).not.toContain(absent)
+    }
+  })
+
+  // ⚠️ 这一条 2026-09-30 当场判红过一次，值是 `nuwa:v1` 而期望 `v1` ——
+  // 库里的主键是 `${origin}:${extId}`，导出若把主键整串写出去，对方交回后闸门
+  // 会再加一次前缀变成 `nuwa:nuwa:v1`，那是**一条新条目**，保护那一路根本走不到。
+  // 导出的是 **extId**（`v1`），闸门落库时自己加前缀，正好命中已确认那条。
+  it('导出的是 extId 而不是库主键（交回同一个 id 才命中已确认那条）', async () => {
+    seedLibrary()
+    seedVerdicts()
+    pickAt(PICKED)
+    const result = await exportOnce()
+
+    const file = JSON.parse(readFileSync(join(rootOf(result), VERIFIED_FILE_NAME), 'utf8'))
+    const inDb = profileStatementsDb.getAll().find((r) => r.verdict === 'confirmed')
+    expect(inDb?.id, '库里那条 confirmed 的 id 不带来源前缀 ⇒ 前提就不成立').toBe('nuwa:v1')
+    expect(file.statements[0].id).toBe('v1')
+  })
+
+  it('一次都没判过时也写出这个文件，而且 confirmed 是 0（空清单与"文件不存在"对外面不是一回事）', async () => {
+    seedLibrary()
+    pickAt(PICKED)
+    const result = await exportOnce()
+
+    const raw = readFileSync(join(rootOf(result), VERIFIED_FILE_NAME), 'utf8')
+    expect(JSON.parse(raw).confirmed).toBe(0)
+    expect(JSON.parse(raw).statements).toEqual([])
+  })
+
+  it('那条交回同一个 id 的，导入时不会被当成新条目收下（闸门认得"已确认过"）', async () => {
+    seedLibrary()
+    seedVerdicts()
+    const file = {
+      app: STATEMENT_FILE_APP,
+      version: STATEMENT_FILE_VERSION,
+      origin: 'nuwa' as const,
+      statements: [
+        { id: 'v1', layer: 'said', topic: '你怎么用时间', statement: '外部 AI 改了正文', evidenceIds: ['hl_both', 'hl_both#note'] },
+      ],
+    }
+    const accepted = validateStatements(file.statements, new Set(['hl_both', 'hl_both#note'])).accepted
+    const plan = mergeStatementsForWrite(
+      accepted,
+      Object.fromEntries(profileStatementsDb.getAll().map((r) => [r.id, { verdict: r.verdict }])),
+    )
+    // toWrite 为空才是重点：正文被外部 AI 改过（"外部 AI 改了正文"），库里那条没被动
+    expect(plan.toWrite, '已确认那条被当成新条目收下了').toEqual([])
+    expect(plan.protectedIds).toContain('nuwa:v1')
   })
 })

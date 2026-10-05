@@ -9,14 +9,20 @@ import { describe, it, expect } from 'vitest'
 import { buildHandoffDoc } from '../src/shared/profile-handoff'
 import {
   MIN_EVIDENCE,
+  INFERRED_LAYER_NOTE,
+  INFERRED_REJECT_TEXT,
+  PROFILE_STATEMENT_LAYERS,
+  PROFILE_STATEMENT_ALL_LAYERS,
   STATEMENT_FILE_APP,
   STATEMENT_FILE_VERSION,
   STATEMENT_FILE_LABEL,
   STATEMENT_LAYER_LABELS,
   parseStatementsFile,
   validateStatements,
+  describeStatementImport,
 } from '../src/shared/profile-statements'
 import type { ProfileManifest } from '../src/shared/profile-manifest'
+import { buildVerified, VERIFIED_FILE_NAME } from '../src/shared/profile-verified'
 import { CORPUS_MAX_CHARS_PER_VOLUME, planVolumes, volumeChars } from '../src/shared/profile-corpus'
 import { SKILL_DESCRIPTION, SKILL_DIR_NAME, buildSkillFile } from '../src/shared/profile-skill'
 import { BODY_MAX_LINES, checkSkill } from './__fixtures__/skill-spec'
@@ -36,7 +42,30 @@ const manifest: ProfileManifest = {
   caveats: ['语料只来自这台电脑上的本地库'],
 }
 
-const doc = buildHandoffDoc(manifest)
+// 两份 doc 都从真函数现造，不手写字面量：
+// `docEmpty` 是还没有任何判定的第一批，`docSome` 是判过几条之后的那批。
+// 说明书里「已确认」那一节的两种说法都要被测到 —— 只测一种就会漏掉另一种被改坏。
+const AT = new Date('2026-09-30T01:00:00.000Z')
+
+const docEmpty = buildHandoffDoc(manifest, buildVerified([], AT))
+
+const doc = buildHandoffDoc(
+  manifest,
+  buildVerified(
+    [
+      {
+        id: 'p1',
+        layer: 'said',
+        topic: '你怎么用时间',
+        statement: '晚上比早晨更愿意坐下来读长文',
+        evidenceIds: ['hl_1', 'hl_1#note'],
+        verdict: 'confirmed',
+      },
+      { id: 'p2', layer: 'marked', topic: 't', statement: 's', evidenceIds: ['h1'], verdict: 'pending' },
+    ],
+    AT,
+  ),
+)
 
 describe('文档内容与闸门同源', () => {
   /**
@@ -77,12 +106,48 @@ describe('文档内容与闸门同源', () => {
     expect(doc).toContain('作者写的')
   })
 
-  it('每个层名用的是界面上那套标签（同一个词在两处各写一遍，迟早一个改了一个没改）', () => {
-    for (const label of Object.values(STATEMENT_LAYER_LABELS)) {
-      if (label === STATEMENT_LAYER_LABELS.inferred) continue
-      expect(doc, `文档里少了界面用的层标签：${label}`).toContain(label)
+  it('三个可用层用的是界面上那套标签（同一个词在两处各写一遍，迟早一个改了一个没改）', () => {
+    for (const layer of PROFILE_STATEMENT_LAYERS) {
+      expect(doc, `文档里少了可用的层：${layer}`).toContain(layer)
+      expect(doc, `文档里少了界面上那套标签：${STATEMENT_LAYER_LABELS[layer]}`).toContain(
+        STATEMENT_LAYER_LABELS[layer],
+      )
     }
-    expect(doc).not.toContain(STATEMENT_LAYER_LABELS.inferred)
+  })
+
+  // 这条 2026-09-30 改过：原来断的是「文档里不许出现 inferred 这四个字」，
+  // 那是在防「把没有生产者的第四层当可用选项列进层清单」。但它连"为什么不能用"一起
+  // 抹掉了 ⇒ 外部 AI 读到「层只有三种」，若仍写 inferred 就会被自己的应用挡下，
+  // 而文档从没说过有这么一层。**闸门挡它是对的，说明书不提它也是对的，
+  // 只说"不收"不说"有这么一层"是错的** —— 用户照文档做的文件被挡，只会以为文件坏了。
+  it('第四层 inferred：写明它不收，且不许被列成可用选项', () => {
+    // 说清了"有这一层、现在不收、写了会被挡"
+    expect(doc).toContain(STATEMENT_LAYER_LABELS.inferred)
+    expect(doc).toContain('不收')
+    // 但可用层清单里不许有它 —— 这条是原判据真正要守的东西。
+    // ⚠️ 只断言 inferred 缺席是不够的：清单整行删掉时它也"不出现"，那是空转。
+    const rule = doc.split('\n').find((l) => l.includes('`layer` 只认'))!
+    expect(rule, '找不到「layer 只认」那条规则行').toBeTruthy()
+    for (const layer of PROFILE_STATEMENT_LAYERS) {
+      expect(rule, `可用层清单里少了 ${layer}`).toContain(layer)
+    }
+    expect(rule, `可用层清单里不该出现 ${PROFILE_STATEMENT_ALL_LAYERS[3]}`).not.toContain(
+      PROFILE_STATEMENT_ALL_LAYERS[3],
+    )
+  })
+
+  it('闸门说的那句人话与说明书同源（对方看到的话与界面告诉用户的话不许各写一遍）', () => {
+    expect(doc).toContain(INFERRED_REJECT_TEXT)
+    expect(INFERRED_LAYER_NOTE).toContain(INFERRED_REJECT_TEXT)
+    // 那句话必须真的来自闸门，不是判据自己写了一遍就算数
+    const v = validateStatements(
+      [{ id: 'p1', layer: 'inferred', topic: 't', statement: 's', evidenceIds: ['h1', 'h2'] }],
+      new Set(['h1', 'h2']),
+    )
+    expect(v.rejected.map((r) => r.reason)).toEqual(['inferred_disabled'])
+    expect(
+      describeStatementImport({ toWrite: [], protectedIds: [], rejected: v.rejected }),
+    ).toContain(INFERRED_REJECT_TEXT)
   })
 
   it('告诉对方这份清单叫什么名字 —— 与导入弹框那个筛选器同名', () => {
@@ -167,5 +232,35 @@ describe('文档能撑起一个合规的 Skill 目录', () => {
 
   it('说明书本身不超过规范给正文的行数上限（写长了客户端就不加载，而它不会报错）', () => {
     expect(doc.split('\n').length).toBeLessThan(BODY_MAX_LINES)
+  })
+})
+
+// 2026-09-30 补：「已确认」那一节的**两种说法**都要被测。
+// 只测"判过几条"那份，空批那句就没人看 —— 而空批恰恰是第一次导出时用户看到的那一份，
+// 它说错的话，第一次用的人就被误导（对方会以为"没有已确认"是文件坏了而不是真的没判过）。
+describe('已确认清单那一节：两种状态各说各的', () => {
+  it('判过几条：说清"这是你按下过的"、"不要重复提"、"别改它的正文"', () => {
+    expect(doc).toContain(VERIFIED_FILE_NAME)
+    expect(doc).toContain('按下过')
+    expect(doc).toContain('不要重复提')
+    expect(doc).toContain('别改它的正文')
+    // id 复用是整个设计的要点：对方拿同一个 id 交回，闸门才认得出"这条已确认过"
+    expect(doc).toContain('同一个')
+  })
+
+  it('一条都没判过：明确说"这批是空的"、说清这是第一批，不许说成"没有已确认文件"', () => {
+    expect(docEmpty).toContain('这一批是空的')
+    expect(docEmpty).toContain('0')
+    expect(docEmpty).toContain('第一轮')
+    // 空批不许出现那三句劝告 —— 没有已确认时提"不要重复提"是把对方当傻子
+    expect(docEmpty).not.toContain('不要重复提')
+  })
+
+  it('反证 · 空批那句改成非空批的说法，两份判据都要判红', () => {
+    const wrong = buildHandoffDoc(manifest, buildVerified([{
+      id: 'x', layer: 'said', topic: 't', statement: 's',
+      evidenceIds: ['a', 'b'], verdict: 'confirmed',
+    }], AT))
+    expect(wrong, '拿非空的那份冒充空的，这条判据就没牙').not.toContain('这一批是空的')
   })
 })

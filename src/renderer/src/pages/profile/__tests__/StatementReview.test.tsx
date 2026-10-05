@@ -11,6 +11,8 @@
  */
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import StatementReview from '../StatementReview'
@@ -321,5 +323,130 @@ describe('导入', () => {
     fireEvent.click(screen.getByRole('button', { name: '导入结论清单' }))
 
     await waitFor(() => expect(seams.toast.error).toHaveBeenCalledWith('导入失败：这个文件读不了'))
+  })
+})
+
+// 2026-09-30 补：上面 22 条全在测组件自己，但**没有一条断"档案页真的挂了它"**。
+// 组件测得再细，页面不引用它就是一段没人走得到的死代码 —— 而路线图上曾把
+// "界面无浏览视图"当成待办记了十一天（其实 `Profile.tsx` 早就挂着它了），
+// 那条记录的根因就是"组件有自己的测试，页面有没有接上没人断"。
+describe('接线：档案页真的把它摆出来了', () => {
+  // happy-dom 下 import.meta.url 不是 file scheme（实测报 "The URL must be of scheme file"），
+  // 这里从 process.cwd() 走 —— vitest 的 cwd 就是仓库根，与 doc-figures 那批同一条路。
+  const profileSrc = readFileSync(
+    join(process.cwd(), 'src/renderer/src/pages/Profile.tsx'),
+    'utf8',
+  )
+
+  it('档案页 import 并渲染了它（不许组件自成一段没人引用的死代码）', () => {
+    expect(profileSrc).toMatch(/import\s+StatementReview\s+from\s+'\.\/profile\/StatementReview'/)
+    expect(profileSrc).toMatch(/<StatementReview\s*\/>/)
+  })
+
+  it('那一块有自己的标题，页面上一眼能认出这是画像核验', () => {
+    expect(profileSrc).toContain('画像核验')
+  })
+
+  it('反证 · 把档案页里那行渲染摘掉，这条判据必须判红', () => {
+    const removed = profileSrc.replace(/<StatementReview\s*\/>/, '')
+    expect(removed, '摘掉渲染后这条判据仍绿 ⇒ 它没在断接线').not.toMatch(/<StatementReview\s*\/>/)
+  })
+})
+
+// 2026-09-30 补（第一期 C）：判过的那些要能翻回来。
+// 立它的理由：判完只有一句计数，"我上个月判过哪些"只能靠记忆 —— 而已确认的
+// 那些正是最该被反复回看的（是你的判断，不是猜测），归档之后却再也找不回来。
+describe('筛选：判过的能翻回来', () => {
+  const three = [
+    { ...saidStatement, id: 'nuwa:p1', verdict: 'confirmed' as const, statement: '判过对的那条' },
+    { ...saidStatement, id: 'nuwa:p2', verdict: 'pending' as const, statement: '还没判的那条' },
+    { ...saidStatement, id: 'nuwa:p3', verdict: 'unsure' as const, statement: '按下过不确定的那条' },
+    { ...saidStatement, id: 'nuwa:p4', verdict: 'rejected' as const, statement: '判过不对的那条' },
+  ]
+
+  it('四档按钮都摆出来，各带自己的条数', async () => {
+    seams.list.mockResolvedValue(viewOf({ statements: three, evidence }))
+    renderIt()
+    await screen.findByText('判过对的那条')
+
+    // 还没判那档收 pending + unsure 两条 —— 按下「不确定」不等于处理完了
+    expect(screen.getByRole('button', { name: '全部 4' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '还没判 2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '已判对 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '已判不对 1' })).toBeInTheDocument()
+  })
+
+  it('切到「已判对」只摆那一条，且证据与原句仍读得到', async () => {
+    seams.list.mockResolvedValue(viewOf({ statements: three, evidence }))
+    renderIt()
+    await screen.findByText('判过对的那条')
+
+    fireEvent.click(screen.getByRole('button', { name: '已判对 1' }))
+
+    expect(screen.getByText('判过对的那条')).toBeInTheDocument()
+    expect(screen.queryByText('还没判的那条')).not.toBeInTheDocument()
+    expect(screen.queryByText('判过不对的那条')).not.toBeInTheDocument()
+    // 关键：筛选之后证据还在 —— 已判的归档了就再也读不回原句，累积就白攒了
+    // 原句与书名拼在同一行（"《当下的力量》：向外求求而不得"），
+    // 用 textContent 断而不是 getByText 精确匹配 —— 后者对拼在一行的文案找不到
+    expect(document.body.textContent).toContain('向外求求而不得')
+    expect(document.body.textContent).toContain('回原文')
+  })
+
+  it('「不确定」归到「还没判」那一档，不许算成已处理完', async () => {
+    seams.list.mockResolvedValue(viewOf({ statements: three, evidence }))
+    renderIt()
+    await screen.findByText('判过对的那条')
+
+    fireEvent.click(screen.getByRole('button', { name: '还没判 2' }))
+    expect(screen.getByText('还没判的那条')).toBeInTheDocument()
+    expect(screen.getByText('按下过不确定的那条')).toBeInTheDocument()
+  })
+
+  // 这条是整个筛选的硬口径：筛选只管"摆哪些"，计数与画像卡永远按全部算。
+  // 不钉住它，有一天会有人把 visible 拿去算 confirmed —— 那时在「已判对」那档
+  // 复制出来的是全部、在「还没判」那档直接不可用，而界面上两者长得一模一样。
+  it('切档不改变顶部计数，也不改变「复制画像卡」可用与否', async () => {
+    seams.list.mockResolvedValue(viewOf({ statements: three, evidence }))
+    renderIt()
+    await screen.findByText('判过对的那条')
+
+    const countLine = screen.getByText(/共 4 条/)
+    const copyBtn = screen.getByRole('button', { name: '复制画像卡' })
+
+    fireEvent.click(screen.getByRole('button', { name: '已判对 1' }))
+    expect(screen.getByText(/共 4 条/)).toBe(countLine)
+    expect(screen.getByRole('button', { name: '复制画像卡' })).toBe(copyBtn)
+
+    fireEvent.click(screen.getByRole('button', { name: '还没判 2' }))
+    expect(screen.getByText(/共 4 条/)).toBe(countLine)
+    // 还没判那档里一条确认都没有，若计数跟着筛选走，这颗按钮此刻就该是禁用的
+    expect(screen.getByRole('button', { name: '复制画像卡' })).toBeEnabled()
+  })
+
+  it('这一档没有条目时说清是"这一档没有"，不是"你还没有结论"', async () => {
+    // 用 unsure + rejected 各一条：那一档初始就有 2 条、点得动，
+    // 全部"判掉"之后（setVerdict 那道模拟太重，这里直接改本地 state 走不到）——
+    // 所以改用另一个能造出"点得动但为空"的场景：库里只有 pending
+    seams.list.mockResolvedValue(viewOf({ statements: [three[1]], evidence }))
+    renderIt()
+    await screen.findByText('还没判的那条')
+
+    // 空档**不禁用**：禁用就点不进去，那句空态说明永远看不见（这条断言钉的就是它）
+    const empty = screen.getByRole('button', { name: '已判对 0' })
+    expect(empty).toBeEnabled()
+    fireEvent.click(empty)
+    expect(screen.getByText('这一档没有条目')).toBeInTheDocument()
+    // 与"库里一条都没有"时那句空态必须分得开
+    expect(screen.queryByText('还没有结论')).not.toBeInTheDocument()
+  })
+
+  it('反证 · 把「不确定」也算成已处理完，那条计数立刻判红', () => {
+    // 同一条数据，只改 pending 档的口径：把 unsure 排除出去就少一条
+    const strict = three.filter((s) => s.verdict === 'pending').length
+    const lenient = three.filter((s) => s.verdict !== 'confirmed' && s.verdict !== 'rejected').length
+    expect(lenient).toBe(2)
+    expect(strict).toBe(1)
+    expect(lenient).not.toBe(strict)
   })
 })

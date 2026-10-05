@@ -6,11 +6,17 @@
 // 只 mock 日志 —— 坏 JSON 那一条要看的正是 logger.warn 有没有那句。
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
 import { getDatabase, profileStatementsDb, resetDatabase } from '../electron/database'
 import { RESET_TABLES } from '../electron/database/schema'
 import { BACKUP_TABLES, EXCLUDED_TABLES } from '../src/shared/backup'
 import type { DraftStatement } from '../src/shared/profile-statements'
+import {
+  PROFILE_STATEMENT_LAYERS,
+  PROFILE_STATEMENT_ALL_LAYERS,
+} from '../src/shared/profile-statements'
 
 // 用 hoisted 的接缝，不 `import { logger }`：真 import 会把 electron/logger.ts 算进
 // "被测试引用的文件"，那条守卫就要求它也进覆盖率清单 —— 这一份判据不该替它做决定。
@@ -84,6 +90,57 @@ describe('表本身：列名与 CHECK 由库说了算', () => {
     expect(() =>
       getDatabase().run("INSERT INTO profile_statements (id, layer, topic, statement, evidence_ids, origin) VALUES ('z','said','t','s','[]','gpt')"),
     ).toThrow()
+  })
+
+  // 2026-09-30 补。上面三条只断"库拒绝乱写的"，没断"库认的集合 == 代码里声明的集合" ——
+  // 两侧各写一遍时，加一层忘了改 CHECK，要等真跑起来才现形。
+  // 现在 CHECK 从 PROFILE_STATEMENT_ALL_LAYERS 派生，这条断的是"派生之后真库真的认这四层"。
+  it('库认的层集合 == 代码声明的层集合（每层真插一行，插得进去才算数）', () => {
+    for (const layer of PROFILE_STATEMENT_ALL_LAYERS) {
+      const id = `chk-${layer}`
+      // origin 是 NOT NULL 且没有 DEFAULT，漏给会报 NOT NULL —— 而这条断的只是"层认不认得"
+      expect(() =>
+        getDatabase().run(
+          "INSERT INTO profile_statements (id, layer, topic, statement, evidence_ids, origin) VALUES (?,?,'t','s','[]','nuwa')",
+          [id, layer],
+        ),
+      ).not.toThrow()
+      const row = getDatabase().exec(
+        `SELECT layer FROM profile_statements WHERE id = '${id}'`,
+      )[0]
+      expect(String(row.values[0][0])).toBe(layer)
+    }
+    // 反证：集合外的一个都不许进去（只断"该进的都进了"的话，把 CHECK 写成全放行也能过）
+    expect(() =>
+      getDatabase().run("INSERT INTO profile_statements (id, layer, topic, statement, evidence_ids, origin) VALUES ('nope','nope','t','s','[]','nuwa')"),
+    ).toThrow()
+  })
+
+  it('闸门认的三层 < 库认的四层：差的那一层就是 inferred，且它现在不收', () => {
+    expect(PROFILE_STATEMENT_ALL_LAYERS).toHaveLength(PROFILE_STATEMENT_LAYERS.length + 1)
+    expect(PROFILE_STATEMENT_ALL_LAYERS.filter((l) => !PROFILE_STATEMENT_LAYERS.includes(l as never)))
+      .toEqual(['inferred'])
+  })
+
+  // ⚠️ 上面那条「库认的层集合 == 代码声明的层集合」**抓不住这一种坏法**：
+  // 2026-09-30 实测把 CHECK 从派生改回手写的 'said','marked','chose','inferred'，
+  // 那 22 条全绿 —— 两侧碰巧是同一组值。这条断的是"派生这件事本身还在"。
+  it('CHECK 的层清单是从 PROFILE_STATEMENT_ALL_LAYERS 派生的（不许手写回四个字符串）', () => {
+    const schemaSrc = readFileSync(join(process.cwd(), 'electron/database/schema.ts'), 'utf8')
+    expect(
+      schemaSrc,
+      'schema 又把层名手写进 CHECK 了 —— 加一层时它会静默漏掉，要等真库报错才现形',
+    ).toContain('PROFILE_STATEMENT_ALL_LAYERS.map(')
+    expect(
+      schemaSrc,
+      'CHECK 里不该再出现手写的层名字面量',
+    ).not.toMatch(/CHECK\(layer IN \('said'/)
+  })
+
+  it('反证 · 把手写那串喂进同一个扫描器必须命中（证明上面那条不是空转）', () => {
+    const stale = "layer TEXT NOT NULL CHECK(layer IN ('said','marked','chose','inferred'))"
+    expect(stale).not.toContain('PROFILE_STATEMENT_ALL_LAYERS.map(')
+    expect(stale).toMatch(/CHECK\(layer IN \('said'/)
   })
 })
 

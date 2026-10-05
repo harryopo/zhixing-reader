@@ -19,6 +19,13 @@ import { copyToClipboard } from '../../utils/clipboard'
 import { sourceHighlightLink } from '../../../../shared/source-anchor'
 import { renderProfileCard } from '../../../../shared/profile-card'
 import { STATEMENT_LAYER_LABELS } from '../../../../shared/profile-statements'
+import {
+  STATEMENT_FILTERS,
+  STATEMENT_FILTER_LABELS,
+  countByFilter,
+  filterStatements,
+} from './statement-filter'
+import type { StatementFilter } from './statement-filter'
 import type { EvidenceText, ProfileStatement, StatementListView, StatementVerdict } from '../../../../shared/profile-statements'
 
 /** 一条结论后面最多摆几条证据：全摆会变成一屏引用，核验要的是"够我认出来" */
@@ -186,6 +193,10 @@ function StatementList({
 }) {
   const confirmed = statements.filter((row) => row.verdict === 'confirmed').length
   const pending = statements.length - confirmed
+  // 筛选只管"摆哪些"：上面这两个数与「复制画像卡」永远按全部条目算（口径见 statement-filter.ts）
+  const [filter, setFilter] = useState<StatementFilter>('all')
+  const counts = countByFilter(statements)
+  const visible = filterStatements(statements, filter)
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)', flexWrap: 'wrap' }}>
@@ -201,8 +212,35 @@ function StatementList({
           </Button>
         </span>
       </div>
+      <div style={{ display: 'flex', gap: 'calc(var(--spacing)', flexWrap: 'wrap' }}>
+        {STATEMENT_FILTERS.map((option) => {
+          const n = counts[option]
+          const active = option === filter
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setFilter(option)}
+              style={{
+                fontSize: '0.8rem',
+                padding: 'calc(var(--spacing) * 0.5) calc(var(--spacing) * 1.5)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
+                background: active ? 'var(--primary)' : 'transparent',
+                color: active ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+                // 空档也点得动：禁用的话点不进去，"这一档没有条目"那句话就永远看不见，
+                // 而它正是"这里确实没有"与"读失败了"必须分开的地方
+                opacity: n === 0 ? 0.6 : 1,
+              }}
+            >
+              {`${STATEMENT_FILTER_LABELS[option]} ${n}`}
+            </button>
+          )
+        })}
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
-        {statements.map((statement) => (
+        {visible.map((statement) => (
           <StatementItem
             key={statement.id}
             statement={statement}
@@ -211,6 +249,11 @@ function StatementList({
             onVerdict={onVerdict}
           />
         ))}
+        {visible.length === 0 && (
+          <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
+            {statements.length === 0 ? '还没有结论' : '这一档没有条目'}
+          </p>
+        )}
       </div>
     </>
   )

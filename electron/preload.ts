@@ -106,7 +106,7 @@ const electronAPI = {
     backfillChapterTitles: (bookId?: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.BACKFILL_CHAPTER_TITLES, bookId),
     update: (id: string, highlight: Record<string, unknown>) => invoke(IPC_CHANNELS.HIGHLIGHTS.UPDATE, id, highlight),
     getAll: () => invoke(IPC_CHANNELS.HIGHLIGHTS.GET_ALL),
-    export: () => invoke(IPC_CHANNELS.HIGHLIGHTS.EXPORT),
+    export: (bookId?: string) => invoke(IPC_CHANNELS.HIGHLIGHTS.EXPORT, bookId),
   },
 
   card: {
