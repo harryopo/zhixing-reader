@@ -34,7 +34,12 @@ export const useReadingDataStore = create<ReadingDataState>((set, get) => ({
       const data = await window.electronAPI.readingData.fetch(targetMode, baseTime) as ReadingDataResponse
       set({ data, mode: targetMode, loading: false })
     } catch (error) {
-      set({ error: (error as Error).message, loading: false })
+      // 失败时三件事一起做，缺一件界面上就会说错话：
+      //   data 归 null —— 留着上一次的成功值，统计页会拿旧数字当这一次的结果画出来，
+      //     而界面上只挂一行错误，两句都在说谎；
+      //   mode 写成 targetMode —— 用户点的档位就是问出去的档位，选中态不许停在别的档上；
+      //   loading 归 false —— 不然界面一直转。
+      set({ data: null, mode: targetMode, error: (error as Error).message, loading: false })
     }
   },
 
