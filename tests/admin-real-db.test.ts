@@ -151,24 +151,6 @@ describe('getAdminStats — 概览页那六个数字各自数的是哪张表', (
   })
 })
 
-describe('getTokenUsageLast7Days — 窗口边界', () => {
-  it('同一天的多行合并成一组，input/output/total 各自相加', () => {
-    const today = query("SELECT DATE('now') as d")[0].d as string
-    const rows = admin.getTokenUsageLast7Days()
-    const mine = rows.find(r => r.date === today)
-    expect(mine).toMatchObject({ inputTokens: 110, outputTokens: 55, totalTokens: 165 })
-  })
-
-  it('9 天前那行不进窗口，6 天前那行进；结果按日期升序', () => {
-    const rows = admin.getTokenUsageLast7Days()
-    const dates = rows.map(r => r.date)
-    expect(dates).toEqual([...dates].sort())
-    const cut = query("SELECT DATE('now','-9 days') as d")[0].d as string
-    expect(dates).not.toContain(cut)
-    expect(rows.reduce((s, r) => s + r.totalTokens, 0)).toBe(175)
-  })
-})
-
 describe('知识库页的三份读数', () => {
   it('按书列划线数：没有划线的书是 0，不是缺字段；顺序按最后更新时间倒序', () => {
     const rows = admin.getBooksWithCounts()

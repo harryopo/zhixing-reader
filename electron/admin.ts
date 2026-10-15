@@ -45,22 +45,6 @@ export function getAdminStats(): Record<string, unknown> {
   }
 }
 
-export function getTokenUsageLast7Days(): Array<{ date: string; inputTokens: number; outputTokens: number; totalTokens: number }> {
-  const db = getDatabase()
-  const rows = rowsToObjects(db.exec(`
-    SELECT 
-      DATE(created_at) as date,
-      COALESCE(SUM(input_tokens), 0) as inputTokens,
-      COALESCE(SUM(output_tokens), 0) as outputTokens,
-      COALESCE(SUM(input_tokens + output_tokens), 0) as totalTokens
-    FROM token_usage
-    WHERE created_at >= DATE('now', '-7 days')
-    GROUP BY DATE(created_at)
-    ORDER BY date ASC
-  `))
-  return rows as Array<{ date: string; inputTokens: number; outputTokens: number; totalTokens: number }>
-}
-
 /** 运行时真实生效值：系统提示词来自 prompt-storage（agent.system），意图关键词来自 intent-classifier */
 export function getAgentConfig(): Record<string, unknown> {
   return {

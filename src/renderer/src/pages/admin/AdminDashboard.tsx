@@ -107,8 +107,6 @@ export default function AdminDashboard() {
             totalHighlights: 0,
             totalCards: 0,
           },
-          tokenTrend: [],
-          recentSessions: [],
         }),
         safeCall(() => window.electronAPI.tokenUsage.getStatsByProvider(), [] as ProviderStats[]),
         safeCall(() => window.electronAPI.tokenUsage.getStatsByFeature(), [] as FeatureStats[]),

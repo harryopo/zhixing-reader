@@ -390,6 +390,12 @@ export interface ElectronAPI {
       intervalLabel: string
     }>>
   }
+  /**
+   * 管理后台的读路。`getStats / getAgentConfig / savePrompt / resetPrompt / create|update|delete|getCustomPrompts`
+   * 这 8 条是设置页在用的，装机版也注册；其余（读库结构、读任意表、读全部会话与消息、
+   * 整批导入导出提示词、重置全部模板、内置模板列表）**只在开发构建注册**，
+   * 装机版调用它们只会拿到一条 reject —— 闸门在 `electron/ipc/admin.ts`。
+   */
   admin: {
     getStats: () => Promise<{
       stats: {
@@ -400,8 +406,6 @@ export interface ElectronAPI {
         totalHighlights: number
         totalCards: number
       }
-      tokenTrend: Array<{ date: string; inputTokens: number; outputTokens: number; totalTokens: number }>
-      recentSessions: Array<{ id: string; title: string; created_at: string; message_count: number; book_title?: string }>
     }>
     getAgentConfig: () => Promise<{ systemPrompt: string | null; intentKeywords: Record<string, string[]> | null }>
     getBooksWithCounts: () => Promise<Array<Record<string, unknown>>>
