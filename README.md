@@ -29,7 +29,7 @@
 | 维度 | 详情 |
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
-| **代码规模** | 约 5.9 万行 TypeScript strict（`electron/` + `src/` 下跟踪的 `.ts`/`.tsx`，由 `tests/doc-figures.test.ts` 现算对账）|
+| **代码规模** | 约 6 万行 TypeScript strict（`electron/` + `src/` 下跟踪的 `.ts`/`.tsx`，由 `tests/doc-figures.test.ts` 现算对账）|
 | **测试** | 2402 用例 / 130 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
 | **存储** | sql.js (SQLite WASM) · 18 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
