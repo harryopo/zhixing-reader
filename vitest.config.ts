@@ -36,15 +36,14 @@ export default defineConfig({
     // 单跑全绿、整套跑时 db-method-consumers 报 `Test timed out in 5000ms`。
     // 抬到 20 秒只放宽墙钟，不动任何断言（判据该红的还是红）。
     testTimeout: 20000,
-    // worker 与主线程之间的 RPC 上限，默认 5 秒。`tests/admin-not-in-bundle.test.ts`
-    // 在 worker 里真跑一次三进程构建（本地 45s / CI windows runner 实测 64s），
-    // 这期间那个 worker 回不了消息 —— 2026-10-16 CI 就在它跑完 3 秒后报
-    // `[vitest-worker]: Timeout calling "onTaskUpdate"`：130 文件 / 2412 用例全绿、
-    // 覆盖率也过阈值，vitest 仍按"有未处理错误"退 1。抬到 120 秒只放宽墙钟，
-    // 不动任何断言。
-    poolOptions: {
-      threads: { rpcTimeout: 120000 },
-    },
+    // 这里**没有**能放宽 worker RPC 的开关，别再加一个看着像那么回事的键：
+    // 2026-10-16 我曾写进 `poolOptions.threads.rpcTimeout: 120000`，随后核实
+    // Vitest 3.2 的 dist 里 `rpcTimeout` 出现 **0 次**，`createThreadsRpcOptions` 也不传
+    // `timeout` ⇒ 走 birpc 的 `DEFAULT_TIMEOUT = 6e4`（60 秒，不是我当时以为的 5 秒）。
+    // 未知键被静默忽略，那一笔等于假防线。真正的堵点在测试自己：`tests/admin-not-in-bundle.test.ts`
+    // 用 `execFileSync` 同步跑构建，CI 实测 64s > 60s，worker 事件循环整个冻住、
+    // 处理不了 `onTaskUpdate` 的应答 ⇒ `[vitest-worker]: Timeout calling "onTaskUpdate"`，
+    // 全套判据绿也退 1。修在那支测试（改成异步构建 + 一条"构建期间事件循环还在转"的判据），不在配置。
     // 需要 DOM 的测试在自己文件首行写 `// @vitest-environment happy-dom`。
     // 原先这里用 environmentMatchGlobs 统一指环境，Vitest 3 已把它标废（4 会删），
     // 而且它和文件头的 docblock 谁生效说不清 —— admin-charts 就同时被 glob 指到

@@ -19,9 +19,12 @@
 // **只有真的 build 一次、再到产物里找那段代码，才能证明它没被打进去。**
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { execFileSync } from 'child_process'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { readdirSync, readFileSync, existsSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
+
+const execFileAsync = promisify(execFile)
 
 const ROOT = join(__dirname, '..')
 const ASSETS = join(ROOT, 'dist', 'renderer', 'assets')
@@ -47,9 +50,22 @@ const ADMIN_ONLY_STRINGS = ['提示词中心']
 /** admin 组件内部才有的标识 —— 打包后即使文案被压缩，标识也跟着走 */
 const ADMIN_ONLY_SYMBOLS = ['KnowledgeBase', 'DatabaseBrowser', 'PromptCenter', 'SessionHistory']
 
-function build(): void {
-  // `shell: true`：Windows 上 npm 是 `npm.cmd`，execFileSync 直接 spawn 'npm' 会 ENOENT
-  execFileSync('npm run build', { cwd: ROOT, stdio: 'pipe', shell: true, timeout: 300_000 })
+async function build(): Promise<void> {
+  // `shell: true`：Windows 上 npm 是 `npm.cmd`，直接 spawn 'npm' 会 ENOENT。
+  // 必须**异步**：这一支在 worker 里真跑三进程构建，CI 实测 64s。同步版本（execFileSync）
+  // 会把整个 worker 的事件循环冻住，birpc 对 `onTaskUpdate` 的应答窗口是
+  // `DEFAULT_TIMEOUT = 6e4`（60 秒，Vitest 3.2 没有配置项能改），于是全套判据绿、
+  // 覆盖率也过阈值，vitest 仍报 `[vitest-worker]: Timeout calling "onTaskUpdate"` 退 1
+  // —— 2026-10-16 master @ 6d21710 与 bd02655 两次 CI 红就是这个。
+  // `maxBuffer` 放宽：build 会打一整张产物清单，默认 1 MB 有截断风险（截断只抛错，比冻住好，但没必要留）。
+  // 不写 `stdio`：`execFile` 本身就是把 stdout/stderr 收进 buffer（受 `maxBuffer` 管），
+  // 而 promisify 后的重载类型里不接受这个键（typecheck 当场拒）。
+  await execFileAsync('npm run build', {
+    cwd: ROOT,
+    shell: true,
+    timeout: 300_000,
+    maxBuffer: 32 * 1024 * 1024,
+  })
 }
 
 function chunkNames(): string[] {
@@ -71,9 +87,22 @@ function adminSource(): string {
 }
 
 describe('/admin 不进打包产物', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     rmSync(ASSETS, { recursive: true, force: true })
-    build()
+    // 这条断言钉的是"构建期间 worker 还活着"，也就是 CI 那个红的根因本身：
+    // 同步调用时计时器一次都跳不了（事件循环被占死），异步时必然跳到。
+    // 为什么不用"抬超时"来修：Vitest 3.2 根本没有那个配置键（我试过 `poolOptions.threads.rpcTimeout`，
+    // dist 里 0 命中 ⇒ 静默忽略 ⇒ 假防线）。
+    let ticks = 0
+    const probe = setInterval(() => {
+      ticks += 1
+    }, 50)
+    try {
+      await build()
+    } finally {
+      clearInterval(probe)
+    }
+    expect(ticks, '构建期间事件循环一次都没跳 —— 又退回同步调用了，CI 会顶穿 60 秒的 RPC 窗口').toBeGreaterThan(0)
   }, 310_000)
 
   it('构建产物里没有 admin chunk 文件', () => {
@@ -112,7 +141,7 @@ describe('/admin 不进打包产物', () => {
     expect(anyCommon.length, '连设置页的文案都搜不到，说明扫描本身坏了').toBeGreaterThan(0)
   })
 
-  it('反证 · 把 App.tsx 改回无条件 lazy import，产物里就会重新出现 admin', () => {
+  it('反证 · 把 App.tsx 改回无条件 lazy import，产物里就会重新出现 admin', async () => {
     // 只量"现在没有"不够 —— 还得证明"是因为做了那个改动才没有"，否则判据钉不住任何东西。
     const original = readFileSync(APP_TSX, 'utf8')
     const mutated = original.replace(
@@ -123,7 +152,7 @@ describe('/admin 不进打包产物', () => {
 
     try {
       writeFileSync(APP_TSX, mutated, 'utf8')
-      build()
+      await build()
       expect(
         chunkNames().some((f) => /admin/i.test(f)),
         '改回无条件 import 后产物里仍然没有 admin —— 判据没牙',
@@ -132,7 +161,7 @@ describe('/admin 不进打包产物', () => {
       // 还原并重建，判据文件自己不许把仓库留在改坏的状态
       writeFileSync(APP_TSX, original, 'utf8')
       expect(readFileSync(APP_TSX, 'utf8'), 'App.tsx 没还原干净').toBe(original)
-      build()
+      await build()
     }
   }, 620_000)
 })
