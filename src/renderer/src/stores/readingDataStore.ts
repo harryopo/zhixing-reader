@@ -10,7 +10,16 @@ interface ReadingDataState {
   setMode: (mode: ReadingMode) => void
 }
 
-function formatReadingTime(seconds: number): string {
+/**
+ * 阅读时长的界面写法。
+ *
+ * `!Number.isFinite` 那一支不是防御性摆设：微信读书返回的 `wrListenTime` 之类字段
+ * 缺失或脏掉时，`NaN <= 0` 是 false、`Infinity > 0` 是 true，界面会画出「NaN分钟」
+ * 或「Infinity小时」—— 2026-09-29 量到、10-04 复核仍在。这类值不能演成「0分钟」：
+ * "这一次没读到数"与"这次真读了 0 秒"是两件事（与 `formatTimeAgo` 一样回 `-`）。
+ */
+function formatReadingTime(seconds: number | null | undefined): string {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return '-'
   if (seconds <= 0) return '0分钟'
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)

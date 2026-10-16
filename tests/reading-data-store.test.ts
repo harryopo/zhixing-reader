@@ -255,6 +255,36 @@ describe('formatReadingTime · 四档边界', () => {
     expect(formatReadingTime(seconds)).toBe(expected)
   })
 
-  // NaN 那条不在这里 —— 它是"脏数据不许直接显示"的另一件事（与 db-mapper 那批同一口径），
-  // 该配自己的判据与修法，不该借这次改人话函数的期望混进来。
+  /**
+   * 2026-10-15 补：09-28 那批记下「NaN 那条是另一件事，该单独立判据」，这里就是那件独立的事。
+   * 判据是"脏值不许直接显示，也不许被演成 0分钟"——`NaN <= 0` 为 false、`Infinity > 0` 为 true，
+   * 少这道闸界面就会画出「NaN分钟」「Infinity小时」；而缺字段（null / undefined）会直接拼出
+   * "undefined分钟"。这些都与"这一次真读了 0 秒"是两件事，所以回 `-`（与 `formatTimeAgo` 同口径）。
+   */
+  describe('脏值与缺值 ⇒ 「-」，不直接上屏', () => {
+    /** 故意喂类型外的值：`unknown` 过一次收窄，是为了让这条判据能测到脏数据真的进来 */
+    const show = (v: unknown) => formatReadingTimeOf(v as number | null | undefined)
+    let formatReadingTimeOf: (v: number | null | undefined) => string
+
+    beforeEach(async () => {
+      formatReadingTimeOf = (await freshStore()).formatReadingTime
+    })
+
+    it.each([
+      ['NaN', Number.NaN],
+      ['Infinity', Number.POSITIVE_INFINITY],
+      ['-Infinity', Number.NEGATIVE_INFINITY],
+      ['null', null],
+      ['undefined', undefined],
+      ['字符串 "3600"', '3600'],
+    ])('%s ⇒ -', (_label, value) => {
+      expect(show(value)).toBe('-')
+    })
+
+    it('真 0 秒仍然说「0分钟」—— 别把"确实是零"和"不知道"混成同一个写法', async () => {
+      const { formatReadingTime: f } = await freshStore()
+      expect(f(0)).toBe('0分钟')
+      expect(f(-5)).toBe('0分钟')
+    })
+  })
 })

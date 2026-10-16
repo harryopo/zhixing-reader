@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（130 文件 / 2402 用例）
+├── tests/                 # Vitest 单元测试（130 文件 / 2409 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（2402 用例；不含覆盖率）
+npm run test             # Vitest（2409 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test:cov+build（推荐；测试那步带覆盖率阈值，与 CI 同口径）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -304,3 +304,4 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 2026-10-04 | Issue #8 剩余部分：readingDataStore | 补 26 条判据（Issue 原写「两个 store 零测试」，实测 settingsStore 已由 09-27 那批还了 37 条，真零的只有这个 45 行的）。**顺带修掉一条真缺陷**：`catch` 交出 `{error, loading:false}` 但 `data` 留上一次的成功值 ⇒ 统计页拿旧数字当这一次的结果画，界面上只有一行错误，两句都在说谎（本项目治过十次的同一族）。同时 `mode` 只在成功那支写，失败时用户点的档位写不进去。期望先想清楚再写：5 条首跑红里 **3 条是代码错**（data 留旧值、mode 错乱、NaN 直显），**2 条是我期望错**（`formatReadingTime(30)` 显示「0分钟」是既有行为不是缺陷；`NaN` 那条不该混在这个 store 判据里）——按 Issue #8 的硬要求逐条判了归属。变异 4 处全判红（撤 `data:null` 2 条 / 撤 `mode:targetMode` 1 条 / 撤 `loading:true` 2 条 / `setMode` 不重取 3 条）。**没验**：统计页真界面一次没点开；`formatReadingTime(NaN)` 显示「NaN分钟」这个真缺陷**量到了但没修**（属"脏数据不许直接显示"，该单独立判据）。 |
 | 2026-10-04 | Issue #1 可做部分：退出收尾的真行为 | 补 `tests/shutdown-behavior.test.ts` 17 条（`shutdown.ts` 100 / 80 / 100 进清单）。**病是补判据时量出来的**：`shutdownForExit` 是五步裸调用，任何一步抛错后面全部不执行 —— 最要命的是 `closeDatabase()`（它抛错正是"落盘失败"）⇒ `logger.close()` 永远轮不到，于是这次退出**数据没落盘、退出卡住、日志里也没有"为什么"**，出问题时连原因都查不到；`done` 幂等标记还会把它粘在半路。本项目为此治过十几次。修法：`runStep(label, fn, errors)` 每步各自兜住并逐条 `logger.error` 指名是哪一步，全走完把错误 `AggregateError` 抛回（吞掉比报出来更坏：调用方看到"没抛"就以为盘写好了）。② 既有 `tests/install-exit-path.test.ts` 那条断 `indexOf('closeDatabase()')` 先后顺序的判据当场失配（字面量变成裸标识符）⇒ 改成断"那几步一个都没被删掉"，**顺序由新行为判据用真实调用序列钉**。③ **变异当场抓到我自己的洞**：把 `logger.close` 改回裸调用时 17 条**全绿** —— 前面所有用例里它自己不抛，而"前一步先炸"那几条只断言它被调用过（那时它确实被调用了）；补的那条要求**两个条件同时成立**（前一步炸 + 关日志自己也炸）才暴露。④ **自己踩的第二个坑**：第一版 `vi.mock` + `vi.resetModules()` 组合让 mock 静默失效（`calls` 恒空、10 条红得看不出是代码错还是 mock 没挂上；本项目在 `weread-sync-manager` 那批栽过同一形状）⇒ 改 `vi.doMock` 且路径按测试文件写 `../electron/...`（`'electron/database'` 与 `'./database'` 落到不同 mock id）。⑤ typecheck 当场抓到 handler 类型标注不接（把 `tests/` 纳入 typecheck 的价值）。变异 6 处全判红。**没验**：**Issue #1 本身关不掉** —— 装机实测（装 v1.3.3 → 走「检查更新→下载更新→重启安装」）仍需人在真机上做；这批只把"代码写成了那个形状"升级成"跑起来真按那个顺序、失败时真不互相带走"。 |
 | 2026-10-15 | admin 出口按消费者拆两半 | 上一批 `31790fa` 只挡住 `/admin` 页面，**19 条 `admin:*` 通道在安装版仍全注册**（菜单里 `toggleDevTools` 不是 dev-only，`electron/main.ts:198`）。先查生产者再收口：设置三页真在用 8 条（`SettingsAgent:330/354/374`、`SettingsAI:293/341/345/367/392`、`SettingsData:130/156/326`），其余 11 条（任意表 / 库结构 / 全部会话与消息 / 整批导入导出 / 重置全部 / 内置模板列表）改成只在开发构建注册。**按"这是 admin 通道"一刀切会把那三个页面打断，而单测一条不报** —— 这是本项目"收紧前先查生产者"又一次没白查。`getStats` 顺手查的 `tokenTrend` + `recentSessions` 全场只有后台页的兜底字面量里出现过、无人读 ⇒ 删掉服务层 `getTokenUsageLast7Days`，这条链每次进设置页少两次 SQL、不再把对话行带进渲染层。判据 7 条（`tests/admin-ipc-dev-only.test.ts`）钉两种形状各自的通道清单，另加一条对账守卫：基准取**装机形状实际注册出来的通道**而不是测试里那份清单（第一版比的是清单，有人把产品通道挪进闸门它照样绿）。变异两处各判红（撤 `if (!isDev) return` 报出那 11 条 / 把 `savePrompt` 挪进闸门报出 `savePrompt`）。覆盖率清单 +1：`electron/ipc/admin.ts` 100 / 100 / 100。**没验**：装机版一次没打开过，"控制台确实调不到"只证到注册这一层；`electron/main.ts:198` 那条 devtools 菜单项刻意留着（个人应用要给自己留调试通路）—— 于是 preload 上那 11 个同名方法在安装版里是"点得动但只会拿到一条 reject"。 |
+| 2026-10-15 | 脏时长不再上屏 + 软著材料不入库 | `formatReadingTime` 对 `NaN` 画「NaN分钟」、对 `Infinity` 画「Infinity小时」、缺字段拼出「undefined分钟」（字符串会被 JS 当数字用）—— 这条 09-29 量到、10-04 记为"该单独立判据"，本次补闸门（`typeof` 收窄 + `Number.isFinite`）并落 7 条判据：脏值 ⇒ `-`，**真 0 秒仍说「0分钟」**（"不知道"与"确实是零"不并成一个写法）。变异一处判红（把闸门改成恒 false ⇒ 6 条全红，报出 'NaN分钟' / 'Infinity小时' / '0分钟' / '1小时'）。同批：`.gitignore` 收下**软著申报材料**与根目录两个临时脚本（`软件著作权申请资料/`、`软著申请/`、`_seed.py`、`_setcheck.py`）—— 实测这四样从未被跟踪、也从未出现在任何历史提交里，挡的是以后一句 `git add -A` 把它们推进公开仓库。`readingDataStore.ts` 覆盖仍是 100/100/100，用例 2402 → 2409。 |
