@@ -36,6 +36,15 @@ export default defineConfig({
     // 单跑全绿、整套跑时 db-method-consumers 报 `Test timed out in 5000ms`。
     // 抬到 20 秒只放宽墙钟，不动任何断言（判据该红的还是红）。
     testTimeout: 20000,
+    // worker 与主线程之间的 RPC 上限，默认 5 秒。`tests/admin-not-in-bundle.test.ts`
+    // 在 worker 里真跑一次三进程构建（本地 45s / CI windows runner 实测 64s），
+    // 这期间那个 worker 回不了消息 —— 2026-10-16 CI 就在它跑完 3 秒后报
+    // `[vitest-worker]: Timeout calling "onTaskUpdate"`：130 文件 / 2412 用例全绿、
+    // 覆盖率也过阈值，vitest 仍按"有未处理错误"退 1。抬到 120 秒只放宽墙钟，
+    // 不动任何断言。
+    poolOptions: {
+      threads: { rpcTimeout: 120000 },
+    },
     // 需要 DOM 的测试在自己文件首行写 `// @vitest-environment happy-dom`。
     // 原先这里用 environmentMatchGlobs 统一指环境，Vitest 3 已把它标废（4 会删），
     // 而且它和文件头的 docblock 谁生效说不清 —— admin-charts 就同时被 glob 指到
