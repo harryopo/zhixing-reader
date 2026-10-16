@@ -30,6 +30,32 @@ export const READING_TREND_SPECS: Record<ReadingMode, ReadingTrendSpec> = {
   overall: { chipLabel: '总计', trendTitle: '每月时长', bucket: 'month', badge: '每月' },
 }
 
+/** 还没拿到取数锚点时说的话 —— 与统计页原来那句一字未改 */
+export const STATS_HERO_FALLBACK = '一屏掌握阅读时长、书籍分布与复习节奏'
+
+/**
+ * 统计页顶部那句副标题：这一屏数的是哪个窗口、截至哪天。
+ *
+ * 病（2026-10-16 量出来）：它原先写死 `${年份} 年度阅读数据`，而下面那排 chip 是
+ * 本周 / 本月 / 本年三档、KPI 与趋势图都跟着档位重取数 —— 于是选「本周」时
+ * 标题承诺的是全年，屏上的数字是 7 天，两句里只有一句是真的。
+ *
+ * 窗口名一律取 READING_TREND_SPECS.chipLabel（与 chip、KPI 卡前缀、趋势图标题同一份），
+ * 年份放进「截至」的日期里，由锚点自己带出来，不再由标题替用户决定看的是哪一段。
+ */
+export function statsHeroSubtitle(
+  mode: ReadingMode,
+  baseTime: number | null | undefined,
+): string {
+  // 脏锚点（缺字段、NaN、字符串）宁可退回通用文案，也不编一个日期给用户看
+  if (typeof baseTime !== 'number' || !Number.isFinite(baseTime) || baseTime <= 0) {
+    return STATS_HERO_FALLBACK
+  }
+  const spec = READING_TREND_SPECS[mode] ?? READING_TREND_SPECS.monthly
+  const d = new Date(baseTime * 1000)
+  return `${spec.chipLabel}阅读数据 · 截至 ${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`
+}
+
 export interface ReadingTrendPoint {
   /** 天级秒（month 桶取该月首日），用作 React key 与排序 */
   ts: number

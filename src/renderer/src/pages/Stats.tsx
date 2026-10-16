@@ -34,7 +34,7 @@ import { useReadingDataStore, formatReadingTime } from '../stores/readingDataSto
 import { useSettingsStore } from '../stores/settingsStore'
 import { ReadingMode } from '../../../shared/types'
 import { syncBookshelfToDb, describeSyncResult } from '../utils/sync-bookshelf'
-import { READING_TREND_SPECS, recentDayKeys } from '../../../shared/reading-trend'
+import { READING_TREND_SPECS, recentDayKeys, statsHeroSubtitle } from '../../../shared/reading-trend'
 import { normalizeDailyStatRow } from '../../../shared/profile-stats'
 import {
   PERIOD_CHIPS,
@@ -373,10 +373,8 @@ export default function Stats() {
     return <Loading hint="正在加载统计数据..." />
   }
 
-  // hero 副标题：基于 readingData.baseTime 显示年度数据
-  const heroSubtitle = readingData?.baseTime
-    ? `${new Date(readingData.baseTime * 1000).getFullYear()} 年度阅读数据 · 截至 ${new Date(readingData.baseTime * 1000).getMonth() + 1} 月 ${new Date(readingData.baseTime * 1000).getDate()} 日`
-    : '一屏掌握阅读时长、书籍分布与复习节奏'
+  // hero 副标题：跟着档位说窗口，句子里的日期由这次取数的锚点带出来
+  const heroSubtitle = statsHeroSubtitle(readingMode, readingData?.baseTime)
 
   return (
     <PageHero
