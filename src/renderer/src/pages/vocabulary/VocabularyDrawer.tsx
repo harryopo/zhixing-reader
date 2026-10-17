@@ -6,7 +6,7 @@ import Icon from '@/components/ui/Icon'
 import Modal from '@/components/ui/Modal'
 import { describeForgetting } from '../../../../shared/fsrs-voice'
 import { articleDeepLink } from '../../../../shared/source-anchor'
-import { calcMasteryPct, formatDateOnly, masteryStatusColor, masteryStatusLabel } from './model'
+import { calcMasteryPct, daysSinceStoredTime, formatDateOnly, masteryStatusColor, masteryStatusLabel } from './model'
 import type { VocabularyRow } from '../../utils/db-mapper'
 import { sectionLabelStyle } from './styles'
 import { IconButton } from './controls'
@@ -35,7 +35,7 @@ function VocabularyDrawer({
    * elapsedDays 由 last_review_at 现算：生词表没有存这个派生量。
    */
   const elapsedDays = item.last_review_at
-    ? Math.max(0, Math.floor((Date.now() - new Date(item.last_review_at).getTime()) / 86400000))
+    ? daysSinceStoredTime(item.last_review_at, new Date())
     : 0
   const voice = describeForgetting({
     stability: item.stability ?? 0,

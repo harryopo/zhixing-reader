@@ -24,6 +24,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { readArticleDeepLink } from '../../../shared/source-anchor'
+import { isSameLocalDay, localDayKey } from '../../../shared/db-time'
 import PageHero from '@/components/layout/PageHero'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -113,8 +114,13 @@ export default function DailyLearning() {
   const [translating, setTranslating] = useState(false)
   const [showArticleList, setShowArticleList] = useState(false)
 
-  /** 今天的日期（UTC，与 daily_stats / conversations 的写入口径一致） */
-  const todayStr = new Date().toISOString().split('T')[0]
+  /**
+   * 今天的日子（**本地日**）。本页副标题打的也是本地日（`10 月 17 日 · 周三`），
+   * 此前这里取 `toISOString()` 的 UTC 日去比 `updated_at` / `last_review_at`，
+   * 于是同一屏上「今天是 17 日」与「17 日凌晨那笔不算今天」两句同时成立。
+   * 判定只许走 `isSameLocalDay`（`src/shared/db-time.ts`），不许本页再自己截 10 位。
+   */
+  const todayStr = localDayKey(new Date())
 
   // ===== 数据加载（全部保留） =====
 
@@ -193,7 +199,7 @@ export default function DailyLearning() {
     try {
       const convs = await window.electronAPI?.conversation?.getAll?.()
       // 会话行统一过映射器；updated_at 只有库里那一种拼法，不存在"两种都认"
-      setChattedToday(mapConversations(convs ?? []).some((c) => c.updatedAt.slice(0, 10) === todayStr))
+      setChattedToday(mapConversations(convs ?? []).some((c) => isSameLocalDay(c.updatedAt, todayStr)))
     } catch (error) {
       console.error('加载对话记录失败:', error)
     }
@@ -619,9 +625,7 @@ export default function DailyLearning() {
   const tasks = useMemo<DailyTask[]>(() => {
     // 生成规则见纯模块；这里只做数据适配
     const pending = vocabulary.filter((v) => !v.is_mastered).length
-    const learnedToday = vocabulary.filter(
-      (v) => String(v.last_review_at ?? '').slice(0, 10) === todayStr,
-    ).length
+    const learnedToday = vocabulary.filter((v) => isSameLocalDay(v.last_review_at, todayStr)).length
     return buildDailyTasks({
       articles: articles.map((a) => ({
         id: a.id,

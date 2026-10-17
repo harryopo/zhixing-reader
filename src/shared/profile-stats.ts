@@ -8,6 +8,7 @@
  */
 
 import type { DailyStatsRow, ReviewRow } from './types'
+import { localDayKey } from './db-time'
 
 /** daily_stats 一行归一化后的样子（秒 / 条 / 张 / 本） */
 export interface ActivityDay {
@@ -65,11 +66,12 @@ export function averageMinutesPerActiveDay(rows: ActivityDay[]): number {
  * 本地日期串。
  * 用 toISOString().slice(0,10) 会在 UTC+8 的凌晨把「今天」算成昨天，
  * 连击判定因此每天早上一开应用就归零。
+ *
+ * 2026-10-17：算法本体搬进 `db-time.localDayKey` —— 那一把尺同时管「是哪一刻」和
+ * 「是哪一天」，两处各写一份迟早会分叉（`daily_stats` 的写入方就是另一份，已并过来）。
  */
 export function localDateStr(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
+  return localDayKey(d)
 }
 
 export function yearToDateWindow(today: Date): { start: string; end: string } {

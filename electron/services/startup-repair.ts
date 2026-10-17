@@ -20,10 +20,10 @@
  * 全程 try/catch：修复失败不得影响应用启动。
  */
 
-import { knowledgeCardsDb, highlightsDb } from '../database';
+import { knowledgeCardsDb, highlightsDb, dailyStatsDb } from '../database';
 import { backfillChapterTitles } from './chapter-title-backfill';
 import { backfillHighlightTimes } from './highlight-time-backfill';
-import { syncReadingTimeToLocal } from './reading-time-sync';
+import { syncReadingTimeToLocal, legacyReadingTimeDayKey } from './reading-time-sync';
 import { settingsService } from './settings-service';
 import { logger } from '../logger';
 
@@ -33,6 +33,8 @@ const CHAPTER_RETRY_MS = 12 * 60 * 60 * 1000;
 /** 阅读时长的节流：微信读书按月统计，6 小时内不会变 */
 const READING_TIME_ATTEMPT_KEY = 'readingTimeSyncAttemptAt';
 const READING_TIME_RETRY_MS = 6 * 60 * 60 * 1000;
+/** 阅读时长搬日只做一次（搬两次就把历史推成差两天），所以用标记而不是节流 */
+const READING_TIME_DAY_SHIFT_KEY = 'readingTimeDayShiftV2';
 
 export interface StartupRepairResult {
   /** 补上来源划线的知识卡片数 */
@@ -45,6 +47,8 @@ export interface StartupRepairResult {
   highlightTimes: number;
   /** 阅读时长写入/更新的天数 */
   readingDays: number;
+  /** 旧口径写歪、被搬回真正那一天的阅读时长行数（只做一次） */
+  readingTimeShifted: number;
 }
 
 /** 节流判断：距上次尝试是否还没超过 intervalMs */
@@ -119,6 +123,33 @@ async function refreshReadingTime(): Promise<number> {
   }
 }
 
+/**
+ * 把旧口径写歪的 `reading_time` 整列搬到它真正属于的那一天 —— **只做一次**。
+ *
+ * 旧换算把微信读书「北京零点」的 epoch 按 UTC 日落键 ⇒ 每一天的时长挂在**前一天**的键上。
+ * 换算改了之后，如果这些历史行不搬，同一次阅读会同时挂在相邻两个键上，
+ * 而读侧是按区间求和的 ⇒ 凭空多出一天的时长。
+ *
+ * 必须排在 `refreshReadingTime()` **之前**：那一步按新口径写入正确的键，
+ * 先同步再搬就会把刚写对的那几行再往前推一天。
+ */
+async function shiftReadingTimeDays(): Promise<number> {
+  if (settingsService.get(READING_TIME_DAY_SHIFT_KEY) !== undefined) return 0;
+  try {
+    const moved = dailyStatsDb.moveReadingTimeDays(legacyReadingTimeDayKey);
+    // 搬 0 行也算做过：没有旧数据可搬的库不必每次启动再来一遍
+    settingsService.set(READING_TIME_DAY_SHIFT_KEY, Date.now());
+    if (moved > 0) {
+      logger.info('启动修复：阅读时长已搬到它真正属于的那一天', { moved });
+    }
+    return moved;
+  } catch (error) {
+    // 抛错时不写标记：下次启动还得试，宁可重复一次也不能把历史留在错的一天上
+    logger.warn('启动修复：阅读时长搬日失败', { error: String(error) });
+    return 0;
+  }
+}
+
 let inFlight = false;
 
 /**
@@ -133,6 +164,7 @@ export async function runStartupRepair(): Promise<StartupRepairResult> {
     chapterSkipped: false,
     highlightTimes: 0,
     readingDays: 0,
+    readingTimeShifted: 0,
   };
   if (inFlight) return result;
   inFlight = true;
@@ -142,11 +174,13 @@ export async function runStartupRepair(): Promise<StartupRepairResult> {
     result.chapterTitles = chapter.updated;
     result.chapterSkipped = chapter.skipped;
     result.highlightTimes = await repairHighlightTimes();
+    // 搬日必须排在重新同步之前（见 shiftReadingTimeDays 的注释）
+    result.readingTimeShifted = await shiftReadingTimeDays();
     result.readingDays = await refreshReadingTime();
   } finally {
     inFlight = false;
   }
-  if (result.cardSources || result.chapterTitles || result.highlightTimes || result.readingDays) {
+  if (result.cardSources || result.chapterTitles || result.highlightTimes || result.readingDays || result.readingTimeShifted) {
     logger.info('启动修复完成', { ...result });
   }
   return result;

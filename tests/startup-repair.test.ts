@@ -11,6 +11,10 @@
 //   3. 任何一步失败都不抛错（修复不能连累启动）
 //   4. 并发调用只执行一次
 
+// TZ 钉东八区：readTimes 的 epoch 是北京零点（= 16:00 UTC 前一天），
+// 不钉住的话 UTC runner 与本机算出来的"那一天"不一样，下面这些日期断言就各说一套。
+process.env.TZ = 'Asia/Shanghai'
+
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setupTestDatabase, teardownTestDatabase } from './__fixtures__/db-helpers'
 
@@ -113,7 +117,7 @@ describe('runStartupRepair — 启动时自动修复历史数据缺口', () => {
 
     const first = await runStartupRepair()
     expect(first.readingDays).toBe(1)
-    const rows = dailyStatsDb.getRange('2026-09-06', '2026-09-06')
+    const rows = dailyStatsDb.getRange('2026-09-07', '2026-09-07')
     expect((rows[0] as never as { reading_time: number }).reading_time).toBe(1459)
 
     await runStartupRepair()
@@ -156,6 +160,7 @@ describe('runStartupRepair — 启动时自动修复历史数据缺口', () => {
       chapterSkipped: false,
       highlightTimes: 0,
       readingDays: 0,
+      readingTimeShifted: 0,
     })
     expect(mockedContent).not.toHaveBeenCalled()
   })

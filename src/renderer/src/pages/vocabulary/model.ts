@@ -1,5 +1,6 @@
 /** 生词本的类型、筛选表与掌握度算法（从 VocabularyPage.tsx 原样搬出，逻辑未改） */
 import { getCardMastery } from '../../../../shared/fsrs-metrics'
+import { dayKeyOfStoredTime, parseDbTime } from '../../../../shared/db-time'
 import type { VocabularyRow } from '../../utils/db-mapper'
 
 /**
@@ -51,16 +52,27 @@ export function masteryLabel(kind: MasteryKind): string {
   }
 }
 
-/** 格式化日期（YYYY-MM-DD） */
+/**
+ * 那一天是几号（`YYYY-MM-DD`，按**本地日**打）。
+ *
+ * 2026-10-17 改口径：旧写法 `new Date(val)` 会把库里那种"日期 空格 时间"的 **UTC 串按本地时区解释**
+ * （`src/shared/db-time.ts` 整份文件就是为这件事存在的），再用 `toISOString()` 取 UTC 日 ——
+ * 两处各错一次，打出来的日子和用户的日历不是同一天。
+ */
 export function formatDateOnly(val?: string): string {
-  if (!val) return '-'
-  try {
-    const d = new Date(val)
-    if (isNaN(d.getTime())) return '-'
-    return d.toISOString().split('T')[0]
-  } catch {
-    return '-'
-  }
+  return dayKeyOfStoredTime(val) ?? '-'
+}
+
+/**
+ * 距那一时刻过了几个整天；没有值或解不出来 ⇒ 0（"不知道"就当没搁置，不抛也不给 NaN）。
+ *
+ * 生词抽屉那句「X 天没碰」用它：旧写法裸 `new Date(item.last_review_at)` 把 UTC 串按本地解释，
+ * 北京 10:00 复习的词晚上 21:00 就会被说成"已经 1 天没碰"。
+ */
+export function daysSinceStoredTime(val: string | undefined | null, now: Date): number {
+  const then = parseDbTime(val)
+  if (!then) return 0
+  return Math.max(0, Math.floor((now.getTime() - then.getTime()) / 86400000))
 }
 
 /**

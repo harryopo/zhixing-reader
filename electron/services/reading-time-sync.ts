@@ -25,6 +25,7 @@
 import { fetchReadingData } from '../weread-api';
 import { dailyStatsDb } from '../database';
 import { logger } from '../logger';
+import { localDayKey } from '../../src/shared/db-time';
 
 export interface ReadingTimeSyncResult {
   /** 写入/更新的天数 */
@@ -33,13 +34,34 @@ export interface ReadingTimeSyncResult {
   totalSeconds: number;
 }
 
-/** Unix 秒级时间戳 → YYYY-MM-DD（与 daily_stats 其他写入方一致，走 UTC 日期） */
+/**
+ * 微信读书的 readTimes 键 → 那一天。
+ *
+ * 2026-10-17 口径修正：那些 epoch 是**北京零点**（实测 1788624000 % 86400 = 57600 = 16:00 UTC，
+ * 七个键全是同一时刻 ⇒ 它是按东八区的日历天分桶的）。
+ * 旧写法 `d.toISOString().split('T')[0]` 取的是 UTC 日，于是**每一天的阅读时长整体被记到前一天**。
+ * 现在走 `localDayKey`，与 `daily_stats` 其余写入方、以及界面读它的那一把尺同一个口径。
+ */
 function epochSecondsToDate(epoch: unknown): string | null {
   const n = Number(epoch);
   if (!Number.isFinite(n) || n <= 0) return null;
   const d = new Date(n * 1000);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
+  return localDayKey(d);
+}
+
+/**
+ * 旧口径留下的键（UTC 日）对应到那一天真正属于的本地日。
+ *
+ * 库里的行只剩日期串，那一刻的 epoch 已经不在，所以按"来源的分桶点是北京零点 = 16:00 UTC"
+ * 反推那一 instant。机器本身在 UTC 时反推结果与原键相同 ⇒ 返回 null，搬迁退化成空操作。
+ */
+export function legacyReadingTimeDayKey(day: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const reconstructed = new Date(`${day}T16:00:00Z`);
+  if (Number.isNaN(reconstructed.getTime())) return null;
+  const fixed = localDayKey(reconstructed);
+  return fixed === day ? null : fixed;
 }
 
 /**
