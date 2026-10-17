@@ -1,6 +1,7 @@
 /** 统计页的类型与常量（从 Stats.tsx 原样搬出，逻辑未改） */
 import type { ReadingMode } from '../../../../shared/types'
 import { READING_TREND_SPECS } from '../../../../shared/reading-trend'
+import { windowEndingToday } from '../../../../shared/db-time'
 
 export type TabKey = 'reading' | 'books'
 export type SortColumn = 'title' | 'progress' | 'highlights' | 'cards'
@@ -67,16 +68,9 @@ export const STATS_RANGE_DAYS: Record<StatsDateRange, number> = {
   all: 3650,
 }
 
-/** 日期范围 → { startDate, endDate } ISO 日期字符串（YYYY-MM-DD） */
+/** 日期范围 → { startDate, endDate } 闭区间的日历日键（含今天，恰 N 天） */
 export function getStatsRangeDates(range: StatsDateRange): { startDate: string; endDate: string } {
-  const end = new Date()
-  end.setHours(23, 59, 59, 0)
-  const endDate = end.toISOString().split('T')[0]
-  const days = STATS_RANGE_DAYS[range]
-  const start = new Date(end)
-  start.setDate(start.getDate() - days + 1)
-  start.setHours(0, 0, 0, 0)
-  return { startDate: start.toISOString().split('T')[0], endDate }
+  return windowEndingToday(STATS_RANGE_DAYS[range], new Date())
 }
 
 /** 时间戳格式化：YYYYMMDD-HHmm */

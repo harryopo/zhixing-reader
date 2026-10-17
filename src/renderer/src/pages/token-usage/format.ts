@@ -1,5 +1,6 @@
 /** TokenUsage 页的纯格式化/取数工具（从 TokenUsage.tsx 原样搬出，逻辑未改） */
 import { DAYS_MAP, FILTER_DAYS_MAP } from './constants'
+import { windowEndingToday } from '../../../../shared/db-time'
 import type { FilterDateRange, TimeRange } from './constants'
 
 /** 模型 → 颜色 token（设计稿：GPT-4o chart-1, Claude chart-5, mini chart-3, 其他 chart-2） */
@@ -62,16 +63,9 @@ export function escapeCsv(value: unknown): string {
   return s
 }
 
-/** 筛选日期范围 → { startDate, endDate } ISO 日期字符串（YYYY-MM-DD） */
+/** 筛选日期范围 → { startDate, endDate } 闭区间的日历日键（含今天，恰 N 天） */
 export function getFilterRangeDates(range: FilterDateRange): { startDate: string; endDate: string } {
-  const end = new Date()
-  end.setHours(23, 59, 59, 0)
-  const endDate = end.toISOString().split('T')[0]
-  const days = FILTER_DAYS_MAP[range]
-  const start = new Date(end)
-  start.setDate(start.getDate() - days + 1)
-  start.setHours(0, 0, 0, 0)
-  return { startDate: start.toISOString().split('T')[0], endDate }
+  return windowEndingToday(FILTER_DAYS_MAP[range], new Date())
 }
 
 /** 时间戳格式化：YYYYMMDD-HHmm */

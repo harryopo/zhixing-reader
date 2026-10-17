@@ -8,7 +8,7 @@
  */
 
 import type { DailyStatsRow, ReviewRow } from './types'
-import { localDayKey } from './db-time'
+import { localDayKey, shiftDayKey } from './db-time'
 
 /** daily_stats 一行归一化后的样子（秒 / 条 / 张 / 本） */
 export interface ActivityDay {
@@ -101,9 +101,9 @@ function dayMs(date: string): number {
   return Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)))
 }
 
+/** 日键 ± n 天：算法只有一份（`db-time.shiftDayKey`）。脏键原样交回而不是抛 RangeError —— 旧写法 `new Date(NaN).toISOString()` 会把整个档案页崩掉 */
 function addDays(date: string, delta: number): string {
-  const d = new Date(dayMs(date) + delta * 86400000)
-  return d.toISOString().slice(0, 10)
+  return shiftDayKey(date, delta) ?? date
 }
 
 function isActive(row: ActivityDay): boolean {

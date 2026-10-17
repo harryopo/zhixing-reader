@@ -37,7 +37,8 @@ vi.mock('../electron/services/settings-service', () => ({
   },
 }))
 
-import { dailyStatsDb } from '../electron/database'
+import { dailyStatsDb, tokenUsageDb } from '../electron/database'
+import { getDatabase } from '../electron/database/connection'
 import { localDayKey, dayKeyOfStoredTime } from '../src/shared/db-time'
 import { runStartupRepair } from '../electron/services/startup-repair'
 import { fetchReadingData } from '../electron/weread-api'
@@ -113,6 +114,43 @@ describe('daily_stats 的写入按本地日落键', () => {
   it('读完一本书同样按本地日', () => {
     dailyStatsDb.incrementBooksRead()
     expect(readRow('2026-10-17')?.books_read).toBe(1)
+  })
+})
+
+describe('token_usage 按同一把尺归日（窗口键是本地日，SQL 不许按 UTC 日切）', () => {
+  beforeEach(async () => {
+    await setupTestDatabase()
+  })
+  afterEach(() => teardownTestDatabase())
+
+  /** 造一笔"北京 10-17 早上 7:00"发生的用量：库里那一列存的是 UTC 墙上时钟 */
+  async function seedMorningUsage(): Promise<void> {
+    tokenUsageDb.create({
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      feature: 'chat',
+      inputTokens: 100,
+      outputTokens: 50,
+    })
+    getDatabase().run("UPDATE token_usage SET created_at = '2026-10-16 23:00:00'")
+  }
+
+  it('今早七点那次调用，属于"今天"那一格', async () => {
+    await seedMorningUsage()
+
+    const today = tokenUsageDb.getByDateRange('2026-10-17', '2026-10-17')
+    const yesterday = tokenUsageDb.getByDateRange('2026-10-16', '2026-10-16')
+
+    expect(today, 'SQL 用 date(created_at) 按 UTC 日切，而窗口键是本地日 ⇒ 早上那笔被算进昨天')
+      .toHaveLength(1)
+    expect(yesterday).toHaveLength(0)
+  })
+
+  it('趋势图那一格也按本地日归（列表与图不许各给一个"今天"）', async () => {
+    await seedMorningUsage()
+
+    const rows = tokenUsageDb.getDailyStats(7)
+    expect(rows.map((r) => r.date)).toEqual(['2026-10-17'])
   })
 })
 

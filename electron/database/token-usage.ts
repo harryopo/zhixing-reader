@@ -37,10 +37,17 @@ export const tokenUsageDb = {
     saveDatabase();
   },
 
+  /**
+   * 按日期区间取用量。
+   *
+   * `date(created_at, 'localtime')` —— 那一列是 `datetime('now')` 写的 **UTC 墙上时钟**，
+   * 而传进来的起止是**本地日键**（`db-time.windowEndingToday` 算的）。
+   * 不加 `'localtime'` 就是拿 UTC 日去比本地日：北京早上七点那次调用会被归到昨天。
+   */
   getByDateRange(startDate: string, endDate: string): Record<string, unknown>[] {
     const result = getDatabase().exec(
       `SELECT * FROM token_usage
-       WHERE date(created_at) BETWEEN ? AND ?
+       WHERE date(created_at, 'localtime') BETWEEN ? AND ?
        ORDER BY created_at DESC`,
       [startDate, endDate]
     );
@@ -83,18 +90,24 @@ export const tokenUsageDb = {
   },
 
   getDailyStats(days: number = 7): Record<string, unknown>[] {
-    const result = getDatabase().exec(`
+    // 归日与 getByDateRange 同一个口径（本地日），否则列表与趋势图会给出两个"今天"；
+    // 窗口天数走参数，不再把数字拼进 SQL 串
+    const window = Number.isFinite(days) && days > 0 ? Math.floor(days) : 7;
+    const result = getDatabase().exec(
+      `
       SELECT
-        date(created_at) as date,
+        date(created_at, 'localtime') as date,
         COUNT(*) as request_count,
         SUM(input_tokens) as total_input_tokens,
         SUM(output_tokens) as total_output_tokens,
         SUM(total_tokens) as total_tokens
       FROM token_usage
-      WHERE created_at >= datetime('now', '-${days} days')
-      GROUP BY date(created_at)
+      WHERE created_at >= datetime('now', ?)
+      GROUP BY date(created_at, 'localtime')
       ORDER BY date DESC
-    `);
+    `,
+      [`-${window} days`],
+    );
     return rowsToObjects(result);
   },
 

@@ -75,3 +75,42 @@ export function dayKeyOfStoredTime(val: unknown): string | null {
 export function isSameLocalDay(val: unknown, dayKey: string): boolean {
   return dayKeyOfStoredTime(val) === dayKey
 }
+
+const DAY_MS = 86400000
+
+/**
+ * 日历日键加减若干天（`'YYYY-MM-DD'` → 同形状），输入不是真实存在的日子 ⇒ null。
+ *
+ * 走 `Date.UTC` 再读回 UTC 字段：这样"加减天数"是纯日历算术，不受本机时区与
+ * 夏令时影响（用本地 `setDate()` 做同样的事，在有夏令时的时区上会歪一天）。
+ * 读回后还要与输入逐字段比对 —— `Date.UTC(2026, 12, 45)` 不报错而是滚成 2027-02-14，
+ * 少了这一步，`'2026-13-45'`、`'2026-02-30'` 这种脏键会被演成"算对了"。
+ */
+export function shiftDayKey(dayKey: string, delta: number): string | null {
+  if (typeof dayKey !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return null
+  if (!Number.isInteger(delta)) return null
+  const y = Number(dayKey.slice(0, 4))
+  const m = Number(dayKey.slice(5, 7))
+  const d = Number(dayKey.slice(8, 10))
+  const base = new Date(Date.UTC(y, m - 1, d))
+  if (base.getUTCFullYear() !== y || base.getUTCMonth() !== m - 1 || base.getUTCDate() !== d) return null
+  const moved = new Date(base.getTime() + delta * DAY_MS)
+  const mm = String(moved.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(moved.getUTCDate()).padStart(2, '0')
+  return `${moved.getUTCFullYear()}-${mm}-${dd}`
+}
+
+/**
+ * 「近 N 天」的闭区间窗口（含今天，今天按本地日算）。
+ *
+ * 统计页与用量页原先各写一份，都用 `setHours(0,0,0,0)` + `toISOString()` 求起始日 ——
+ * 本地零点在东八区是**前一天 16:00 UTC**，于是取出来的日子往前多一天：
+ * 实测 `getStatsRangeDates('7d')` 交回 10-10…10-17，**闭区间 8 天**，
+ * 而消费方对每一行求和、还把行数当"天数"显示 ⇒ 界面说近 7 天、算的是 8 天。
+ * `days` 不是正整数时按 1 天收口（不给"半个窗口"，也不给 NaN 起止）。
+ */
+export function windowEndingToday(days: number, now: Date): { startDate: string; endDate: string } {
+  const endDate = localDayKey(now)
+  const n = Number.isInteger(days) && (days as number) > 0 ? days : 1
+  return { startDate: shiftDayKey(endDate, -(n - 1)) ?? endDate, endDate }
+}
