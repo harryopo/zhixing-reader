@@ -30,6 +30,24 @@ const ROOT = join(__dirname, '..')
 const ASSETS = join(ROOT, 'dist', 'renderer', 'assets')
 const ADMIN_DIR = join(ROOT, 'src', 'renderer', 'src', 'pages', 'admin')
 const APP_TSX = join(ROOT, 'src', 'renderer', 'src', 'App.tsx')
+const APP_TSX_REL = 'src/renderer/src/App.tsx'
+
+/**
+ * 这个文件相对 HEAD 有没有未提交改动。
+ *
+ * `git diff --quiet` 用退出码说话：0 = 干净，1 = 有差异。**其他退出码一律抛出去**
+ * （git 没跑成时不能把"查不出来"演成"干净"）。
+ */
+async function workingTreeDirtyFor(relPath: string): Promise<boolean> {
+  try {
+    await execFileAsync('git', ['diff', '--quiet', 'HEAD', '--', relPath], { cwd: ROOT })
+    return false
+  } catch (error) {
+    const code = (error as { code?: number | string }).code
+    if (code === 1) return true
+    throw error
+  }
+}
 
 /**
  * 判据要挑**admin 独占**的字符串 —— 挑了别处也有的词，那条断言就是自证式空转。
@@ -141,9 +159,29 @@ describe('/admin 不进打包产物', () => {
     expect(anyCommon.length, '连设置页的文案都搜不到，说明扫描本身坏了').toBeGreaterThan(0)
   })
 
-  it('反证 · 把 App.tsx 改回无条件 lazy import，产物里就会重新出现 admin', async () => {
+  it('反证 · 把 App.tsx 改回无条件 lazy import，产物里就会重新出现 admin', async (ctx) => {
     // 只量"现在没有"不够 —— 还得证明"是因为做了那个改动才没有"，否则判据钉不住任何东西。
     const original = readFileSync(APP_TSX, 'utf8')
+    // 这一条脏不脏都要说话：闸门要是被人拿掉，下面那个变异的前提就没了
+    expect(original, 'App.tsx 里 import.meta.env.DEV 那道闸门不见了 —— 反证的前提已经不存在').toMatch(
+      /const AdminPage = import\.meta\.env\.DEV/,
+    )
+
+    /*
+      这一支会把 App.tsx 真的改掉再还原（约 30 秒）。这个目录可能被另一路会话同时编辑：
+      2026-10-17 09:19 全量跑的时候，对方 09:20:22 存了一次 App.tsx，正撞在"改掉还没还原"
+      那段时间里 ⇒ `npm run build` 当场失败（那条红不是任何人的代码坏了）。
+      更坏的一种可能是我的还原把对方没提交的改动盖回去 —— 那笔活没进 git，盖掉就没了。
+      所以：**这个文件相对 HEAD 有未提交改动 ⇒ 认出来、标成 skipped 并说清原因**，
+      不静默当过。CI 上工作树是干净的，这一支照跑。
+    */
+    if (await workingTreeDirtyFor(APP_TSX_REL)) {
+      ctx.skip(
+        'App.tsx 有未提交的改动（另一路会话正在改它），这一支会改那个文件再还原，' +
+          '脏着跑可能盖掉别人没进 git 的活。CI 上照跑；本地要跑就先提交或还原该文件。',
+      )
+    }
+
     const mutated = original.replace(
       /const AdminPage = import\.meta\.env\.DEV[\s\S]*?\n\n/,
       "const AdminPage = lazy(() => import('./pages/admin/AdminPage'))\n\n",
