@@ -24,11 +24,10 @@ describe('HTTP Client — Smoke Tests', () => {
       expect(elapsed).toBeGreaterThanOrEqual(45)
     })
 
-    it('should resolve immediately for 0ms', async () => {
-      const start = Date.now()
-      await sleep(0)
-      const elapsed = Date.now() - start
-      expect(elapsed).toBeLessThan(20)
+    // 只证「会 resolve」，不量墙钟上界：满负载时 setTimeout 的回调本身会被推迟，
+    // 那条 elapsed < 20 会在别人的构建/探针跑着时造假红（2026-10-17 实测：全量红、单跑绿、复跑绿）。
+    it('should resolve (not hang or reject) for 0ms', async () => {
+      await expect(sleep(0)).resolves.toBeUndefined()
     })
   })
 

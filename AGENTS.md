@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（130 文件 / 2412 用例）
+├── tests/                 # Vitest 单元测试（131 文件 / 2417 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（2412 用例；不含覆盖率）
+npm run test             # Vitest（2417 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test:cov+build（推荐；测试那步带覆盖率阈值，与 CI 同口径）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -274,7 +274,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（123 文件 / 2281 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
+| 测试 | 项目已有 Vitest（131 文件 / 2417 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | 代码内注释 + 规范 commit message + **本文第十节一行批次记录**（早期设想的 spec/tasks/checklist/verify-report 四件套从未落地，实际沉淀位置见 §9.4）|
 
@@ -309,3 +309,4 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 2026-10-16 | 统计页副标题跟着档位说窗口 + 方法论来源划线查清是存量数据 | `Stats.tsx` 的 hero 副标题原先写死 `${年份} 年度阅读数据`，而下面那排 chip 是本周/本月/本年三档、KPI 与趋势图都跟着重取数 —— 选「本周」时标题说全年、屏上数字是 7 天，两句里只有一句是真的（09-21 那批立的"名字只有一套"漏了这一处）。窗口名收回 `READING_TREND_SPECS.chipLabel` 一份口径，年份改由锚点带出，判据 3 条（三档各说各的 + 脏/缺锚点 ⇒ 通用文案 + 认识不到的档位按本月兜底），变异两处各判红（写死一档 ⇒ 2 条红；撤脏值闸门 ⇒ 报出 '截至 NaN 年 NaN 月 NaN 日'）。**顺手扫其余标题**：KPI 卡与明细卡都取 `modeLabels`，只有 hero 一处漏。另一件登记很久的"方法论「出自你的划线」在真库上恒空"查清了：11 条全是 2026-09-12 单次生成的存量行（那时落库还写死空数组），血缘修复是 09-16 的 `90ebf36`，正向链路完好、`[]` 与"没数据"是同一件事；卡片那路能靠 `content` 全等做本地 SQL 回填（44/90 回来了），方法论的名字/步骤是 AI 改写的、**没有可对账的列**，只能重新生成（烧钱，未授权）。界面本身没错：`SourceHighlights` 空 id 直接不渲染。用例 2409 → 2412，覆盖 93.18 / 89.62 / 93.28 / 93.18。**没验**：真实模型会不会真给 `sourceIndexes` —— 09-16 之后库里没生成过任何一条，正向链路只证到单测。 |
 | 2026-10-17 | 出包反证用例先查工作树；顺手修自己刚写坏的台账 | **`ff14bbf`（测试）**：那条反证会**真的改掉 `src/renderer/src/App.tsx` 约 30 秒再还原**，而这个目录正被另一路会话编辑 —— 09:19 我跑全量时对方 09:20:22 存了一次，`npm run build` 当场失败（一次红不属于任何人的代码）。比红更坏的是另一种走法：还原写回的是"用例开始时读到的那一份"，若对方的保存落在读取之后、还原之前，就把他**没进 git 的活**盖掉了，那种丢失不可恢复（这次侥幸没发生：事后核对 mtime 仍是他的保存时刻、dev-only 闸门与他的注释改动都在，变异无残留）。改法是动手前先 `git diff --quiet HEAD -- <该文件>`（0=干净、1=脏，**其他退出码一律抛出**，不把"查不出来"演成"干净"）；脏 ⇒ `ctx.skip(原因)` —— 是 skipped 不是 passed，摘要看得见、note 说清怎么让它跑；并把"闸门还在源码里"那条断言提到分支之前，脏不脏都说话。两分支都验过：本地脏树 `5 passed \| 1 skipped`、CI 干净树日志里 `1 skipped` 命中 **0 次** 且 `conclusion=success`（该支本地跑从 33.7s 降到 14.4s）。**`a083288`（文档）**：本表 10-17 那行我插错了位置（在被更正行的上面却写「上一行是错的」，按表格顺序那指的是 10-15 那行）、头部日期戳差一天、还有一处**裸竖线**把 10-16 那行劈成 4 格（`` `gh run watch --exit-status \| tail` `` 是 `bd02655` 写进去的）。三处都是排版与指向，事实一字未改。**量具又错一次**：我先用 awk 按竖线切分数格子，它把转义后的竖线也算分隔符 ⇒ "修好了"仍报异常，改用 Node 先把转义竖线让位再切分，才是**表头与每一条台账行都是 3 格、无一例外**（`tests/doc-figures.test.ts` 按规矩不看 §十，这类格式问题目前没有守卫）。 |
 | 2026-10-17 | 更正上面「2026-10-16 CI 转绿」那行：不是 rpcTimeout，是同步构建冻住 worker | **那行关于 CI 的结论是错的**（就是上面那条 2026-10-16「CI 转绿…」，行首已加 ⚠️），原文留着不改，以这条为准。`bd02655`（只加一行台账）推上去又红同一个 `[vitest-worker]: Timeout calling "onTaskUpdate"`，这才去核实量具：Vitest 3.2 的 dist 里 `rpcTimeout` 出现 **0 次**，`createThreadsRpcOptions({ port })` 不传 `timeout` ⇒ 走 birpc 的 **`DEFAULT_TIMEOUT = 6e4`（60 秒，不是我写的 5 秒）** —— 所以 `1bfd601` 那笔配置是**空转的假开关**，它绿只是因为那台 runner 恰好没顶到 60 秒。真根因在 `tests/admin-not-in-bundle.test.ts`：`build()` 用 `execFileSync` **同步**跑三进程构建，把整个 worker 的事件循环占死，主线程对 `onTaskUpdate` 的应答处理不了（CI 实测这一支 64s > 60s）。`5984f7f` 改成 `promisify(execFile)` 异步等待，并**就地点了两次自己的错**：① 撤掉那个假键，`vitest.config.ts` 的原位注释改成这条事实的存档，免得下一个窗口再写一个看着像那么回事的开关；② 给根因配一条能证伪的判据 —— `beforeAll` 里放 50ms `setInterval` 计数器，构建结束断 `ticks > 0`；变异把 `build()` 换回同步 ⇒ 当场 `expected 0 to be greater than 0`。顺带被 `npm run typecheck` 抓到一处：`execFile` 的重载不认 `stdio`（它本来就把 stdout/stderr 收进 buffer）。实测该支 6 条绿、33.7s（比同步版 45s 还快）；`npm run verify` 退 0，130 文件 / 2412 用例、覆盖 93.18 / 89.62 / 93.28 / 93.18、lint 0 error + 174 warning；`5984f7f` 与 `7fda31f` 两笔 CI `conclusion` 都是 **success**（改动前那笔 `bd02655` 是 failure）。**但"两次绿"只算佐证、不算证明**：能扛住结论的是那条机制判据（构建期间事件循环必须还在跳），不是某一次流水线绿 —— 那行 10-16 的记录就是把一次绿当成了修好。**同类已量过**：`tests/design-tokens.test.ts:22` 也用 `execFileSync`，实测 `node scripts/build-tokens.mjs --check` 是 **312 ms**，离 60 秒差两个数量级 ⇒ 形状相同、风险不同，不动它。 |
+| 2026-10-17 | 台账排版立成常驻守卫 + 摘掉一条墙钟假红 | **上一行末句「这类格式问题目前没有守卫」以本行为准：守卫有了。** `tests/agents-ledger-format.test.ts` 5 条，只管排版不碰事实（`tests/doc-figures.test.ts` 按既有规矩排除 §十 —— 历史行里的用例数、覆盖率是当年实测，拿今天的真值去改它等于伪造历史）。钉三件事：① 每行格子数等于表头（单元格里一根没转义的竖线就当场抓出；数之前必须先把转义竖线让位 —— 上一轮我用 awk 按竖线切分，它把转义过的也算分隔符，于是"修好了"照样报异常）；② 日期不回退（更正行必须排在被更正那行之后，位置写反的真实代价不是难看，是句子里「上一行」指向另一件事）；③ 两条反证 + 一条自检：往内容里加一根裸竖线格子数必须加一、加转义的必须不变，合成两行喂进顺序检查必须报出回退，找不到表头或行数掉到 8 以下就直接红（防止扫描口径变了而断言集体沉默）。**变异两处各判红**（在真文件里插裸竖线 / 把 10-15 那行挪到 10-16 之后），改完 `AGENTS.md` 与 HEAD 逐字节一致。**同批**：8 处文档口径由 130 文件 / 2412 用例改成 **131 / 2417**（新增一个测试文件就会动这些数，那条守卫按仓库现算）。**另一条假红**：上一轮 `npm run verify` 唯一一条红是 `tests/http-client.test.ts` 的 `sleep(0)` 断 `elapsed < 20`，单独跑 11 条全绿、本轮全量也绿 ⇒ 判为负载造成的墙钟假红（满负载时 `setTimeout` 回调本身被推迟，那个上界不是被测行为的属性）；改成只断「会 resolve、不挂住不 reject」并在名字里说清，`sleep(50) >= 45` 那条留着（下界，满负载只会更晚）。**顺带证实**：本轮 `App.tsx` 在对方手里确实是脏的，那条出包反证按上一行的新闸门自动 skip，全量摘要为 `2416 passed / 1 skipped (2417)` —— 闸门在真脏的树上说了话。`npm run verify` 退 0，覆盖 93.18 / 89.62 / 93.28 / 93.18，lint 0 error + 174 warning。**没验**：装机版界面没打开；守卫只证排版，历史行里的事实仍靠人读。 |
