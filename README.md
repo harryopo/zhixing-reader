@@ -302,6 +302,7 @@ zhixing-reader/
 | 划线只保留原文、想法与章节名 | 微信读书同步落库的字段是 `content` / `note` / `chapter_title`，没有颜色与章节 id；「是划线还是笔记」由 `note` 是否为空推导 | 界面不显示高亮颜色；「笔记」页签要有想法类笔记才有内容 |
 | AI 能力需要自备 API Key | Key 存本机：经系统加密（Windows DPAPI）写入 `secure/*.enc`，设置文件里不留明文；界面上也不回填原值，输入框留空表示"不修改" | 不填 Key 时同步、复习、词典、笔记全部照常可用；加密不可用时如实提示并退回明文保存（绝不会因此丢掉你已配置的 Key），想删除用设置页的「清除已保存的 Key」 |
 | 词典为本地 ECDICT 单文件 | 15.0MB / 59,118 词条（实测 `resources/dictionary.json`），含 CEFR 分级，不含例句库 | 生词查询完全离线 |
+| 七条依赖安全告警在当前版本范围内没有可取的补丁 | 实测 `dependabot/alerts` 与 `npm ls`：`extract-zip`（2 条）、`http-cache-semantics`、`glob` 都挂在构建工具链上（`electron-builder` / `got` / `@commitlint` 之下），`vitest` + `@vitest/mocker` 是开发期测试框架，`echarts@5.5.1` 在渲染层里（`echarts-for-react` 要 `^6.0.0`）；GitHub 给的「首个修复版本」这七条都是空 | 前四条装机版运行时不加载，等上游发版再处理；`echarts` 与 `vitest` 要跨大版本，各自单独一批（图表要人过目），见 [#12](https://github.com/harryopo/zhixing-reader/issues/12) |
 
 ## 十三、反馈问题
 
