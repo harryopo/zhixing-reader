@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-2467%20%E7%94%A8%E4%BE%8B%20/%20135%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-2481%20%E7%94%A8%E4%BE%8B%20/%20136%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![CI](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml?query=branch%3Amaster)
 [![Lines](https://img.shields.io/badge/code-53%2C800%2B%20TS-blueviolet)]()
 
@@ -30,7 +30,7 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 约 6 万行 TypeScript strict（`electron/` + `src/` 下跟踪的 `.ts`/`.tsx`，由 `tests/doc-figures.test.ts` 现算对账）|
-| **测试** | 2467 用例 / 135 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
+| **测试** | 2481 用例 / 136 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
 | **存储** | sql.js (SQLite WASM) · 18 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -141,7 +141,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 3.x | 2467 用例 / 135 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 3.x | 2481 用例 / 136 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 26.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -214,7 +214,7 @@ zhixing-reader/
 ├── tokens/brand.json                        # 全部色值的唯一真值（产物由 npm run build:tokens 生成）
 ├── brand/                                   # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal）
 ├── scripts/                                 # 构建期脚本（build-tokens / build-icons）
-├── tests/                                   # Vitest 单元测试（2467 用例 / 135 文件）
+├── tests/                                   # Vitest 单元测试（2481 用例 / 136 文件）
 ├── .github/
 │   ├── workflows/ci.yml                     # lint + typecheck + test:cov + build（windows-latest）
 │   └── ISSUE_TEMPLATE/                      # Bug / 功能建议 / 环境与构建 三类模板
@@ -302,7 +302,7 @@ zhixing-reader/
 | 划线只保留原文、想法与章节名 | 微信读书同步落库的字段是 `content` / `note` / `chapter_title`，没有颜色与章节 id；「是划线还是笔记」由 `note` 是否为空推导 | 界面不显示高亮颜色；「笔记」页签要有想法类笔记才有内容 |
 | AI 能力需要自备 API Key | Key 存本机：经系统加密（Windows DPAPI）写入 `secure/*.enc`，设置文件里不留明文；界面上也不回填原值，输入框留空表示"不修改" | 不填 Key 时同步、复习、词典、笔记全部照常可用；加密不可用时如实提示并退回明文保存（绝不会因此丢掉你已配置的 Key），想删除用设置页的「清除已保存的 Key」 |
 | 词典为本地 ECDICT 单文件 | 15.0MB / 59,118 词条（实测 `resources/dictionary.json`），含 CEFR 分级，不含例句库 | 生词查询完全离线 |
-| 七条依赖安全告警在当前版本范围内没有可取的补丁 | 实测 `dependabot/alerts` 与 `npm ls`：`extract-zip`（2 条）、`http-cache-semantics`、`glob` 都挂在构建工具链上（`electron-builder` / `got` / `@commitlint` 之下），`vitest` + `@vitest/mocker` 是开发期测试框架，`echarts@5.5.1` 在渲染层里（`echarts-for-react` 要 `^6.0.0`）；GitHub 给的「首个修复版本」这七条都是空 | 前四条装机版运行时不加载，等上游发版再处理；`echarts` 与 `vitest` 要跨大版本，各自单独一批（图表要人过目），见 [#12](https://github.com/harryopo/zhixing-reader/issues/12) |
+| 依赖安全告警 15 条开着（2026-10-18 实测 `dependabot/alerts?state=open`） | 其中 8 条是 Electron 的四则公告（GHSA-hq2x-r82h-9wj4、9qh4-3jw8-366w、gr2m-v5gq-v685、j84w-jfhq-vhvj，2026-09-29 发布，要 41.10.4 以上，dev 树停在 39.8.10）。逐条对过本应用的用法：四则的受体这里都不存在 —— 全站不建子窗（`setWindowOpenHandler` 一律返回 deny）、没有 `<webview>` 标签、没有自定义 `protocol` 处理器。另外 7 条与 09 月那批相同：`extract-zip`（2 条）、`http-cache-semantics`、`glob` 挂在构建工具链上，`vitest` + `@vitest/mocker` 是开发期测试框架，`echarts@5.5.1` 在渲染层（`echarts-for-react` 要 `^6.0.0`），GitHub 给的首个修复版本这几条都是空 | Electron 要跨两个大版本，与 `vitest` / `echarts` 同批单独处理，见 [#12](https://github.com/harryopo/zhixing-reader/issues/12)；顺带一条归维护者拍板的：`electron/main.ts` 显式写了 `sandbox: false`，渲染进程基线本就比 Electron 默认弱，改成 true 要连 preload 能用什么一起验 |
 
 ## 十三、反馈问题
 
@@ -463,4 +463,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-10-17 | 与 master 分支代码一致（最新发布 v1.3.4，2467 用例 / 135 文件）*
+*最后更新：2026-10-18 | 与 master 分支代码一致（最新发布 v1.3.4，2481 用例 / 136 文件）*

@@ -33,4 +33,19 @@ describe('版本字符串一致性', () => {
     const newest = src.match(/const UPDATE_HISTORY[^=]*=\s*\[\s*\{\s*version:\s*'([^']+)'/)
     expect(newest?.[1]).toBe(APP_META.version)
   })
+
+  // 2026-10-18 补：宣传页（landing/ → gh-pages）是第七处，它停在 v1.1.0 两个多月没人发现，
+  // 因为发版批次从来没数过它。同一个漏抄，同一条闸。
+  it('宣传页的版本号、下载链与安装包文件名跟着 package.json', () => {
+    const landing = readFileSync('landing/index.html', 'utf8')
+    expect(landing).toContain(
+      `releases/download/v${pkg.version}/zhixing-reader-Setup-${pkg.version}.exe`,
+    )
+    const versions = new Set([...landing.matchAll(/\bv\d+\.\d+\.\d+\b/g)].map((m) => m[0]))
+    expect(versions, `宣传页里出现了第二个版本号：${[...versions].join(' / ')}`).toEqual(
+      new Set([`v${pkg.version}`]),
+    )
+    // 1.1.0 那批的文件名是大驼峰（ZhixingReader-Setup-1.1.0.exe），现在产物叫 zhixing-reader-Setup-*.exe
+    expect(landing, '宣传页又用上旧的安装包文件名片段').not.toContain('ZhixingReader-Setup')
+  })
 })

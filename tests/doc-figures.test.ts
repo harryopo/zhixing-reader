@@ -13,7 +13,7 @@
 // 由 `tests/doc-pointers.test.ts` 的「变更历史只许待在历史档」那一组管它的边界。
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { readFileSync, readdirSync } from 'fs'
+import { readFileSync, readdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { IPC_CHANNELS } from '../src/shared/ipc-channels'
 import { BACKUP_TABLES, EXCLUDED_TABLES } from '../src/shared/backup'
@@ -41,7 +41,6 @@ function read(p: string): string {
 }
 
 // ===== 真值：全部由仓库自己算 =====
-
 /**
  * 库里真正建出来的表，读 `sqlite_master`。
  * 不数源码里的 `CREATE TABLE` —— `cards` 是迁移里 DROP + RENAME 出来的，
@@ -274,6 +273,20 @@ export const RULES: Rule[] = [
     pattern: /tests\/\s+# Vitest 单元测试（(\d+) 文件/,
     actual: realTestFileCount,
   },
+  // 2026-10-18 补：宣传页（landing/index.html → gh-pages）也是抄来的数，且抄的是
+  // 一个没人再看的旧值（885 用例 / 16 模块停在 9 月 16 日那次）。同一个病用同一套药。
+  {
+    where: '宣传页 hero · 功能模块数',
+    file: 'landing/index.html',
+    pattern: /五大核心创新 · (\d+) 大功能模块/,
+    actual: realModuleCount,
+  },
+  {
+    where: '宣传页 hero · 测试文件数',
+    file: 'landing/index.html',
+    pattern: /测试用例 · (\d+) 文件/,
+    actual: realTestFileCount,
+  },
 ]
 
 /**
@@ -305,11 +318,31 @@ export function collectMismatches(files: Record<string, string>): Claim[] {
   return out
 }
 
+/** README 的「N 用例 / M 文件」里那个 N（宣传页必须抄同一个数） */
+function readmeCaseCount(md: string): string | undefined {
+  return md.match(/([\d,]+) 用例 \/ \d+ 文件/)?.[1]
+}
+
+/** 宣传页 hero 那条「N 用例」 */
+function landingCaseCount(html: string): string | undefined {
+  return html.match(
+    /<div class="hero-stat-value">([\d,]+)<\/div>\s*<div class="hero-stat-label">测试用例/,
+  )?.[1]
+}
+
+/** 宣传页引用的本地资源（排除外链与页内锚点）—— 少一个文件就是线上一个 404 */
+function landingLocalRefs(html: string): string[] {
+  return [...html.matchAll(/(?:src|href)="([^"#]+)"/g)]
+    .map((m) => m[1])
+    .filter((u) => !/^(https?:|mailto:|data:)/.test(u))
+}
+
 describe('文档里的结构数字与仓库真值对账', () => {
   const docs = {
     'README.md': read('README.md'),
     'AGENTS.md': read('AGENTS.md'),
     'CONTRIBUTING.md': read('CONTRIBUTING.md'),
+    'landing/index.html': read(join('landing', 'index.html')),
   }
 
   // 表数读的是真实建出来的库（生产的 applySchemaAndMigrations），不是源码里的字符串
@@ -407,5 +440,37 @@ describe('文档里的结构数字与仓库真值对账', () => {
 
   it('README 不再承诺"某个文件有多少行"（行数和版本号一样，抄一次漂一次）', () => {
     expect(/（\d+ 行/.test(docs['README.md']), '文件级行数又回来了').toBe(false)
+  })
+
+  it('宣传页的用例数与 README 是同一个数', () => {
+    const fromReadme = readmeCaseCount(docs['README.md'])
+    const fromLanding = landingCaseCount(docs['landing/index.html'])
+    expect(fromLanding, '宣传页那条用例数没量到（锚点句式被改，规则会静默失效）').toBeTruthy()
+    expect(fromLanding).toBe(fromReadme)
+  })
+
+  it('反证 · 宣传页用例数抄回旧值时必须判红', () => {
+    const drifted = docs['landing/index.html'].replace(
+      /(<div class="hero-stat-value">)[\d,]+(<\/div>)/,
+      '$1885$2',
+    )
+    expect(landingCaseCount(drifted)).not.toBe(readmeCaseCount(docs['README.md']))
+    expect(landingCaseCount(drifted), '反证没造出漂移，说明这条判据没牙').toBeTruthy()
+  })
+
+  it('宣传页引用的本地资源都在 landing/ 里（缺一个就是线上 404）', () => {
+    const refs = landingLocalRefs(docs['landing/index.html'])
+    expect(refs.length, '一条本地资源都没量到（锚点句式被改）').toBeGreaterThan(3)
+    const missing = refs.filter((u) => !existsSync(join(ROOT, 'landing', u)))
+    expect(missing, '宣传页引用了 landing/ 里不存在的文件').toEqual([])
+  })
+
+  it('反证 · 引用一个不存在的截图时必须报出来', () => {
+    const drifted = docs['landing/index.html'].replace(
+      'src="logo.svg"',
+      'src="screenshots/screenshot-does-not-exist.png"',
+    )
+    const missing = landingLocalRefs(drifted).filter((u) => !existsSync(join(ROOT, 'landing', u)))
+    expect(missing).toContain('screenshots/screenshot-does-not-exist.png')
   })
 })

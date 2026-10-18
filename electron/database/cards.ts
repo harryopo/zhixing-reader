@@ -10,6 +10,7 @@ import { getDatabase, saveDatabase, runTransaction } from './connection';
 import { rowsToObjects } from '../utils/db';
 import { Card, cardFromDb, cardToRow, createCard } from '../fsrs-engine';
 import { ReviewStats } from '../../src/shared/types';
+import { localDayKey } from '../../src/shared/db-time';
 import {
   DEFAULT_NEW_CARDS_PER_DAY,
   computeNewCardAllowance,
@@ -195,13 +196,17 @@ export const cardsDb = {
    *
    * 为什么用 reviews 而不是 cards：一张卡只要评过一次分，state 就不再是 0，
    * 但它当天可能又被复习了好几次；只有"首次复习在今天的卡"才等于"今天新放出的卡"。
-   * 时区口径与 daily-stats 保持一致（UTC 日期，见 daily-stats.ts）。
+   *
+   * 日子只问 `src/shared/db-time.ts` 那一把尺：库里 `review_time` 存的是 UTC 墙上时间，
+   * 所以 SQL 侧要 `localtime` 换算，JS 侧取本地日 —— 两边同一天，否则北京零点后到早上八点
+   * 这个数说的是昨天的卡（2026-10-18 与 daily-stats 同批收口，此前注释还写着"与 daily-stats
+   * 一致（UTC 日期）"，而 daily-stats 已经改按本地日写了）。
    */
   countNewIntroducedToday(): number {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDayKey(new Date());
     const result = getDatabase().exec(
       `SELECT COUNT(*) FROM reviews r
-       WHERE date(r.review_time) = ?
+       WHERE date(r.review_time, 'localtime') = ?
          AND r.review_time = (SELECT MIN(r2.review_time) FROM reviews r2 WHERE r2.card_id = r.card_id)`,
       [today]
     );

@@ -43,6 +43,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, Metric, Trend, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
+import { localDayKey } from '../../../shared/db-time'
 import {
   TokenSummary,
   TokenRecord,
@@ -157,7 +158,7 @@ export default function TokenUsagePage() {
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(now)
       d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split('T')[0]
+      const dateStr = localDayKey(d)
       const existing = dailyStats.find((s) => s.date === dateStr)
       dates.push(
         existing || {

@@ -21,6 +21,7 @@ import {
   initDatabase,
   getDatabase,
 } from '../electron/database'
+import { localDayKey } from '../src/shared/db-time'
 
 /**
  * 读单行的两个小助手：数据库模块不再提供这些表的 `getById`（产品侧零调用，2026-09-25 砍掉），
@@ -445,6 +446,10 @@ describe('database-integration — sql.js 集成测试', () => {
     // 阅读时长（2026-09-16 语义修正）
     // 真值来源是微信读书的阅读统计；本地 daily_stats.reading_time 是它的缓存。
     // 原 addReadingTime（累加）已移除 —— 同一列有两个语义相反的写入方迟早算错。
+    //
+    // 「今天」一律取 `localDayKey`（src/shared/db-time）：写入侧与 getToday 同一把尺。
+    // 这里原来写 `toISOString().split('T')[0]`（UTC 日），白天两个口径撞成一天所以看不出来，
+    // 本地过零点之后 getToday 读不到刚写进去的那一行，三条用例当场红（2026-10-18 实测）。
     // ========================================================================
     it('upsertReadingTime 覆盖写入指定日期，而不是累加', async () => {
       dailyStatsDb.upsertReadingTime('2026-09-05', 167)
@@ -454,13 +459,13 @@ describe('database-integration — sql.js 集成测试', () => {
     })
 
     it('upsertReadingTime 能写入今天（getToday 读得到）', async () => {
-      const today = new Date().toISOString().split('T')[0]
+      const today = localDayKey(new Date())
       dailyStatsDb.upsertReadingTime(today, 1459)
       expect((dailyStatsDb.getToday() as any).reading_time).toBe(1459)
     })
 
     it('upsertReadingTime 与其它计数并存，互不覆盖', async () => {
-      const today = new Date().toISOString().split('T')[0]
+      const today = localDayKey(new Date())
       dailyStatsDb.incrementCardsReviewed(4)
       dailyStatsDb.upsertReadingTime(today, 600)
       const t = dailyStatsDb.getToday() as any
@@ -485,7 +490,7 @@ describe('database-integration — sql.js 集成测试', () => {
 
     it('应支持 getRange 查询', async () => {
       dailyStatsDb.incrementBooksRead()
-      const today = new Date().toISOString().split('T')[0]
+      const today = localDayKey(new Date())
       const range = dailyStatsDb.getRange(today, today)
       expect(range.length).toBeGreaterThanOrEqual(1)
     })

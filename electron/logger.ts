@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { localDayKey } from '../src/shared/db-time';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -55,7 +56,7 @@ class Logger {
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
-    const date = new Date().toISOString().split('T')[0];
+    const date = localDayKey(new Date());
     this.logPath = path.join(logDir, `${date}.log`);
     this.initStream();
   }

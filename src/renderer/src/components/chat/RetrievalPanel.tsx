@@ -1,10 +1,11 @@
 /**
  * RetrievalPanel — Agent「调取知识库」可视化面板
  *
- * agent 运行时展示各路知识库检索（书籍笔记 RAG / 知识卡片 / 方法论 / 记忆 / 用户画像）：
+ * agent 运行时展示各路知识库检索（书籍笔记 RAG / 方法论 / 知识卡片 / 文章 / 记忆 / 生词 / 用户画像）：
  *   - start 阶段：正在调取…（脉冲指示）
  *   - done 阶段：逐路展示 命中数 / 检索方式 / 读取失败 / 可展开片段预览
  * 让 RAG / 知识库调取过程对用户可见（此前只存在于后端日志）。
+ * 名单由 tests/context-builder-registry.test.ts 对账到 orchestrator 注册，漏一路会被判红。
  */
 import { useState, type CSSProperties } from 'react'
 import Icon, { IconName } from '@/components/ui/Icon'
@@ -12,9 +13,11 @@ import type { RetrievalState, RetrievalSource } from '../../stores/chatStore'
 
 const SOURCE_ICONS: Record<string, IconName> = {
   book: 'bookshelf',
-  knowledgeCard: 'cards',
   methodology: 'methodology',
+  knowledgeCard: 'cards',
+  article: 'file',
   memory: 'notes',
+  vocabulary: 'vocabulary',
   userProfile: 'profile',
 }
 

@@ -6,6 +6,7 @@ import { buildReviewCsv } from '../../../../shared/review-export'
 import { describeImportedCounts } from '../../../../shared/backup'
 import { buildNotesMarkdown, notesFileName } from '../../../../shared/notes-export'
 import type { BookRow, HighlightRow } from '../../../../shared/notes-export'
+import { localDayKey } from '../../../../shared/db-time'
 
 /**
  * 这一坨只碰 IPC、拼装文件和浏览器下载，不碰页面其它状态，所以整块搬走。
@@ -27,7 +28,7 @@ export function useDataIo() {
       // 以前这里在渲染层拼 payload，AI 生成的摘要与"已处理多少条划线"的台账根本不在里面，
       // 恢复后按钮变成「重新蒸馏」，等于让同一批划线再花一次钱。
       const { payload, counts } = await api.system.exportBackup()
-      const filename = `zhixing-backup-${new Date().toISOString().split('T')[0]}.json`
+      const filename = `zhixing-backup-${localDayKey(new Date())}.json`
       downloadBlob(filename, JSON.stringify(payload, null, 2), 'application/json')
       // 记录导出时间
       const nowIso = new Date().toISOString()
@@ -97,7 +98,7 @@ export function useDataIo() {
       // 列清单与取数都走 REVIEW_CSV_COLUMNS，别再手写一遍字段名 —— 曾经写错过 5 列
       const reviews = await api.review.getRecent(1000)
       const csv = buildReviewCsv(reviews)
-      const filename = `zhixing-reviews-${new Date().toISOString().split('T')[0]}.csv`
+      const filename = `zhixing-reviews-${localDayKey(new Date())}.csv`
       // 加 BOM 让 Excel 正确识别 UTF-8
       downloadBlob(filename, '\uFEFF' + csv, 'text/csv')
       toast.remove(tId)

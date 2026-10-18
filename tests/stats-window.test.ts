@@ -14,7 +14,8 @@
 process.env.TZ = 'Asia/Shanghai'
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
+import { join } from 'path'
 import { windowEndingToday, shiftDayKey, localDayKey } from '../src/shared/db-time'
 
 /** 闭区间含几天：两个 `YYYY-MM-DD` 之间（含两端）的日历日数 */
@@ -96,5 +97,61 @@ describe('接线：那两份"自己算窗口"的代码不再各写一份', () =>
   it('正向控制：这两个函数真的能读到（读空了上面两条就是空话）', () => {
     expect(stats.length, 'stats/constants.ts 没读到内容').toBeGreaterThan(500)
     expect(usage.length, 'token-usage/format.ts 没读到内容').toBeGreaterThan(500)
+  })
+})
+
+/**
+ * 全树横扫（2026-10-18 从"两个文件"扩到整棵树）
+ *
+ * 上一批只钉了当时改到的那两处，结果同类还留在四个地方没人看见：
+ * `cards.countNewIntroducedToday`（今日新卡数按 UTC 日数）、`TokenUsage` 的图表横轴
+ * （我改了 SQL 的归日口径却漏了横轴键，两边各算各的）、logger 的日志文件名、
+ * 备份与复习 CSV 的文件名。三条集成测试也照旧写 UTC 的"今天"，过零点当场红。
+ * 一条按文件清单写的规则迟早漏文件 —— 判据改成扫全树。
+ */
+const UTC_DAY_KEY = /toISOString\(\)\.split\('T'\)/
+
+function walkSources(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = join(dir, e.name)
+    if (e.isDirectory()) return e.name === 'node_modules' || e.name.startsWith('.') ? [] : walkSources(p)
+    return /\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [p] : []
+  })
+}
+
+/** 忽略注释行：`db-time.ts` 自己要在文档注释里写清"旧写法错在哪" */
+function findUtcDayKeyLines(src: string): number[] {
+  return src
+    .split(/\r?\n/)
+    .map((line, i) => [i + 1, line] as const)
+    .filter(([, line]) => {
+      const t = line.trim()
+      return !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*') && UTC_DAY_KEY.test(line)
+    })
+    .map(([n]) => n)
+}
+
+describe('「哪一天」只许问一把尺：全树不许再用 toISOString 取日', () => {
+  it('electron/ 与 src/ 的源码里一处都没有（注释里讲历史除外）', () => {
+    const offenders = walkSources('electron')
+      .concat(walkSources('src'))
+      .flatMap((f) => findUtcDayKeyLines(readFileSync(f, 'utf8')).map((n) => `${f}:${n}`))
+    expect(offenders, '这些地方还在自己算日子').toEqual([])
+  })
+
+  it('量具有牙 · 注入一行取 UTC 日的写法必须被报出来，注释行则放过', () => {
+    const sample = [
+      "const a = new Date().toISOString();",
+      "const b = new Date().toISOString().split('T')[0];",
+      "// 旧写法 toISOString().split('T')[0] 取的是 UTC 日",
+    ].join('\n')
+    expect(findUtcDayKeyLines(sample)).toEqual([2])
+    expect(findUtcDayKeyLines(sample.replace(UTC_DAY_KEY, 'localDayKey'))).toEqual([])
+  })
+
+  it('量具有牙 · 横扫真的扫到了东西（不是空目录装样子）', () => {
+    const files = walkSources('electron').concat(walkSources('src'))
+    expect(files.length, '一个源码文件都没量到，说明遍历口径变了').toBeGreaterThan(100)
+    expect(files.some((f) => f.includes('db-time'))).toBe(true)
   })
 })

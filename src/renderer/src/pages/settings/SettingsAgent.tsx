@@ -7,7 +7,8 @@
  *     （原「24 单元格频次热力图」为编造数据，已删除——后端是一对一映射，不存在频次概念）
  *   - 难度调整：三条规则描述与 state-tracker.adjustDifficulty 真实逻辑一致
  *     （原「85% 掌握 / 60% 错误率 / 30 分钟冷却」为编造规则，已更正；原「概念掌握度进度条」为写死示例数据，已删除）
- *   - 上下文构建器：5 个 builder 名单与描述真实（orchestrator 注册）；原「per-builder token 预算 / 百分比进度条」
+ *   - 上下文构建器：builder 名单、条数与优先级由 tests/context-builder-registry.test.ts 对账到 orchestrator 注册；
+ *     原「per-builder token 预算 / 百分比进度条」
  *     为编造（后端是总预算 4000 顺序截断，无按比例分配），已删除
  *   - 系统提示词：默认文本与 system-prompt.ts DEFAULT_SYSTEM_PROMPT 同源；保存/重置走 prompt-storage 真实生效
  *     （原「6 个模板变量 chip」为误导功能——后端无变量替换逻辑，占位符会原样发给 LLM，已删除）
@@ -130,13 +131,36 @@ const DIFFICULTY_RULES: {
   },
 ]
 
-/** 5 个上下文构建器（与 electron/agent/orchestrator.ts 注册顺序、context-manager.ts 优先级一致） */
+/**
+ * 上下文构建器清单 —— 名字、条数、顺序都由 `tests/context-builder-registry.test.ts`
+ * 对账到 `electron/agent/orchestrator.ts` 的 registerBuilder 与各 builder 的 priority。
+ *
+ * 2026-10-18 补 article / vocabulary 两行：09-24 那两个构建器注册进主管线时，
+ * 这张手抄表没跟着动，于是设置页少说两路、宣传页照着少说两路（注释还自称"与注册顺序一致"）。
+ */
 const DEFAULT_BUILDERS: ContextBuilderInfo[] = [
   { no: 1, name: 'book', desc: '当前书籍章节与划线原文上下文', priority: '优先级 1 · 先加入上下文' },
   { no: 2, name: 'methodology', desc: '书籍关联的学习方法论', priority: '优先级 2' },
-  { no: 3, name: 'knowledge-card', desc: '知识卡片 RAG 检索片段', priority: '优先级 3' },
-  { no: 4, name: 'memory', desc: '历史对话提取的长期记忆', priority: '优先级 4' },
-  { no: 5, name: 'user-profile', desc: '用户画像：档案自述资料 + 行为推导（有数据时才构建）', priority: '优先级 5 · 条件构建' },
+  { no: 3, name: 'knowledgeCard', desc: '知识卡片 RAG 检索片段', priority: '优先级 3' },
+  {
+    no: 4,
+    name: 'article',
+    desc: '订阅文章的英文原文与中译（本地 BM25 按相关度检索）',
+    priority: '优先级 4',
+  },
+  { no: 5, name: 'memory', desc: '历史对话提取的长期记忆', priority: '优先级 5' },
+  {
+    no: 6,
+    name: 'vocabulary',
+    desc: '生词本词条与释义（本地 BM25 按相关度检索）',
+    priority: '优先级 6',
+  },
+  {
+    no: 7,
+    name: 'userProfile',
+    desc: '用户画像：档案自述资料 + 行为推导（有数据时才构建）',
+    priority: '优先级 7 · 条件构建',
+  },
 ]
 
 /** 记忆提取规则（逐条对过 memory-service.extractMemoriesFromConversation 的真实行为） */
@@ -926,10 +950,10 @@ export default function SettingsAgent() {
                 上下文构建器
               </strong>
               <div className="tiny" style={{ color: 'var(--muted-foreground)', fontSize: '0.78rem', lineHeight: 1.5, marginTop: '0.3rem' }}>
-                5 类构建器按优先级顺序组装上下文，总预算 4000 tokens，超限截断
+                {DEFAULT_BUILDERS.length} 类构建器按优先级顺序组装上下文，总预算 4000 tokens，超限截断
               </div>
             </div>
-            <Badge variant="default">5 构建器</Badge>
+            <Badge variant="default">{DEFAULT_BUILDERS.length} 构建器</Badge>
           </div>
 
           {DEFAULT_BUILDERS.map((b, idx) => (

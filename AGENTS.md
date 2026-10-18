@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（135 文件 / 2467 用例）
+├── tests/                 # Vitest 单元测试（136 文件 / 2481 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（2467 用例；不含覆盖率）
+npm run test             # Vitest（2481 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test:cov+build（推荐；测试那步带覆盖率阈值，与 CI 同口径）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -225,7 +225,7 @@ npm run verify
 | `pages/DailyLearning.tsx` | 1636 |
 | `pages/settings/SettingsAbout.tsx` | 1161 |
 | `pages/KnowledgeCards.tsx` | 1156 |
-| `pages/settings/SettingsAgent.tsx` | 1132 |
+| `pages/settings/SettingsAgent.tsx` | 1156 |
 | `pages/settings/SettingsAI.tsx` | 1113 |
 | `pages/settings/SettingsData.tsx` | 1104 |
 | `pages/Methodologies.tsx` | 1093 |
@@ -275,7 +275,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（135 文件 / 2467 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
+| 测试 | 项目已有 Vitest（136 文件 / 2481 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | 代码内注释 + 规范 commit message + **本文第十节一行批次记录**（早期设想的 spec/tasks/checklist/verify-report 四件套从未落地，实际沉淀位置见 §9.4）|
 
@@ -311,3 +311,4 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 2026-10-17 | 台账排版立成常驻守卫 + 摘掉一条墙钟假红 | **上一行末句「这类格式问题目前没有守卫」以本行为准：守卫有了。** `tests/agents-ledger-format.test.ts` 5 条，只管排版不碰事实（`tests/doc-figures.test.ts` 按既有规矩排除 §十 —— 历史行里的用例数、覆盖率是当年实测，拿今天的真值去改它等于伪造历史）。钉三件事：① 每行格子数等于表头（单元格里一根没转义的竖线就当场抓出；数之前必须先把转义竖线让位 —— 上一轮我用 awk 按竖线切分，它把转义过的也算分隔符，于是"修好了"照样报异常）；② 日期不回退（更正行必须排在被更正那行之后，位置写反的真实代价不是难看，是句子里「上一行」指向另一件事）；③ 两条反证 + 一条自检：往内容里加一根裸竖线格子数必须加一、加转义的必须不变，合成两行喂进顺序检查必须报出回退，找不到表头或行数掉到 8 以下就直接红（防止扫描口径变了而断言集体沉默）。**变异两处各判红**（在真文件里插裸竖线 / 把 10-15 那行挪到 10-16 之后），改完 `AGENTS.md` 与 HEAD 逐字节一致。**同批**：8 处文档口径由 130 文件 / 2412 用例改成 **131 / 2417**（新增一个测试文件就会动这些数，那条守卫按仓库现算）。**另一条假红**：上一轮 `npm run verify` 唯一一条红是 `tests/http-client.test.ts` 的 `sleep(0)` 断 `elapsed < 20`，单独跑 11 条全绿、本轮全量也绿 ⇒ 判为负载造成的墙钟假红（满负载时 `setTimeout` 回调本身被推迟，那个上界不是被测行为的属性）；改成只断「会 resolve、不挂住不 reject」并在名字里说清，`sleep(50) >= 45` 那条留着（下界，满负载只会更晚）。**顺带证实**：本轮 `App.tsx` 在对方手里确实是脏的，那条出包反证按上一行的新闸门自动 skip，全量摘要为 `2416 passed / 1 skipped (2417)` —— 闸门在真脏的树上说了话。`npm run verify` 退 0，覆盖 93.18 / 89.62 / 93.28 / 93.18，lint 0 error + 174 warning。**没验**：装机版界面没打开；守卫只证排版，历史行里的事实仍靠人读。 |
 | 2026-10-17 | 「哪一天」收成一把尺 | 写入侧用 UTC 日、界面按本地日读 ⇒ 凌晨的活动记到前一天；微信读书的 epoch 是北京零点，整条阅读时长早一天。启动时一次性搬正（只搬一次、计数器不动）。全文见 `docs/agent-history.md`。**没验**：真实库还没跑过。 |
 | 2026-10-17 | 「近 N 天」窗口与用量归日：同一把尺的第二、第三处 | 横扫同类又量到两处各算各的：① `stats/constants.ts` 与 `token-usage/format.ts` 各写一份"日期范围 → 起止"，都用本地 00:00 再 `toISOString()` 求起始日 ⇒ 东八区往前多一天，实测 `7d` **闭区间 8 天**，而消费方按行求和、还把行数当"天数"显示；② `token_usage` 三条 SQL 用 `date(created_at)`（UTC 日）配本地日键 ⇒ 北京早上七点那次调用被归到昨天（真库实测 0/38 行撞上，隐患不是幻觉）。收成 `db-time` 的 `windowEndingToday` / `shiftDayKey` 一份，判据钉的是不变量本身（**闭区间恰含 N 天**、跨年跨月、脏键 ⇒ null、凌晨与下午同一个窗口）+ 两处接线；`getDailyStats` 的天数改走参数，不再把数字拼进 SQL。**没验**：用量页与统计页界面没打开。全文见 `docs/agent-history.md`。 |
+| 2026-10-18 | 同一把尺还剩四处没扫；宣传页上线并落守卫 | 上一批只钉了当时改到的两处，横扫又抓到四处各算各的：`cards.countNewIntroducedToday`（今日新卡按 UTC 日数）、`TokenUsage` 趋势横轴（**改了 SQL 归日却漏了横轴键，两边口径分家**）、logger 日志文件名、备份与复习 CSV 文件名，另三条集成测试照写 UTC 的"今天"、本地过零点当场红（10-17 那行末句"没验：真实库还没跑过"就是这一类的代价）。判据从"两个文件的清单"改成扫全树（注释行放过：`db-time.ts` 要在注释里写清旧写法错在哪）。另一件：设置页构建器表与调取面板图标表停在 5 路（09-24 注册文章/生词时没人跟着改，注释还自称"与注册顺序一致"），新增 `tests/context-builder-registry.test.ts` 把三处抄件对账到 orchestrator 注册。宣传页按实测改准（v1.1.0 改 v1.3.4、885 改 2481 用例、16 改 18 模块、5 改 7 维）并同步 gh-pages，数字与版本号各落一条守卫。**没验**：装机版界面没打开；宣传页只验到线上资源逐个 200。全文见 `docs/agent-history.md`。 |
