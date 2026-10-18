@@ -56,6 +56,8 @@ import {
 import { mapConversations } from '../utils/db-mapper'
 import { VocabPanel } from './daily-learning/VocabPanel'
 import { ArticleListPanel } from './daily-learning/ArticleListPanel'
+import { eyebrow072, eyebrow078 } from '@/design/eyebrow'
+
 /**
  * 列表长度会被直接当成界面上的数字（「还有 N 个待掌握」「现有文章都读完了」），
  * 而主进程默认只给 articles 50 条 / vocabulary 200 条 —— 本机实测已有 80 篇文章，
@@ -796,7 +798,7 @@ export default function DailyLearning() {
           <Card padding="calc(var(--spacing) * 4) calc(var(--spacing) * 5)">
             <div style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 5)', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>难度</span>
+                <span style={eyebrow078}>难度</span>
                 {(['all', 'cet4', 'cet6', 'graduate'] as DifficultyFilter[]).map(d => (
                   <button
                     key={d}
@@ -820,7 +822,7 @@ export default function DailyLearning() {
                 ))}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 2)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>状态</span>
+                <span style={eyebrow078}>状态</span>
                 {(['all', 'unread', 'read', 'favorite'] as StatusFilter[]).map(s => (
                   <button
                     key={s}
@@ -1299,7 +1301,7 @@ export default function DailyLearning() {
           {/* 左栏：进度环卡片 */}
           <Card aria-label="今日学习进度">
             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'calc(var(--spacing) * 4)' }}>
-              <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>今日进度</span>
+              <span style={eyebrow078}>今日进度</span>
               <div
                 role="img"
                 aria-label={`今日完成进度 ${progressPct}%`}
@@ -1325,11 +1327,11 @@ export default function DailyLearning() {
                     只是把写死的 30/15/10 分钟按勾选状态加起来，没有任何计时器。
                     换成今天真实发生的两件事（口径与统计页一致）。 */}
                 <div style={{ padding: 'calc(var(--spacing) * 3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--background)', textAlign: 'left' }}>
-                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>今天已复习</span>
+                  <span style={eyebrow072}>今天已复习</span>
                   <strong style={{ display: 'block', marginTop: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums', color: 'var(--foreground)', fontWeight: 700 }}>{todayStats ? `${todayStats.cardsReviewed}` : '—'}<span style={{ fontSize: '0.75rem', marginLeft: '0.15rem', color: 'var(--muted-foreground)' }}>张</span></strong>
                 </div>
                 <div style={{ padding: 'calc(var(--spacing) * 3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--background)', textAlign: 'left' }}>
-                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>今天已阅读</span>
+                  <span style={eyebrow072}>今天已阅读</span>
                   <strong style={{ display: 'block', marginTop: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums', color: 'var(--foreground)', fontWeight: 700 }}>{todayStats ? Math.round(todayStats.readingSeconds / 60) : '—'}<span style={{ fontSize: '0.75rem', marginLeft: '0.15rem', color: 'var(--muted-foreground)' }}>分钟</span></strong>
                 </div>
               </div>
@@ -1340,7 +1342,7 @@ export default function DailyLearning() {
           <Card aria-label="今日任务清单">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'calc(var(--spacing) * 3)', marginBottom: 'calc(var(--spacing) * 4)' }}>
               <div>
-                <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>今日任务</span>
+                <span style={eyebrow078}>今日任务</span>
                 <strong style={{ display: 'block', marginTop: '0.3rem', fontSize: '1rem', color: 'var(--card-foreground)' }}>{totalCount} 项 · {completedCount} 完成</strong>
               </div>
               <Badge variant="success">进行中</Badge>

@@ -53,6 +53,8 @@ import {
 import { iconBtnStyle, selectStyle } from './knowledge-cards/styles'
 import { Chips, CompactSearch } from './knowledge-cards/controls'
 import { KnowledgeCardArticle } from './knowledge-cards/KnowledgeCardArticle'
+import { eyebrow078 } from '@/design/eyebrow'
+
 
 // ===== 主组件 =====
 export default function KnowledgeCards() {
@@ -709,12 +711,7 @@ export default function KnowledgeCards() {
             >
               <Card interactive>
                 <div
-                  style={{
-                    color: 'var(--muted-foreground)',
-                    fontSize: '0.78rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                  }}
+                  style={eyebrow078}
                 >
                   概念卡片
                 </div>
@@ -724,12 +721,7 @@ export default function KnowledgeCards() {
 
               <Card interactive>
                 <div
-                  style={{
-                    color: 'var(--muted-foreground)',
-                    fontSize: '0.78rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                  }}
+                  style={eyebrow078}
                 >
                   方法卡片
                 </div>
@@ -739,12 +731,7 @@ export default function KnowledgeCards() {
 
               <Card interactive>
                 <div
-                  style={{
-                    color: 'var(--muted-foreground)',
-                    fontSize: '0.78rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                  }}
+                  style={eyebrow078}
                 >
                   引用卡片
                 </div>

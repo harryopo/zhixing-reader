@@ -26,7 +26,6 @@ import {
   ReviewRating,
   type FilterKey,
 } from './vocabulary/model'
-import { eyebrowStyle } from './vocabulary/styles'
 import {
   FilterChips,
   IconButton,
@@ -36,6 +35,8 @@ import {
 import { VocabularyDrawer } from './vocabulary/VocabularyDrawer'
 import { ExportModal } from './vocabulary/ExportModal'
 import { deleteWithUndo } from '@/utils/undoable-delete'
+import { eyebrow070Bold, eyebrow078 } from '@/design/eyebrow'
+
 // ===== 主组件 =====
 export default function VocabularyPage() {
   const [searchParams] = useSearchParams()
@@ -900,7 +901,7 @@ export default function VocabularyPage() {
 
               {/* 释义 section */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={eyebrowStyle}>释义</div>
+                <div style={eyebrow078}>释义</div>
                 <div
                   style={{
                     display: 'flex',
@@ -939,7 +940,7 @@ export default function VocabularyPage() {
               {/* 例句 section */}
               {selectedItem.example_en && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={eyebrowStyle}>例句</div>
+                  <div style={eyebrow078}>例句</div>
                   <p
                     style={{
                       fontSize: '0.92rem',
@@ -969,7 +970,7 @@ export default function VocabularyPage() {
 
               {/* 复习状态 section */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={eyebrowStyle}>复习状态</div>
+                <div style={eyebrow078}>复习状态</div>
                 <div
                   style={{
                     display: 'flex',
@@ -983,13 +984,7 @@ export default function VocabularyPage() {
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                     <span
-                      style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--muted-foreground)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        fontWeight: 600,
-                      }}
+                      style={eyebrow070Bold}
                     >
                       复习次数
                     </span>

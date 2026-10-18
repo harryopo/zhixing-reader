@@ -6,6 +6,8 @@ import { safeNum, safeStr, formatDateShort } from '../../utils/db-mapper'
 import type { MethodologyItem } from './model'
 import { IconBookOpen } from './icons'
 import { getMasteryLabel, getMasteryProgress, getTriggerBadge } from './helpers'
+import { eyebrow072Bold } from '@/design/eyebrow'
+
 
 interface MethodDetailPanelProps {
   methodology: MethodologyItem
@@ -134,7 +136,7 @@ function MethodDetailPanel({
       {/* 触发场景 */}
       {methodology.triggerScenario && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-          <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
+          <div className="eyebrow" style={eyebrow072Bold}>
             触发场景
           </div>
           <p style={{ fontSize: '0.86rem', lineHeight: 1.65, color: 'var(--card-foreground)', margin: 0 }}>
@@ -146,7 +148,7 @@ function MethodDetailPanel({
       {/* 四步骤 */}
       {steps.length > 0 && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-          <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
+          <div className="eyebrow" style={eyebrow072Bold}>
             四步骤
           </div>
           <div className="steps-list" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
@@ -198,7 +200,7 @@ function MethodDetailPanel({
           <div
             className="eyebrow"
             title="应用该方法论时产出的成果形式，例如文本摘要、知识卡片、思维导图、大纲等"
-            style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}
+            style={eyebrow072Bold}
           >
             输出格式
           </div>
@@ -223,7 +225,7 @@ function MethodDetailPanel({
       {/* 应用示例 */}
       {methodology.examples && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-          <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
+          <div className="eyebrow" style={eyebrow072Bold}>
             应用示例
           </div>
           <div
@@ -246,7 +248,7 @@ function MethodDetailPanel({
 
       {/* 掌握度 */}
       <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-        <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
+        <div className="eyebrow" style={eyebrow072Bold}>
           掌握度
         </div>
         <div className="md-mastery-row" style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 4)', flexWrap: 'wrap' }}>
@@ -299,7 +301,7 @@ function MethodDetailPanel({
       {/* 说明（方法论自己的描述）—— 以前它被摆在「来源划线」标题下，名不副实 */}
       {methodology.description && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
-          <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
+          <div className="eyebrow" style={eyebrow072Bold}>
             说明
           </div>
           <p
@@ -318,7 +320,7 @@ function MethodDetailPanel({
 
       {/* 出处：出自哪本书、哪几条划线 */}
       <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-        <div className="eyebrow" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-foreground)', fontWeight: 600 }}>
+        <div className="eyebrow" style={eyebrow072Bold}>
           出处
         </div>
         <div

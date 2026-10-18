@@ -33,6 +33,8 @@ import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
 import { toast } from '../../stores/toastStore'
 import { settingsNav } from './data-utils'
+import { eyebrow074Medium, eyebrow078Padded } from '@/design/eyebrow'
+
 
 /** 设置分类导航项（与其他设置子页一致） */
 
@@ -437,13 +439,7 @@ export default function SettingsAgent() {
         >
           <div
             className="nav-label"
-            style={{
-              padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)',
-              color: 'var(--muted-foreground)',
-              fontSize: '0.78rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}
+            style={eyebrow078Padded}
           >
             设置分类
           </div>
@@ -518,13 +514,7 @@ export default function SettingsAgent() {
           <div style={{ minWidth: 0 }}>
             <div
               className="eyebrow"
-              style={{
-                color: 'var(--muted-foreground)',
-                fontSize: '0.74rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                fontWeight: 500,
-              }}
+              style={eyebrow074Medium}
             >
               编排流水线
             </div>
@@ -661,13 +651,7 @@ export default function SettingsAgent() {
       >
         <div
           className="eyebrow"
-          style={{
-            color: 'var(--muted-foreground)',
-            fontSize: '0.74rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            fontWeight: 500,
-          }}
+          style={eyebrow074Medium}
         >
           配置详情
         </div>
@@ -709,7 +693,7 @@ export default function SettingsAgent() {
             <div style={{ minWidth: 0 }}>
               <div
                 className="eyebrow"
-                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+                style={eyebrow074Medium}
               >
                 Step 01
               </div>
@@ -768,7 +752,7 @@ export default function SettingsAgent() {
             <div style={{ minWidth: 0 }}>
               <div
                 className="eyebrow"
-                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+                style={eyebrow074Medium}
               >
                 Step 02
               </div>
@@ -846,7 +830,7 @@ export default function SettingsAgent() {
             <div style={{ minWidth: 0 }}>
               <div
                 className="eyebrow"
-                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+                style={eyebrow074Medium}
               >
                 Step 03
               </div>
@@ -927,7 +911,7 @@ export default function SettingsAgent() {
             <div style={{ minWidth: 0 }}>
               <div
                 className="eyebrow"
-                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+                style={eyebrow074Medium}
               >
                 Step 04
               </div>
@@ -1006,7 +990,7 @@ export default function SettingsAgent() {
             <div style={{ minWidth: 0 }}>
               <div
                 className="eyebrow"
-                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+                style={eyebrow074Medium}
               >
                 Step 05
               </div>
@@ -1066,7 +1050,7 @@ export default function SettingsAgent() {
             <div style={{ minWidth: 0 }}>
               <div
                 className="eyebrow"
-                style={{ color: 'var(--muted-foreground)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 500 }}
+                style={eyebrow074Medium}
               >
                 Step 06 · 附加
               </div>

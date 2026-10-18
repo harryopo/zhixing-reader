@@ -3,6 +3,8 @@ import Card, { CardHead } from '@/components/ui/Card'
 import Icon from '@/components/ui/Icon'
 import { EmptyState, Metric, Trend, Tiny } from '@/components/ui/Feedback'
 import type { BookStat, SortColumn, SortOrder } from './constants'
+import { eyebrow078 } from '@/design/eyebrow'
+
 
 export function BooksStatsView({
   bookStats,
@@ -33,12 +35,7 @@ export function BooksStatsView({
       >
         <Card>
           <div
-            style={{
-              color: 'var(--muted-foreground)',
-              fontSize: '0.78rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}
+            style={eyebrow078}
           >
             书籍数
           </div>
@@ -47,12 +44,7 @@ export function BooksStatsView({
         </Card>
         <Card>
           <div
-            style={{
-              color: 'var(--muted-foreground)',
-              fontSize: '0.78rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}
+            style={eyebrow078}
           >
             笔记总数
           </div>
@@ -61,12 +53,7 @@ export function BooksStatsView({
         </Card>
         <Card>
           <div
-            style={{
-              color: 'var(--muted-foreground)',
-              fontSize: '0.78rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}
+            style={eyebrow078}
           >
             卡片总数
           </div>

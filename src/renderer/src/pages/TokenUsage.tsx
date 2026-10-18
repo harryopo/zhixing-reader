@@ -44,6 +44,7 @@ import Icon from '@/components/ui/Icon'
 import { Loading, Metric, Trend, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
 import { localDayKey, localFileStamp } from '../../../shared/db-time'
+import { eyebrow078 } from '@/design/eyebrow'
 import {
   TokenSummary,
   TokenRecord,
@@ -74,7 +75,6 @@ import {
   getUsageEyebrow,
 } from './token-usage/format'
 import {
-  eyebrowStyle,
   filterFieldStyle,
   filterLabelStyle,
   selectStyle,
@@ -483,7 +483,7 @@ export default function TokenUsagePage() {
           }}
         >
           <Card>
-            <div style={eyebrowStyle}>{getUsageEyebrow(timeRange)}</div>
+            <div style={eyebrow078}>{getUsageEyebrow(timeRange)}</div>
             <Metric value={formatTokens(kpi.totalTokens)} />
             <Trend kind={kpi.cachedHitRate > 0 ? 'up' : 'default'}>
               {kpi.cachedHitRate > 0
@@ -493,7 +493,7 @@ export default function TokenUsagePage() {
           </Card>
 
           <Card>
-            <div style={eyebrowStyle}>会话数</div>
+            <div style={eyebrow078}>会话数</div>
             <Metric value={kpi.totalRequests} />
             <Trend kind={kpi.totalRequests > 0 ? 'up' : 'default'}>
               {kpi.totalRequests > 0
@@ -503,7 +503,7 @@ export default function TokenUsagePage() {
           </Card>
 
           <Card>
-            <div style={eyebrowStyle}>平均消耗</div>
+            <div style={eyebrow078}>平均消耗</div>
             <Metric value={formatTokens(kpi.avgTokens)} />
             <Trend kind="default">tokens/会话</Trend>
           </Card>

@@ -11,19 +11,14 @@
  *   - 主页改为导航 + 欢迎卡片，所有具体配置交给子页处理
  */
 
-import { useCallback, useState, type CSSProperties } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Icon from '@/components/ui/Icon'
 import { NAV_ITEMS, type NavItem, type SettingsTabKey } from './settings/data-utils'
+import { eyebrow078Padded } from '@/design/eyebrow'
 
-const EYEBROW_STYLE: CSSProperties = {
-  color: 'var(--muted-foreground)',
-  fontSize: '0.78rem',
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-}
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -63,7 +58,7 @@ export default function Settings() {
             borderRadius: 'calc(var(--radius) + 6px)',
           }}
         >
-          <div className="nav-label" style={{ ...EYEBROW_STYLE, padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)' }}>
+          <div className="nav-label" style={eyebrow078Padded}>
             设置分类
           </div>
           {NAV_ITEMS.map((item) => {

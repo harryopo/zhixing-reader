@@ -1,13 +1,6 @@
 /** TokenUsage 页复用的内联样式（从 TokenUsage.tsx 原样搬出，逻辑未改） */
 import type { CSSProperties } from 'react'
 
-export const eyebrowStyle: CSSProperties = {
-  color: 'var(--muted-foreground)',
-  fontSize: '0.78rem',
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-}
-
 export const providerBadgeStyle: CSSProperties = {
   fontSize: '0.72rem',
   fontWeight: 500,
