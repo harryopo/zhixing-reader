@@ -31,6 +31,7 @@
  */
 
 import { getRetrievability, getRetentionHint } from './fsrs-metrics'
+import { localDayKey } from './db-time'
 
 /** 卡片在「遗忘播报」里的处境 */
 export type VoiceBucket = 'new' | 'overdue' | 'today' | 'soon' | 'upcoming' | 'distant'
@@ -77,14 +78,6 @@ const MS_PER_DAY = 86400000
 /** 日历天差（due - now），按本地日期零点计算 */
 function calendarDaysBetween(from: Date, to: Date): number {
   return Math.round((startOfDay(to) - startOfDay(from)) / MS_PER_DAY)
-}
-
-/** YYYY-MM-DD（本地日期，不用 toISOString 以免时区前移一天） */
-function toDateLabel(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }
 
 /**
@@ -151,7 +144,7 @@ export function describeForgetting(input: ForgettingInput): ForgettingVoice {
   }
 
   const days = calendarDaysBetween(now, dueDate)
-  const dueLabel = toDateLabel(dueDate)
+  const dueLabel = localDayKey(dueDate)
 
   if (days < 0) {
     return {

@@ -16,7 +16,8 @@ process.env.TZ = 'Asia/Shanghai'
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { windowEndingToday, shiftDayKey, localDayKey } from '../src/shared/db-time'
+import { windowEndingToday, shiftDayKey, localDayKey, localFileStamp } from '../src/shared/db-time'
+import { recentDayKeys } from '../src/shared/reading-trend'
 
 /** 闭区间含几天：两个 `YYYY-MM-DD` 之间（含两端）的日历日数 */
 function spanDays(start: string, end: string): number {
@@ -153,5 +154,88 @@ describe('「哪一天」只许问一把尺：全树不许再用 toISOString 取
     const files = walkSources('electron').concat(walkSources('src'))
     expect(files.length, '一个源码文件都没量到，说明遍历口径变了').toBeGreaterThan(100)
     expect(files.some((f) => f.includes('db-time'))).toBe(true)
+  })
+})
+
+/**
+ * 「哪一天」的第二种形状（2026-10-18）
+ *
+ * 上面那条横扫只认得 **UTC 那种写法**（`toISOString().split('T')`）。同一族的另一种形状 ——
+ * 自己拿 `getFullYear/getMonth/getDate` 补零拼串 —— 量不到，于是又量到四处各写一份：
+ * `fsrs-voice.toDateLabel`、`reading-trend.recentDayKeys` 的格子键、
+ * `stats/constants.formatExportTimestamp` 与 `token-usage/format.formatExportTimestamp`（两个导出文件名）。
+ * 四处今天与 `localDayKey` 同答案，所以界面看不出问题；一旦尺要改（加周键、改分隔符），
+ * 这四路会**静默留在旧形状上** —— 与前两批"三份配色表""两张构建器表"同一类病。
+ * 一条只认一种写法的规则迟早漏另一种 ⇒ 判据加第二条形状。
+ */
+const LOCAL_DATE_BUILD =
+  /(?:getMonth\(\)\s*\+\s*1\)[^\n]*padStart|pad\([^)]*getMonth\(\)\s*\+\s*1\))/
+
+function findLocalDateBuildLines(src: string): number[] {
+  return src
+    .split(/\r?\n/)
+    .map((line, i) => [i + 1, line] as const)
+    .filter(([, line]) => {
+      const t = line.trim()
+      return !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*') && LOCAL_DATE_BUILD.test(line)
+    })
+    .map(([n]) => n)
+}
+
+describe('日期串的形状只许有一份实现：全树不许再自己补零拼', () => {
+  it('除 `db-time.ts` 自己，electron/ 与 src/ 一处都没有（注释里讲历史除外）', () => {
+    const offenders = walkSources('electron')
+      .concat(walkSources('src'))
+      .filter((f) => !f.includes('db-time'))
+      .flatMap((f) => findLocalDateBuildLines(readFileSync(f, 'utf8')).map((n) => `${f}:${n}`))
+    expect(offenders, '这些地方还在自己拼日期串').toEqual([])
+  })
+
+  it('量具自检：那把尺必须被这套模式认出来（认不出就等于判据恒真空）', () => {
+    const ruler = readFileSync(join('src', 'shared', 'db-time.ts'), 'utf8')
+    expect(
+      findLocalDateBuildLines(ruler).length,
+      '模式连 db-time.ts 自己都匹配不到 ⇒ 它已经不再描述"补零拼日期"这个形状',
+    ).toBeGreaterThanOrEqual(2)
+  })
+
+  it('量具有牙 · 两种形状都得报，注释行放过', () => {
+    const sample = [
+      "  const m = String(d.getMonth() + 1).padStart(2, '0')",
+      "  return `${y}${pad(d.getMonth() + 1)}${pad(d.getDate())}`",
+      "  // 旧写法 String(d.getMonth() + 1).padStart(2, '0') 是自己拼的",
+      '  const label = `${today.getMonth() + 1} 月`',
+    ].join('\n')
+    expect(findLocalDateBuildLines(sample)).toEqual([1, 2])
+  })
+})
+
+describe('接线：文件名与热力格子中出的键来自同一份实现', () => {
+  const 北京下午 = new Date('2026-10-18T05:07:09Z') // 北京 10-18 13:07
+  const 北京凌晨 = new Date('2026-10-17T16:05:00Z') // 北京 10-18 00:05（UTC 还差一天）
+
+  it('localFileStamp 说本地那一刻，不按 UTC 切（文件名与导出内容不能两个口径）', () => {
+    expect(localFileStamp(北京下午)).toBe('20261018-1307')
+    expect(localFileStamp(北京凌晨), '按 UTC 会写成 20261017-1605').toBe('20261018-0005')
+    expect(localFileStamp(北京凌晨).slice(0, 8)).toBe(localDayKey(北京凌晨).replace(/-/g, ''))
+  })
+
+  it('recentDayKeys 的每一格 == localDayKey，末格就是"今天"', () => {
+    const keys = recentDayKeys(北京下午, 5)
+    expect(keys).toEqual(['2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18'])
+    expect(keys.at(-1)).toBe(localDayKey(北京下午))
+    // 凌晨与下午同一天 ⇒ 整列格子不许漂移
+    expect(recentDayKeys(北京凌晨, 5)).toEqual(keys)
+  })
+
+  it('两个导出页都不再自带时间戳实现（文件名由这一把尺决定）', () => {
+    const stats = readFileSync('src/renderer/src/pages/stats/constants.ts', 'utf8')
+    const usage = readFileSync('src/renderer/src/pages/token-usage/format.ts', 'utf8')
+    const statsPage = readFileSync('src/renderer/src/pages/Stats.tsx', 'utf8')
+    const usagePage = readFileSync('src/renderer/src/pages/TokenUsage.tsx', 'utf8')
+    expect(stats).not.toContain('formatExportTimestamp')
+    expect(usage).not.toContain('formatExportTimestamp')
+    expect(statsPage).toContain('localFileStamp')
+    expect(usagePage).toContain('localFileStamp')
   })
 })

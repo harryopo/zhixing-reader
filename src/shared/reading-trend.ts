@@ -10,6 +10,7 @@
  */
 
 import type { ReadingMode } from './types'
+import { localDayKey } from './db-time'
 
 export interface ReadingTrendSpec {
   /** 时段 chip 与「{chipLabel}阅读」KPI 卡共用 */
@@ -79,13 +80,13 @@ export const REVIEW_HEATMAP_DAYS = 84
  * 最近 N 天的**本地**日期串（旧 → 新）。
  *
  * 取数窗口、热力格子、徽标求和都从这里拿，三处不会各算各的；
+ * 键的形状只有一个所有者 —— `db-time.localDayKey`（这一把尺之外不许再手抄一份补零算术），
  * 用 toISOString 会在 UTC+8 的凌晨把「今天」算成昨天，格子整列错位。
  */
 export function recentDayKeys(today: Date, days: number = REVIEW_HEATMAP_DAYS): string[] {
   const keys: string[] = []
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i)
-    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    keys.push(localDayKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i)))
   }
   return keys
 }

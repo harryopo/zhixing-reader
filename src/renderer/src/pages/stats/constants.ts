@@ -72,10 +72,3 @@ export const STATS_RANGE_DAYS: Record<StatsDateRange, number> = {
 export function getStatsRangeDates(range: StatsDateRange): { startDate: string; endDate: string } {
   return windowEndingToday(STATS_RANGE_DAYS[range], new Date())
 }
-
-/** 时间戳格式化：YYYYMMDD-HHmm */
-export function formatExportTimestamp(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
-}

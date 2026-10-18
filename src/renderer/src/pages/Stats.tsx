@@ -35,10 +35,10 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { ReadingMode } from '../../../shared/types'
 import { syncBookshelfToDb, describeSyncResult } from '../utils/sync-bookshelf'
 import { READING_TREND_SPECS, recentDayKeys, statsHeroSubtitle } from '../../../shared/reading-trend'
+import { localFileStamp } from '../../../shared/db-time'
 import { normalizeDailyStatRow } from '../../../shared/profile-stats'
 import {
   PERIOD_CHIPS,
-  formatExportTimestamp,
   getStatsRangeDates,
   type BookStat,
   type SortColumn,
@@ -297,7 +297,7 @@ export default function Stats() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `stats-report-${formatExportTimestamp()}.json`
+      a.download = `stats-report-${localFileStamp(new Date())}.json`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

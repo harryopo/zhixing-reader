@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（136 文件 / 2489 用例）
+├── tests/                 # Vitest 单元测试（136 文件 / 2495 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（2489 用例；不含覆盖率）
+npm run test             # Vitest（2495 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test:cov+build（推荐；测试那步带覆盖率阈值，与 CI 同口径）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -275,7 +275,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（136 文件 / 2489 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
+| 测试 | 项目已有 Vitest（136 文件 / 2495 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | 代码内注释 + 规范 commit message + **本文第十节一行批次记录**（早期设想的 spec/tasks/checklist/verify-report 四件套从未落地，实际沉淀位置见 §9.4）|
 
@@ -313,3 +313,4 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 2026-10-17 | 「近 N 天」窗口与用量归日：同一把尺的第二、第三处 | 横扫同类又量到两处各算各的：① `stats/constants.ts` 与 `token-usage/format.ts` 各写一份"日期范围 → 起止"，都用本地 00:00 再 `toISOString()` 求起始日 ⇒ 东八区往前多一天，实测 `7d` **闭区间 8 天**，而消费方按行求和、还把行数当"天数"显示；② `token_usage` 三条 SQL 用 `date(created_at)`（UTC 日）配本地日键 ⇒ 北京早上七点那次调用被归到昨天（真库实测 0/38 行撞上，隐患不是幻觉）。收成 `db-time` 的 `windowEndingToday` / `shiftDayKey` 一份，判据钉的是不变量本身（**闭区间恰含 N 天**、跨年跨月、脏键 ⇒ null、凌晨与下午同一个窗口）+ 两处接线；`getDailyStats` 的天数改走参数，不再把数字拼进 SQL。**没验**：用量页与统计页界面没打开。全文见 `docs/agent-history.md`。 |
 | 2026-10-18 | 同一把尺还剩四处没扫；宣传页上线并落守卫 | 上一批只钉了当时改到的两处，横扫又抓到四处各算各的：`cards.countNewIntroducedToday`（今日新卡按 UTC 日数）、`TokenUsage` 趋势横轴（**改了 SQL 归日却漏了横轴键，两边口径分家**）、logger 日志文件名、备份与复习 CSV 文件名，另三条集成测试照写 UTC 的"今天"、本地过零点当场红（10-17 那行末句"没验：真实库还没跑过"就是这一类的代价）。判据从"两个文件的清单"改成扫全树（注释行放过：`db-time.ts` 要在注释里写清旧写法错在哪）。另一件：设置页构建器表与调取面板图标表停在 5 路（09-24 注册文章/生词时没人跟着改，注释还自称"与注册顺序一致"），新增 `tests/context-builder-registry.test.ts` 把三处抄件对账到 orchestrator 注册。宣传页按实测改准（v1.1.0 改 v1.3.4、885 改 2484 用例、16 改 18 模块、5 改 7 维）并同步 gh-pages，数字与版本号各落一条守卫；`8208878` 把图标判据从"比清单"改成"比字形"，上岗当场又抓到第三处写死的条数（`PIPELINE_STEPS` 第 04 步）。**没验**：装机版界面没打开；宣传页只验到线上资源逐个 200。全文见 `docs/agent-history.md`。 |
 | 2026-10-18 | 掌握度：等级判定与配色收成一份 | 第三处同类抄件：方法论页自己抄了一遍 80/60/30，`Review.tsx` 与 `BookDetail.tsx` 各持一份一模一样的「等级 → Badge 配色」表，三份注释互相担保"与对方一致"却没有一处核对，而取用处一律写 `MAP[level] ?? 'default'` ⇒ 等级名字一改，三份同时**静默变灰**、一声不响。阈值与配色收进 `src/shared/fsrs-metrics.ts`，配色表键类型是 `MasteryLevel`（少写一级编译不过）。判据 `tests/fsrs-metrics.test.ts` 5 条：配色表覆盖的等级 == `getMasteryLevel` 真能产出的等级（行为量具，不读源码）、用到的变体 Badge 组件真支持、渲染层手抄表清单钉死为**已知的**一个文件、两条反证证明判据不是恒真。**自己踩过的雷当场撤回**：`Review.tsx` 在另一路会话那 14 个未提交文件里，改了 3 处才发现，已逐字还原并证明（它的 diff 不含任何 MASTERY 行），那份抄件留到对方提交后收。用例 2484 → 2489、覆盖 93.42 / 89.66 / 93.61 / 93.42；`02ec997` CI success、L3 0 findings；宣传页随之重新部署（线上读到 2489，13 个引用资源逐个 200）。**没验**：装机版界面没打开；`Review.tsx` 那份抄件仍在（守卫把它写进已知清单，不是漏网）。 |
+| 2026-10-18 | 「哪一天」的第二种形状：上一批那句"全树只剩一把尺"是量具只认一种写法得出的 | 10-18 那条横扫只认得 `toISOString().split('T')`（UTC 那种）。同一族还有**另一种形状**——自己拿 `getFullYear/getMonth/getDate` 补零拼串 —— 它一条也不报，于是又量到四处：`fsrs-voice.toDateLabel`、`reading-trend.recentDayKeys` 的热力格子键、`stats/constants.formatExportTimestamp` 与 `token-usage/format.formatExportTimestamp`（两个导出文件名，一字不差的两份）。四处今天与 `localDayKey` 同答案，改尺时却没人通知它们 —— 与前两批"三份配色表""两张构建器表"同一类病。**教训写进结论本身**：横扫类判据要连"这把尺认得几种写法"一起说，否则"0 命中"读起来像结案。收法：`db-time` 新增 `localFileStamp`（`YYYYMMDD-HHmm`，本地），四处交回这一把尺；判据加**第二种形状**的扫描（`tests/stats-window.test.ts` 16 → 22 条），含量具自检（模式必须认得出 `db-time.ts` 自己，认不出就等于恒真空）与两种形状各一条反证。变异实跑：在 `fsrs-voice.ts` 手栽一行补零拼法 ⇒ 当场 `expected [ 'src\shared\fsrs-voice.ts:80' ] to deeply equal []`，跑完清除。用例 2489 → 2495、覆盖 93.47 / 89.67 / 93.72 / 93.47。**没验**：装机版界面没打开；`recentDayKeys` 的真实格子只在固定时刻与 UTC 同答案，凌晨那格靠判据而非肉眼。全文见 `docs/agent-history.md`。 |

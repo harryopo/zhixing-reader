@@ -58,6 +58,17 @@ export function localDayKey(d: Date): string {
   return `${d.getFullYear()}-${month}-${day}`
 }
 
+/**
+ * 导出文件的名字上那串时间 —— `YYYYMMDD-HHmm`，同样问这一把尺（本地时刻，不按 UTC 切）。
+ *
+ * 用量页与统计页原先各写了一份一模一样的实现（两处注释都只写「时间戳格式化」），
+ * 精确到分钟这件事没人核对过：一边以后改成带秒，两个导出文件的命名就分家了。
+ */
+export function localFileStamp(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+}
+
 /** 库里那一列的时刻属于本地哪一天；解不出来一律 null（不猜 1970，也不把脏值画成一个日期） */
 export function dayKeyOfStoredTime(val: unknown): string | null {
   const parsed = parseDbTime(val)

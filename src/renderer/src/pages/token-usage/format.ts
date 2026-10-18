@@ -68,13 +68,6 @@ export function getFilterRangeDates(range: FilterDateRange): { startDate: string
   return windowEndingToday(FILTER_DAYS_MAP[range], new Date())
 }
 
-/** 时间戳格式化：YYYYMMDD-HHmm */
-export function formatExportTimestamp(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
-}
-
 /** 时间范围副标题（设计稿："本月累计 · 7 月 1-20 日"） */
 export function getRangeLabel(range: TimeRange): string {
   const days = DAYS_MAP[range]

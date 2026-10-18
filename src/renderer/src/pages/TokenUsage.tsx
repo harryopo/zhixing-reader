@@ -43,7 +43,7 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading, Metric, Trend, EmptyState } from '@/components/ui/Feedback'
 import { toast } from '../stores/toastStore'
-import { localDayKey } from '../../../shared/db-time'
+import { localDayKey, localFileStamp } from '../../../shared/db-time'
 import {
   TokenSummary,
   TokenRecord,
@@ -65,7 +65,6 @@ import {
 import {
   escapeCsv,
   formatDateFull,
-  formatExportTimestamp,
   formatTokens,
   formatTokensFull,
   getFilterRangeDates,
@@ -355,7 +354,7 @@ export default function TokenUsagePage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `token-usage-${formatExportTimestamp()}.csv`
+      a.download = `token-usage-${localFileStamp(new Date())}.csv`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
