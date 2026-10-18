@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（136 文件 / 2495 用例）
+├── tests/                 # Vitest 单元测试（137 文件 / 2512 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -75,7 +75,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（2495 用例；不含覆盖率）
+npm run test             # Vitest（2512 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test:cov+build（推荐；测试那步带覆盖率阈值，与 CI 同口径）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -226,7 +226,7 @@ npm run verify
 | `pages/settings/SettingsAbout.tsx` | 1161 |
 | `pages/KnowledgeCards.tsx` | 1156 |
 | `pages/settings/SettingsAgent.tsx` | 1156 |
-| `pages/settings/SettingsAI.tsx` | 1113 |
+| `pages/settings/SettingsAI.tsx` | 1102 |
 | `pages/settings/SettingsData.tsx` | 1104 |
 | `pages/Methodologies.tsx` | 1094 |
 | `pages/BookDetail.tsx` | 1115 |
@@ -275,7 +275,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（136 文件 / 2495 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
+| 测试 | 项目已有 Vitest（137 文件 / 2512 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | 代码内注释 + 规范 commit message + **本文第十节一行批次记录**（早期设想的 spec/tasks/checklist/verify-report 四件套从未落地，实际沉淀位置见 §9.4）|
 
@@ -302,10 +302,10 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 日期 | 变更 | 摘要 |
 |------|------|------|
 | 2026-10-04 | 历史正文外迁 | §十 整节与头部「最近核验」搬进 `docs/agent-history.md`；AGENTS.md 由 446 KB 降到约 20 KB。全文见历史档，字字未改。 |
-| 2026-10-15 | admin 出口按消费者拆两半 | 上一批 `31790fa` 只挡住 `/admin` 页面，**19 条 `admin:*` 通道在安装版仍全注册**（菜单里 `toggleDevTools` 不是 dev-only，`electron/main.ts:198`）。先查生产者再收口：设置三页真在用 8 条（`SettingsAgent:330/354/374`、`SettingsAI:293/341/345/367/392`、`SettingsData:130/156/326`），其余 11 条（任意表 / 库结构 / 全部会话与消息 / 整批导入导出 / 重置全部 / 内置模板列表）改成只在开发构建注册。**按"这是 admin 通道"一刀切会把那三个页面打断，而单测一条不报** —— 这是本项目"收紧前先查生产者"又一次没白查。`getStats` 顺手查的 `tokenTrend` + `recentSessions` 全场只有后台页的兜底字面量里出现过、无人读 ⇒ 删掉服务层 `getTokenUsageLast7Days`，这条链每次进设置页少两次 SQL、不再把对话行带进渲染层。判据 7 条（`tests/admin-ipc-dev-only.test.ts`）钉两种形状各自的通道清单，另加一条对账守卫：基准取**装机形状实际注册出来的通道**而不是测试里那份清单（第一版比的是清单，有人把产品通道挪进闸门它照样绿）。变异两处各判红（撤 `if (!isDev) return` 报出那 11 条 / 把 `savePrompt` 挪进闸门报出 `savePrompt`）。覆盖率清单 +1：`electron/ipc/admin.ts` 100 / 100 / 100。**没验**：装机版一次没打开过，"控制台确实调不到"只证到注册这一层；`electron/main.ts:198` 那条 devtools 菜单项刻意留着（个人应用要给自己留调试通路）—— 于是 preload 上那 11 个同名方法在安装版里是"点得动但只会拿到一条 reject"。 |
+| 2026-10-15 | admin 出口按消费者拆两半 | 上一批 `31790fa` 只挡住 `/admin` 页面，**19 条 `admin:*` 通道在安装版仍全注册**。先查生产者再收口：设置三页真在用 8 条，其余 11 条改成只在开发构建注册。**按"这是 admin 通道"一刀切会把那三个页面打断，而单测一条不报**。判据 7 条（`tests/admin-ipc-dev-only.test.ts`），基准取**装机形状实际注册出来的通道**而不是测试里那份清单（第一版比的是清单，有人把产品通道挪进闸门它照样绿）。变异两处各判红。**没验**：装机版一次没打开过，"控制台确实调不到"只证到注册这一层。全文见 `docs/agent-history.md`。 |
 | 2026-10-15 | 脏时长不再上屏 + 软著材料不入库 | `formatReadingTime` 对 `NaN` 画「NaN分钟」、对 `Infinity` 画「Infinity小时」、缺字段拼出「undefined分钟」（字符串会被 JS 当数字用）—— 这条 09-29 量到、10-04 记为"该单独立判据"，本次补闸门（`typeof` 收窄 + `Number.isFinite`）并落 7 条判据：脏值 ⇒ `-`，**真 0 秒仍说「0分钟」**（"不知道"与"确实是零"不并成一个写法）。变异一处判红（把闸门改成恒 false ⇒ 6 条全红，报出 'NaN分钟' / 'Infinity小时' / '0分钟' / '1小时'）。同批：`.gitignore` 收下**软著申报材料**与根目录两个临时脚本（`软件著作权申请资料/`、`软著申请/`、`_seed.py`、`_setcheck.py`）—— 实测这四样从未被跟踪、也从未出现在任何历史提交里，挡的是以后一句 `git add -A` 把它们推进公开仓库。`readingDataStore.ts` 覆盖仍是 100/100/100，用例 2402 → 2409。 |
 | 2026-10-16 | CI 转绿：vitest worker 的 RPC 上限顶不住真出包的守卫 | **⚠️ 这一行的结论后来被证明是错的，以本表 2026-10-17「更正上面…」那行为准（修法那次是空转的假开关）。** 上一笔推上去 CI 退 1，但日志里 **130 文件 / 2412 用例全绿、覆盖率也过阈值** —— 真报错在摘要之后：`[vitest-worker]: Timeout calling "onTaskUpdate"`，vitest 把"有未处理错误"算失败。按时间线取证：`tests/admin-not-in-bundle.test.ts` 在自己的 worker 里真跑三进程构建，CI windows runner 实测 **64255ms**（本地 45s），它 10:34:28 跑完、10:34:31 就报这个错，而 `poolOptions.threads.rpcTimeout` 默认 5 秒。修法与 09 月把 `testTimeout` 从 5s 抬到 20s 同一手法：**只放宽墙钟（→120s），不动任何断言**。守卫本身没错，它就该真出一次包。**坑记一条**：我第一次用 `gh run watch --exit-status \| tail` 读退出码，`$?` 是 `tail` 的，于是把 red 念成了 green —— 同一条规矩本项目已经栽过两次，验证串改用 `>file 2>&1; echo $?` 或直接问 API。**没验**：本机复现不了那台 runner 的饱和度，只能靠这一推的流水线落锤（`1bfd601` 实测 success）。 |
-| 2026-10-16 | 统计页副标题跟着档位说窗口 + 方法论来源划线查清是存量数据 | `Stats.tsx` 的 hero 副标题原先写死 `${年份} 年度阅读数据`，而下面那排 chip 是本周/本月/本年三档、KPI 与趋势图都跟着重取数 —— 选「本周」时标题说全年、屏上数字是 7 天，两句里只有一句是真的（09-21 那批立的"名字只有一套"漏了这一处）。窗口名收回 `READING_TREND_SPECS.chipLabel` 一份口径，年份改由锚点带出，判据 3 条（三档各说各的 + 脏/缺锚点 ⇒ 通用文案 + 认识不到的档位按本月兜底），变异两处各判红（写死一档 ⇒ 2 条红；撤脏值闸门 ⇒ 报出 '截至 NaN 年 NaN 月 NaN 日'）。**顺手扫其余标题**：KPI 卡与明细卡都取 `modeLabels`，只有 hero 一处漏。另一件登记很久的"方法论「出自你的划线」在真库上恒空"查清了：11 条全是 2026-09-12 单次生成的存量行（那时落库还写死空数组），血缘修复是 09-16 的 `90ebf36`，正向链路完好、`[]` 与"没数据"是同一件事；卡片那路能靠 `content` 全等做本地 SQL 回填（44/90 回来了），方法论的名字/步骤是 AI 改写的、**没有可对账的列**，只能重新生成（烧钱，未授权）。界面本身没错：`SourceHighlights` 空 id 直接不渲染。用例 2409 → 2412，覆盖 93.18 / 89.62 / 93.28 / 93.18。**没验**：真实模型会不会真给 `sourceIndexes` —— 09-16 之后库里没生成过任何一条，正向链路只证到单测。 |
+| 2026-10-16 | 统计页副标题跟着档位说窗口 + 方法论来源划线查清是存量数据 | `Stats.tsx` 的 hero 副标题写死「年度阅读数据」，而 chip 是本周/本月/本年 ⇒ 选「本周」时标题说全年、屏上是 7 天。窗口名收回 `READING_TREND_SPECS.chipLabel` 一份口径，判据 3 条、变异两处各判红；顺手扫其余标题只有 hero 一处漏。另一件：方法论「出自你的划线」恒空查清了 —— 11 条全是 2026-09-12 单次生成的存量行（那时落库还写死空数组），血缘修复是 09-16 的 `90ebf36`，正向链路完好；卡片那路能靠 `content` 全等回填（44/90 回来了），方法论的名字/步骤是 AI 改写的、**没有可对账的列** ⇒ 只能重新生成（烧钱，未授权）。**没验**：真实模型会不会真给 `sourceIndexes`。全文见 `docs/agent-history.md`。 |
 | 2026-10-17 | 出包反证用例先查工作树，别再盖别人的活 | **`ff14bbf`**：那条反证会真改掉 `App.tsx` 约 30 秒再还原，而这个目录正被另一路会话编辑 —— 跑全量时对方存了一次，`npm run build` 当场失败（一次红不属于任何人的代码）。比红更坏的是另一种走法：还原写回的是「用例开始时读到的那一份」，若对方的保存落在读取之后、还原之前，就把他**没进 git 的活**盖掉了，那种丢失不可恢复。改法：动手前先 `git diff --quiet HEAD -- <该文件>`（0=干净、1=脏，**其他退出码一律抛出**，不把「查不出来」演成「干净」），脏 ⇒ `ctx.skip(原因)`（是 skipped 不是 passed，摘要看得见）；并把「闸门还在源码里」那条断言提到分支之前，脏不脏都说话。两分支都验过：本地脏树 `5 passed \| 1 skipped`、CI 干净树日志里 `1 skipped` 命中 **0 次** 且 `conclusion=success`。同批 `a083288` 修的是我自己插错的台账行（日期差一天 + 一根裸竖线把一行劈成 4 格）。全文见 `docs/agent-history.md`。 |
 | 2026-10-17 | 更正上面「2026-10-16 CI 转绿」那行：假开关，真根因是同步构建 | **那行的 CI 结论是错的**（行首已加 ⚠️），原文留着不改，以这条为准。核实量具后：Vitest 3.2 的 dist 里 `rpcTimeout` 命中 **0 次**，走的是 birpc 的 `DEFAULT_TIMEOUT = 6e4`（60 秒，不是我写的 5 秒）⇒ `1bfd601` 那笔配置是**空转的假开关**，它绿只因那台 runner 恰好没顶到 60 秒。真根因在 `tests/admin-not-in-bundle.test.ts`：`build()` 用 `execFileSync` **同步**跑三进程构建，把整个 worker 的事件循环占死，主线程对 `onTaskUpdate` 的应答处理不了（CI 实测 64s > 60s）。`5984f7f` 改 `promisify(execFile)` 异步等待 + 撤掉假键，并给根因配一条**能证伪**的判据：构建期间 50ms `setInterval` 计数必须 `> 0`；换回同步 ⇒ 当场 `expected 0 to be greater than 0`。**两次 CI 绿只算佐证、不算证明**，扛住结论的是那条机制判据。同类已量过：`tests/design-tokens.test.ts:22` 也是 `execFileSync`，实测 312ms ⇒ 形状相同、风险不同，不动它。逐项读数与过程存档见 `docs/agent-history.md`。 |
 | 2026-10-17 | 台账排版立成常驻守卫 + 摘掉一条墙钟假红 | 上一行末句「这类格式问题目前没有守卫」以本行为准：守卫有了。`tests/agents-ledger-format.test.ts` 5 条**只管排版不碰事实**（`tests/doc-figures.test.ts` 按既有规矩不看 §十 —— 历史行里的用例数与覆盖率是当年实测，拿今天的真值去改它等于伪造历史）。钉三件事：① 每行格子数等于表头（单元格里一根没转义的竖线当场抓出；数之前必须先把转义竖线让位，awk 那种按竖线切分的量具会把转义的也算分隔符 ⇒「修好了」照样报异常）；② 日期不回退（更正行必须排在被更正那行之后 —— 位置写反的代价不是难看，是句子里「上一行」指向另一件事）；③ 两条反证 + 一条自检：往内容里加裸竖线格子数必须加一、加转义的必须不变，找不到表头或行数掉到 8 以下直接红（防扫描口径变了而断言集体沉默）。**变异两处各判红**，改完 `AGENTS.md` 与 HEAD 逐字节一致。同批把 8 处文档口径由 130 / 2412 改成 131 / 2417（新增一个测试文件就会动这些数，那条守卫按仓库现算）。**另一条假红**：`tests/http-client.test.ts` 的 `sleep(0)` 断 `elapsed < 20` —— 满负载时 `setTimeout` 回调本身被推迟，那个上界不是被测行为的属性；改成只断「会 resolve、不挂住不 reject」，`sleep(50) >= 45` 那条下界留着。**没验**：装机版界面没打开。全文见 `docs/agent-history.md`。 |

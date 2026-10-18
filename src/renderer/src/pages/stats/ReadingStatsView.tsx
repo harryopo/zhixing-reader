@@ -8,7 +8,14 @@ import { EmptyState, Metric, Trend } from '@/components/ui/Feedback'
 import { formatReadingTime } from '../../stores/readingDataStore'
 import type { ReadingMode, ReadingDataResponse } from '../../../../shared/types'
 import { recentDayKeys, READING_TREND_SPECS } from '../../../../shared/reading-trend'
-import { STATS_DATE_RANGES, STATS_RANGE_DAYS, type BookStat, type StatsDateRange } from './constants'
+import {
+  STATS_DATE_RANGES,
+  STATS_RANGE_DAYS,
+  bookUpdatedAtEpoch,
+  byUpdatedAtDesc,
+  type BookStat,
+  type StatsDateRange,
+} from './constants'
 import { CategoryDonut, ReadingTrendBars, ReviewHeatmap12Weeks, HourlyBars, WeeklyTrendMini } from './charts'
 import { YearlyBookTable } from './YearlyBookTable'
 import { ReadingDataDetails } from './ReadingDataDetails'
@@ -87,17 +94,12 @@ export function ReadingStatsView({
         const normalized = b.progress > 1 ? b.progress : b.progress * 100
         const finished = b.isFinished || normalized >= 100
         if (!finished) return false
-        if (!b.updatedAt) return false
-        const t = new Date(b.updatedAt).getTime()
-        if (isNaN(t)) return false
+        const t = bookUpdatedAtEpoch(b)
+        if (t === null) return false
         if (t < startTime || t > endTime) return false
         return true
       })
-      .sort((a, b) => {
-        const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
-        const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
-        return tb - ta
-      })
+      .sort(byUpdatedAtDesc)
   }, [bookStats])
 
   return (

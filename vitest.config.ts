@@ -252,6 +252,10 @@ export default defineConfig({
         // 2026-10-17「哪一天」口径：生词的日期显示与"几天没碰"从前裸解 UTC 空格串，
         // 判据 tests/vocabulary-day.test.ts（边界两侧 + 脏值 + 两处接线）。
         'src/renderer/src/pages/vocabulary/model.ts', // 100 / 100 / 100
+        // 2026-10-18 同名函数抄件那批（判据 tests/single-source-helpers.test.ts）：
+        // 这一层错了不报错，只是两处视图/两个设置页各自演一遍，所以判据只能钉行为与"只许有一份定义"。
+        'src/renderer/src/pages/stats/constants.ts', // 100 / 100 / 100
+        'src/renderer/src/pages/settings/data-utils.ts', // 100 / 100 / 100
         'src/renderer/src/pages/profile/StatementReview.tsx', // 100 / 83.11 / 100
         // 2026-09-30 画像包交接说明与 Skill 目录合规（方案书第 4 批）：说明书由程序写出，
         // 形状写歪不会报错，只是外部 AI 交回一篇 markdown、或客户端静默不加载这个目录。

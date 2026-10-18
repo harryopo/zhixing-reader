@@ -41,6 +41,18 @@ export function dbTimeIso(val: unknown): string {
 }
 
 /**
+ * 那一列到底是**哪一刻**（epoch 毫秒）；缺失或解不出来一律 `null`。
+ *
+ * 排序、按年筛选这类"把它变成一个可比的数"的活都问这里，不再各自 `new Date(x).getTime()` + `isNaN`：
+ * 直接 `new Date(...)` 对没有时区标记的那一串会按本地时区解释（早 8 小时），而 `isNaN` 只挡得住
+ * 一种坏形状。`null` 让调用方自己决定"不知道"怎么处理 —— 当成 0 混进有效时间里是一种说法，
+ * 丢出这一列又是另一种说法，两处视图本来就各选了不同的做法，不该由一次重构替它们统一。
+ */
+export function dbTimeEpoch(val: unknown): number | null {
+  return parseDbTime(val)?.getTime() ?? null
+}
+
+/**
  * 那一刻在**这台机器本地**属于哪一天（`YYYY-MM-DD`）。
  *
  * 2026-10-17 立的唯一口径。此前「哪一天」有两种算法各写各的：

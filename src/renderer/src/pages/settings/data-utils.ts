@@ -76,11 +76,19 @@ export function asString(v: unknown, fallback: string): string {
   return typeof v === 'string' && v.length > 0 ? v : fallback
 }
 
+/**
+ * 安全地把后端交回的值读成一个数，读不出（缺、空串、脏、非有限）一律回 fallback。
+ *
+ * 两道闸门各有各的成因：
+ *  - **空串与纯空白**：`Number('')` 是 0 —— 生词的 `ef_factor` 2.5 当年就是这么被刷成 0 的；
+ *  - **`Infinity` / `'1e400'`**：这类值能过 `isNaN`，但落进设置项就是把上限撑爆，
+ *    与 `formatReadingTime` 那批同一条规矩（用 `Number.isFinite`，不用 `!isNaN`）。
+ */
 export function asNumber(v: unknown, fallback: number): number {
-  if (typeof v === 'number' && !Number.isNaN(v)) return v
+  if (typeof v === 'number') return Number.isFinite(v) ? v : fallback
   if (typeof v === 'string' && v.trim() !== '') {
     const n = Number(v)
-    if (!Number.isNaN(n)) return n
+    if (Number.isFinite(n)) return n
   }
   return fallback
 }
@@ -105,10 +113,12 @@ export function downloadBlob(filename: string, content: string, mime: string): v
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-/** 格式化"X 天前" */
+/** 格式化"X 天前"；读不出时刻说"未知"，不许画成「NaN 天前」（与 formatReadingTime 那条同一规矩） */
 export function formatDaysAgo(isoTs: string): string {
   if (!isoTs) return '尚未导出'
-  const ms = Date.now() - new Date(isoTs).getTime()
+  const at = new Date(isoTs).getTime()
+  if (Number.isNaN(at)) return '未知'
+  const ms = Date.now() - at
   if (ms < 0) return '刚刚'
   const days = Math.floor(ms / 86400000)
   if (days <= 0) return '今天'

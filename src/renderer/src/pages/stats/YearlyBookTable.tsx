@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useMemo } from 'react'
 import Icon from '@/components/ui/Icon'
 import { EmptyState } from '@/components/ui/Feedback'
-import type { BookStat } from './constants'
+import { byUpdatedAtDesc, type BookStat } from './constants'
+import { dbTimeEpoch } from '../../../../shared/db-time'
 
 export function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
   // 这个子组件不在主组件里，拿不到外面的 navigate，得自己取一个
@@ -14,11 +15,7 @@ export function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
         const normalized = s.progress > 1 ? s.progress : s.progress * 100
         return s.isFinished || normalized >= 100
       })
-      .sort((a, b) => {
-        const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
-        const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
-        return tb - ta
-      })
+      .sort(byUpdatedAtDesc)
   }, [bookStats])
 
   if (finishedBooks.length === 0) {
@@ -31,10 +28,12 @@ export function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
     )
   }
 
+  // 「完成时间」是拿 updatedAt 近似的，读法与上面那份排序共用同一把尺：
+  // 裸串（不带时区标记那种）直接 new Date 会按本地时区解释 ⇒ 那一格可能整整错一天
   const formatFinishDate = (iso?: string) => {
-    if (!iso) return '未知'
-    const d = new Date(iso)
-    if (isNaN(d.getTime())) return '未知'
+    const t = dbTimeEpoch(iso)
+    if (t === null) return '未知'
+    const d = new Date(t)
     return `${d.getMonth() + 1} 月 ${d.getDate()} 日`
   }
 

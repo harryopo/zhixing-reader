@@ -17,6 +17,8 @@ import { Loading, Tiny } from '@/components/ui/Feedback'
 import Modal from '@/components/ui/Modal'
 import { useSettingsStore, DEFAULT_LLM_ENDPOINT, DEFAULT_LLM_MODEL } from '@/stores/settingsStore'
 import { toast } from '@/stores/toastStore'
+// 安全读取辅助与「数据与存储」页共用一份实现（这里原先自己抄了 asString / asNumber 各一份）
+import { asNumber, asString } from './data-utils'
 
 // ===== 常量 =====
 
@@ -64,19 +66,6 @@ const NAV_ITEMS: NavItem[] = [
 
 // LLM 连接测试状态
 type ConnStatus = 'idle' | 'testing' | 'ok' | 'fail'
-
-// ===== 安全读取辅助：把后端返回值强制成期望类型，缺失时回退到 fallback =====
-function asString(v: unknown, fallback: string): string {
-  return typeof v === 'string' && v.length > 0 ? v : fallback
-}
-function asNumber(v: unknown, fallback: number): number {
-  if (typeof v === 'number' && !Number.isNaN(v)) return v
-  if (typeof v === 'string' && v.trim() !== '') {
-    const n = Number(v)
-    if (!Number.isNaN(n)) return n
-  }
-  return fallback
-}
 
 // ===== 组件 =====
 

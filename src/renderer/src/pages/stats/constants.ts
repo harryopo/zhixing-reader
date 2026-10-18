@@ -1,7 +1,7 @@
 /** 统计页的类型与常量（从 Stats.tsx 原样搬出，逻辑未改） */
 import type { ReadingMode } from '../../../../shared/types'
 import { READING_TREND_SPECS } from '../../../../shared/reading-trend'
-import { windowEndingToday } from '../../../../shared/db-time'
+import { windowEndingToday, dbTimeEpoch } from '../../../../shared/db-time'
 
 export type TabKey = 'reading' | 'books'
 export type SortColumn = 'title' | 'progress' | 'highlights' | 'cards'
@@ -71,4 +71,23 @@ export const STATS_RANGE_DAYS: Record<StatsDateRange, number> = {
 /** 日期范围 → { startDate, endDate } 闭区间的日历日键（含今天，恰 N 天） */
 export function getStatsRangeDates(range: StatsDateRange): { startDate: string; endDate: string } {
   return windowEndingToday(STATS_RANGE_DAYS[range], new Date())
+}
+
+/**
+ * 那一行「最后更新」到底是哪一刻；缺失或解不出来 ⇒ `null`。
+ * 年度书单与按年筛选这两处原先各写一遍 `new Date(x).getTime()` + `isNaN`，现在都问 `db-time` 这一把尺。
+ */
+export function bookUpdatedAtEpoch(stat: BookStat): number | null {
+  return dbTimeEpoch(stat.updatedAt)
+}
+
+/**
+ * 年度书单按「最后更新」倒序。
+ *
+ * 「读不出时刻」在这里不当 0 混进有效时间里比较（旧写法会，`NaN` 让 `sort` 拿到 0 ⇒ 谁前谁后由实现决定）：
+ * 它一律落到最后。两份抄件里真正跑得到的数据都出自 `safeDate`（要么能解、要么空串），所以这个改动
+ * 只影响"脏值到底排哪"这条从没被说清的规则，不影响任何一条正常数据的前后顺序。
+ */
+export function byUpdatedAtDesc(a: BookStat, b: BookStat): number {
+  return (bookUpdatedAtEpoch(b) ?? 0) - (bookUpdatedAtEpoch(a) ?? 0)
 }
