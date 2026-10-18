@@ -187,7 +187,7 @@ const PIPELINE_STEPS: PipelineStep[] = [
   { no: '01', title: '意图分类', desc: '关键词计分识别四种意图', iconName: 'question' },
   { no: '02', title: '策略选择', desc: '意图映射教学模式与起始层级', iconName: 'box' },
   { no: '03', title: '难度调整', desc: 'Bloom L1-L6 按答题表现升降级', iconName: 'arrow-up' },
-  { no: '04', title: '上下文构建', desc: '5 类构建器按优先级组装，总预算 4000 tokens 超限截断', iconName: 'box' },
+  { no: '04', title: '上下文构建', desc: `${DEFAULT_BUILDERS.length} 类构建器按优先级组装，总预算 4000 tokens 超限截断`, iconName: 'box' },
   { no: '05', title: '系统提示', desc: '策略提示 + 难度提示 + 已掌握概念注入系统提示', iconName: 'edit' },
   { no: '06', title: '流式响应', desc: 'LLM 流式输出，用量落库统计', iconName: 'play' },
 ]

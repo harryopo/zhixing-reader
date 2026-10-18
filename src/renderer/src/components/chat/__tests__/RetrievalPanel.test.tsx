@@ -12,6 +12,7 @@ import '@testing-library/jest-dom/vitest'
 import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import RetrievalPanel from '../RetrievalPanel'
+import Icon from '../../ui/Icon'
 import type { RetrievalState } from '../../../stores/chatStore'
 
 describe('RetrievalPanel — 调取知识库可视化', () => {
@@ -101,6 +102,35 @@ describe('RetrievalPanel — 调取知识库可视化', () => {
     unmount()
     render(<RetrievalPanel retrieval={{ stage: 'done', sources: [base] }} />)
     expect(screen.getByText('无命中')).toBeInTheDocument()
+  })
+
+  it('每一路都认得图标：新加的两路与"没人认识的名字"长得不一样', () => {
+    /**
+     * 09-24 注册了 article 与 vocabulary 两路，但这张图标表停在五条 —— 漏的两路被
+     * `?? 'search'` 兜住，界面不报错、只是图标退回通用放大镜，所以拖了三周没人看见。
+     * 这里不比清单（清单本身由 tests/context-builder-registry.test.ts 对账到 orchestrator 注册），
+     * 比的是**行为**：登记过的名字画出来的字形，必须与"完全不认识的名字"不同。
+     */
+    const state: RetrievalState = {
+      stage: 'done',
+      sources: [
+        { name: 'article', label: '读过的文章', source: 'database', used: false, itemCount: 0, method: 'local', buildTime: 1 },
+        { name: 'vocabulary', label: '生词本', source: 'database', used: false, itemCount: 0, method: 'local', buildTime: 1 },
+        { name: 'zzzNoSuchSource', label: '对照组', source: 'database', used: false, itemCount: 0, method: 'local', buildTime: 1 },
+      ],
+    }
+    render(<RetrievalPanel retrieval={state} />)
+    const glyphOf = (label: string): string => {
+      const svg = screen.getByText(label).closest('button')?.querySelector('svg')
+      expect(svg, `${label} 那一行没画出图标`).toBeTruthy()
+      return svg!.innerHTML
+    }
+    const fallback = glyphOf('对照组')
+    expect(glyphOf('读过的文章')).not.toBe(fallback)
+    expect(glyphOf('生词本')).not.toBe(fallback)
+    // 对照组必须真的落在兜底字形上，否则上面两条比较是空的
+    const { container: solo } = render(<Icon name="search" size={14} />)
+    expect(fallback).toBe(solo.querySelector('svg')!.innerHTML)
   })
 
   it('点击有预览的来源展开片段', () => {

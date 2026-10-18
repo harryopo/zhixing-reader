@@ -135,7 +135,26 @@ function landingGaps(count: number, claims: number[]): string[] {
   return gaps
 }
 
+/** 设置页卡片里"写死的构建器条数"（改完应当一处都不剩，数字由数组长度推出来） */
+function hardcodedBuilderCounts(src: string): string[] {
+  return [...src.matchAll(/\b\d+ (?=类构建器|构建器)/g)].map((m) => m[0].trim())
+}
+
 describe('上下文构建器：一处注册、三处抄件对账', () => {
+  it('设置页卡片不再把条数写死，两处都取数组长度', () => {
+    const src = readFileSync(
+      join(ROOT, 'src', 'renderer', 'src', 'pages', 'settings', 'SettingsAgent.tsx'),
+      'utf8',
+    )
+    expect(hardcodedBuilderCounts(src), `界面里还留着写死的条数：${hardcodedBuilderCounts(src)}`).toEqual([])
+    expect((src.match(/DEFAULT_BUILDERS\.length/g) ?? []).length, '两处计数没都改成推导').toBeGreaterThanOrEqual(2)
+  })
+
+  it('量具有牙 · 把旧写法喂回去必须被认出来', () => {
+    const old = '5 类构建器按优先级顺序组装上下文 <Badge variant="default">5 构建器</Badge>'
+    expect(hardcodedBuilderCounts(old)).toEqual(['5', '5'])
+  })
+
   it('设置页表格的每一路都对得上注册表，序号与优先级按真顺序排', () => {
     expect(settingsTableGaps(registeredBuilders(), settingsPageRows())).toEqual([])
   })

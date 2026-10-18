@@ -137,6 +137,9 @@ export default defineConfig({
         'src/renderer/src/echarts-theme-tailwind.ts', // 100 / 100 / 100
         'src/renderer/src/components/ui/Modal.tsx',   // 97.18 / 85.71 / 100
         'src/renderer/src/components/chat/RetrievalPanel.tsx', // 100 / 91.66 / 100
+        // 2026-10-18：RetrievalPanel 的图标判据要 import Icon（比"这一路画的是哪个字形"
+        // 只能真渲染一次），它就成了被测试 import 的源文件 ⇒ 按清单规矩登记。
+        'src/renderer/src/components/ui/Icon.tsx',    // 100 / 100 / 100
         // 2026-09-26 补了网络层测试（tests/weread-api-network.test.ts）后重新量的
         'electron/weread-api.ts',
         // 2026-09-26 后台自动同步：原来那份测试的 vi.mock 路径写错了（相对测试文件解析 ⇒
