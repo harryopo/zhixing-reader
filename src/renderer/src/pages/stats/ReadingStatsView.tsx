@@ -19,7 +19,6 @@ import {
 import { CategoryDonut, ReadingTrendBars, ReviewHeatmap12Weeks, HourlyBars, WeeklyTrendMini } from './charts'
 import { YearlyBookTable } from './YearlyBookTable'
 import { ReadingDataDetails } from './ReadingDataDetails'
-import { eyebrow078 } from '@/design/eyebrow'
 
 
 export function ReadingStatsView({
@@ -131,8 +130,8 @@ export function ReadingStatsView({
         }}
       >
         <Card>
-          <div
-            style={eyebrow078}
+          <div className="eyebrow"
+            
           >
             {modeLabels[readingMode]}阅读
           </div>
@@ -148,8 +147,8 @@ export function ReadingStatsView({
         </Card>
 
         <Card>
-          <div
-            style={eyebrow078}
+          <div className="eyebrow"
+            
           >
             完成书籍
           </div>
@@ -158,8 +157,8 @@ export function ReadingStatsView({
         </Card>
 
         <Card>
-          <div
-            style={eyebrow078}
+          <div className="eyebrow"
+            
           >
             卡片总数
           </div>
@@ -169,8 +168,8 @@ export function ReadingStatsView({
         </Card>
 
         <Card>
-          <div
-            style={eyebrow078}
+          <div className="eyebrow"
+            
           >
             笔记总数
           </div>

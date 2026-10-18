@@ -4,7 +4,6 @@ import { safeNum, safeStr } from '../../utils/db-mapper'
 import type { MethodologyItem } from './model'
 import { IconBookOpen, IconCheckCircle } from './icons'
 import { getMasteryLabel, getMasteryProgress, getTriggerBadge } from './helpers'
-import { eyebrow070Wide } from '@/design/eyebrow'
 
 
 interface MethodCardV2Props {
@@ -147,8 +146,8 @@ function MethodCardV2({ methodology, index, bookTitle, active, onSelect, onDelet
             />
           </div>
           <div
-            className="lvl"
-            style={eyebrow070Wide}
+            className="lvl eyebrow"
+            style={{ letterSpacing: '0.04em' }}
           >
             {lvl}
           </div>

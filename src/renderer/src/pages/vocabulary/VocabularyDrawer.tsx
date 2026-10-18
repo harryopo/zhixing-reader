@@ -9,7 +9,6 @@ import { articleDeepLink } from '../../../../shared/source-anchor'
 import { calcMasteryPct, daysSinceStoredTime, formatDateOnly, masteryStatusColor, masteryStatusLabel } from './model'
 import type { VocabularyRow } from '../../utils/db-mapper'
 import { IconButton } from './controls'
-import { eyebrow070Bold, eyebrow072Bold } from '@/design/eyebrow'
 
 
 interface VocabularyDrawerProps {
@@ -218,7 +217,7 @@ function VocabularyDrawer({
           <section
             style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
           >
-            <span style={eyebrow072Bold}>释义</span>
+            <span className="eyebrow" style={{ fontWeight: 600 }}>释义</span>
             <div>
               <p
                 style={{
@@ -254,7 +253,7 @@ function VocabularyDrawer({
             <section
               style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
             >
-              <span style={eyebrow072Bold}>例句</span>
+              <span className="eyebrow" style={{ fontWeight: 600 }}>例句</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 4)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <p
@@ -298,7 +297,7 @@ function VocabularyDrawer({
             <section
               style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
             >
-              <span style={eyebrow072Bold}>出处</span>
+              <span className="eyebrow" style={{ fontWeight: 600 }}>出处</span>
               <div
                 style={{
                   display: 'flex',
@@ -326,7 +325,7 @@ function VocabularyDrawer({
           <section
             style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}
           >
-            <span style={eyebrow072Bold}>复习数据</span>
+            <span className="eyebrow" style={{ fontWeight: 600 }}>复习数据</span>
             <div
               style={{
                 display: 'grid',
@@ -500,8 +499,8 @@ interface MetaItemProps {
 function MetaItem({ label, value, mono, style }: MetaItemProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
-      <span
-        style={eyebrow070Bold}
+      <span className="eyebrow"
+        style={{ fontWeight: 600, letterSpacing: '0.06em' }}
       >
         {label}
       </span>

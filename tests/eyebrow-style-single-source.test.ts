@@ -1,17 +1,16 @@
 /**
- * 「小标题」样式的单源守卫（2026-10-18）
+ * 小标题（.eyebrow）归一守卫（2026-10-18）
  *
- * 量具是 AST 扫**内联样式对象**（JSX 的 `style={{…}}` 与 `CSSProperties` 常量初始化），
- * 规范化成"属性名 → 属性值"的集合再比 —— 因为同一档写法会换键顺序：
- * `{ color, fontSize, textTransform, letterSpacing }` 与 `{ fontSize, color, letterSpacing, textTransform }`
- * 是同一个样式，按文本比会漏（这正是前一批"函数体同体"那把尺的样式版）。
+ * 来历：同一句大写小字此前在渲染层被手写 65 次、17 种变体（字号 0.7 / 0.72 / 0.74 / 0.75 / 0.78rem 各有），
+ * 而元素上同时挂着一个**从未在任何 CSS 里定义过**的 `className="eyebrow"` —— 类名是从设计稿搬来的，样式没搬。
+ * 中间一步曾把这九档收进 `design/eyebrow.ts`（值逐字不变），最终归一是：**排版归 CSS 类一处，
+ * 字号走字阶 `--font-size-xs`；留白与加粗留在该处**（去掉加粗才是明显看得见的变化，不在这一笔顺手做）。
  *
- * 上岗当轮量到的事实：渲染层 65 处手写大写小标题、17 种变体，其中 57 处只重复在 9 档上。
- * 那 9 档现在各自只有一份定义，住在 `src/renderer/src/design/eyebrow.ts`。
- * 外观一字未动 —— 收的是抄件，不是设计。
+ * 量具：AST 扫 style 位置的内联样式对象（含 CSSProperties 常量），
+ * 比的是**规范化后的属性集合** —— 键顺序换了也是同一档，按文本比会漏。
  *
- * ⚠️ 这条判据**不保证**那 9 档该存在：它们里有 5 档字号（0.7 / 0.72 / 0.74 / 0.75 / 0.78rem）
- * 都不踩 `--font-size-*` 字阶。归归字阶会改外观，那是维护者的设计决定，登记在 PROGRESS。
+ * ⚠️ 这条判据上一轮差点是空的：正本当时用 `const MUTED = '…'` 存值，AST 交回标识符，
+ * 与页面手抄的那份永远不相等 ⇒ "没有页面重抄"会永远绿。所以这里既有反证（必须报）也有正对照（不许误伤）。
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'fs'
@@ -20,7 +19,7 @@ import ts from 'typescript'
 
 const ROOT = join(__dirname, '..')
 const RENDERER = join(ROOT, 'src', 'renderer', 'src')
-const HOME = 'src/renderer/src/design/eyebrow.ts'
+const CSS = 'src/renderer/src/styles/index.css'
 
 type SourceFile = { path: string; src: string }
 
@@ -28,145 +27,110 @@ function walk(dir: string, out: SourceFile[] = []): SourceFile[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const abs = join(dir, entry.name)
     if (entry.isDirectory()) walk(abs, out)
-    else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\./.test(entry.name)) {
+    else if (/\.(tsx|ts)$/.test(entry.name) && !/\.test\./.test(entry.name)) {
       out.push({ path: abs.slice(ROOT.length + 1).split('\\').join('/'), src: readFileSync(abs, 'utf8') })
     }
   }
   return out
 }
 
-/** 一个对象字面量的规范化属性集合；含展开/计算键返回 null（宁可少认，不可认错） */
-function propSet(literal: ts.ObjectLiteralExpression, sf: ts.SourceFile): string | null {
-  const parts: string[] = []
+/** 一个内联样式对象的属性表；含展开或计算键就交回 null（那种写法不在这一族的判定范围） */
+function propsOf(literal: ts.ObjectLiteralExpression, sf: ts.SourceFile): Map<string, string> | null {
+  const out = new Map<string, string>()
   for (const p of literal.properties) {
-    if (!ts.isPropertyAssignment(p)) return null
-    if (ts.isComputedPropertyName(p.name)) return null
+    if (!ts.isPropertyAssignment(p) || ts.isComputedPropertyName(p.name)) return null
     const key = p.name.getText(sf).replace(/^['"]|['"]$/g, '')
     const value = p.initializer.getText(sf).replace(/\s+/g, ' ').trim().replace(/^['"]|['"]$/g, '')
-    parts.push(`${key}: ${value}`)
-  }
-  return parts.sort().join(';')
-}
-
-/** 收集"内联样式对象"：JSX 的 style={{…}} 与 CSSProperties 常量的初始化 */
-function collectStyleLiterals(path: string, src: string): string[] {
-  const sf = ts.createSourceFile(path, src, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX)
-  const found: string[] = []
-  function visit(node: ts.Node) {
-    if (ts.isObjectLiteralExpression(node)) {
-      const parent = node.parent
-      const isStyle = ts.isJsxExpression(parent) && parent.parent && ts.isJsxAttribute(parent.parent) && parent.parent.name.getText(sf) === 'style'
-      const isCssConst = ts.isVariableDeclaration(parent)
-      if (isStyle || isCssConst) {
-        const set = propSet(node, sf)
-        if (set && set.includes('textTransform: uppercase')) found.push(set)
-      }
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(sf)
-  return found
-}
-
-/** 交回"把已命名档位又手抄了一遍"的文件清单（正本自己那份不算） */
-function namedVariantCopies(files: SourceFile[], named: string[]): string[] {
-  const namedSet = new Set(named)
-  const hits: string[] = []
-  for (const f of files) {
-    if (f.path === HOME) continue
-    for (const set of collectStyleLiterals(f.path, f.src)) {
-      if (namedSet.has(set)) hits.push(`${f.path} ⇒ ${set}`)
-    }
-  }
-  return hits
-}
-
-/** 那一份真值里的档位（从源码 AST 现取，不写死在这里，免得判据与真值各自漂移） */
-function namedVariants(): { name: string; set: string | null }[] {
-  const src = readFileSync(join(ROOT, HOME), 'utf8')
-  const sf = ts.createSourceFile(HOME, src, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS)
-  const out: { name: string; set: string | null }[] = []
-  const byName = new Map<string, string>()
-  for (const stmt of sf.statements) {
-    if (!ts.isVariableStatement(stmt)) continue
-    for (const decl of stmt.declarationList.declarations) {
-      const name = decl.name.getText(sf)
-      const init = decl.initializer
-      if (!init || !ts.isObjectLiteralExpression(init)) continue
-      const parts: string[] = []
-      let ok = true
-      for (const p of init.properties) {
-        if (ts.isSpreadAssignment(p)) {
-          // {...eyebrow078, padding} 派生的那一档，把被展开的那档并进来一起当"已命名"
-          const base = byName.get(p.expression.getText(sf))
-          if (!base) {
-            ok = false
-            break
-          }
-          parts.push(...base.split(';'))
-          continue
-        }
-        if (!ts.isPropertyAssignment(p) || ts.isComputedPropertyName(p.name)) {
-          ok = false
-          break
-        }
-        const key = p.name.getText(sf).replace(/^['"]|['"]$/g, '')
-        const value = p.initializer.getText(sf).replace(/\s+/g, ' ').trim().replace(/^['"]|['"]$/g, '')
-        parts.push(`${key}: ${value}`)
-      }
-      const set = ok ? [...new Set(parts)].sort().join(';') : null
-      if (set) byName.set(name, set)
-      out.push({ name, set })
-    }
+    out.set(key, value)
   }
   return out
 }
 
-describe('小标题样式的九档各只有一份定义', () => {
+/**
+ * 这一族 = 用来排版的（大写 + 弱化色），且**没有**徽章类属性（背景/圆角/边框）。
+ * 交回"还在用内联样式写小标题"的位置清单。
+ */
+function inlineEyebrowSites(files: SourceFile[]): string[] {
+  const hits: string[] = []
+  for (const f of files) {
+    const sf = ts.createSourceFile(f.path, f.src, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX)
+    function visit(node: ts.Node) {
+      if (ts.isObjectLiteralExpression(node)) {
+        const parent = node.parent
+        const gparent = parent && parent.parent
+        const inStyleAttr =
+          ts.isJsxExpression(parent) && !!gparent && ts.isJsxAttribute(gparent) && gparent.name.getText(sf) === 'style'
+        const inCssConst = ts.isVariableDeclaration(parent)
+        if (inStyleAttr || inCssConst) {
+          const props = propsOf(node, sf)
+          if (props) {
+            const isEyebrow =
+              props.get('textTransform') === 'uppercase' && props.get('color') === 'var(--muted-foreground)'
+            const hasBadgeChrome = ['background', 'backgroundColor', 'borderRadius', 'border', 'padding'].some((k) =>
+              props.has(k),
+            )
+            if (isEyebrow && !(inCssConst && hasBadgeChrome)) {
+              const line = f.src.slice(0, node.getStart(sf)).split('\n').length
+              hits.push(`${f.path}:${line}`)
+            }
+          }
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(sf)
+  }
+  return hits
+}
+
+describe('小标题只由 .eyebrow 这一个类负责排版', () => {
   const files = walk(RENDERER)
-  const variants = namedVariants()
-  const sets = variants.map((v) => v.set).filter((s): s is string => s !== null)
+  const css = readFileSync(join(ROOT, CSS), 'utf8')
+  const rule = /\.eyebrow\s*\{([^}]*)\}/.exec(css)
 
-  it('横扫看得见东西：渲染层 ≥100 个文件，且真值那份自己就被认出来（否则下面的断言是空话）', () => {
+  it('横扫看得见东西：整个渲染层 ≥100 个文件被扫到', () => {
     expect(files.length, '一个文件都没量到 ⇒ 目录口径变了').toBeGreaterThanOrEqual(100)
-    // 展开写法（{...eyebrow078, padding}）拿不到 textTransform，所以这里只要求认出多数
-    expect(variants.length, '真值里的字面量档数少于预期 ⇒ 量具或文件形状变了').toBeGreaterThanOrEqual(7)
-    expect(sets.some((s) => s.includes('fontSize: 0.78rem')), '0.78rem 那一档必须被量具认出来').toBe(true)
-    // 派生档（{...base, padding}）并进来一起算已命名 —— 否则页面重抄那一份完整写法就抓不到
-    expect(sets.some((s) => s.includes('padding: 0 calc')), '带 padding 的派生档没被并进来 ⇒ 展开写法算漏了').toBe(true)
   })
 
-  it('除了正本，没有任何页面再手抄这九档', () => {
-    expect(namedVariantCopies(files, sets), '又出现了一份手抄的小标题样式').toEqual([])
+  it('`.eyebrow` 在 CSS 里真的存在，且字号走字阶而不是又一个手写 rem', () => {
+    expect(rule, `${CSS} 里找不到 .eyebrow —— 那个类名当年就是从设计稿搬来却没搬样式`).toBeTruthy()
+    const body = rule![1]
+    expect(body).toMatch(/font-size:\s*var\(--font-size-xs\)/)
+    expect(body).toMatch(/text-transform:\s*uppercase/)
+    expect(body).toMatch(/color:\s*var\(--muted-foreground\)/)
+    expect(body).toMatch(/letter-spacing:\s*0\.08em/)
+    expect(/font-size:\s*[\d.]+rem/.test(body), '.eyebrow 又自己写死了一个字号').toBe(false)
   })
 
-  it('正本内部不许自己抄自己（两档长得一样就该并成一档）', () => {
-    const dup = sets.filter((s, i) => sets.indexOf(s) !== i)
-    expect(dup, `真值里有重复档位：${dup.join(' | ')}`).toEqual([])
+  it('类不是摆设：真的有很多元素挂着它', () => {
+    const users = files.filter((f) => /className="[^"]*\beyebrow\b/.test(f.src)).length
+    expect(users, '挂着 .eyebrow 的文件数少于预期 ⇒ 归一被回退了').toBeGreaterThanOrEqual(15)
   })
 
-  it('量具有牙 · 手抄必须报、换个值不许报', () => {
-    const copy: SourceFile = {
+  it('style 位置上不许再出现"排版用的小标题"内联样式', () => {
+    expect(inlineEyebrowSites(files), '又有人把小标题写回内联样式了').toEqual([])
+  })
+
+  it('量具有牙 · 那种内联写法必须报，徽章那种不许报', () => {
+    const reTyped: SourceFile = {
       path: 'src/renderer/src/pages/合成页.tsx',
-      src:
-        "export function X() {\n  return <div style={{ letterSpacing: '0.08em', fontSize: '0.78rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }} />\n}\n",
+      src: "export function A() {\n  return <div style={{ letterSpacing: '0.08em', fontSize: '0.78rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }} />\n}\n",
     }
-    expect(namedVariantCopies(files.concat([copy]), sets).length, '键顺序换了也算同一档 ⇒ 必须报').toBe(
-      namedVariantCopies(files, sets).length + 1,
-    )
-    // 反面对照：换了字号就不是那一档，别把判据写成"任何大写样式都红"
-    const novel: SourceFile = {
-      path: 'src/renderer/src/pages/合成新档.tsx',
-      src: "export function Y() {\n  return <div style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }} />\n}\n",
+    expect(inlineEyebrowSites(files.concat([reTyped])), '键顺序换了也必须认出来').toEqual([
+      'src/renderer/src/pages/合成页.tsx:2',
+    ])
+    // 正对照：徽章带背景与圆角，不是小标题这一族
+    const badge: SourceFile = {
+      path: 'src/renderer/src/pages/合成徽章.tsx',
+      src: "const chip: CSSProperties = {\n  fontSize: '0.72rem',\n  textTransform: 'uppercase',\n  background: 'var(--muted)',\n  color: 'var(--foreground)',\n  borderRadius: 'var(--radius)',\n}\n",
     }
-    expect(namedVariantCopies(files.concat([novel]), sets), '新档位不该被当抄件').toEqual([])
+    expect(inlineEyebrowSites(files.concat([badge])), '徽章不该被判成小标题').toEqual([])
   })
 
-  it('含展开的写法不当抄件（`{...eyebrow078, padding}` 是派生，不是重抄）', () => {
-    const derived: SourceFile = {
-      path: 'src/renderer/src/pages/合成派生.tsx',
-      src: "const a: CSSProperties = { ...eyebrow078, padding: '0 4px' }\n",
-    }
-    expect(collectStyleLiterals(derived.path, derived.src), '派生写法不该被收进来').toEqual([])
+  it('归一之后不留后门：那份中间步骤的常量表不许回来', () => {
+    expect(files.some((f) => f.src.includes('@/design/eyebrow')), '又有人把小标题做回 JS 常量表').toBe(false)
+    expect(files.some((f) => /const (EYEBROW|eyebrowStyle|eyebrow\d)\b/.test(f.src)), '页面里又开了一份小标题常量').toBe(
+      false,
+    )
   })
 })

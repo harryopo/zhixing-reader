@@ -26,7 +26,6 @@ import {
   PRIVACY_POLICY_URL,
 } from '../../../../shared/external-links'
 import { settingsNav } from './data-utils'
-import { eyebrow078Padded } from '@/design/eyebrow'
 
 
 /** 设置分类导航项 */
@@ -434,8 +433,8 @@ export default function SettingsAbout() {
             }}
           >
             <div
-              className="nav-label"
-              style={eyebrow078Padded}
+              className="nav-label eyebrow"
+              style={{ padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)' }}
             >
               设置分类
             </div>
@@ -733,14 +732,8 @@ export default function SettingsAbout() {
               )}
 
               <div
-                className="history-label"
-                style={{
-                  color: 'var(--muted-foreground)',
-                  fontSize: '0.78rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  marginBottom: 'calc(var(--spacing) * 3)',
-                }}
+                className="history-label eyebrow"
+                style={{ marginBottom: 'calc(var(--spacing) * 3)' }}
               >
                 更新历史
               </div>
@@ -937,20 +930,9 @@ export default function SettingsAbout() {
                   <thead>
                     <tr>
                       {['项目', '版本', '许可证'].map((th) => (
-                        <th
+                        <th className="eyebrow"
                           key={th}
-                          style={{
-                            padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)',
-                            textAlign: 'left',
-                            fontSize: '0.78rem',
-                            fontWeight: 600,
-                            color: 'var(--muted-foreground)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.06em',
-                            borderBottom: '1px solid var(--border)',
-                            background: 'var(--muted)',
-                            whiteSpace: 'nowrap',
-                          }}
+                          style={{ padding: 'calc(var(--spacing) * 3) calc(var(--spacing) * 4)', textAlign: 'left', fontWeight: 600, letterSpacing: '0.06em', borderBottom: '1px solid var(--border)', background: 'var(--muted)', whiteSpace: 'nowrap' }}
                         >
                           {th}
                         </th>

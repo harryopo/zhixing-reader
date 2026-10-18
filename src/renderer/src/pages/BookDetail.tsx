@@ -42,7 +42,6 @@ import {
 import { getCardMastery, MASTERY_BADGE_VARIANT } from '../../../shared/fsrs-metrics'
 import { readHighlightDeepLink, highlightAnchorDomId } from '../../../shared/source-anchor'
 import type { BookSummary, ChapterSummary } from '../../../shared/types'
-import { eyebrow075 } from '@/design/eyebrow'
 
 
 // ===== 工具 =====
@@ -509,8 +508,8 @@ export default function BookDetail() {
 
         {/* 右栏：最近动态卡（真实划线/笔记数据；简介/ISBN/分类无数据源已删除） */}
         <Card>
-          <div
-            style={eyebrow075}
+          <div className="eyebrow"
+            
           >
             最近动态
           </div>
@@ -732,8 +731,8 @@ export default function BookDetail() {
 function StatMini({ label, value }: { label: string; value: string }) {
   return (
     <div className="text-center">
-      <div
-        style={eyebrow075}
+      <div className="eyebrow"
+        
       >
         {label}
       </div>

@@ -22,7 +22,6 @@ import { mapBooks, mapHighlights, formatTimeAgo } from '../utils/db-mapper'
 import type { BookRow, HighlightRow } from '../utils/db-mapper'
 import { highlightSearchFields, matchesAllTerms } from '../../../shared/page-filter'
 import { toast } from '../stores/toastStore'
-import { eyebrow078 } from '@/design/eyebrow'
 
 
 // ===== 工具函数 =====
@@ -243,8 +242,8 @@ export default function Notes() {
                 alignItems: 'center',
               }}
             >
-              <span
-                style={eyebrow078}
+              <span className="eyebrow"
+                
               >
                 书籍分组
               </span>
@@ -469,8 +468,8 @@ function NoteItem({ highlight, bookTitle }: NoteItemProps) {
             minWidth: 0,
           }}
         >
-          <span
-            style={eyebrow078}
+          <span className="eyebrow"
+            
           >
             {chapter || bookTitle}
           </span>

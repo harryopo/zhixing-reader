@@ -3,7 +3,6 @@ import Card, { CardHead } from '@/components/ui/Card'
 import Icon from '@/components/ui/Icon'
 import { EmptyState, Metric, Trend, Tiny } from '@/components/ui/Feedback'
 import type { BookStat, SortColumn, SortOrder } from './constants'
-import { eyebrow078 } from '@/design/eyebrow'
 
 
 export function BooksStatsView({
@@ -34,8 +33,8 @@ export function BooksStatsView({
         }}
       >
         <Card>
-          <div
-            style={eyebrow078}
+          <div className="eyebrow"
+            
           >
             书籍数
           </div>
@@ -43,8 +42,8 @@ export function BooksStatsView({
           <Trend kind="default">本架藏书</Trend>
         </Card>
         <Card>
-          <div
-            style={eyebrow078}
+          <div className="eyebrow"
+            
           >
             笔记总数
           </div>
@@ -52,8 +51,8 @@ export function BooksStatsView({
           <Trend kind="up">↑ 跨 {bookStats.length} 本书</Trend>
         </Card>
         <Card>
-          <div
-            style={eyebrow078}
+          <div className="eyebrow"
+            
           >
             卡片总数
           </div>
@@ -79,17 +78,8 @@ export function BooksStatsView({
             }}
           >
             {/* 表头（4 列 grid） */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '2fr 1fr 1fr 1fr',
-                gap: 'calc(var(--spacing) * 3)',
-                padding: '0 calc(var(--spacing) * 4) calc(var(--spacing) * 2)',
-                fontSize: '0.78rem',
-                color: 'var(--muted-foreground)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-              }}
+            <div className="eyebrow"
+              style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 'calc(var(--spacing) * 3)', padding: '0 calc(var(--spacing) * 4) calc(var(--spacing) * 2)' }}
             >
               <span>书名</span>
               <SortHeader

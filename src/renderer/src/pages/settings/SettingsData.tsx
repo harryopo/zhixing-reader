@@ -37,7 +37,6 @@ import {
   type StorageUsage,
 } from './data-utils'
 import { useDataIo } from './use-data-io'
-import { eyebrow078Padded } from '@/design/eyebrow'
 
 
 // ===== 组件 =====
@@ -489,8 +488,8 @@ export default function SettingsData() {
             }}
           >
             <div
-              className="nav-label"
-              style={eyebrow078Padded}
+              className="nav-label eyebrow"
+              style={{ padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)' }}
             >
               设置分类
             </div>

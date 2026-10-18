@@ -44,7 +44,6 @@ import { IconAI, IconBookOpen, IconWand, ViewToggleIcon } from './methodologies/
 import { getMasteryLabel, getMasteryProgress, getTriggerBadge } from './methodologies/helpers'
 import { MethodCardV2 } from './methodologies/MethodCardV2'
 import { MethodDetailPanel } from './methodologies/MethodDetailPanel'
-import { eyebrow070Wide, eyebrow072BoldMarginBottom } from '@/design/eyebrow'
 
 
 
@@ -924,7 +923,7 @@ export default function Methodologies() {
                           <div style={{ fontSize: '0.82rem', color: 'var(--foreground)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
                             {pct}%
                           </div>
-                          <div style={eyebrow070Wide}>
+                          <div className="eyebrow" style={{ letterSpacing: '0.04em' }}>
                             {lvl}
                           </div>
                         </div>
@@ -943,7 +942,7 @@ export default function Methodologies() {
                       >
                         {m.triggerScenario && (
                           <div>
-                            <div style={eyebrow072BoldMarginBottom}>
+                            <div className="eyebrow" style={{ fontWeight: 600, marginBottom: '0.4rem' }}>
                               触发场景
                             </div>
                             <div style={{ fontSize: '0.86rem', lineHeight: 1.65, color: 'var(--card-foreground)' }}>
@@ -953,7 +952,7 @@ export default function Methodologies() {
                         )}
                         {m.steps && m.steps.length > 0 && (
                           <div>
-                            <div style={eyebrow072BoldMarginBottom}>
+                            <div className="eyebrow" style={{ fontWeight: 600, marginBottom: '0.4rem' }}>
                               执行步骤
                             </div>
                             <ol style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>

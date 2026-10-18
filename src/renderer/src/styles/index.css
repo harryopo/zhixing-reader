@@ -69,6 +69,23 @@ svg {
   scrollbar-width: none;
 }
 
+/* ===== 共用排版原语 ===== */
+
+/*
+ * 小标题（区块上方那句大写小字）。
+ *
+ * 2026-10-18 之前它是逐页手写的内联样式：渲染层 65 处、17 种字号（0.7 / 0.72 / 0.74 / 0.75 / 0.78rem），
+ * 而页面上还挂着一个从未定义过的 .eyebrow 类名（设计稿搬过来只搬了类名，没搬样式）。
+ * 现在归到字阶 --font-size-xs：与原先多数写法相差 ≤ 0.03rem（约 1px）。
+ * 个别处原有的加粗与留白仍写在该处 —— 去掉加粗才是明显看得见的变化，不在这一笔里顺手做。
+ */
+.eyebrow {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 /* ===== 动画 ===== */
 @keyframes fade-in-up {
   from {

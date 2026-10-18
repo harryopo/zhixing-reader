@@ -19,7 +19,6 @@ import { useSettingsStore, DEFAULT_LLM_ENDPOINT, DEFAULT_LLM_MODEL } from '@/sto
 import { toast } from '@/stores/toastStore'
 // 安全读取辅助与「数据与存储」页共用一份实现（这里原先自己抄了 asString / asNumber 各一份）
 import { asNumber, asString, NAV_ITEMS } from './data-utils'
-import { eyebrow078Padded } from '@/design/eyebrow'
 
 
 // ===== 常量 =====
@@ -456,8 +455,8 @@ export default function SettingsAI() {
             }}
           >
             <div
-              className="nav-label"
-              style={eyebrow078Padded}
+              className="nav-label eyebrow"
+              style={{ padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)' }}
             >
               设置分类
             </div>

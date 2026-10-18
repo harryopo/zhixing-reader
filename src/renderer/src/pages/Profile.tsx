@@ -31,7 +31,6 @@ import {
   sumReadingSeconds,
   weekTrend,
 } from '../../../shared/profile-stats'
-import { eyebrow078 } from '@/design/eyebrow'
 
 
 /** 图表色板（与设计稿 chart-1/5/3/2 对齐） */
@@ -490,8 +489,8 @@ export default function Profile() {
                 { label: '生词', value: vocabCount },
               ].map((s) => (
                 <div key={s.label} className="stat-mini">
-                  <div
-                    style={eyebrow078}
+                  <div className="eyebrow"
+                    
                   >
                     {s.label}
                   </div>
@@ -521,8 +520,8 @@ export default function Profile() {
           }}
         >
           <Card interactive onClick={() => navigate('/stats')}>
-            <div
-              style={eyebrow078}
+            <div className="eyebrow"
+              
             >
               年度阅读
             </div>
@@ -545,8 +544,8 @@ export default function Profile() {
           </Card>
 
           <Card interactive onClick={() => navigate('/stats')}>
-            <div
-              style={eyebrow078}
+            <div className="eyebrow"
+              
             >
               完成书籍
             </div>
@@ -564,8 +563,8 @@ export default function Profile() {
           </Card>
 
           <Card interactive onClick={() => navigate('/stats')}>
-            <div
-              style={eyebrow078}
+            <div className="eyebrow"
+              
             >
               复习卡片
             </div>
@@ -588,8 +587,8 @@ export default function Profile() {
           </Card>
 
           <Card interactive onClick={() => navigate('/stats')}>
-            <div
-              style={eyebrow078}
+            <div className="eyebrow"
+              
             >
               连续打卡
             </div>
@@ -898,7 +897,7 @@ export default function Profile() {
               }}
             >
               <div style={{ minWidth: 0 }}>
-                <div style={eyebrow078}>
+                <div className="eyebrow" >
                   成就徽章
                 </div>
                 <div style={{ fontSize: '0.92rem', color: 'var(--foreground)', marginTop: '0.3rem' }}>

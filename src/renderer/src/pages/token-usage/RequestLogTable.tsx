@@ -32,17 +32,8 @@ export function RequestLogTable({ records, loading }: { records: TokenRecord[]; 
   return (
     <>
       {/* 表头 */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 0.7fr',
-          gap: 'calc(var(--spacing) * 3)',
-          padding: '0 calc(var(--spacing) * 4) calc(var(--spacing) * 2)',
-          fontSize: '0.78rem',
-          color: 'var(--muted-foreground)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-        }}
+      <div className="eyebrow"
+        style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 0.8fr 0.7fr', gap: 'calc(var(--spacing) * 3)', padding: '0 calc(var(--spacing) * 4) calc(var(--spacing) * 2)' }}
       >
         <span>会话</span>
         <span>模型</span>

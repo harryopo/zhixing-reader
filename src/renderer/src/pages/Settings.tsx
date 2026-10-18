@@ -17,7 +17,6 @@ import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Icon from '@/components/ui/Icon'
 import { NAV_ITEMS, type NavItem, type SettingsTabKey } from './settings/data-utils'
-import { eyebrow078Padded } from '@/design/eyebrow'
 
 
 export default function Settings() {
@@ -58,7 +57,7 @@ export default function Settings() {
             borderRadius: 'calc(var(--radius) + 6px)',
           }}
         >
-          <div className="nav-label" style={eyebrow078Padded}>
+          <div className="nav-label eyebrow" style={{ padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)' }}>
             设置分类
           </div>
           {NAV_ITEMS.map((item) => {

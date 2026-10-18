@@ -16,7 +16,6 @@ import Card, { CardHead } from '@/components/ui/Card'
 import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
 import { settingsNav } from './data-utils'
-import { eyebrow078Padded } from '@/design/eyebrow'
 
 
 /** 设置分类导航项 */
@@ -140,8 +139,8 @@ export default function SettingsAppearance() {
             }}
           >
             <div
-              className="nav-label"
-              style={eyebrow078Padded}
+              className="nav-label eyebrow"
+              style={{ padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)' }}
             >
               设置分类
             </div>

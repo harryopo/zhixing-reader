@@ -83,14 +83,8 @@ export function CardHead({
     >
       <div style={{ minWidth: 0 }}>
         {eyebrow && (
-          <div
-            style={{
-              color: 'var(--muted-foreground)',
-              fontSize: '0.78rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              marginBottom: '0.2rem',
-            }}
+          <div className="eyebrow"
+            style={{ marginBottom: '0.2rem' }}
           >
             {eyebrow}
           </div>

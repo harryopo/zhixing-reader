@@ -40,17 +40,8 @@ export function YearlyBookTable({ bookStats }: { bookStats: BookStat[] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
       {/* 表头（4 列 grid：1.5fr 0.8fr 0.7fr 0.8fr） */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1.5fr 0.8fr 0.7fr 0.8fr',
-          gap: 'calc(var(--spacing) * 3)',
-          padding: '0 calc(var(--spacing) * 4) calc(var(--spacing) * 2)',
-          fontSize: '0.78rem',
-          color: 'var(--muted-foreground)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-        }}
+      <div className="eyebrow"
+        style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.8fr 0.7fr 0.8fr', gap: 'calc(var(--spacing) * 3)', padding: '0 calc(var(--spacing) * 4) calc(var(--spacing) * 2)' }}
       >
         <span>书名</span>
         <span>类型</span>

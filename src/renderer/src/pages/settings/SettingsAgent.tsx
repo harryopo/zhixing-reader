@@ -33,7 +33,6 @@ import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
 import { toast } from '../../stores/toastStore'
 import { settingsNav } from './data-utils'
-import { eyebrow074Medium, eyebrow078Padded } from '@/design/eyebrow'
 
 
 /** 设置分类导航项（与其他设置子页一致） */
@@ -438,8 +437,8 @@ export default function SettingsAgent() {
           }}
         >
           <div
-            className="nav-label"
-            style={eyebrow078Padded}
+            className="nav-label eyebrow"
+            style={{ padding: '0 calc(var(--spacing) * 3) calc(var(--spacing) * 2)' }}
           >
             设置分类
           </div>
@@ -513,8 +512,8 @@ export default function SettingsAgent() {
         >
           <div style={{ minWidth: 0 }}>
             <div
-              className="eyebrow"
-              style={eyebrow074Medium}
+              className="eyebrow eyebrow"
+              style={{ fontWeight: 500 }}
             >
               编排流水线
             </div>
@@ -650,8 +649,8 @@ export default function SettingsAgent() {
         style={{ marginTop: 'calc(var(--spacing) * 8)' }}
       >
         <div
-          className="eyebrow"
-          style={eyebrow074Medium}
+          className="eyebrow eyebrow"
+          style={{ fontWeight: 500 }}
         >
           配置详情
         </div>
@@ -692,8 +691,8 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow"
-                style={eyebrow074Medium}
+                className="eyebrow eyebrow"
+                style={{ fontWeight: 500 }}
               >
                 Step 01
               </div>
@@ -751,8 +750,8 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow"
-                style={eyebrow074Medium}
+                className="eyebrow eyebrow"
+                style={{ fontWeight: 500 }}
               >
                 Step 02
               </div>
@@ -829,8 +828,8 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow"
-                style={eyebrow074Medium}
+                className="eyebrow eyebrow"
+                style={{ fontWeight: 500 }}
               >
                 Step 03
               </div>
@@ -910,8 +909,8 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow"
-                style={eyebrow074Medium}
+                className="eyebrow eyebrow"
+                style={{ fontWeight: 500 }}
               >
                 Step 04
               </div>
@@ -989,8 +988,8 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow"
-                style={eyebrow074Medium}
+                className="eyebrow eyebrow"
+                style={{ fontWeight: 500 }}
               >
                 Step 05
               </div>
@@ -1049,8 +1048,8 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow"
-                style={eyebrow074Medium}
+                className="eyebrow eyebrow"
+                style={{ fontWeight: 500 }}
               >
                 Step 06 · 附加
               </div>

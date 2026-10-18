@@ -35,7 +35,6 @@ import {
 import { VocabularyDrawer } from './vocabulary/VocabularyDrawer'
 import { ExportModal } from './vocabulary/ExportModal'
 import { deleteWithUndo } from '@/utils/undoable-delete'
-import { eyebrow070Bold, eyebrow078 } from '@/design/eyebrow'
 
 // ===== 主组件 =====
 export default function VocabularyPage() {
@@ -901,7 +900,7 @@ export default function VocabularyPage() {
 
               {/* 释义 section */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={eyebrow078}>释义</div>
+                <div className="eyebrow" >释义</div>
                 <div
                   style={{
                     display: 'flex',
@@ -940,7 +939,7 @@ export default function VocabularyPage() {
               {/* 例句 section */}
               {selectedItem.example_en && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={eyebrow078}>例句</div>
+                  <div className="eyebrow" >例句</div>
                   <p
                     style={{
                       fontSize: '0.92rem',
@@ -970,7 +969,7 @@ export default function VocabularyPage() {
 
               {/* 复习状态 section */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={eyebrow078}>复习状态</div>
+                <div className="eyebrow" >复习状态</div>
                 <div
                   style={{
                     display: 'flex',
@@ -983,8 +982,8 @@ export default function VocabularyPage() {
                   }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                    <span
-                      style={eyebrow070Bold}
+                    <span className="eyebrow"
+                      style={{ fontWeight: 600, letterSpacing: '0.06em' }}
                     >
                       复习次数
                     </span>
