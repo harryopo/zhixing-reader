@@ -230,8 +230,8 @@ export default function SettingsWeRead() {
           key={item.key}
           type="button"
           className="settings-nav-item"
-          data-dom-id={`settings-tab-${item.key}`}
-          data-active={item.key === 'weread' ? 'true' : 'false'}
+          data-dom-id={item.domId}
+          data-active={item.active ? 'true' : 'false'}
           onClick={() => navigate(item.path)}
         >
           <span className="nav-glyph" aria-hidden="true">

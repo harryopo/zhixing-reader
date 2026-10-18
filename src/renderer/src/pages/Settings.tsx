@@ -11,80 +11,12 @@
  *   - 主页改为导航 + 欢迎卡片，所有具体配置交给子页处理
  */
 
-import { useCallback, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Icon from '@/components/ui/Icon'
-
-type SettingsTab =
-  | 'account'
-  | 'ai'
-  | 'agent'
-  | 'weread'
-  | 'data'
-  | 'appearance'
-  | 'about'
-
-interface NavItemDef {
-  key: SettingsTab
-  label: string
-  desc: string
-  icon: ReactNode
-  path: string
-}
-
-const NAV_ITEMS: NavItemDef[] = [
-  {
-    key: 'account',
-    label: '账户',
-    desc: '个人信息、继承微信读书、功能模块',
-    icon: <Icon name="user" size={18} />,
-    path: '/settings/account',
-  },
-  {
-    key: 'ai',
-    label: 'AI 配置',
-    desc: 'LLM 服务、RAG 配置、提示词模板',
-    icon: <Icon name="agent" size={18} />,
-    path: '/settings/ai',
-  },
-  {
-    key: 'agent',
-    label: '智能体编排',
-    desc: '意图识别、教学策略、上下文预算（与 AI 模型配置解耦）',
-    icon: <Icon name="settings" size={18} />,
-    path: '/settings/agent',
-  },
-  {
-    key: 'weread',
-    label: '微信读书',
-    desc: 'API 配置、同步设置、书架与划线同步',
-    icon: <Icon name="bookshelf" size={18} />,
-    path: '/settings/weread',
-  },
-  {
-    key: 'data',
-    label: '数据与存储',
-    desc: '存储用量、缓存管理、导入导出、FSRS 参数',
-    icon: <Icon name="box" size={18} />,
-    path: '/settings/data',
-  },
-  {
-    key: 'appearance',
-    label: '外观',
-    desc: '主题模式（深浅色切换）',
-    icon: <Icon name="sun" size={18} />,
-    path: '/settings/appearance',
-  },
-  {
-    key: 'about',
-    label: '关于',
-    desc: '应用信息、检查更新、反馈、开源许可',
-    icon: <Icon name="question" size={18} />,
-    path: '/settings/about',
-  },
-]
+import { NAV_ITEMS, type NavItem, type SettingsTabKey } from './settings/data-utils'
 
 const EYEBROW_STYLE: CSSProperties = {
   color: 'var(--muted-foreground)',
@@ -95,10 +27,10 @@ const EYEBROW_STYLE: CSSProperties = {
 
 export default function Settings() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<SettingsTab>('account')
+  const [activeTab, setActiveTab] = useState<SettingsTabKey>('account')
 
   const handleNavClick = useCallback(
-    (item: NavItemDef) => {
+    (item: NavItem) => {
       setActiveTab(item.key)
       navigate(item.path)
     },
@@ -142,7 +74,7 @@ export default function Settings() {
                 type="button"
                 data-active={isActive}
                 aria-current={isActive ? 'page' : undefined}
-                data-dom-id={`settings-tab-${item.key}`}
+                data-dom-id={item.domId}
                 onClick={() => handleNavClick(item)}
                 style={{
                   width: '100%',
@@ -175,7 +107,7 @@ export default function Settings() {
                 }}
               >
                 <span style={{ width: 18, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
-                  {item.icon}
+                  <Icon name={item.icon} size={18} />
                 </span>
                 <span>{item.label}</span>
               </button>
@@ -264,7 +196,7 @@ export default function Settings() {
                       flexShrink: 0,
                     }}
                   >
-                    {item.icon}
+                    <Icon name={item.icon} size={18} />
                   </span>
                   <span
                     className="entry-title"

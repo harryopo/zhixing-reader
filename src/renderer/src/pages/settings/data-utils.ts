@@ -46,6 +46,8 @@ export type SettingsTabKey = 'account' | 'ai' | 'agent' | 'weread' | 'data' | 'a
 export interface NavItem {
   key: SettingsTabKey
   label: string
+  /** 设置总页的入口卡片要展示的一句话说明（侧栏不显示，但两处共用同一份清单） */
+  desc: string
   /** 直接吃 `Icon` 那份名字表：写错一个图标名是编译错误，而不是界面上悄悄少一个图形 */
   icon: IconName
   path: string
@@ -53,15 +55,70 @@ export interface NavItem {
   domId: string
 }
 
-/** 设置页那七个分区 —— **这一份就是那份**（六个页面原先各抄一份，抄到标签、图标、锚点三样都分家了） */
+/**
+ * 设置页那七个分区 —— **这一份就是那份**。
+ *
+ * 消费者有七处：`pages/Settings.tsx`（左侧栏 + 右侧入口卡片）与六个子页自己的那排标签。
+ * 总页原先也自己抄了一份，抄到图标分家（账户 `user` vs `profile`、AI `agent` vs `settings`），
+ * 于是同一个分区在侧栏和子页标签上是两个不同图形；这里取侧栏那一份，因为它是常驻可见的那一面。
+ */
 export const NAV_ITEMS: NavItem[] = [
-  { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', domId: 'settings-tab-account' },
-  { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
-  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
-  { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
-  { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
-  { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
-  { key: 'about', label: '关于', icon: 'question', path: '/settings/about', domId: 'settings-tab-about' },
+  {
+    key: 'account',
+    label: '账户',
+    desc: '个人信息、继承微信读书、功能模块',
+    icon: 'user',
+    path: '/settings/account',
+    domId: 'settings-tab-account',
+  },
+  {
+    key: 'ai',
+    label: 'AI 配置',
+    desc: 'LLM 服务、RAG 配置、提示词模板',
+    icon: 'agent',
+    path: '/settings/ai',
+    domId: 'settings-tab-ai',
+  },
+  {
+    key: 'agent',
+    label: '智能体编排',
+    desc: '意图识别、教学策略、上下文预算（与 AI 模型配置解耦）',
+    icon: 'settings',
+    path: '/settings/agent',
+    domId: 'settings-tab-agent',
+  },
+  {
+    key: 'weread',
+    label: '微信读书',
+    desc: 'API 配置、同步设置、书架与划线同步',
+    icon: 'bookshelf',
+    path: '/settings/weread',
+    domId: 'settings-tab-weread',
+  },
+  {
+    key: 'data',
+    label: '数据与存储',
+    desc: '存储用量、缓存管理、导入导出、FSRS 参数',
+    icon: 'box',
+    path: '/settings/data',
+    domId: 'settings-tab-data',
+  },
+  {
+    key: 'appearance',
+    label: '外观',
+    desc: '主题模式（深浅色切换）',
+    icon: 'sun',
+    path: '/settings/appearance',
+    domId: 'settings-tab-appearance',
+  },
+  {
+    key: 'about',
+    label: '关于',
+    desc: '应用信息、检查更新、反馈、开源许可',
+    icon: 'question',
+    path: '/settings/about',
+    domId: 'settings-tab-about',
+  },
 ]
 
 /**
