@@ -25,26 +25,11 @@ import {
   LICENSE_URL,
   PRIVACY_POLICY_URL,
 } from '../../../../shared/external-links'
+import { settingsNav } from './data-utils'
 
 /** 设置分类导航项 */
-interface SettingsNavItem {
-  key: string
-  label: string
-  icon: 'profile' | 'settings' | 'bookshelf' | 'box' | 'sun' | 'question'
-  path: string
-  domId?: string
-  active?: boolean
-}
 
-const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
-  { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', domId: 'settings-tab-account' },
-  { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
-  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
-  { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
-  { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
-  { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
-  { key: 'about', label: '关于', icon: 'question', path: '/settings/about', active: true },
-]
+const SETTINGS_NAV_ITEMS = settingsNav('about')
 
 /** 更新历史记录 */
 interface HistoryEntry {

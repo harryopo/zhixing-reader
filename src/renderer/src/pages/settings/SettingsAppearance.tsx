@@ -15,26 +15,11 @@ import PageHero from '@/components/layout/PageHero'
 import Card, { CardHead } from '@/components/ui/Card'
 import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
+import { settingsNav } from './data-utils'
 
 /** 设置分类导航项 */
-interface SettingsNavItem {
-  key: string
-  label: string
-  icon: 'profile' | 'settings' | 'bookshelf' | 'box' | 'sun' | 'question'
-  path: string
-  domId?: string
-  active?: boolean
-}
 
-const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
-  { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', domId: 'settings-tab-account' },
-  { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
-  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
-  { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
-  { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
-  { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', active: true },
-  { key: 'about', label: '关于', icon: 'question', path: '/settings/about', domId: 'settings-tab-about' },
-]
+const SETTINGS_NAV_ITEMS = settingsNav('appearance')
 
 /** 主题模式 */
 type ThemeMode = 'light' | 'dark' | 'system'

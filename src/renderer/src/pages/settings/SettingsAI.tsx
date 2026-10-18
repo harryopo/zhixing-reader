@@ -18,7 +18,7 @@ import Modal from '@/components/ui/Modal'
 import { useSettingsStore, DEFAULT_LLM_ENDPOINT, DEFAULT_LLM_MODEL } from '@/stores/settingsStore'
 import { toast } from '@/stores/toastStore'
 // 安全读取辅助与「数据与存储」页共用一份实现（这里原先自己抄了 asString / asNumber 各一份）
-import { asNumber, asString } from './data-utils'
+import { asNumber, asString, NAV_ITEMS } from './data-utils'
 
 // ===== 常量 =====
 
@@ -46,23 +46,7 @@ const DEFAULT_TEMPLATES: TemplateRow[] = [
   { id: 'discussion', name: '深度讨论', desc: '多轮深度探讨与批判性思维训练场景', enabled: false },
 ]
 
-interface NavItem {
-  key: string
-  label: string
-  icon: 'user' | 'settings' | 'bookshelf' | 'box' | 'sun' | 'question'
-  path: string
-  domId: string
-}
 
-const NAV_ITEMS: NavItem[] = [
-  { key: 'account', label: '账户', icon: 'user', path: '/settings/account', domId: 'settings-tab-account' },
-  { key: 'ai', label: 'AI配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
-  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
-  { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
-  { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
-  { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
-  { key: 'about', label: '关于', icon: 'question', path: '/settings/about', domId: 'settings-tab-about' },
-]
 
 // LLM 连接测试状态
 type ConnStatus = 'idle' | 'testing' | 'ok' | 'fail'

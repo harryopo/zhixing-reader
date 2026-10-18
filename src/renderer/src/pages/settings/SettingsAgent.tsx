@@ -32,26 +32,11 @@ import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { Loading } from '@/components/ui/Feedback'
 import { toast } from '../../stores/toastStore'
+import { settingsNav } from './data-utils'
 
 /** 设置分类导航项（与其他设置子页一致） */
-interface SettingsNavItem {
-  key: string
-  label: string
-  icon: 'profile' | 'settings' | 'bookshelf' | 'box' | 'sun' | 'question'
-  path: string
-  domId?: string
-  active?: boolean
-}
 
-const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
-  { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', domId: 'settings-tab-account' },
-  { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
-  { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', active: true },
-  { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
-  { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
-  { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
-  { key: 'about', label: '关于', icon: 'question', path: '/settings/about', domId: 'settings-tab-about' },
-]
+const SETTINGS_NAV_ITEMS = settingsNav('agent')
 
 // ===== 类型 =====
 
@@ -467,7 +452,7 @@ export default function SettingsAgent() {
               key={item.key}
               type="button"
               className="settings-nav-item"
-              data-dom-id={item.domId ?? `settings-tab-${item.key}`}
+              data-dom-id={item.domId}
               data-active={item.active ? 'true' : undefined}
               aria-current={item.active ? 'page' : undefined}
               onClick={() => navigate(item.path)}

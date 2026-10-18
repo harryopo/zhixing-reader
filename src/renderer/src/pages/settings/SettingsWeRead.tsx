@@ -28,24 +28,11 @@ import { Loading, Tiny } from '@/components/ui/Feedback'
 import { useSettingsStore, type WeReadSyncFrequency } from '@/stores/settingsStore'
 import { toast } from '@/stores/toastStore'
 import { syncBookshelfToDb } from '@/utils/sync-bookshelf'
+import { settingsNav } from './data-utils'
 
 /** 设置导航项 */
-interface NavItem {
-  key: string
-  label: string
-  icon: 'user' | 'agent' | 'bookshelf' | 'box' | 'sun' | 'question'
-  path: string
-}
 
-const NAV_ITEMS: NavItem[] = [
-  { key: 'account', label: '账户', icon: 'user', path: '/settings/account' },
-  { key: 'ai', label: 'AI 配置', icon: 'agent', path: '/settings/ai' },
-  { key: 'agent', label: '智能体编排', icon: 'box', path: '/settings/agent' },
-  { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread' },
-  { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data' },
-  { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance' },
-  { key: 'about', label: '关于', icon: 'question', path: '/settings/about' },
-]
+const NAV_ITEMS = settingsNav('weread')
 
 /** 自动同步频率选项 */
 const AUTO_SYNC_FREQUENCY_OPTIONS: { value: WeReadSyncFrequency; label: string }[] = [

@@ -1,4 +1,12 @@
-/** 数据与存储页的常量、类型与纯工具（从 SettingsData.tsx 原样搬出，逻辑未改） */
+/**
+ * 设置页共用的常量、类型与纯工具（原先从 SettingsData.tsx 原样搬出，逻辑未改）。
+ *
+ * 2026-10-18 起这里同时是**设置页那一排分区导航的唯一一份**：六个子页原先各抄一份
+ * `SETTINGS_NAV_ITEMS`，抄到标签（`AI配置` / `AI 配置`）、图标（`user` / `profile`）与
+ * 锚点（子页自己那一格的 `domId` 干脆没有）三样都分家 —— 各页只声明"我是哪一格"。
+ */
+import type { IconName } from '@/components/ui/Icon'
+
 export const FSRS_DEFAULTS = {
   level: 3,
   maxInterval: 365,
@@ -32,23 +40,40 @@ export function formatSize(bytes: number | null): { value: string; unit: string 
   return { value: (bytes / 1024 / 1024).toFixed(1), unit: 'MB' }
 }
 
+/** 设置页那一排分区的键（`settingsNav` 的参数；写错一个字母编译不过） */
+export type SettingsTabKey = 'account' | 'ai' | 'agent' | 'weread' | 'data' | 'appearance' | 'about'
+
 export interface NavItem {
-  key: string
+  key: SettingsTabKey
   label: string
-  icon: 'user' | 'settings' | 'bookshelf' | 'box' | 'sun' | 'question'
+  /** 直接吃 `Icon` 那份名字表：写错一个图标名是编译错误，而不是界面上悄悄少一个图形 */
+  icon: IconName
   path: string
+  /** 每一格都必须是 `settings-tab-<key>`：少了它，那一页上就没有这个锚点 */
   domId: string
 }
 
+/** 设置页那七个分区 —— **这一份就是那份**（六个页面原先各抄一份，抄到标签、图标、锚点三样都分家了） */
 export const NAV_ITEMS: NavItem[] = [
-  { key: 'account', label: '账户', icon: 'user', path: '/settings/account', domId: 'settings-tab-account' },
-  { key: 'ai', label: 'AI配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
+  { key: 'account', label: '账户', icon: 'profile', path: '/settings/account', domId: 'settings-tab-account' },
+  { key: 'ai', label: 'AI 配置', icon: 'settings', path: '/settings/ai', domId: 'settings-tab-ai' },
   { key: 'agent', label: '智能体编排', icon: 'settings', path: '/settings/agent', domId: 'settings-tab-agent' },
   { key: 'weread', label: '微信读书', icon: 'bookshelf', path: '/settings/weread', domId: 'settings-tab-weread' },
   { key: 'data', label: '数据与存储', icon: 'box', path: '/settings/data', domId: 'settings-tab-data' },
   { key: 'appearance', label: '外观', icon: 'sun', path: '/settings/appearance', domId: 'settings-tab-appearance' },
   { key: 'about', label: '关于', icon: 'question', path: '/settings/about', domId: 'settings-tab-about' },
 ]
+
+/**
+ * 每页只声明"我是哪一格"，其余（标签 / 图标 / 路径 / 锚点）一律交回上面那一份。
+ *
+ * 原先六份抄件各自漏掉**自己那一格**的 `domId`（About / Account / Appearance 三页如此），
+ * 于是 `data-dom-id={item.domId}` 渲染出的是"这个属性不存在" —— 恰恰是你正站着的那一格找不到。
+ * `SettingsAgent` 里那句 `item.domId ?? \`settings-tab-${item.key}\`` 就是这个症状的本地止痛药。
+ */
+export function settingsNav(active: SettingsTabKey): Array<NavItem & { active: boolean }> {
+  return NAV_ITEMS.map((item) => ({ ...item, active: item.key === active }))
+}
 
 export interface KpiStats {
   totalBooks: number
