@@ -512,7 +512,7 @@ export default function SettingsAgent() {
         >
           <div style={{ minWidth: 0 }}>
             <div
-              className="eyebrow eyebrow"
+              className="eyebrow"
               style={{ fontWeight: 500 }}
             >
               编排流水线
@@ -649,7 +649,7 @@ export default function SettingsAgent() {
         style={{ marginTop: 'calc(var(--spacing) * 8)' }}
       >
         <div
-          className="eyebrow eyebrow"
+          className="eyebrow"
           style={{ fontWeight: 500 }}
         >
           配置详情
@@ -691,7 +691,7 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow eyebrow"
+                className="eyebrow"
                 style={{ fontWeight: 500 }}
               >
                 Step 01
@@ -750,7 +750,7 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow eyebrow"
+                className="eyebrow"
                 style={{ fontWeight: 500 }}
               >
                 Step 02
@@ -828,7 +828,7 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow eyebrow"
+                className="eyebrow"
                 style={{ fontWeight: 500 }}
               >
                 Step 03
@@ -909,7 +909,7 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow eyebrow"
+                className="eyebrow"
                 style={{ fontWeight: 500 }}
               >
                 Step 04
@@ -988,7 +988,7 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow eyebrow"
+                className="eyebrow"
                 style={{ fontWeight: 500 }}
               >
                 Step 05
@@ -1048,7 +1048,7 @@ export default function SettingsAgent() {
           >
             <div style={{ minWidth: 0 }}>
               <div
-                className="eyebrow eyebrow"
+                className="eyebrow"
                 style={{ fontWeight: 500 }}
               >
                 Step 06 · 附加

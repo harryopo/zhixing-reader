@@ -134,3 +134,38 @@ describe('小标题只由 .eyebrow 这一个类负责排版', () => {
     )
   })
 })
+
+/**
+ * 同一族的下半件：类名挂出去得对得上。
+ * 本批把内联样式换成 `.eyebrow` 时，合并写法没检查那一格**本来就挂着** `className="eyebrow"`
+ * （那个类此前只是个没样式的空壳），于是造出 15 处 `className="eyebrow eyebrow"` ——
+ * 浏览器不在乎，但"合并前先看有没有"这件事不该靠人记住。
+ */
+function duplicatedClassTokens(src: string): string[] {
+  const bad: string[] = []
+  src.split('\n').forEach((line, i) => {
+    const m = /className="([^"]*)"/.exec(line)
+    if (!m) return
+    const tokens = m[1].trim().split(/\s+/)
+    const dup = tokens.filter((t, j) => tokens.indexOf(t) !== j)
+    if (dup.length) bad.push(`第 ${i + 1} 行 "${m[1]}" 重复 ${[...new Set(dup)].join(',')}`)
+  })
+  return bad
+}
+
+describe('className 不许自我重复', () => {
+  const files = walk(RENDERER)
+
+  it('渲染层没有一行把同一个类名挂两次', () => {
+    const bad = files.flatMap((f) => duplicatedClassTokens(f.src).map((d) => `${f.path} ${d}`))
+    expect(bad, '有元素把同一个类名挂了两遍').toEqual([])
+  })
+
+  it('量具有牙 · 重复要报、两个不同类名不许报', () => {
+    expect(
+      duplicatedClassTokens('return <div className="eyebrow eyebrow" />'),
+      '合成一处重复必须报',
+    ).toHaveLength(1)
+    expect(duplicatedClassTokens('return <div className="eyebrow mt-2" />'), '两个不同类名不该报').toEqual([])
+  })
+})

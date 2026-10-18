@@ -135,7 +135,7 @@ function MethodDetailPanel({
       {/* 触发场景 */}
       {methodology.triggerScenario && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-          <div className="eyebrow eyebrow" style={{ fontWeight: 600 }}>
+          <div className="eyebrow" style={{ fontWeight: 600 }}>
             触发场景
           </div>
           <p style={{ fontSize: '0.86rem', lineHeight: 1.65, color: 'var(--card-foreground)', margin: 0 }}>
@@ -147,7 +147,7 @@ function MethodDetailPanel({
       {/* 四步骤 */}
       {steps.length > 0 && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-          <div className="eyebrow eyebrow" style={{ fontWeight: 600 }}>
+          <div className="eyebrow" style={{ fontWeight: 600 }}>
             四步骤
           </div>
           <div className="steps-list" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 3)' }}>
@@ -197,7 +197,7 @@ function MethodDetailPanel({
       {methodology.outputFormat && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
           <div
-            className="eyebrow eyebrow"
+            className="eyebrow"
             title="应用该方法论时产出的成果形式，例如文本摘要、知识卡片、思维导图、大纲等"
             style={{ fontWeight: 600 }}
           >
@@ -224,7 +224,7 @@ function MethodDetailPanel({
       {/* 应用示例 */}
       {methodology.examples && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-          <div className="eyebrow eyebrow" style={{ fontWeight: 600 }}>
+          <div className="eyebrow" style={{ fontWeight: 600 }}>
             应用示例
           </div>
           <div
@@ -247,7 +247,7 @@ function MethodDetailPanel({
 
       {/* 掌握度 */}
       <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-        <div className="eyebrow eyebrow" style={{ fontWeight: 600 }}>
+        <div className="eyebrow" style={{ fontWeight: 600 }}>
           掌握度
         </div>
         <div className="md-mastery-row" style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--spacing) * 4)', flexWrap: 'wrap' }}>
@@ -300,7 +300,7 @@ function MethodDetailPanel({
       {/* 说明（方法论自己的描述）—— 以前它被摆在「来源划线」标题下，名不副实 */}
       {methodology.description && (
         <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2)' }}>
-          <div className="eyebrow eyebrow" style={{ fontWeight: 600 }}>
+          <div className="eyebrow" style={{ fontWeight: 600 }}>
             说明
           </div>
           <p
@@ -319,7 +319,7 @@ function MethodDetailPanel({
 
       {/* 出处：出自哪本书、哪几条划线 */}
       <div className="md-section" style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--spacing) * 2.5)' }}>
-        <div className="eyebrow eyebrow" style={{ fontWeight: 600 }}>
+        <div className="eyebrow" style={{ fontWeight: 600 }}>
           出处
         </div>
         <div
