@@ -5,15 +5,19 @@
 // （复习次数越多、稳定性越高，掌握度必须越大）。
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync, readdirSync } from 'fs'
+import { join } from 'path'
 import {
   getCardMastery,
   getMasteryLevel,
   getRetrievability,
   getRetentionHint,
   MASTERY_THRESHOLDS,
+  MASTERY_BADGE_VARIANT,
   STABILITY_HALF,
   PRACTICE_HALF,
   FSRS6_DECAY,
+  type MasteryLevel,
 } from '../src/shared/fsrs-metrics'
 import {
   reviewVocabulary,
@@ -23,6 +27,8 @@ import {
   resetParameters,
   type Card,
 } from '../electron/fsrs-engine'
+
+const ROOT = join(__dirname, '..')
 
 describe('getMasteryLevel — 等级阈值', () => {
   it('按 80 / 60 / 30 分档（与 Methodologies 页口径一致）', () => {
@@ -300,5 +306,72 @@ describe('getRetrievability — 与 ts-fsrs 官方实现逐点一致', () => {
     expect(getRetentionHint(0.85)).toBe('记忆良好')
     expect(getRetentionHint(0.75)).toBe('开始模糊')
     expect(getRetentionHint(0.5)).toBe('接近遗忘')
+  })
+})
+
+/**
+ * 掌握度等级的下游口径（2026-10-18）
+ *
+ * 起因：`Review.tsx` 与 `BookDetail.tsx` 各抄了一份一模一样的"等级 → Badge 配色"表，
+ * `methodologies/helpers.ts` 又自己写了一遍 80 / 60 / 30，三处注释互相指认"与对方一致"，
+ * 而取用处一律写着 `MAP[level] ?? 'default'` —— 等级名字一改，三份表会同时静默变灰，
+ * 没有一处会报错。这一组把"一致"从注释换成执行体。
+ */
+describe('掌握度等级的下游：配色表全覆盖、且页面不再各抄一份', () => {
+  const rendererFiles = (() => {
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = join(dir, e.name)
+        if (e.isDirectory()) return e.name.startsWith('.') ? [] : walk(p)
+        return /\.(ts|tsx)$/.test(e.name) ? [p] : []
+      })
+    return walk(join(ROOT, 'src', 'renderer'))
+  })()
+
+  it('表里的键 == getMasteryLevel 真能产出的等级（不多不少）', () => {
+    const produced = new Set<MasteryLevel>()
+    for (let s = 0; s <= 100; s++) produced.add(getMasteryLevel(s))
+    expect(new Set(Object.keys(MASTERY_BADGE_VARIANT))).toEqual(produced)
+    expect(produced.size, '等级只有一档说明阈值表塌了').toBe(4)
+  })
+
+  it('表里用到的 Badge 变体，Badge 组件真的支持（写错一个就是静默无样式）', () => {
+    const badge = readFileSync(join(ROOT, 'src', 'renderer', 'src', 'components', 'ui', 'Badge.tsx'), 'utf8')
+    const supported = new Set(
+      [...(/const VARIANT_STYLES[^=]*=\s*\{([\s\S]*?)\n\}/.exec(badge)?.[1] ?? '').matchAll(/^\s{2}(\w+):/gm)].map(
+        (m) => m[1],
+      ),
+    )
+    expect(supported.size, '没从 Badge 里量到变体清单（锚点句式被改）').toBeGreaterThan(2)
+    const used = Object.values(MASTERY_BADGE_VARIANT)
+    expect(used.filter((v) => !supported.has(v))).toEqual([])
+  })
+
+  it('渲染层只剩 Review.tsx 一份手抄表（它正被另一路会话改，动不得；别再加第二份）', () => {
+    const offenders = rendererFiles
+      .filter((f) => {
+        const src = readFileSync(f, 'utf8')
+        return /^\s*精通:\s*'(success|ok|warning|default)'/m.test(src)
+      })
+      .map((f) => f.split(/[\\/]/).pop() as string)
+    expect(offenders.sort()).toEqual(['Review.tsx'])
+  })
+
+  it('量具有牙 · 阈值改到 0 分档塌成一档时，上面那条必须报（证明判据不是恒真）', () => {
+    const collapsed = new Set(['入门'])
+    for (let s = 0; s <= 100; s++) {
+      if (s >= MASTERY_THRESHOLDS.expert) collapsed.add('精通' as MasteryLevel)
+    }
+    expect(collapsed.size, '这条反证本身没长出第二档，说明写法是空的').toBe(2)
+    expect(new Set(Object.keys(MASTERY_BADGE_VARIANT)).size).not.toBe(collapsed.size)
+  })
+
+  it('方法论页不再自己写阈值，标签与筛选都走共享模块', () => {
+    const helpers = readFileSync(join(ROOT, 'src', 'renderer', 'src', 'pages', 'methodologies', 'helpers.ts'), 'utf8')
+    const page = readFileSync(join(ROOT, 'src', 'renderer', 'src', 'pages', 'Methodologies.tsx'), 'utf8')
+    expect(helpers, 'helpers.ts 又自己写了一遍等级判定').toContain('getMasteryLevel')
+    expect(helpers).not.toMatch(/pct >= 80/)
+    expect(page, '筛选档位又写成裸数字').toContain('MASTERY_THRESHOLDS.intermediate')
+    expect(page).not.toMatch(/masteryLevel\) [<>]=? \d\d\b/)
   })
 })

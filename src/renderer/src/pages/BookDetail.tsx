@@ -39,17 +39,9 @@ import {
   type HighlightRow,
   type CardRow,
 } from '../utils/db-mapper'
-import { getCardMastery } from '../../../shared/fsrs-metrics'
+import { getCardMastery, MASTERY_BADGE_VARIANT } from '../../../shared/fsrs-metrics'
 import { readHighlightDeepLink, highlightAnchorDomId } from '../../../shared/source-anchor'
 import type { BookSummary, ChapterSummary } from '../../../shared/types'
-
-/** 卡片掌握度等级 → Badge 变体（与复习页保持一致） */
-const CARD_MASTERY_BADGE: Record<string, 'success' | 'ok' | 'warning' | 'default'> = {
-  精通: 'success',
-  熟练: 'ok',
-  进阶: 'warning',
-  入门: 'default',
-}
 
 // ===== 工具 =====
 
@@ -1076,7 +1068,7 @@ function CardList({
                 卡片 #{c.id.slice(0, 6)}
               </strong>
               <div style={{ display: 'flex', gap: 'calc(var(--spacing) * 2)', flexWrap: 'wrap' }}>
-                <Badge variant={CARD_MASTERY_BADGE[mastery.level] ?? 'default'}>
+                <Badge variant={MASTERY_BADGE_VARIANT[mastery.level]}>
                   掌握度 {mastery.score}
                 </Badge>
                 <Badge variant="ok">已复习 {c.reps} 次</Badge>

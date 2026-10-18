@@ -31,6 +31,7 @@ import {
   resolveGenerateAction,
 } from '../../../shared/ai-coverage'
 import { matchesAllTerms, methodologySearchFields } from '../../../shared/page-filter'
+import { MASTERY_THRESHOLDS } from '../../../shared/fsrs-metrics'
 import {
   MASTERY_FILTERS,
   VIEW_TOGGLES,
@@ -147,9 +148,9 @@ export default function Methodologies() {
     }
 
     if (masteryFilter === 'todo') {
-      result = result.filter((m) => getMasteryProgress(m.masteryLevel) < 30)
+      result = result.filter((m) => getMasteryProgress(m.masteryLevel) < MASTERY_THRESHOLDS.intermediate)
     } else if (masteryFilter === 'mastered') {
-      result = result.filter((m) => getMasteryProgress(m.masteryLevel) >= 80)
+      result = result.filter((m) => getMasteryProgress(m.masteryLevel) >= MASTERY_THRESHOLDS.expert)
     }
 
     if (searchQuery.trim()) {
@@ -191,8 +192,8 @@ export default function Methodologies() {
     let mastered = 0
     methodologies.forEach((m) => {
       const pct = getMasteryProgress(m.masteryLevel)
-      if (pct < 30) todo++
-      else if (pct >= 80) mastered++
+      if (pct < MASTERY_THRESHOLDS.intermediate) todo++
+      else if (pct >= MASTERY_THRESHOLDS.expert) mastered++
     })
     return { all: methodologies.length, todo, mastered }
   }, [methodologies])

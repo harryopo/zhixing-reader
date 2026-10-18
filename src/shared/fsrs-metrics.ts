@@ -39,8 +39,23 @@ export const LAPSE_HALF = 3
 
 export type MasteryLevel = '入门' | '进阶' | '熟练' | '精通'
 
-/** 掌握度等级阈值（与 Methodologies 页保持一致：80 / 60 / 30） */
+/**
+ * 掌握度等级阈值 —— **这一份就是那份**：方法论页的标签与筛选、复习页与书籍详情的配色
+ * 全部由此推导，谁都不许再抄一遍数字（抄了就是第四套答法）。
+ */
 export const MASTERY_THRESHOLDS = { expert: 80, skilled: 60, intermediate: 30 } as const
+
+/**
+ * 等级 → Badge 配色。键类型是 `MasteryLevel`，所以少写一级编译就不过 ——
+ * 页面里原先那句 `MAP[level] ?? 'default'` 会把"等级名字改了"演成"全部变灰"，
+ * 一声不响（三份一模一样的表各自注释互相担保"与对方一致"，却没有一处核对）。
+ */
+export const MASTERY_BADGE_VARIANT: Record<MasteryLevel, 'success' | 'ok' | 'warning' | 'default'> = {
+  精通: 'success',
+  熟练: 'ok',
+  进阶: 'warning',
+  入门: 'default',
+}
 
 /** 计算掌握度所需的 FSRS 卡片字段 */
 export interface MasteryInput {
