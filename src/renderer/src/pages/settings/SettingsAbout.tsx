@@ -636,7 +636,7 @@ export default function SettingsAbout() {
                         updateState === 'latest' || updateState === 'downloaded'
                           ? 'var(--state-success)'
                           : updateState === 'available' || updateState === 'outdated'
-                            ? 'var(--chart-2, #ef4444)'
+                            ? 'var(--chart-2)'
                             : 'var(--muted)',
                       color: updateState === 'latest' || updateState === 'downloaded' || updateState === 'available' || updateState === 'outdated' ? 'var(--card)' : 'var(--muted-foreground)',
                       fontSize: '0.78rem',

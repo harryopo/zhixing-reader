@@ -557,7 +557,7 @@ export default function SettingsAI() {
                   <div
                     className="form-hint"
                     data-dom-id="hint-plaintext-key"
-                    style={{ color: 'var(--state-warning, #d97706)', marginTop: '0.4rem' }}
+                    style={{ color: 'var(--state-warning)', marginTop: '0.4rem' }}
                   >
                     本机系统加密不可用，API Key 以明文保存在 settings.json 中，请勿把该文件分享给他人。
                   </div>

@@ -565,7 +565,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                background: 'var(--chart-2, #ef4444)',
+                background: 'var(--chart-2)',
                 border: '2px solid var(--background)',
                 pointerEvents: 'none',
               }}
@@ -709,7 +709,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                       width: 32,
                       height: 32,
                       borderRadius: '50%',
-                      background: 'var(--chart-5, #f59e0b)',
+                      background: 'var(--chart-5)',
                       color: '#fff',
                       display: 'grid',
                       placeItems: 'center',
@@ -907,8 +907,8 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                       borderRadius: '50%',
                       background:
                         notif.lastSyncOk === false
-                          ? 'var(--chart-2, #ef4444)'
-                          : 'var(--chart-4, #06b6d4)',
+                          ? 'var(--chart-2)'
+                          : 'var(--chart-4)',
                       color: '#fff',
                       display: 'grid',
                       placeItems: 'center',
