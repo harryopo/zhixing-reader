@@ -40,6 +40,9 @@
     "zod": "^4.4.3",
     "zustand": "^5.0.0"
   },
+  "overrides": {
+    "source-map-js": "1.2.2"
+  },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
