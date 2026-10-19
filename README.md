@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-2536%20%E7%94%A8%E4%BE%8B%20/%20140%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-2545%20%E7%94%A8%E4%BE%8B%20/%20140%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![CI](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml?query=branch%3Amaster)
 [![Lines](https://img.shields.io/badge/code-53%2C800%2B%20TS-blueviolet)]()
 
@@ -30,7 +30,7 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 约 6 万行 TypeScript strict（`electron/` + `src/` 下跟踪的 `.ts`/`.tsx`，由 `tests/doc-figures.test.ts` 现算对账）|
-| **测试** | 2536 用例 / 140 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
+| **测试** | 2545 用例 / 140 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
 | **存储** | sql.js (SQLite WASM) · 18 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -68,6 +68,8 @@
 ---
 
 ## 三、18 大功能模块
+
+> 这张表按模块列。想知道**"这一条现在点得到吗、我们敢为它验到哪一层"**，看 [FEATURES.md](FEATURES.md)（路由与点名的判据文件由 `tests/doc-figures.test.ts` 对仓库现算）；想知道**"还欠什么、卡在哪"**，看 [ROADMAP.md](ROADMAP.md)。
 
 | # | 模块 | 路由 | 核心能力 |
 |---|------|------|----------|
@@ -141,7 +143,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 3.x | 2536 用例 / 140 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 3.x | 2545 用例 / 140 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 26.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -168,7 +170,7 @@
 | 能力 | 说明 |
 |------|------|
 | **4 评分预览** | `repeat()` 一次返回 Again/Hard/Good/Easy 四种结果，用户可在评分前查看未来间隔 |
-| **Anki 数据互通** | 与 Anki FSRS 插件同一算法、同一 schema，卡片可互相导入导出 |
+| **算法与 Anki 同源** | 用 open-spaced-repetition 官方的 ts-fsrs 跑 FSRS-6.0，评分口径与 Anki 24.06+ 一致。**不做数据互通**：复习卡片不能导入/导出 Anki，全仓没有 `.apkg` 读写；只有生词本能导出 Anki 认得的 TSV |
 | **0 依赖 < 30KB** | 纯 TypeScript 实现，无第三方依赖，包体积极小 |
 | **API 100% 兼容** | 内部算法替换为 ts-fsrs，对外接口零变更，原有调用方无需修改 |
 
@@ -214,7 +216,7 @@ zhixing-reader/
 ├── tokens/brand.json                        # 全部色值的唯一真值（产物由 npm run build:tokens 生成）
 ├── brand/                                   # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal）
 ├── scripts/                                 # 构建期脚本（build-tokens / build-icons）
-├── tests/                                   # Vitest 单元测试（2536 用例 / 140 文件）
+├── tests/                                   # Vitest 单元测试（2545 用例 / 140 文件）
 ├── .github/
 │   ├── workflows/ci.yml                     # lint + typecheck + test:cov + build（windows-latest）
 │   └── ISSUE_TEMPLATE/                      # Bug / 功能建议 / 环境与构建 三类模板
@@ -302,7 +304,7 @@ zhixing-reader/
 | 划线只保留原文、想法与章节名 | 微信读书同步落库的字段是 `content` / `note` / `chapter_title`，没有颜色与章节 id；「是划线还是笔记」由 `note` 是否为空推导 | 界面不显示高亮颜色；「笔记」页签要有想法类笔记才有内容 |
 | AI 能力需要自备 API Key | Key 存本机：经系统加密（Windows DPAPI）写入 `secure/*.enc`，设置文件里不留明文；界面上也不回填原值，输入框留空表示"不修改" | 不填 Key 时同步、复习、词典、笔记全部照常可用；加密不可用时如实提示并退回明文保存（绝不会因此丢掉你已配置的 Key），想删除用设置页的「清除已保存的 Key」 |
 | 词典为本地 ECDICT 单文件 | 15.0MB / 59,118 词条（实测 `resources/dictionary.json`），含 CEFR 分级，不含例句库 | 生词查询完全离线 |
-| 依赖安全告警 15 条开着（2026-10-18 实测 `dependabot/alerts?state=open`） | 其中 8 条是 Electron 的四则公告（GHSA-hq2x-r82h-9wj4、9qh4-3jw8-366w、gr2m-v5gq-v685、j84w-jfhq-vhvj，2026-09-29 发布，要 41.10.4 以上，dev 树停在 39.8.10）。逐条对过本应用的用法：四则的受体这里都不存在 —— 全站不建子窗（`setWindowOpenHandler` 一律返回 deny）、没有 `<webview>` 标签、没有自定义 `protocol` 处理器。另外 7 条与 09 月那批相同：`extract-zip`（2 条）、`http-cache-semantics`、`glob` 挂在构建工具链上，`vitest` + `@vitest/mocker` 是开发期测试框架，`echarts@5.5.1` 在渲染层（`echarts-for-react` 要 `^6.0.0`），GitHub 给的首个修复版本这几条都是空 | Electron 要跨两个大版本，与 `vitest` / `echarts` 同批单独处理，见 [#12](https://github.com/harryopo/zhixing-reader/issues/12)；顺带一条归维护者拍板的：`electron/main.ts` 显式写了 `sandbox: false`，渲染进程基线本就比 Electron 默认弱，改成 true 要连 preload 能用什么一起验 |
+| 依赖安全告警 13 条开着（2026-10-19 实测 `dependabot/alerts?state=open`；同日上午还是 17 条，收掉 `source-map-js` 与 `glob` 两条 high） | 分布：Electron 4 条（要 41.10.x，dev 树停在 39.8.10）、`tinypool` 2 条 critical 与 `vitest` / `@vitest/mocker` 2 条同一条链（要 vitest 4）、`echarts` 1 条（要 6.1.0）、`extract-zip` 2 + `http-cache-semantics` 1 + `sprintf-js` 1（上游没发版）。逐条按锁里的 `dev` 标记数过：**除 echarts 外全在 dev 树**，echarts 在渲染层、会打进交付物 | Electron 要跨两个大版本，与 `vitest` / `echarts` 同批单独处理，见 [#12](https://github.com/harryopo/zhixing-reader/issues/12)（内含 2026-10-19 的复测表）；顺带一条归维护者拍板的：`electron/main.ts` 显式写了 `sandbox: false`，渲染进程基线本就比 Electron 默认弱，改成 true 要连 preload 能用什么一起验 |
 
 ## 十三、反馈问题
 
@@ -369,6 +371,8 @@ npm run package:win
 | 📋 行为准则 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 | 📄 开源许可证 | [LICENSE](LICENSE) |
 | 🤖 Agent 协作规范 | [AGENTS.md](AGENTS.md) |
+| ✅ 能力清单（真实可用 + 验到哪层） | [FEATURES.md](FEATURES.md) |
+| 🧭 长期优化目标（按"卡在哪"分档） | [ROADMAP.md](ROADMAP.md) |
 | 🧠 AI 辅助开发配置 | [CLAUDE.md](CLAUDE.md) |
 
 ### 参考资源
@@ -463,4 +467,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-10-19 | 与 master 分支代码一致（最新发布 v1.3.4，2536 用例 / 140 文件）*
+*最后更新：2026-10-19 | 与 master 分支代码一致（最新发布 v1.3.4，2545 用例 / 140 文件）*

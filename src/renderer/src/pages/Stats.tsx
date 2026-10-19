@@ -15,7 +15,7 @@
  *
  * 业务逻辑全部保留：
  *   - loadData (book.getAll + highlight.getByBook + card.getByBook)
- *   - handleSync (weread.getBookshelf + book.search/update)
+ *   - handleSync（走 utils/sync-bookshelf.ts：weread.getBookshelf + book.getById 判存 + create/update）
  *   - handleRefreshReadingData (fetchReadingData)
  *   - readingDataStore 集成
  *   - sortedStats / handleSort

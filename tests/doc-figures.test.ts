@@ -474,3 +474,163 @@ describe('文档里的结构数字与仓库真值对账', () => {
     expect(missing).toContain('screenshots/screenshot-does-not-exist.png')
   })
 })
+
+// ===== FEATURES.md / ROADMAP.md：把"敢背书的那一句"钉在仓库上（2026-10-19） =====
+// 起因：README 长期写着「与 Anki 数据互通，卡片可互相导入导出」，而全仓零 `.apkg` 读写；
+// `ipc-channels.ts` 还留着一条"这两条通道 renderer 零引用"的注释，指向的两条其实天天在被调。
+// 新文档只是把话说对，这一组是让它**说不回去**：路由、点名的判据文件、被证伪的说法，全部现算。
+describe('能力清单文档与仓库真值对账', () => {
+  const features = read('FEATURES.md')
+  const roadmap = read('ROADMAP.md')
+
+  function realRoutes(): string[] {
+    const app = readFileSync(join(ROOT, 'src/renderer/src/App.tsx'), 'utf8')
+    return [...app.matchAll(/path="([^"]+)"/g)].map((m) => m[1]).sort()
+  }
+
+  function claimedRoutes(): string[] {
+    const line = /路由对照[^\n]*\n(.+)\n/.exec(features)
+    expect(line, '读不到 FEATURES 的「路由对照」那一行（句式被改，规则会静默失效）').toBeTruthy()
+    const paths = [...line![1].matchAll(/`([^`]+)`/g)].map((m) => m[1])
+    expect(paths.length, '只量到一条路由 ⇒ 取数形状不对（别把整行的反引号项当成一条）').toBeGreaterThan(15)
+    return paths.sort()
+  }
+
+  function rendererSource(): string {
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name)
+        if (e.isDirectory()) walk(p, out)
+        else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.|__tests__/.test(e.name)) out.push(p)
+      }
+      return out
+    }
+    return walk(join(ROOT, 'src/renderer/src')).map((p) => readFileSync(p, 'utf8')).join('\n')
+  }
+
+  it('FEATURES 的路由对照 == App.tsx 里真注册的路由（多一条少一条都算说错）', () => {
+    expect(claimedRoutes().length, '一条路由都没量到').toBeGreaterThan(15)
+    expect(claimedRoutes(), '文档列的路由与 App.tsx 不一致').toEqual(realRoutes())
+  })
+
+  it('反证 · 文档多写一条不存在的路由时必须判红', () => {
+    const drifted = claimedRoutes().concat('/does-not-exist')
+    expect(drifted, '反证没被量出来 ⇒ 这条对账是瞎的').not.toEqual(realRoutes())
+  })
+
+  it('FEATURES 点名的判据文件全都存在（不许给不存在的测试背书）', () => {
+    const named = [...features.matchAll(/`([a-z0-9][a-z0-9-]*\.test\.tsx?)`/g)].map((m) => m[1])
+    expect(named.length, '一条判据文件都没量到（引用句式被改，规则会静默失效）').toBeGreaterThan(40)
+    const missing = [...new Set(named)].filter(
+      (n) => !existsSync(join(ROOT, 'tests', n)) && !existsSync(join(ROOT, 'src/renderer/src/__tests__', n)),
+    )
+    expect(missing, '文档点名的判据文件不存在').toEqual([])
+  })
+
+  it('反证 · 编一个不存在的测试文件名时必须报出来，正对照 · 真存在的不许报', () => {
+    const fake = features.replace('`fsrs-engine.test.ts`', '`fsrs-engine-does-not-exist.test.ts`')
+    const names = [...fake.matchAll(/`([a-z0-9][a-z0-9-]*\.test\.tsx?)`/g)].map((m) => m[1])
+    expect(names).toContain('fsrs-engine-does-not-exist.test.ts')
+    expect(existsSync(join(ROOT, 'tests', 'fsrs-engine-does-not-exist.test.ts'))).toBe(false)
+    expect(existsSync(join(ROOT, 'tests', 'fsrs-engine.test.ts'))).toBe(true)
+  })
+
+  it('被证伪的说法不许回到任何一份文档（Anki 数据互通、卡片互导）', () => {
+    const banned = [/Anki\s*数据互通/, /卡片可互相导入导出/, /与\s*Anki\s*互通/]
+    const hits: string[] = []
+    for (const [name, body] of [
+      ['README.md', read('README.md')],
+      ['FEATURES.md', features],
+      ['ROADMAP.md', roadmap],
+    ] as const) {
+      for (const re of banned) if (re.test(body)) hits.push(`${name} 命中 ${re}`)
+    }
+    expect(hits, JSON.stringify(hits)).toEqual([])
+    // 正对照：改正后留下的那句"只有生词本导出 TSV"必须还在，否则说明是被整段删掉而不是改对
+    expect(read('README.md')).toContain('只有生词本能导出')
+    expect(features).toContain('Anki 认得的 TSV')
+  })
+
+  // 代码里还有两处注释在说同样的假话。这两个文件此刻在另一路会话手里，我不能替他们交工，
+  // 所以按色值那一族的规矩做成**只许缩短的例外表**：注释还在 ⇒ ROADMAP 必须有对应登记（不许悄悄摘掉登记）；
+  // 注释被收了 ⇒ 例外表必须同步删掉这一行，否则判红（防止"收了忘了登记"变成永久的假豁免）。
+  const PENDING_CODE_COMMENTS: Array<{ file: string; re: RegExp }> = [
+    { file: 'electron/fsrs-engine.ts', re: /Anki\s*数据互通/ },
+    { file: 'src/shared/ipc-channels.ts', re: /renderer\s*中零引用/ },
+  ]
+
+  it('两处待发注释被例外表钉住：还在就要有登记，收了就必须销账', () => {
+    const rows: string[] = []
+    for (const p of PENDING_CODE_COMMENTS) {
+      const stillFalse = p.re.test(readFileSync(join(ROOT, p.file), 'utf8'))
+      const registered = roadmap.includes('`' + p.file + '`')
+      if (stillFalse && !registered) rows.push(`${p.file} 假注释仍在，ROADMAP 档 1 却没有登记`)
+      if (!stillFalse && registered) rows.push(`${p.file} 假注释已收，ROADMAP 的登记与本例外表要一起删`)
+    }
+    expect(rows, JSON.stringify(rows)).toEqual([])
+    // 反证 · 登记被摘掉时必须判红（把 file 从 ROADMAP 文本里抹掉，就是"悄悄销账"那个形状）
+    const unregistered = roadmap.replace('`electron/fsrs-engine.ts`', '某文件')
+    expect(unregistered.includes('`electron/fsrs-engine.ts`')).toBe(false)
+    // 正对照 · 例外表里不许藏着第三个文件（每张豁免都得有名字）
+    expect(PENDING_CODE_COMMENTS.length).toBe(2)
+  })
+
+  // 通道这一族**不许用"界面源码里搜不到通道字符串"来判死** —— `cards:getDue` 就是这么被冤枉的：
+  // 界面写的是 `window.electronAPI.card.getDue(50)`，通道名只出现在 preload 里。
+  // 判据因此走两跳：preload 有没有接（载体）⇒ 接了的话界面有没有真引用那个转发名。
+  type Channel = { literal: string; constPath: string; uiName: string | null; why: string }
+
+  /** 纯判据，反证只喂字符串、绝不改仓库文件 */
+  function isWired(ch: Channel, preloadSrc: string, rendererSrc: string): boolean {
+    if (!preloadSrc.includes(`IPC_CHANNELS.${ch.constPath}`)) return false
+    return ch.uiName !== null && rendererSrc.includes(ch.uiName)
+  }
+
+  const DEAD_CHANNELS: Channel[] = [
+    {
+      literal: 'books:search',
+      constPath: 'BOOKS.SEARCH',
+      uiName: 'electronAPI.book.search',
+      why: 'preload 暴露成 book.search，渲染层一次没调（全局搜索走的是 search:global）',
+    },
+    { literal: 'dailyStats:incrementBooks', constPath: 'DAILY_STATS.INCREMENT_BOOKS', uiName: null, why: 'preload 根本没接 ⇒ 界面跨不过这条边界' },
+    { literal: 'dailyStats:incrementHighlights', constPath: 'DAILY_STATS.INCREMENT_HIGHLIGHTS', uiName: null, why: 'preload 根本没接' },
+    { literal: 'dailyStats:incrementCards', constPath: 'DAILY_STATS.INCREMENT_CARDS', uiName: null, why: 'preload 根本没接' },
+    { literal: 'weread:fetchAllContentBatch', constPath: 'WEREAD.FETCH_ALL_CONTENT_BATCH', uiName: null, why: 'preload 根本没接' },
+    { literal: 'menu:about', constPath: 'MENU.ABOUT', uiName: null, why: '主进程 send 了，preload 里没有对应的监听' },
+  ]
+
+  // 正对照：同一条尺必须把"天天在被调"的那条判成活的，否则上面那批"没接"是空转
+  const LIVE_CONTROLS: Channel[] = [
+    { literal: 'cards:getDue', constPath: 'CARDS.GET_DUE', uiName: 'electronAPI.card.getDue', why: '首页待复习' },
+    { literal: 'cards:getDueWithContent', constPath: 'CARDS.GET_DUE_WITH_CONTENT', uiName: 'electronAPI.card.getDueWithContent', why: '复习页 / reviewStore' },
+  ]
+
+  it('文档说"零调用"的每条通道，各自的载体判据都还成立；接上了就要来改文档', () => {
+    const preload = readFileSync(join(ROOT, 'electron/preload.ts'), 'utf8')
+    const src = rendererSource()
+    const wired = DEAD_CHANNELS.filter((d) => isWired(d, preload, src))
+    expect(wired, `这些通道已被接上：${wired.map((d) => d.literal).join(', ')} —— FEATURES §三 与 ROADMAP 档 1 的"6 条"要同步改`).toEqual([])
+    const claimed = Number(/渲染层真调用 \*\*(\d+)\*\* 条/.exec(features)![1])
+    expect(realChannelCount() - claimed, '声明数与"真调用数"之差必须等于文档列的零调用条数').toBe(DEAD_CHANNELS.length)
+  })
+
+  it('正对照 · 同一把尺必须把 preload 转发的活通道判成活的（否则负向断言是永真）', () => {
+    const preload = readFileSync(join(ROOT, 'electron/preload.ts'), 'utf8')
+    const src = rendererSource()
+    const missed = LIVE_CONTROLS.filter((c) => !isWired(c, preload, src))
+    expect(missed, `这些通道确实在用却被判成死：${missed.map((c) => c.literal).join(', ')}`).toEqual([])
+    // 顺带钉住"为什么旧写法会冤枉它们"：通道字符串本来就不进渲染层源码
+    expect(src).not.toContain('cards:getDue')
+  })
+
+  it('反证 · 喂"preload 接了 + 界面也调了"的假文本，那条必须被这把尺认成活的', () => {
+    const fakePreload = 'x: () => invoke(IPC_CHANNELS.DAILY_STATS.INCREMENT_BOOKS)'
+    const ch = DEAD_CHANNELS[1]
+    expect(isWired(ch, '', '')).toBe(false)
+    expect(isWired(ch, fakePreload, '')).toBe(false) // 光接上、界面没点 ⇒ 仍算零调用
+    expect(isWired(ch, fakePreload, 'electronAPI.dailyStats.incrementBooks()')).toBe(false) // uiName 是 null ⇒ 需先补 uiName
+    const withName: Channel = { ...ch, uiName: 'electronAPI.dailyStats.incrementBooks' }
+    expect(isWired(withName, fakePreload, 'window.electronAPI.dailyStats.incrementBooks()')).toBe(true)
+  })
+})

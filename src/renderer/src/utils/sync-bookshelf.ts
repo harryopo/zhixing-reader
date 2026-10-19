@@ -3,7 +3,7 @@
  *
  * 提取自 Topbar.tsx handleSync 与 Bookshelf.tsx handleSync,统一维护避免 DRY 违规。
  *
- * 职责：拉书架 → book.search 判断 → book.create / book.update,返回统计结果。
+ * 职责：拉书架 → book.getById 判断有没有这本书 → book.create / book.update，返回统计结果。
  * 不负责：toast 提示、localStorage 写入、UI 状态刷新（都由调用方处理）。
  *
  * 调用方约定：
