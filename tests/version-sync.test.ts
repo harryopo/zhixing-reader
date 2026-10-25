@@ -48,4 +48,14 @@ describe('版本字符串一致性', () => {
     // 1.1.0 那批的文件名是大驼峰（ZhixingReader-Setup-1.1.0.exe），现在产物叫 zhixing-reader-Setup-*.exe
     expect(landing, '宣传页又用上旧的安装包文件名片段').not.toContain('ZhixingReader-Setup')
   })
+
+  // 2026-10-25 补：FEATURES 的标题与 CLAUDE §8 的「当前版本」也各抄了一份版本号。
+  // landing 停在 v1.1.0 两个多月没人发现，就是这类"没人管的抄件"的病 —— 现在它们归这条闸管。
+  it('FEATURES 标题与 CLAUDE §8 的「当前版本」跟着 package.json', () => {
+    const title = readFileSync('FEATURES.md', 'utf8').split(/\r?\n/)[0]
+    expect(title, `FEATURES 标题里的版本不是 v${pkg.version}`).toContain(`v${pkg.version}`)
+    const m = /\*\*当前版本\*\*：v(\d+\.\d+\.\d+)/.exec(readFileSync('CLAUDE.md', 'utf8'))
+    expect(m, '读不到 CLAUDE §8 的「当前版本」那行（句式被改，规则会静默失效）').toBeTruthy()
+    expect(m![1], 'CLAUDE §8 的当前版本与 package.json 不一致').toBe(pkg.version)
+  })
 })

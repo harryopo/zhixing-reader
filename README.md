@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FSRS](https://img.shields.io/badge/FSRS--6.0%20(DSR)-00C853)](https://github.com/open-spaced-repetition/ts-fsrs)
-[![Tests](https://img.shields.io/badge/tests-2546%20%E7%94%A8%E4%BE%8B%20/%20140%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
+[![Tests](https://img.shields.io/badge/tests-2547%20%E7%94%A8%E4%BE%8B%20/%20140%20%E6%96%87%E4%BB%B6-22c55e)](./tests)
 [![CI](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/harryopo/zhixing-reader/actions/workflows/ci.yml?query=branch%3Amaster)
 [![Lines](https://img.shields.io/badge/code-53%2C800%2B%20TS-blueviolet)]()
 
@@ -30,7 +30,7 @@
 |------|------|
 | **形态** | Electron 三进程桌面应用（Main / Preload / Renderer）|
 | **代码规模** | 约 6 万行 TypeScript strict（`electron/` + `src/` 下跟踪的 `.ts`/`.tsx`，由 `tests/doc-figures.test.ts` 现算对账）|
-| **测试** | 2546 用例 / 140 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
+| **测试** | 2547 用例 / 140 文件（`npm run test`，**不含覆盖率**）· 覆盖率门禁是另一条命令 `npm run test:cov`，阈值 lines 83 / branches 80 / functions 75 / statements 83，**只作用于 `vitest.config.ts` 的 include 清单（清单条目由 `tests/coverage-list.test.ts` 与仓库逐条对账，空匹配与"有测试却没进清单也没登记欠账"都判红）**；CI 从 2026-09-24 起跑的就是这条命令，阈值不过则流水线红 |
 | **存储** | sql.js (SQLite WASM) · 18 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
@@ -143,7 +143,7 @@
 | **AI 服务商** | 火山引擎 / DeepSeek / OpenAI / Anthropic / Moonshot | - | 热切换，Key 本地加密 |
 | **图表** | ECharts / Recharts | 5.5 / 3.8 | 复杂 / 简单场景分用 |
 | **加密** | Electron safeStorage | 内置 | OS 系统级加密（DPAPI / Keychain）|
-| **测试** | Vitest | 3.x | 2546 用例 / 140 文件，阈值见 `vitest.config.ts` |
+| **测试** | Vitest | 3.x | 2547 用例 / 140 文件，阈值见 `vitest.config.ts` |
 | **打包** | electron-builder | 26.x | Windows NSIS 安装包 |
 | **词典** | ECDICT | 自建 | 15.0MB JSON，59,118 词条，CEFR 分级 |
 
@@ -216,7 +216,7 @@ zhixing-reader/
 ├── tokens/brand.json                        # 全部色值的唯一真值（产物由 npm run build:tokens 生成）
 ├── brand/                                   # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal）
 ├── scripts/                                 # 构建期脚本（build-tokens / build-icons）
-├── tests/                                   # Vitest 单元测试（2546 用例 / 140 文件）
+├── tests/                                   # Vitest 单元测试（2547 用例 / 140 文件）
 ├── .github/
 │   ├── workflows/ci.yml                     # lint + typecheck + test:cov + build（windows-latest）
 │   └── ISSUE_TEMPLATE/                      # Bug / 功能建议 / 环境与构建 三类模板
@@ -394,7 +394,7 @@ npm run package:win
 | 日期 | 版本 | 变更 | 作者 |
 |------|------|------|------|
 | 未发布 | v1.3.5（进行中） | **阅读画像导出与核验**（4 个提交）：导出三层语料包（我说的 / 我挑的 / 我选的）→ 交给外部 AI 工具读 → 结论清单导回应用逐条点「对 / 不对 / 不确定」→ 只有点过「对」的拼成画像卡，包内自带交接说明与诚实边界 + 通知面板与书架区分「库里没有」与「这一次没读出来」+ 微信读书想法导入的真实请求修复 / 测试 2281 用例 | 张子涵 |
-| 2026-10-25 | v1.3.5 | 「哪一天」收成一把尺：凌晨的活动不再记到前一天、微信读书的阅读时长整条不再早一天、「近 N 天」窗口不再多算一天 / 掌握度等级与配色统一 / 设置页导航与小标题样式各归一处 / 后台读库通道不再随安装版发布、管理页不进产物 / 测试 2546 用例 | 张子涵 |
+| 2026-10-25 | v1.3.5 | 「哪一天」收成一把尺：凌晨的活动不再记到前一天、微信读书的阅读时长整条不再早一天、「近 N 天」窗口不再多算一天 / 掌握度等级与配色统一 / 设置页导航与小标题样式各归一处 / 后台读库通道不再随安装版发布、管理页不进产物 / 测试 2547 用例 | 张子涵 |
 | 2026-09-23 | v1.3.4 | 应用内「重启安装」不再弹「无法关闭」（退出前先同步写盘再结束进程）+ 复习待办数不再把新卡算进去 + 书籍详情「笔记」页签恢复可筛 + 开发版与安装版数据目录分开 / 测试 1019 用例 | 张子涵 |
 | 2026-09-21 | v1.3.3 | 检查更新失败时的提示改为可执行的中文说明（不再显示网络错误码），同一次失败只提示一次；「设置 → 关于」更新历史改为短句分条 / 测试 990 用例 | 张子涵 |
 | 2026-09-21 | v1.3.2 | 统计页数据口径修正：趋势图与所选时间范围对齐（本周/本月按天、本年按月）+ 复习热力图改用本地日期 + 卡片总数与近 12 周复习次数分别标注 + 移除未接入计费数据的费用列 / 测试 985 用例 | 张子涵 |
@@ -468,4 +468,4 @@ Copyright © 2026 张子涵 · 深圳信息职业技术大学
 
 ---
 
-*最后更新：2026-10-25 | 与 master 分支代码一致（最新发布 v1.3.5，2546 用例 / 140 文件）*
+*最后更新：2026-10-25 | 与 master 分支代码一致（最新发布 v1.3.5，2547 用例 / 140 文件）*
