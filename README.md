@@ -34,7 +34,7 @@
 | **存储** | sql.js (SQLite WASM) · 18 张表 · 本地 BM25 检索索引（内存构建，不落盘）|
 | **核心能力** | 微信读书同步 · **FSRS-6.0** 间隔重复 · AI 智能体 · 知识卡片 · 词汇学习 |
 | **算法** | **ts-fsrs@5.4.1**（open-spaced-repetition 官方，Anki 同源）|
-| **打包** | electron-builder → Windows NSIS 安装包（v1.3.4 实测 **113.7 MB** / 119,246,768 字节）|
+| **打包** | electron-builder → Windows NSIS 安装包（v1.3.5 实测 **121.5 MB** / 127,432,936 字节）|
 | **License** | MIT（自由使用 / 修改 / 商用）|
 
 ---
