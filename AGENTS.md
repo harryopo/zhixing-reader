@@ -48,7 +48,7 @@ zhixing-reader/
 ├── brand/                 # 徽标唯一真值（mark*.svg / wordmark / logo-horizontal / grid + README 规范）
 ├── scripts/               # 构建期脚本（build-tokens.mjs、build-icons.mjs）
 ├── resources/             # 静态资源（dictionary.json / icon.png / icon.ico —— 后两者由脚本生成）
-├── tests/                 # Vitest 单元测试（140 文件 / 2545 用例）
+├── tests/                 # Vitest 单元测试（140 文件 / 2546 用例）
 │
 ├── .learnings/            # 经验与进度沉淀（⚠️ 本地文件，.gitignore 排除，不入库）
 │   ├── LEARNINGS.md       # 踩坑与最佳实践
@@ -77,7 +77,7 @@ npm run start            # 预览生产构建
 # 质量门禁（提交前必跑）
 npm run lint             # ESLint 严格模式（0 错误）
 npm run typecheck        # tsc --noEmit
-npm run test             # Vitest（2545 用例；不含覆盖率）
+npm run test             # Vitest（2546 用例；不含覆盖率）
 npm run verify           # 一键跑 lint+typecheck+test:cov+build（推荐；测试那步带覆盖率阈值，与 CI 同口径）
 
 # 品牌资产生成（改色/改徽标后必跑，产物入库）
@@ -227,7 +227,7 @@ npm run verify
 | 文件 | 行数 |
 |------|------|
 | `pages/DailyLearning.tsx` | 1637 |
-| `pages/settings/SettingsAbout.tsx` | 1124 |
+| `pages/settings/SettingsAbout.tsx` | 1136 |
 | `pages/KnowledgeCards.tsx` | 1142 |
 | `pages/settings/SettingsAgent.tsx` | 1124 |
 | `pages/settings/SettingsAI.tsx` | 1081 |
@@ -279,7 +279,7 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 性能 | `runTransaction` 单事务批量 / `useMemo` 缓存 / Map 去重 / Promise.all 并行 |
 | 正确性 | 幂等迁移 / `?.` 短路兼容旧数据 / 按钮 onClick 真实跳转 |
 | 可维护性 | IPC 通道集中定义 / wrapper 转发解耦 / 类型从 shared/types 复用 |
-| 测试 | 项目已有 Vitest（140 文件 / 2545 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
+| 测试 | 项目已有 Vitest（140 文件 / 2546 用例；纯逻辑 + 组件测试）。新增功能应补 `tests/*.test.ts`；提交前跑 `npm run verify`（含覆盖率阈值）|
 | 可访问性 | Modal `role/aria-modal/aria-labelledby` + ESC + 焦点管理 |
 | 文档 | 代码内注释 + 规范 commit message + **本文第十节一行批次记录**（早期设想的 spec/tasks/checklist/verify-report 四件套从未落地，实际沉淀位置见 §9.4）|
 
@@ -325,3 +325,4 @@ verifier subagent 7 维审查标准（来自 dead-code-governance verify-report�
 | 2026-10-18 | 小标题归到 CSS 类 `.eyebrow`、字号走字阶（含同批造出的 15 处重复类名）| 排版交给一处 CSS 类（`var(--font-size-xs)` + 弱化色 + `0.08em` + 大写），70 处改挂它、上一批那九档 JS 常量随之删掉，不留转发层；加粗与留白留在该处。**可见变化**：多数小标题字号收敛约 1px。判据 `tests/eyebrow-style-single-source.test.ts` 8 条（含"换键顺序的同档必须报 / 带背景的徽章不许误伤"与一条全局的 `className` 重复类名检查）。同批还量到 159 个自定义类名从未定义过 ⇒ **Issue #14**。**没验**：装机版界面没打开。逐字节原文见 `docs/agent-history.md`。 |
 | 2026-10-19 | 色值口径：兜底位手抄 + 裸写"只在一档出现"的值 | 量具换第四种形状：从 `design-tokens.css` 两档反推"某个色值只在浅档（或只在暗档）出现过"，再横扫渲染层。两类都命中：① **兜底位手抄** 6 处（`var(--chart-5, #f59e0b)` —— 这个 token 是绿的、抄成了琥珀；抄错的值平时不生效，token 缺失那一刻才画出全站独一份的颜色），已删净，界面零变化；② **裸写浅档 `--destructive`** 3 处，全在 `Home.tsx` 那条失败横幅 ⇒ 切暗档时别的红都跟着变、只有它不变（全站另外 8 处错误提示走 `var(--state-error)`）。那个文件此刻在另一路会话手里，所以守卫用一张"只许缩短"的例外表钉住它，收了却忘了删例外也判红。判据 `tests/color-token-single-source.test.ts` 6 条（剥注释但保行号、两档同值的白不许报）。同批顺手量到 **`--state-warning` 当浅底文字色只有 1.71:1**（`SettingsAI` 明文密钥提示、`DailyLearning` 两处提示都在用）⇒ 开 Issue 登记，配色属观感改动、等维护者定。**没验**：装机版界面没打开。逐字节原文见 `docs/agent-history.md`。 |
 | 2026-10-19 | 文档与代码锁成一份口径：FEATURES / ROADMAP 落地 + 说法校正 + 判据纠错 | 起因是 README 那句 Anki 互导（全仓零 `.apkg` 读写）。新写的两份文档只是把话说对，让它**说不回去**的是 `tests/doc-figures.test.ts`：路由对照按 `App.tsx` 现算、文档点名的判据文件必须真存在、被证伪的说法在 README/FEATURES/ROADMAP 三处零容忍。**本批把自己的判据纠正了一处**：原先"在渲染层源码里搜不到通道字符串 ⇒ 这条通道死了"会把 `cards:getDue` 判成死的（界面写的是 `electronAPI.card.getDue`），改成两跳 —— preload 有没有接 ⇒ 接了的话界面有没有真引用那个转发名，并拿那两条天天在被调的当正对照。代码里两处假注释此刻在另一路会话手里，用"只许缩短的例外表"钉住并登记进 ROADMAP 档 1。**没验**：装机版界面没打开。逐字节原文见 `docs/agent-history.md`。 |
+| 2026-10-25 | 发版 v1.3.5：版本号七处同步 + 两条判据自我纠正 | 攒了 124 笔的一批发。① `version-sequence` 那条"[Unreleased] 必须非空"**每次发版都判红** —— 空 Unreleased 恰是发版的正常态，改成"标题必须在；为空时最新小节必须等于当前版本"，配一条删标题反证。② `daily-stats-day-key` 的 token_usage 那格**只在 10-17～10-24 绿**：夹具钉死 10-17 而 `getDailyStats(7)` 按真钟往回数，兄弟 describe 钉了时钟它没钉 ⇒ 补钉（墙钟依赖第三例）。③ 版本号七处（pkg/lock、`APP_META`、CHANGELOG、README 五处、关于页、宣传页）+ 用例数 2546 全随批。逐字节原文见 `docs/agent-history.md`。 |

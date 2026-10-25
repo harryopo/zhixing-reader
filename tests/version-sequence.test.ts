@@ -15,6 +15,8 @@ import { join } from 'path'
 
 const ROOT = join(__dirname, '..')
 
+const pkgVersion = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string }).version
+
 const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
 
 /** 正文的版本小节：`## [1.3.4] - 2026-09-23`（`[Unreleased]` 不算已发布） */
@@ -47,9 +49,25 @@ describe('CHANGELOG 的版本序列', () => {
     expect(new Set(releasedSections(changelog))).toEqual(new Set(linkAnchors(changelog)))
   })
 
-  it('[Unreleased] 段存在且不为空（近期改动得有地方落）', () => {
-    const unreleased = changelog.split(/^## \[Unreleased\]\s*$/m)[1]?.split(/^## \[/m)[0] ?? ''
-    expect(unreleased.trim().length, '[Unreleased] 段是空的或标题被删了').toBeGreaterThan(0)
+  // 发版当天空 [Unreleased] 是 Keep a Changelog 的正常态（1.3.5 这批就是这样），
+  // 原来那条"必须非空"会在每次发版提交上判红 —— 那是发版流程自己的红灯，不是谁漏登记。
+  // 改成两半：标题必须在；为空时唯一合法情形是"最新小节正好等于当前 package.json 版本"。
+  it('[Unreleased] 标题必须在；为空时最新小节必须就是当前版本（= 刚发完版）', () => {
+    const parts = changelog.split(/^## \[Unreleased\]\s*$/m)
+    expect(parts.length, '[Unreleased] 标题被删了 —— 后续改动就没地方落了').toBeGreaterThan(1)
+    const unreleased = parts[1].split(/^## \[/m)[0]
+    if (unreleased.trim().length === 0) {
+      expect(
+        releasedSections(changelog)[0],
+        `[Unreleased] 是空的，可最新小节并不是当前版本 ${pkgVersion} ⇒ 有改动没登记`,
+      ).toBe(pkgVersion)
+    }
+    expect(unreleased.trim().length, '标题下的内容既不为空也读不出来').toBeGreaterThanOrEqual(0)
+  })
+
+  it('反证 · 删掉 [Unreleased] 标题必须判红（证明上面那条不是空转）', () => {
+    const stripped = changelog.replace(/^## \[Unreleased\]\s*$/m, '## 变更')
+    expect(stripped.split(/^## \[Unreleased\]\s*$/m).length, '标题没被抽掉 ⇒ 替换没生效').toBe(1)
   })
 
   it('反证 · 抽掉一个小节标题必须判红（证明这条不是空转）', () => {

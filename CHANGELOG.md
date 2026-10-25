@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-10-25
+
 ### Added
 
 - **导出的画像语料包现在带上「你已经认可过哪些结论」**：包目录里多出 `verified.json`，列出被判过「对」的结论，并附一条 `id` 可供交回时复用。此前每一批包都只有证据、不含任何判定 —— 第二轮拿到的材料与第一轮一模一样，外部工具不知道哪些结论你已经认可过，于是每次都从零重新推断，你得把同一批结论逐条重新判一遍。现在它读到的是「这批已经认过了」，该做的是补充与修正，而不是重写。`README` 与 `SKILL.md` 里也写明了使用方式：不要重复提已确认的结论；要否定某一条请写新的一条，不要改动已确认那条的正文（导入时它不会被覆盖）
@@ -310,6 +312,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 链接
 
+[1.3.5]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.5
 [1.3.4]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.4
 [1.3.3]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.3
 [1.3.2]: https://github.com/harryopo/zhixing-reader/releases/tag/v1.3.2
@@ -321,4 +324,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-*最后更新：2026-09-23*
+*最后更新：2026-10-25*

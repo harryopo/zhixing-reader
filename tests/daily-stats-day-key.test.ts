@@ -120,8 +120,15 @@ describe('daily_stats 的写入按本地日落键', () => {
 describe('token_usage 按同一把尺归日（窗口键是本地日，SQL 不许按 UTC 日切）', () => {
   beforeEach(async () => {
     await setupTestDatabase()
+    // 夹具写的是北京 10-17 早上 7:00 那一笔，而 `getDailyStats(7)` 的窗口按"今天"往回数 ——
+    // 不钉时钟就等于"只在 10-17 到 10-24 之间绿"（2026-10-25 就是因此变红的，改动无关）。
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(JUST_AFTER_LOCAL_MIDNIGHT))
   })
-  afterEach(() => teardownTestDatabase())
+  afterEach(() => {
+    vi.useRealTimers()
+    teardownTestDatabase()
+  })
 
   /** 造一笔"北京 10-17 早上 7:00"发生的用量：库里那一列存的是 UTC 墙上时钟 */
   async function seedMorningUsage(): Promise<void> {
